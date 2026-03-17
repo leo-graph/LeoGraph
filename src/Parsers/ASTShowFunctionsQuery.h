@@ -3,21 +3,19 @@
 #include <Parsers/ASTQueryWithOutput.h>
 #include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
-class ASTShowFunctionsQuery : public ASTQueryWithOutput
-{
-public:
-    bool case_insensitive_like = false;
-    String like;
+class ASTShowFunctionsQuery : public ASTQueryWithOutput {
+ public:
+  bool case_insensitive_like = false;
+  String like;
 
-    String getID(char) const override { return "ShowFunctions"; }
-    ASTPtr clone() const override;
-    QueryKind getQueryKind() const override { return QueryKind::Show; }
+  String getID(char) const override { return "ShowFunctions"; }
+  ASTPtr clone() const override;
+  QueryKind getQueryKind() const override { return QueryKind::Show; }
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatQueryImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
 
-}
+}  // namespace DB

@@ -8,37 +8,28 @@
 #include <Storages/SelectQueryInfo.h>
 #include <Storages/StorageSnapshot.h>
 
+namespace DB {
 
-namespace DB
-{
+class ReadFromSystemNumbersStep final : public SourceStepWithFilter {
+ public:
+  ReadFromSystemNumbersStep(const Names &column_names_, const SelectQueryInfo &query_info_, const StorageSnapshotPtr &storage_snapshot_,
+                            const ContextPtr &context_, StoragePtr storage_, size_t max_block_size_, size_t num_streams_);
 
-class ReadFromSystemNumbersStep final : public SourceStepWithFilter
-{
-public:
-    ReadFromSystemNumbersStep(
-        const Names & column_names_,
-        const SelectQueryInfo & query_info_,
-        const StorageSnapshotPtr & storage_snapshot_,
-        const ContextPtr & context_,
-        StoragePtr storage_,
-        size_t max_block_size_,
-        size_t num_streams_);
+  String getName() const override { return "ReadFromSystemNumbers"; }
 
-    String getName() const override { return "ReadFromSystemNumbers"; }
+  void initializePipeline(QueryPipelineBuilder &pipeline, const BuildQueryPipelineSettings &) override;
 
-    void initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override;
+  QueryPlanStepPtr clone() const override;
 
-    QueryPlanStepPtr clone() const override;
+ private:
+  Pipe makePipe();
 
-private:
-    Pipe makePipe();
-
-    const Names column_names;
-    StoragePtr storage;
-    ExpressionActionsPtr key_expression;
-    size_t max_block_size;
-    size_t num_streams;
-    std::shared_ptr<const StorageLimitsList> storage_limits;
+  const Names column_names;
+  StoragePtr storage;
+  ExpressionActionsPtr key_expression;
+  size_t max_block_size;
+  size_t num_streams;
+  std::shared_ptr<const StorageLimitsList> storage_limits;
 };
 
-}
+}  // namespace DB

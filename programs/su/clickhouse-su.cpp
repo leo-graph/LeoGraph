@@ -1,1 +1,1 @@
-int mainEntryClickHouseSU(int argc, char ** argv);
+int mainEntryClickHouseSU(int argc, char** argv);

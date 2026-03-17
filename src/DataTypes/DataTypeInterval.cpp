@@ -1,37 +1,39 @@
-#include <DataTypes/DataTypeInterval.h>
-#include <DataTypes/DataTypeFactory.h>
-#include <DataTypes/Serializations/SerializationInterval.h>
 #include <Common/SipHash.h>
+#include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeInterval.h>
+#include <DataTypes/Serializations/SerializationInterval.h>
 
+namespace DB {
 
-namespace DB
-{
-
-SerializationPtr DataTypeInterval::doGetSerialization(const SerializationInfoSettings &) const { return std::make_shared<SerializationInterval>(kind); }
-
-bool DataTypeInterval::equals(const IDataType & rhs) const
-{
-    return typeid(rhs) == typeid(*this) && kind == static_cast<const DataTypeInterval &>(rhs).kind;
+SerializationPtr DataTypeInterval::doGetSerialization(const SerializationInfoSettings &) const {
+  return std::make_shared<SerializationInterval>(kind);
 }
 
-void DataTypeInterval::updateHashImpl(SipHash & hash) const
-{
-    hash.update(static_cast<uint8_t>(IntervalKind::Kind(kind)));
+bool DataTypeInterval::equals(const IDataType &rhs) const {
+  return typeid(rhs) == typeid(*this) && kind == static_cast<const DataTypeInterval &>(rhs).kind;
 }
 
-void registerDataTypeInterval(DataTypeFactory & factory)
-{
-    factory.registerSimpleDataType("IntervalNanosecond", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Nanosecond)); });
-    factory.registerSimpleDataType("IntervalMicrosecond", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Microsecond)); });
-    factory.registerSimpleDataType("IntervalMillisecond", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Millisecond)); });
-    factory.registerSimpleDataType("IntervalSecond", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Second)); });
-    factory.registerSimpleDataType("IntervalMinute", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Minute)); });
-    factory.registerSimpleDataType("IntervalHour", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Hour)); });
-    factory.registerSimpleDataType("IntervalDay", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Day)); });
-    factory.registerSimpleDataType("IntervalWeek", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Week)); });
-    factory.registerSimpleDataType("IntervalMonth", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Month)); });
-    factory.registerSimpleDataType("IntervalQuarter", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Quarter)); });
-    factory.registerSimpleDataType("IntervalYear", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Year)); });
+void DataTypeInterval::updateHashImpl(SipHash &hash) const { hash.update(static_cast<uint8_t>(IntervalKind::Kind(kind))); }
+
+void registerDataTypeInterval(DataTypeFactory &factory) {
+  factory.registerSimpleDataType("IntervalNanosecond",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Nanosecond)); });
+  factory.registerSimpleDataType("IntervalMicrosecond",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Microsecond)); });
+  factory.registerSimpleDataType("IntervalMillisecond",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Millisecond)); });
+  factory.registerSimpleDataType("IntervalSecond",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Second)); });
+  factory.registerSimpleDataType("IntervalMinute",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Minute)); });
+  factory.registerSimpleDataType("IntervalHour", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Hour)); });
+  factory.registerSimpleDataType("IntervalDay", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Day)); });
+  factory.registerSimpleDataType("IntervalWeek", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Week)); });
+  factory.registerSimpleDataType("IntervalMonth",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Month)); });
+  factory.registerSimpleDataType("IntervalQuarter",
+                                 [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Quarter)); });
+  factory.registerSimpleDataType("IntervalYear", [] { return DataTypePtr(std::make_shared<DataTypeInterval>(IntervalKind::Kind::Year)); });
 }
 
-}
+}  // namespace DB

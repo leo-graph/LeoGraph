@@ -1,14 +1,13 @@
 #pragma once
 
 #include <base/types.h>
-#include <optional>
-#include <mutex>
-#include <vector>
 #include <atomic>
 #include <boost/noncopyable.hpp>
+#include <mutex>
+#include <optional>
+#include <vector>
 
-namespace DB
-{
+namespace DB {
 
 class StorageReplicatedMergeTree;
 struct ReplicatedMergeTreeLogEntryData;
@@ -39,44 +38,42 @@ struct ReplicatedMergeTreeLogEntryData;
 /// or not execute merge on any of replicas during execute_merges_on_single_replica_time_threshold interval.
 /// (so it may be a bad idea to set that threshold to high values).
 ///
-class ReplicatedMergeTreeMergeStrategyPicker: public boost::noncopyable
-{
-public:
-    explicit ReplicatedMergeTreeMergeStrategyPicker(StorageReplicatedMergeTree & storage_);
+class ReplicatedMergeTreeMergeStrategyPicker : public boost::noncopyable {
+ public:
+  explicit ReplicatedMergeTreeMergeStrategyPicker(StorageReplicatedMergeTree& storage_);
 
-    /// triggers refreshing the cached state (list of replicas etc.)
-    /// used when we get new merge event from the zookeeper queue ( see queueUpdatingTask() etc )
-    void refreshState();
+  /// triggers refreshing the cached state (list of replicas etc.)
+  /// used when we get new merge event from the zookeeper queue ( see queueUpdatingTask() etc )
+  void refreshState();
 
-    /// return true if execute_merges_on_single_replica_time_threshold feature is active
-    /// and we may need to do a fetch (or postpone) instead of merge
-    bool shouldMergeOnSingleReplica(const ReplicatedMergeTreeLogEntryData & entry) const;
+  /// return true if execute_merges_on_single_replica_time_threshold feature is active
+  /// and we may need to do a fetch (or postpone) instead of merge
+  bool shouldMergeOnSingleReplica(const ReplicatedMergeTreeLogEntryData& entry) const;
 
-    /// returns the replica name
-    /// and it's not current replica should do the merge
-    std::optional<String> pickReplicaToExecuteMerge(const ReplicatedMergeTreeLogEntryData & entry);
+  /// returns the replica name
+  /// and it's not current replica should do the merge
+  std::optional<String> pickReplicaToExecuteMerge(const ReplicatedMergeTreeLogEntryData& entry);
 
-    /// checks (in zookeeper) if the picked replica finished the merge
-    bool isMergeFinishedByReplica(const String & replica, const ReplicatedMergeTreeLogEntryData & entry);
+  /// checks (in zookeeper) if the picked replica finished the merge
+  bool isMergeFinishedByReplica(const String& replica, const ReplicatedMergeTreeLogEntryData& entry);
 
-private:
-    StorageReplicatedMergeTree & storage;
+ private:
+  StorageReplicatedMergeTree& storage;
 
-    /// calculate entry hash based on zookeeper path and new part name
-    /// ATTENTION: it's not a general-purpose hash, it just allows to select replicas consistently
-    uint64_t getEntryHash(const ReplicatedMergeTreeLogEntryData & entry) const;
+  /// calculate entry hash based on zookeeper path and new part name
+  /// ATTENTION: it's not a general-purpose hash, it just allows to select replicas consistently
+  uint64_t getEntryHash(const ReplicatedMergeTreeLogEntryData& entry) const;
 
-    std::atomic<time_t> execute_merges_on_single_replica_time_threshold = 0;
-    std::atomic<time_t> remote_fs_execute_merges_on_single_replica_time_threshold = 0;
-    std::atomic<time_t> last_refresh_time = 0;
+  std::atomic<time_t> execute_merges_on_single_replica_time_threshold = 0;
+  std::atomic<time_t> remote_fs_execute_merges_on_single_replica_time_threshold = 0;
+  std::atomic<time_t> last_refresh_time = 0;
 
-    std::mutex mutex;
+  std::mutex mutex;
 
-    /// those 2 members accessed under the mutex, only when
-    /// execute_merges_on_single_replica_time_threshold enabled
-    int current_replica_index = -1;
-    std::vector<String> active_replicas;
-
+  /// those 2 members accessed under the mutex, only when
+  /// execute_merges_on_single_replica_time_threshold enabled
+  int current_replica_index = -1;
+  std::vector<String> active_replicas;
 };
 
-}
+}  // namespace DB

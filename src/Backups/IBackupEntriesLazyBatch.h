@@ -3,28 +3,26 @@
 #include <Backups/IBackupEntry.h>
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 
 /// Helper class designed to generate multiple backup entries from one source.
-class IBackupEntriesLazyBatch : public std::enable_shared_from_this<IBackupEntriesLazyBatch>
-{
-public:
-    BackupEntries getBackupEntries();
-    virtual ~IBackupEntriesLazyBatch();
+class IBackupEntriesLazyBatch : public std::enable_shared_from_this<IBackupEntriesLazyBatch> {
+ public:
+  BackupEntries getBackupEntries();
+  virtual ~IBackupEntriesLazyBatch();
 
-protected:
-    virtual size_t getSize() const = 0;
-    virtual const String & getName(size_t i) const = 0;
-    virtual BackupEntries generate() = 0;
+ protected:
+  virtual size_t getSize() const = 0;
+  virtual const String& getName(size_t i) const = 0;
+  virtual BackupEntries generate() = 0;
 
-private:
-    void generateIfNecessary();
+ private:
+  void generateIfNecessary();
 
-    class BackupEntryFromBatch;
-    std::mutex mutex;
-    BackupEntries entries;
-    bool generated = false;
+  class BackupEntryFromBatch;
+  std::mutex mutex;
+  BackupEntries entries;
+  bool generated = false;
 };
 
-}
+}  // namespace DB

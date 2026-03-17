@@ -13,57 +13,49 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Util_TimerTaskAdapter_INCLUDED
 #define Util_TimerTaskAdapter_INCLUDED
-
 
 #include "Poco/Util/TimerTask.h"
 #include "Poco/Util/Util.h"
 
+namespace Poco {
+namespace Util {
 
-namespace Poco
+template <class C>
+class TimerTaskAdapter : public TimerTask
+/// This class template simplifies the implementation
+/// of TimerTask objects by allowing a member function
+/// of an object to be called as task.
 {
-namespace Util
-{
+ public:
+  typedef void (C::*Callback)(TimerTask &);
 
+  TimerTaskAdapter(C &object, Callback method)
+      : _pObject(&object),
+        _method(method)
+  /// Creates the TimerTaskAdapter, using the given
+  /// object and its member function as task target.
+  ///
+  /// The member function must accept one argument,
+  /// a reference to a TimerTask object.
+  {}
 
-    template <class C>
-    class TimerTaskAdapter : public TimerTask
-    /// This class template simplifies the implementation
-    /// of TimerTask objects by allowing a member function
-    /// of an object to be called as task.
-    {
-    public:
-        typedef void (C::*Callback)(TimerTask &);
+  void run() { (_pObject->*_method)(*this); }
 
-        TimerTaskAdapter(C & object, Callback method) : _pObject(&object), _method(method)
-        /// Creates the TimerTaskAdapter, using the given
-        /// object and its member function as task target.
-        ///
-        /// The member function must accept one argument,
-        /// a reference to a TimerTask object.
-        {
-        }
+ protected:
+  ~TimerTaskAdapter()
+  /// Destroys the TimerTaskAdapter.
+  {}
 
-        void run() { (_pObject->*_method)(*this); }
+ private:
+  TimerTaskAdapter();
 
-    protected:
-        ~TimerTaskAdapter()
-        /// Destroys the TimerTaskAdapter.
-        {
-        }
+  C *_pObject;
+  Callback _method;
+};
 
-    private:
-        TimerTaskAdapter();
+}  // namespace Util
+}  // namespace Poco
 
-        C * _pObject;
-        Callback _method;
-    };
-
-
-}
-} // namespace Poco::Util
-
-
-#endif // Util_TimerTaskAdapter_INCLUDED
+#endif  // Util_TimerTaskAdapter_INCLUDED

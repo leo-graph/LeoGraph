@@ -4,24 +4,23 @@
 #include <base/scope_guard.h>
 
 #include <Common/Logger.h>
-#include <Common/Scheduler/WorkloadSettings.h>
 #include <Common/Scheduler/IResourceManager.h>
-#include <Common/Scheduler/SchedulerRoot.h>
 #include <Common/Scheduler/Nodes/UnifiedSchedulerNode.h>
+#include <Common/Scheduler/SchedulerRoot.h>
 #include <Common/Scheduler/Workload/IWorkloadEntityStorage.h>
+#include <Common/Scheduler/WorkloadSettings.h>
 
 #include <Parsers/IAST_fwd.h>
 
 #include <boost/core/noncopyable.hpp>
 
 #include <exception>
+#include <future>
 #include <memory>
 #include <mutex>
-#include <future>
 #include <unordered_set>
 
-namespace DB
-{
+namespace DB {
 
 /*
  * Implementation of `IResourceManager` that creates hierarchy of scheduler nodes according to
@@ -116,169 +115,159 @@ namespace DB
  *  - serializes query and scheduler threads on specific node accesses
  *  - resource request processing: enqueueRequest(), dequeueRequest() and finishRequest()
  */
-class WorkloadResourceManager : public IResourceManager
-{
-public:
-    explicit WorkloadResourceManager(IWorkloadEntityStorage & storage_);
-    ~WorkloadResourceManager() override;
-    void updateConfiguration(const Poco::Util::AbstractConfiguration & config) override;
-    bool hasResource(const String & resource_name) const override;
-    ClassifierPtr acquire(const String & workload_name, const ClassifierSettings & settings) override;
-    void forEachNode(VisitorFunc visitor) override;
+class WorkloadResourceManager : public IResourceManager {
+ public:
+  explicit WorkloadResourceManager(IWorkloadEntityStorage &storage_);
+  ~WorkloadResourceManager() override;
+  void updateConfiguration(const Poco::Util::AbstractConfiguration &config) override;
+  bool hasResource(const String &resource_name) const override;
+  ClassifierPtr acquire(const String &workload_name, const ClassifierSettings &settings) override;
+  void forEachNode(VisitorFunc visitor) override;
 
-private:
-    // Forward declarations
-    struct NodeInfo;
-    struct Version;
-    class Resource;
-    struct Workload;
-    class Classifier;
+ private:
+  // Forward declarations
+  struct NodeInfo;
+  struct Version;
+  class Resource;
+  struct Workload;
+  class Classifier;
 
-    friend struct Workload;
+  friend struct Workload;
 
-    using VersionPtr = std::shared_ptr<Version>;
-    using ResourcePtr = std::shared_ptr<Resource>;
-    using WorkloadPtr = std::shared_ptr<Workload>;
+  using VersionPtr = std::shared_ptr<Version>;
+  using ResourcePtr = std::shared_ptr<Resource>;
+  using WorkloadPtr = std::shared_ptr<Workload>;
 
-    /// Helper for parsing workload AST for a specific resource
-    struct NodeInfo
-    {
-        String name; // Workload name
-        String parent; // Name of parent workload
-        WorkloadSettings settings; // Settings specific for a given resource
+  /// Helper for parsing workload AST for a specific resource
+  struct NodeInfo {
+    String name;                // Workload name
+    String parent;              // Name of parent workload
+    WorkloadSettings settings;  // Settings specific for a given resource
 
-        NodeInfo(CostUnit unit, const ASTPtr & ast, const String & resource_name);
-    };
+    NodeInfo(CostUnit unit, const ASTPtr &ast, const String &resource_name);
+  };
 
-    /// Ownership control for scheduler nodes, which could be referenced by raw pointers
-    struct Version
-    {
-        std::vector<SchedulerNodePtr> nodes;
-        VersionPtr newer_version;
-    };
+  /// Ownership control for scheduler nodes, which could be referenced by raw pointers
+  struct Version {
+    std::vector<SchedulerNodePtr> nodes;
+    VersionPtr newer_version;
+  };
 
-    /// Holds a thread and hierarchy of unified scheduler nodes for specific RESOURCE
-    class Resource : public std::enable_shared_from_this<Resource>, boost::noncopyable
-    {
-    public:
-        explicit Resource(const ASTPtr & resource_entity_);
-        ~Resource();
+  /// Holds a thread and hierarchy of unified scheduler nodes for specific RESOURCE
+  class Resource : public std::enable_shared_from_this<Resource>, boost::noncopyable {
+   public:
+    explicit Resource(const ASTPtr &resource_entity_);
+    ~Resource();
 
-        const String & getName() const { return resource_name; }
-        CostUnit getUnit() const { return unit; }
+    const String &getName() const { return resource_name; }
+    CostUnit getUnit() const { return unit; }
 
-        /// Hierarchy management
-        void createNode(const NodeInfo & info);
-        void deleteNode(const NodeInfo & info);
-        void updateNode(const NodeInfo & old_info, const NodeInfo & new_info);
+    /// Hierarchy management
+    void createNode(const NodeInfo &info);
+    void deleteNode(const NodeInfo &info);
+    void updateNode(const NodeInfo &old_info, const NodeInfo &new_info);
 
-        /// Updates resource entity
-        void updateResource(const ASTPtr & new_resource_entity);
+    /// Updates resource entity
+    void updateResource(const ASTPtr &new_resource_entity);
 
-        /// Updates a classifier to contain a reference for specified workload
-        std::future<void> attachClassifier(Classifier & classifier, const String & workload_name);
+    /// Updates a classifier to contain a reference for specified workload
+    std::future<void> attachClassifier(Classifier &classifier, const String &workload_name);
 
-        /// Remove classifier reference. This destroys scheduler nodes in proper scheduler thread
-        std::future<void> detachClassifier(VersionPtr && version);
+    /// Remove classifier reference. This destroys scheduler nodes in proper scheduler thread
+    std::future<void> detachClassifier(VersionPtr &&version);
 
-        /// Introspection
-        void forEachResourceNode(WorkloadResourceManager::VisitorFunc & visitor);
+    /// Introspection
+    void forEachResourceNode(WorkloadResourceManager::VisitorFunc &visitor);
 
-    private:
-        void updateCurrentVersion();
+   private:
+    void updateCurrentVersion();
 
-        template <class Task>
-        void executeInSchedulerThread(Task && task)
-        {
-            std::promise<void> promise;
-            auto future = promise.get_future();
-            scheduler.event_queue->enqueue([&]
-            {
-                try
-                {
-                    task();
-                    promise.set_value();
-                }
-                catch (...)
-                {
-                    promise.set_exception(std::current_exception());
-                }
-            });
-            future.get(); // Blocks until execution is done in the scheduler thread
+    template <class Task>
+    void executeInSchedulerThread(Task &&task) {
+      std::promise<void> promise;
+      auto future = promise.get_future();
+      scheduler.event_queue->enqueue([&] {
+        try {
+          task();
+          promise.set_value();
+        } catch (...) {
+          promise.set_exception(std::current_exception());
         }
+      });
+      future.get();  // Blocks until execution is done in the scheduler thread
+    }
 
-        ASTPtr resource_entity;
-        const String resource_name;
-        const CostUnit unit;
-        SchedulerRoot scheduler;
+    ASTPtr resource_entity;
+    const String resource_name;
+    const CostUnit unit;
+    SchedulerRoot scheduler;
 
-        // TODO(serxa): consider using resource_manager->mutex + scheduler thread for updates and mutex only for reading to avoid slow acquire/release of classifier
-        /// These field should be accessed only by the scheduler thread
-        std::unordered_map<String, UnifiedSchedulerNodePtr> node_for_workload;
-        UnifiedSchedulerNodePtr root_node;
-        VersionPtr current_version;
-    };
+    // TODO(serxa): consider using resource_manager->mutex + scheduler thread for updates and mutex only for reading to avoid slow
+    // acquire/release of classifier
+    /// These field should be accessed only by the scheduler thread
+    std::unordered_map<String, UnifiedSchedulerNodePtr> node_for_workload;
+    UnifiedSchedulerNodePtr root_node;
+    VersionPtr current_version;
+  };
 
-    struct Workload : boost::noncopyable
-    {
-        WorkloadResourceManager * resource_manager;
-        ASTPtr workload_entity;
+  struct Workload : boost::noncopyable {
+    WorkloadResourceManager *resource_manager;
+    ASTPtr workload_entity;
 
-        Workload(WorkloadResourceManager * resource_manager_, const ASTPtr & workload_entity_);
-        ~Workload();
+    Workload(WorkloadResourceManager *resource_manager_, const ASTPtr &workload_entity_);
+    ~Workload();
 
-        void updateWorkload(const ASTPtr & new_entity);
-        String getParent() const;
-    };
+    void updateWorkload(const ASTPtr &new_entity);
+    String getParent() const;
+  };
 
-    class Classifier : public IClassifier
-    {
-    public:
-        explicit Classifier(const ClassifierSettings & settings_);
-        ~Classifier() override;
+  class Classifier : public IClassifier {
+   public:
+    explicit Classifier(const ClassifierSettings &settings_);
+    ~Classifier() override;
 
-        /// Implements IClassifier interface
-        /// NOTE: It is called from query threads (possibly multiple)
-        bool has(const String & resource_name) override;
-        ResourceLink get(const String & resource_name) override;
-        WorkloadSettings getWorkloadSettings(const String & resource_name) const override;
+    /// Implements IClassifier interface
+    /// NOTE: It is called from query threads (possibly multiple)
+    bool has(const String &resource_name) override;
+    ResourceLink get(const String &resource_name) override;
+    WorkloadSettings getWorkloadSettings(const String &resource_name) const override;
 
-        /// Attaches/detaches a specific resource
-        /// NOTE: It is called from scheduler threads (possibly multiple)
-        void attach(const ResourcePtr & resource, const VersionPtr & version, UnifiedSchedulerNode * node);
-        void detach(const ResourcePtr & resource);
+    /// Attaches/detaches a specific resource
+    /// NOTE: It is called from scheduler threads (possibly multiple)
+    void attach(const ResourcePtr &resource, const VersionPtr &version, UnifiedSchedulerNode *node);
+    void detach(const ResourcePtr &resource);
 
-    private:
-        const ClassifierSettings settings;
-        WorkloadResourceManager * resource_manager;
-        mutable std::mutex mutex;
-        struct Attachment
-        {
-            ResourcePtr resource;
-            VersionPtr version;
-            ResourceLink link;
-            WorkloadSettings settings;
-        };
-        std::unordered_map<String, Attachment> attachments; // TSA_GUARDED_BY(mutex);
-    };
-
-    void createOrUpdateWorkload(const String & workload_name, const ASTPtr & ast);
-    void deleteWorkload(const String & workload_name);
-    void createOrUpdateResource(const String & resource_name, const ASTPtr & ast);
-    void deleteResource(const String & resource_name);
-
-    // Topological sorting of workloads
-    void topologicallySortedWorkloadsImpl(Workload * workload, std::unordered_set<Workload *> & visited, std::vector<Workload *> & sorted_workloads);
-    std::vector<Workload *> topologicallySortedWorkloads();
-
-    IWorkloadEntityStorage & storage;
-    scope_guard subscription;
-
+   private:
+    const ClassifierSettings settings;
+    WorkloadResourceManager *resource_manager;
     mutable std::mutex mutex;
-    std::unordered_map<String, WorkloadPtr> workloads; // TSA_GUARDED_BY(mutex);
-    std::unordered_map<String, ResourcePtr> resources; // TSA_GUARDED_BY(mutex);
+    struct Attachment {
+      ResourcePtr resource;
+      VersionPtr version;
+      ResourceLink link;
+      WorkloadSettings settings;
+    };
+    std::unordered_map<String, Attachment> attachments;  // TSA_GUARDED_BY(mutex);
+  };
 
-    LoggerPtr log;
+  void createOrUpdateWorkload(const String &workload_name, const ASTPtr &ast);
+  void deleteWorkload(const String &workload_name);
+  void createOrUpdateResource(const String &resource_name, const ASTPtr &ast);
+  void deleteResource(const String &resource_name);
+
+  // Topological sorting of workloads
+  void topologicallySortedWorkloadsImpl(Workload *workload, std::unordered_set<Workload *> &visited,
+                                        std::vector<Workload *> &sorted_workloads);
+  std::vector<Workload *> topologicallySortedWorkloads();
+
+  IWorkloadEntityStorage &storage;
+  scope_guard subscription;
+
+  mutable std::mutex mutex;
+  std::unordered_map<String, WorkloadPtr> workloads;  // TSA_GUARDED_BY(mutex);
+  std::unordered_map<String, ResourcePtr> resources;  // TSA_GUARDED_BY(mutex);
+
+  LoggerPtr log;
 };
 
-}
+}  // namespace DB

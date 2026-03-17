@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/LexicalHandler.h"
-
 
 namespace Poco {
 namespace XML {
 
+LexicalHandler::~LexicalHandler() {}
 
-LexicalHandler::~LexicalHandler()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

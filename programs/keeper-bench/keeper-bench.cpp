@@ -1,1 +1,1 @@
-extern int mainEntryClickHouseKeeperBench(int argc, char ** argv);
+extern int mainEntryClickHouseKeeperBench(int argc, char** argv);

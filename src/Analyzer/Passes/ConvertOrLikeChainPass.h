@@ -2,19 +2,17 @@
 
 #include <Analyzer/IQueryTreePass.h>
 
-namespace DB
-{
+namespace DB {
 
 /** Replaces all the "or"'s with {i}like to multiMatchAny
  */
-class ConvertOrLikeChainPass final : public IQueryTreePass
-{
-public:
-    String getName() override { return "ConvertOrLikeChain"; }
+class ConvertOrLikeChainPass final : public IQueryTreePass {
+ public:
+  String getName() override { return "ConvertOrLikeChain"; }
 
-    String getDescription() override { return "Replaces all the 'or's with {i}like to multiMatchAny"; }
+  String getDescription() override { return "Replaces all the 'or's with {i}like to multiMatchAny"; }
 
-    void run(QueryTreeNodePtr & query_tree_node, ContextPtr context) override;
+  void run(QueryTreeNodePtr& query_tree_node, ContextPtr context) override;
 };
 
-}
+}  // namespace DB

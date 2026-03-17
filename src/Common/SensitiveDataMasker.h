@@ -1,16 +1,14 @@
 #pragma once
 
+#include <Common/MultiVersion.h>
 #include <memory>
 #include <vector>
-#include <Common/MultiVersion.h>
 
-namespace Poco
-{
-namespace Util
-{
-    class AbstractConfiguration;
+namespace Poco {
+namespace Util {
+class AbstractConfiguration;
 }
-}
+}  // namespace Poco
 
 /// SensitiveDataMasker allows to remove sensitive data from queries using set of regexp-based rules
 
@@ -38,46 +36,40 @@ namespace Util
 ///    and it actually recreates OwnSplitChannel when reconfiguration happen,
 ///    so that makes it's quite tricky. So it a bad candidate for owning masker too.
 
-namespace DB
-{
-class SensitiveDataMasker
-{
-private:
-    class MaskingRule;
-    std::vector<std::unique_ptr<MaskingRule>> all_masking_rules;
-    using MaskerMultiVersion = MultiVersion<SensitiveDataMasker>;
-    static MaskerMultiVersion sensitive_data_masker;
+namespace DB {
+class SensitiveDataMasker {
+ private:
+  class MaskingRule;
+  std::vector<std::unique_ptr<MaskingRule>> all_masking_rules;
+  using MaskerMultiVersion = MultiVersion<SensitiveDataMasker>;
+  static MaskerMultiVersion sensitive_data_masker;
 
-public:
-    SensitiveDataMasker(const Poco::Util::AbstractConfiguration & config, const std::string & config_prefix);
-    ~SensitiveDataMasker();
+ public:
+  SensitiveDataMasker(const Poco::Util::AbstractConfiguration& config, const std::string& config_prefix);
+  ~SensitiveDataMasker();
 
-    /// Returns the number of matched rules.
-    size_t wipeSensitiveData(std::string & data) const;
-    size_t wipeSensitiveDataThrow(std::string & data) const;
+  /// Returns the number of matched rules.
+  size_t wipeSensitiveData(std::string& data) const;
+  size_t wipeSensitiveDataThrow(std::string& data) const;
 
-    /// setInstance is not thread-safe and should be called once in single-thread mode.
-    /// https://github.com/ClickHouse/ClickHouse/pull/6810#discussion_r321183367
-    static void setInstance(std::unique_ptr<SensitiveDataMasker>&& sensitive_data_masker_);
-    static MaskerMultiVersion::Version getInstance();
+  /// setInstance is not thread-safe and should be called once in single-thread mode.
+  /// https://github.com/ClickHouse/ClickHouse/pull/6810#discussion_r321183367
+  static void setInstance(std::unique_ptr<SensitiveDataMasker>&& sensitive_data_masker_);
+  static MaskerMultiVersion::Version getInstance();
 
-    /// Used in tests.
-    void addMaskingRule(
-        const std::string & name,
-        const std::string & regexp_string,
-        const std::string & replacement_string,
-        bool throw_on_match
-    );
+  /// Used in tests.
+  void addMaskingRule(const std::string& name, const std::string& regexp_string, const std::string& replacement_string,
+                      bool throw_on_match);
 
 #ifndef NDEBUG
-    void printStats();
+  void printStats();
 #endif
 
-    size_t rulesCount() const;
+  size_t rulesCount() const;
 };
 
 /// Wipes sensitive data and cuts to a specified maximum length in one function call.
 /// If the maximum length is zero then the function doesn't cut to the maximum length.
 std::string wipeSensitiveDataAndCutToLength(std::string str, size_t max_length, bool wipe_sensitive);
 
-}
+}  // namespace DB

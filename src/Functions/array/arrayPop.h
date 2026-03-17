@@ -1,80 +1,70 @@
 #pragma once
-#include <Functions/IFunction.h>
-#include <Functions/GatherUtils/GatherUtils.h>
-#include <DataTypes/DataTypeArray.h>
 #include <Columns/ColumnArray.h>
 #include <Common/typeid_cast.h>
+#include <DataTypes/DataTypeArray.h>
+#include <Functions/GatherUtils/GatherUtils.h>
+#include <Functions/IFunction.h>
 
+namespace DB {
 
-namespace DB
-{
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+}  // namespace ErrorCodes
 
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-}
+class FunctionArrayPop : public IFunction {
+ public:
+  FunctionArrayPop(bool pop_front_, const char *name_) : pop_front(pop_front_), name(name_) {}
 
+  String getName() const override { return name; }
 
-class FunctionArrayPop : public IFunction
-{
-public:
-    FunctionArrayPop(bool pop_front_, const char * name_) : pop_front(pop_front_), name(name_) {}
+  bool isVariadic() const override { return false; }
+  size_t getNumberOfArguments() const override { return 1; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
 
-    String getName() const override { return name; }
+  DataTypePtr getReturnTypeImpl(const DataTypes &arguments) const override {
+    if (arguments[0]->onlyNull()) return arguments[0];
 
-    bool isVariadic() const override { return false; }
-    size_t getNumberOfArguments() const override { return 1; }
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+    const auto *array_type = typeid_cast<const DataTypeArray *>(arguments[0].get());
+    if (!array_type)
+      throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "First argument for function {} must be an array but it has type {}.",
+                      getName(), arguments[0]->getName());
 
-    DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
-    {
-        if (arguments[0]->onlyNull())
-            return arguments[0];
+    return arguments[0];
+  }
 
-        const auto * array_type = typeid_cast<const DataTypeArray *>(arguments[0].get());
-        if (!array_type)
-            throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                            "First argument for function {} must be an array but it has type {}.",
-                            getName(), arguments[0]->getName());
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &result_type, size_t input_rows_count) const override {
+    const auto &return_type = result_type;
 
-        return arguments[0];
-    }
+    if (return_type->onlyNull()) return return_type->createColumnConstWithDefaultValue(input_rows_count);
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
-    {
-        const auto & return_type = result_type;
+    const auto &array_column = arguments[0].column;
 
-        if (return_type->onlyNull())
-            return return_type->createColumnConstWithDefaultValue(input_rows_count);
+    std::unique_ptr<GatherUtils::IArraySource> source;
 
-        const auto & array_column = arguments[0].column;
+    size_t size = array_column->size();
 
-        std::unique_ptr<GatherUtils::IArraySource> source;
+    if (const auto *argument_column_array = typeid_cast<const ColumnArray *>(array_column.get()))
+      source = GatherUtils::createArraySource(*argument_column_array, false, size);
+    else
+      throw Exception(ErrorCodes::LOGICAL_ERROR, "First arguments for function {} must be array.", getName());
 
-        size_t size = array_column->size();
+    ColumnArray::MutablePtr sink;
 
-        if (const auto * argument_column_array = typeid_cast<const ColumnArray *>(array_column.get()))
-            source = GatherUtils::createArraySource(*argument_column_array, false, size);
-        else
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "First arguments for function {} must be array.", getName());
+    if (pop_front)
+      sink = GatherUtils::sliceFromLeftConstantOffsetUnbounded(*source, 1);
+    else
+      sink = GatherUtils::sliceFromLeftConstantOffsetBounded(*source, 0, -1);
 
-        ColumnArray::MutablePtr sink;
+    return sink;
+  }
 
-        if (pop_front)
-            sink = GatherUtils::sliceFromLeftConstantOffsetUnbounded(*source, 1);
-        else
-            sink = GatherUtils::sliceFromLeftConstantOffsetBounded(*source, 0, -1);
+  bool useDefaultImplementationForConstants() const override { return true; }
+  bool useDefaultImplementationForNulls() const override { return false; }
 
-        return sink;
-    }
-
-    bool useDefaultImplementationForConstants() const override { return true; }
-    bool useDefaultImplementationForNulls() const override { return false; }
-
-private:
-    bool pop_front;
-    const char * name;
+ private:
+  bool pop_front;
+  const char *name;
 };
 
-}
+}  // namespace DB

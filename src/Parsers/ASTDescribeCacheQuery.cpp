@@ -1,22 +1,18 @@
-#include <Parsers/ASTDescribeCacheQuery.h>
 #include <Common/quoteString.h>
+#include <Parsers/ASTDescribeCacheQuery.h>
 
-
-namespace DB
-{
+namespace DB {
 
 String ASTDescribeCacheQuery::getID(char) const { return "DescribeCacheQuery"; }
 
-ASTPtr ASTDescribeCacheQuery::clone() const
-{
-    auto res = make_intrusive<ASTDescribeCacheQuery>(*this);
-    cloneOutputOptions(*res);
-    return res;
+ASTPtr ASTDescribeCacheQuery::clone() const {
+  auto res = make_intrusive<ASTDescribeCacheQuery>(*this);
+  cloneOutputOptions(*res);
+  return res;
 }
 
-void ASTDescribeCacheQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings &, FormatState &, FormatStateStacked) const
-{
-    ostr << "DESCRIBE FILESYSTEM CACHE" << " " << quoteString(cache_name);
+void ASTDescribeCacheQuery::formatQueryImpl(WriteBuffer &ostr, const FormatSettings &, FormatState &, FormatStateStacked) const {
+  ostr << "DESCRIBE FILESYSTEM CACHE" << " " << quoteString(cache_name);
 }
 
-}
+}  // namespace DB

@@ -13,34 +13,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Redis/RedisEventArgs.h"
-
 
 namespace Poco {
 namespace Redis {
 
+RedisEventArgs::RedisEventArgs(RedisType::Ptr pMessage) : _message(pMessage), _exception(0), _stop(false) {}
 
-RedisEventArgs::RedisEventArgs(RedisType::Ptr pMessage):
-	_message(pMessage),
-	_exception(0),
-	_stop(false)
-{
-}
+RedisEventArgs::RedisEventArgs(Exception* pException) : _message(), _exception(pException ? pException->clone() : 0), _stop(false) {}
 
+RedisEventArgs::~RedisEventArgs() { delete _exception; }
 
-RedisEventArgs::RedisEventArgs(Exception* pException):
-	_message(),
-	_exception(pException ? pException->clone() : 0),
-	_stop(false)
-{
-}
-
-
-RedisEventArgs::~RedisEventArgs()
-{
-	delete _exception;
-}
-
-
-} } // namespace Poco::Redis
+}  // namespace Redis
+}  // namespace Poco

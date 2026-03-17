@@ -1,32 +1,26 @@
 #pragma once
+#include <DataTypes/DataTypesNumber.h>
 #include <Processors/Formats/IInputFormat.h>
 #include <Processors/Formats/ISchemaReader.h>
-#include <DataTypes/DataTypesNumber.h>
 
-namespace DB
-{
+namespace DB {
 
-class OneInputFormat final : public IInputFormat
-{
-public:
-    OneInputFormat(SharedHeader header, ReadBuffer & in_);
+class OneInputFormat final : public IInputFormat {
+ public:
+  OneInputFormat(SharedHeader header, ReadBuffer& in_);
 
-    String getName() const override { return "One"; }
+  String getName() const override { return "One"; }
 
-protected:
-    Chunk read() override;
+ protected:
+  Chunk read() override;
 
-private:
-    bool done = false;
+ private:
+  bool done = false;
 };
 
-class OneSchemaReader: public IExternalSchemaReader
-{
-public:
-    NamesAndTypesList readSchema() override
-    {
-        return {{"dummy", std::make_shared<DataTypeUInt8>()}};
-    }
+class OneSchemaReader : public IExternalSchemaReader {
+ public:
+  NamesAndTypesList readSchema() override { return {{"dummy", std::make_shared<DataTypeUInt8>()}}; }
 };
 
-}
+}  // namespace DB

@@ -11,82 +11,36 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/TaskNotification.h"
-
 
 namespace Poco {
 
-
-TaskNotification::TaskNotification(Task* pTask):
-	_pTask(pTask)
-{
-	if (_pTask) _pTask->duplicate();
+TaskNotification::TaskNotification(Task* pTask) : _pTask(pTask) {
+  if (_pTask) _pTask->duplicate();
 }
 
-
-TaskNotification::~TaskNotification()
-{
-	if (_pTask) _pTask->release();
+TaskNotification::~TaskNotification() {
+  if (_pTask) _pTask->release();
 }
 
+TaskStartedNotification::TaskStartedNotification(Task* pTask) : TaskNotification(pTask) {}
 
-TaskStartedNotification::TaskStartedNotification(Task* pTask):
-	TaskNotification(pTask)
-{
-}
+TaskStartedNotification::~TaskStartedNotification() {}
 
-	
-TaskStartedNotification::~TaskStartedNotification()
-{
-}
+TaskCancelledNotification::TaskCancelledNotification(Task* pTask) : TaskNotification(pTask) {}
 
+TaskCancelledNotification::~TaskCancelledNotification() {}
 
-TaskCancelledNotification::TaskCancelledNotification(Task* pTask):
-	TaskNotification(pTask)
-{
-}
+TaskFinishedNotification::TaskFinishedNotification(Task* pTask) : TaskNotification(pTask) {}
 
-	
-TaskCancelledNotification::~TaskCancelledNotification()
-{
-}
+TaskFinishedNotification::~TaskFinishedNotification() {}
 
+TaskFailedNotification::TaskFailedNotification(Task* pTask, const Exception& exc) : TaskNotification(pTask), _pException(exc.clone()) {}
 
-TaskFinishedNotification::TaskFinishedNotification(Task* pTask):
-	TaskNotification(pTask)
-{
-}
+TaskFailedNotification::~TaskFailedNotification() { delete _pException; }
 
-	
-TaskFinishedNotification::~TaskFinishedNotification()
-{
-}
+TaskProgressNotification::TaskProgressNotification(Task* pTask, float progress) : TaskNotification(pTask), _progress(progress) {}
 
+TaskProgressNotification::~TaskProgressNotification() {}
 
-TaskFailedNotification::TaskFailedNotification(Task* pTask, const Exception& exc):
-	TaskNotification(pTask),
-	_pException(exc.clone())
-{
-}
-
-	
-TaskFailedNotification::~TaskFailedNotification()
-{
-	delete _pException;
-}
-
-
-TaskProgressNotification::TaskProgressNotification(Task* pTask, float progress):
-	TaskNotification(pTask),
-	_progress(progress)
-{
-}
-
-	
-TaskProgressNotification::~TaskProgressNotification()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

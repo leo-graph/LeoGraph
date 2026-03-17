@@ -2,12 +2,8 @@
 
 #include <Common/Scheduler/Nodes/SchedulerNodeFactory.h>
 
-namespace DB
-{
+namespace DB {
 
-void registerPriorityPolicy(SchedulerNodeFactory & factory)
-{
-    factory.registerMethod<PriorityPolicy>("priority");
-}
+void registerPriorityPolicy(SchedulerNodeFactory& factory) { factory.registerMethod<PriorityPolicy>("priority"); }
 
-}
+}  // namespace DB

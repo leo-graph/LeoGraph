@@ -3,8 +3,7 @@
 #include <Backups/BackupDataFileNameGeneratorType.h>
 #include <Backups/BackupFileInfo.h>
 
-namespace DB
-{
+namespace DB {
 
 /**
  * Generates a backup data file name based on the specified generator type.
@@ -18,5 +17,5 @@ namespace DB
  *
  * @throws DB::Exception If checksum is zero for `Checksum` type.
  */
-std::string getBackupDataFileName(const BackupFileInfo & file_info, BackupDataFileNameGeneratorType generator, size_t prefix_length);
-}
+std::string getBackupDataFileName(const BackupFileInfo& file_info, BackupDataFileNameGeneratorType generator, size_t prefix_length);
+}  // namespace DB

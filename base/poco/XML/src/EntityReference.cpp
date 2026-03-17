@@ -11,49 +11,23 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/EntityReference.h"
-
 
 namespace Poco {
 namespace XML {
 
+EntityReference::EntityReference(Document* pOwnerDocument, const XMLString& name) : AbstractNode(pOwnerDocument), _name(name) {}
 
-EntityReference::EntityReference(Document* pOwnerDocument, const XMLString& name): 
-	AbstractNode(pOwnerDocument),
-	_name(name)
-{
-}
+EntityReference::EntityReference(Document* pOwnerDocument, const EntityReference& ref)
+    : AbstractNode(pOwnerDocument, ref), _name(ref._name) {}
 
+EntityReference::~EntityReference() {}
 
-EntityReference::EntityReference(Document* pOwnerDocument, const EntityReference& ref): 
-	AbstractNode(pOwnerDocument, ref),
-	_name(ref._name)
-{
-}
+const XMLString& EntityReference::nodeName() const { return _name; }
 
+unsigned short EntityReference::nodeType() const { return Node::ENTITY_REFERENCE_NODE; }
 
-EntityReference::~EntityReference()
-{
-}
+Node* EntityReference::copyNode(bool deep, Document* pOwnerDocument) const { return new EntityReference(pOwnerDocument, *this); }
 
-
-const XMLString& EntityReference::nodeName() const
-{
-	return _name;
-}
-
-
-unsigned short EntityReference::nodeType() const
-{
-	return Node::ENTITY_REFERENCE_NODE;
-}
-
-
-Node* EntityReference::copyNode(bool deep, Document* pOwnerDocument) const
-{
-	return new EntityReference(pOwnerDocument, *this);
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

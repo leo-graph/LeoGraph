@@ -3,36 +3,28 @@
 #include <QueryPipeline/Pipe.h>
 #include <Storages/IStorage.h>
 
-namespace DB
-{
+namespace DB {
 /** Internal temporary storage for table function input(...)
-  */
+ */
 
-class StorageInput final : public IStorage
-{
-    friend class ReadFromInput;
-public:
-    StorageInput(const StorageID & table_id, const ColumnsDescription & columns_);
+class StorageInput final : public IStorage {
+  friend class ReadFromInput;
 
-    String getName() const override { return "Input"; }
+ public:
+  StorageInput(const StorageID& table_id, const ColumnsDescription& columns_);
 
-    /// A table will read from this stream.
-    void setPipe(Pipe pipe_);
+  String getName() const override { return "Input"; }
 
-    void read(
-        QueryPlan & query_plan,
-        const Names & column_names,
-        const StorageSnapshotPtr & storage_snapshot,
-        SelectQueryInfo & query_info,
-        ContextPtr context,
-        QueryProcessingStage::Enum processed_stage,
-        size_t max_block_size,
-        size_t num_streams) override;
+  /// A table will read from this stream.
+  void setPipe(Pipe pipe_);
 
-private:
-    Pipe pipe;
-    bool was_pipe_initialized = false;
-    bool was_pipe_used = false;
-    bool is_input_initialized = false;
+  void read(QueryPlan& query_plan, const Names& column_names, const StorageSnapshotPtr& storage_snapshot, SelectQueryInfo& query_info,
+            ContextPtr context, QueryProcessingStage::Enum processed_stage, size_t max_block_size, size_t num_streams) override;
+
+ private:
+  Pipe pipe;
+  bool was_pipe_initialized = false;
+  bool was_pipe_used = false;
+  bool is_input_initialized = false;
 };
-}
+}  // namespace DB

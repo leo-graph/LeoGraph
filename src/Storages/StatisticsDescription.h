@@ -7,70 +7,68 @@
 
 #include <map>
 
-namespace DB
-{
+namespace DB {
 
-enum class StatisticsType : UInt8
-{
-    TDigest = 0,
-    Uniq = 1,
-    CountMinSketch = 2,
-    MinMax = 3,
+enum class StatisticsType : UInt8 {
+  TDigest = 0,
+  Uniq = 1,
+  CountMinSketch = 2,
+  MinMax = 3,
 
-    Max = 63,
+  Max = 63,
 };
 
-struct SingleStatisticsDescription
-{
-    StatisticsType type;
-    ASTPtr ast;
-    bool is_implicit = false;
+struct SingleStatisticsDescription {
+  StatisticsType type;
+  ASTPtr ast;
+  bool is_implicit = false;
 
-    String getTypeName() const;
+  String getTypeName() const;
 
-    SingleStatisticsDescription() = delete;
-    SingleStatisticsDescription(StatisticsType type_, ASTPtr ast_, bool is_implicit_);
+  SingleStatisticsDescription() = delete;
+  SingleStatisticsDescription(StatisticsType type_, ASTPtr ast_, bool is_implicit_);
 
-    SingleStatisticsDescription(const SingleStatisticsDescription & other) { *this = other; }
-    SingleStatisticsDescription & operator=(const SingleStatisticsDescription & other);
-    SingleStatisticsDescription(SingleStatisticsDescription && other) noexcept { *this = std::move(other); }
-    SingleStatisticsDescription & operator=(SingleStatisticsDescription && other) noexcept;
+  SingleStatisticsDescription(const SingleStatisticsDescription& other) { *this = other; }
+  SingleStatisticsDescription& operator=(const SingleStatisticsDescription& other);
+  SingleStatisticsDescription(SingleStatisticsDescription&& other) noexcept { *this = std::move(other); }
+  SingleStatisticsDescription& operator=(SingleStatisticsDescription&& other) noexcept;
 
-    bool operator==(const SingleStatisticsDescription & other) const;
+  bool operator==(const SingleStatisticsDescription& other) const;
 };
 
 class ColumnsDescription;
 
-struct ColumnStatisticsDescription
-{
-    bool operator==(const ColumnStatisticsDescription & other) const;
+struct ColumnStatisticsDescription {
+  bool operator==(const ColumnStatisticsDescription& other) const;
 
-    bool empty() const;
+  bool empty() const;
 
-    bool hasExplicitStatistics() const;
+  bool hasExplicitStatistics() const;
 
-    bool contains(const String & stat_type) const;
+  bool contains(const String& stat_type) const;
 
-    void merge(const ColumnStatisticsDescription & other, const String & column_name, DataTypePtr column_type, bool if_not_exists);
+  void merge(const ColumnStatisticsDescription& other, const String& column_name, DataTypePtr column_type, bool if_not_exists);
 
-    void assign(const ColumnStatisticsDescription & other);
+  void assign(const ColumnStatisticsDescription& other);
 
-    void clear();
+  void clear();
 
-    ASTPtr getAST() const;
+  ASTPtr getAST() const;
 
-    String getNameForLogs() const;
+  String getNameForLogs() const;
 
-    /// get a vector of <column name, statistics desc> pair
-    static std::vector<std::pair<String, ColumnStatisticsDescription>> fromAST(const ASTPtr & definition_ast, const ColumnsDescription & columns);
-    static ColumnStatisticsDescription fromStatisticsDescriptionAST(const ASTPtr & statistics_desc, const String & column_name, DataTypePtr data_type);
+  /// get a vector of <column name, statistics desc> pair
+  static std::vector<std::pair<String, ColumnStatisticsDescription>> fromAST(const ASTPtr& definition_ast,
+                                                                             const ColumnsDescription& columns);
+  static ColumnStatisticsDescription fromStatisticsDescriptionAST(const ASTPtr& statistics_desc, const String& column_name,
+                                                                  DataTypePtr data_type);
 
-    using StatisticsTypeDescMap = std::map<StatisticsType, SingleStatisticsDescription>;
-    StatisticsTypeDescMap types_to_desc;
-    DataTypePtr data_type;
+  using StatisticsTypeDescMap = std::map<StatisticsType, SingleStatisticsDescription>;
+  StatisticsTypeDescMap types_to_desc;
+  DataTypePtr data_type;
 };
 
 StatisticsType stringToStatisticsType(String type);
 String statisticsTypeToString(StatisticsType type);
 
-}
+}  // namespace DB

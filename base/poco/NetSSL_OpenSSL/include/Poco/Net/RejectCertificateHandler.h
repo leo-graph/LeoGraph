@@ -13,39 +13,31 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_RejectCertificateHandler_INCLUDED
 #define NetSSL_RejectCertificateHandler_INCLUDED
-
 
 #include "Poco/Net/InvalidCertificateHandler.h"
 #include "Poco/Net/NetSSL.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class NetSSL_API RejectCertificateHandler : public InvalidCertificateHandler
+/// A RejectCertificateHandler is invoked whenever an error
+/// occurs verifying the certificate. It always rejects
+/// the certificate.
 {
-namespace Net
-{
+ public:
+  RejectCertificateHandler(bool handleErrorsOnServerSide);
+  /// Creates the RejectCertificateHandler
 
+  virtual ~RejectCertificateHandler();
+  /// Destroys the RejectCertificateHandler.
 
-    class NetSSL_API RejectCertificateHandler : public InvalidCertificateHandler
-    /// A RejectCertificateHandler is invoked whenever an error
-    /// occurs verifying the certificate. It always rejects
-    /// the certificate.
-    {
-    public:
-        RejectCertificateHandler(bool handleErrorsOnServerSide);
-        /// Creates the RejectCertificateHandler
+  void onInvalidCertificate(const void* pSender, VerificationErrorArgs& errorCert);
+};
 
-        virtual ~RejectCertificateHandler();
-        /// Destroys the RejectCertificateHandler.
+}  // namespace Net
+}  // namespace Poco
 
-        void onInvalidCertificate(const void * pSender, VerificationErrorArgs & errorCert);
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // NetSSL_RejectCertificateHandler_INCLUDED
+#endif  // NetSSL_RejectCertificateHandler_INCLUDED

@@ -1,11 +1,9 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
-enum class MsgPackExtensionTypes : uint8_t
-{
-    UUIDType = 0x02,
+enum class MsgPackExtensionTypes : uint8_t {
+  UUIDType = 0x02,
 };
 
 }

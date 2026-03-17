@@ -2,92 +2,81 @@
 #include "config.h"
 
 #if USE_DELTA_KERNEL_RS
-#include <Columns/IColumn.h>
-#include <Common/HashTable/HashMap.h>
-#include <Common/Arena.h>
-#include <Common/PODArray.h>
-#include <absl/container/flat_hash_map.h>
-#include <Processors/Sinks/SinkToStorage.h>
-#include <Storages/ObjectStorage/IObjectIterator.h>
-#include <Storages/ObjectStorage/StorageObjectStorageSink.h>
-#include <Storages/IPartitionStrategy.h>
+#  include <absl/container/flat_hash_map.h>
+#  include <Columns/IColumn.h>
+#  include <Common/Arena.h>
+#  include <Common/HashTable/HashMap.h>
+#  include <Common/PODArray.h>
+#  include <Processors/Sinks/SinkToStorage.h>
+#  include <Storages/IPartitionStrategy.h>
+#  include <Storages/ObjectStorage/IObjectIterator.h>
+#  include <Storages/ObjectStorage/StorageObjectStorageSink.h>
 
-
-namespace DeltaLake
-{
+namespace DeltaLake {
 class WriteTransaction;
 using WriteTransactionPtr = std::shared_ptr<WriteTransaction>;
-}
+}  // namespace DeltaLake
 
-namespace DB
-{
+namespace DB {
 class DeltaLakeMetadataDeltaKernel;
 
 /**
  * Sink to write partitioned data to DeltaLake.
  * Writes a N data files, a file per partition key, and commits them to DeltaLake metadata.
  */
-class DeltaLakePartitionedSink : public SinkToStorage, private WithContext
-{
-public:
-    DeltaLakePartitionedSink(
-        DeltaLake::WriteTransactionPtr delta_transaction_,
-        const Names & partition_columns_,
-        ObjectStoragePtr object_storage_,
-        ContextPtr context_,
-        SharedHeader sample_block_,
-        const std::optional<FormatSettings> & format_settings_,
-        const String & write_format_,
-        const String & write_compression_method_);
+class DeltaLakePartitionedSink : public SinkToStorage, private WithContext {
+ public:
+  DeltaLakePartitionedSink(DeltaLake::WriteTransactionPtr delta_transaction_, const Names& partition_columns_,
+                           ObjectStoragePtr object_storage_, ContextPtr context_, SharedHeader sample_block_,
+                           const std::optional<FormatSettings>& format_settings_, const String& write_format_,
+                           const String& write_compression_method_);
 
-    ~DeltaLakePartitionedSink() override = default;
+  ~DeltaLakePartitionedSink() override = default;
 
-    String getName() const override { return "DeltaLakePartitionedSink"; }
+  String getName() const override { return "DeltaLakePartitionedSink"; }
 
-    void consume(Chunk & chunk) override;
+  void consume(Chunk& chunk) override;
 
-    void onFinish() override;
+  void onFinish() override;
 
-private:
-    using StorageSinkPtr = std::unique_ptr<StorageObjectStorageSink>;
+ private:
+  using StorageSinkPtr = std::unique_ptr<StorageObjectStorageSink>;
 
-    struct DataFileInfo
-    {
-        explicit DataFileInfo(StorageSinkPtr sink_) : sink(std::move(sink_)) {}
+  struct DataFileInfo {
+    explicit DataFileInfo(StorageSinkPtr sink_) : sink(std::move(sink_)) {}
 
-        StorageSinkPtr sink;
-        size_t written_bytes = 0;
-        size_t written_rows = 0;
-    };
-    struct PartitionInfo
-    {
-        explicit PartitionInfo(std::string_view partition_key_) : partition_key(partition_key_) {}
+    StorageSinkPtr sink;
+    size_t written_bytes = 0;
+    size_t written_rows = 0;
+  };
+  struct PartitionInfo {
+    explicit PartitionInfo(std::string_view partition_key_) : partition_key(partition_key_) {}
 
-        const std::string_view partition_key;
-        std::vector<DataFileInfo> data_files;
-    };
-    using PartitionInfoPtr = std::shared_ptr<PartitionInfo>;
+    const std::string_view partition_key;
+    std::vector<DataFileInfo> data_files;
+  };
+  using PartitionInfoPtr = std::shared_ptr<PartitionInfo>;
 
-    const LoggerPtr log;
-    const Names partition_columns;
-    const ObjectStoragePtr object_storage;
-    const std::optional<FormatSettings> format_settings;
-    const size_t data_file_max_rows;
-    const size_t data_file_max_bytes;
-    const std::unique_ptr<IPartitionStrategy> partition_strategy;
-    const DeltaLake::WriteTransactionPtr delta_transaction;
-    const String write_format;
-    const String write_compression_method;
+  const LoggerPtr log;
+  const Names partition_columns;
+  const ObjectStoragePtr object_storage;
+  const std::optional<FormatSettings> format_settings;
+  const size_t data_file_max_rows;
+  const size_t data_file_max_bytes;
+  const std::unique_ptr<IPartitionStrategy> partition_strategy;
+  const DeltaLake::WriteTransactionPtr delta_transaction;
+  const String write_format;
+  const String write_compression_method;
 
-    absl::flat_hash_map<std::string_view, PartitionInfoPtr> partitions_data;
-    size_t total_data_files_count = 0;
-    IColumn::Selector chunk_row_index_to_partition_index;
-    Arena partition_keys_arena;
+  absl::flat_hash_map<std::string_view, PartitionInfoPtr> partitions_data;
+  size_t total_data_files_count = 0;
+  IColumn::Selector chunk_row_index_to_partition_index;
+  Arena partition_keys_arena;
 
-    StorageSinkPtr createSinkForPartition(std::string_view partition_key);
-    PartitionInfoPtr getPartitionDataForPartitionKey(std::string_view partition_key);
+  StorageSinkPtr createSinkForPartition(std::string_view partition_key);
+  PartitionInfoPtr getPartitionDataForPartitionKey(std::string_view partition_key);
 };
 
-}
+}  // namespace DB
 
 #endif

@@ -4,15 +4,11 @@
 #include <DataTypes/Serializations/SerializationVariantElement.h>
 #include <DataTypes/Serializations/SerializationVariantElementNullMap.h>
 
-namespace DB
-{
+namespace DB {
 
-
-namespace ErrorCodes
-{
-    extern const int INCORRECT_DATA;
+namespace ErrorCodes {
+extern const int INCORRECT_DATA;
 }
-
 
 /// Class for serializing/deserializing column with Variant type.
 /// It supports both text and binary bulk serializations/deserializations.
@@ -48,181 +44,147 @@ namespace ErrorCodes
 /// and use them to calculate the limit for each variant. Each variant is deserialized from
 /// corresponding stream using calculated limit. Offsets column is not deserialized and constructed
 /// according to discriminators.
-class SerializationVariant : public ISerialization
-{
-public:
-    struct DiscriminatorsSerializationMode
-    {
-        enum Value
-        {
-            BASIC = 0,    /// Store the whole discriminators column.
-            COMPACT = 1,  /// Don't write discriminators in granule if all of them are the same.
-        };
-
-        static void checkMode(UInt64 mode)
-        {
-            if (mode > Value::COMPACT)
-                throw Exception(ErrorCodes::INCORRECT_DATA, "Invalid version for SerializationVariant discriminators column.");
-        }
-
-        explicit DiscriminatorsSerializationMode(UInt64 mode) : value(static_cast<Value>(mode)) { checkMode(mode); }
-
-        Value value;
+class SerializationVariant : public ISerialization {
+ public:
+  struct DiscriminatorsSerializationMode {
+    enum Value {
+      BASIC = 0,    /// Store the whole discriminators column.
+      COMPACT = 1,  /// Don't write discriminators in granule if all of them are the same.
     };
 
-    using VariantSerializations = std::vector<SerializationPtr>;
+    static void checkMode(UInt64 mode) {
+      if (mode > Value::COMPACT)
+        throw Exception(ErrorCodes::INCORRECT_DATA, "Invalid version for SerializationVariant discriminators column.");
+    }
 
-    explicit SerializationVariant(const DataTypes & variant_types_, const VariantSerializations & variant_serializations_, const Names & variant_names_, const String & variant_name_);
+    explicit DiscriminatorsSerializationMode(UInt64 mode) : value(static_cast<Value>(mode)) { checkMode(mode); }
 
-    void enumerateStreams(
-        EnumerateStreamsSettings & settings,
-        const StreamCallback & callback,
-        const SubstreamData & data) const override;
+    Value value;
+  };
 
-    void serializeBinaryBulkStatePrefix(
-        const IColumn & column,
-        SerializeBinaryBulkSettings & settings,
-        SerializeBinaryBulkStatePtr & state) const override;
+  using VariantSerializations = std::vector<SerializationPtr>;
 
-    void serializeBinaryBulkStateSuffix(
-        SerializeBinaryBulkSettings & settings,
-        SerializeBinaryBulkStatePtr & state) const override;
+  explicit SerializationVariant(const DataTypes &variant_types_, const VariantSerializations &variant_serializations_,
+                                const Names &variant_names_, const String &variant_name_);
 
-    void deserializeBinaryBulkStatePrefix(
-        DeserializeBinaryBulkSettings & settings,
-        DeserializeBinaryBulkStatePtr & state,
-        SubstreamsDeserializeStatesCache * cache) const override;
+  void enumerateStreams(EnumerateStreamsSettings &settings, const StreamCallback &callback, const SubstreamData &data) const override;
 
-    void serializeBinaryBulkWithMultipleStreams(
-        const IColumn & column,
-        size_t offset,
-        size_t limit,
-        SerializeBinaryBulkSettings & settings,
-        SerializeBinaryBulkStatePtr & state) const override;
+  void serializeBinaryBulkStatePrefix(const IColumn &column, SerializeBinaryBulkSettings &settings,
+                                      SerializeBinaryBulkStatePtr &state) const override;
 
-    void serializeBinaryBulkWithMultipleStreamsAndUpdateVariantStatistics(
-        const IColumn & column,
-        size_t offset,
-        size_t limit,
-        SerializeBinaryBulkSettings & settings,
-        SerializeBinaryBulkStatePtr & state,
-        std::unordered_map<String, size_t> & variants_statistics,
-        size_t & total_size_of_variants) const;
+  void serializeBinaryBulkStateSuffix(SerializeBinaryBulkSettings &settings, SerializeBinaryBulkStatePtr &state) const override;
 
-    void deserializeBinaryBulkWithMultipleStreams(
-        ColumnPtr & column,
-        size_t rows_offset,
-        size_t limit,
-        DeserializeBinaryBulkSettings & settings,
-        DeserializeBinaryBulkStatePtr & state,
-        SubstreamsCache * cache) const override;
+  void deserializeBinaryBulkStatePrefix(DeserializeBinaryBulkSettings &settings, DeserializeBinaryBulkStatePtr &state,
+                                        SubstreamsDeserializeStatesCache *cache) const override;
 
-    void serializeBinary(const Field & field, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeBinary(Field & field, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeBinaryBulkWithMultipleStreams(const IColumn &column, size_t offset, size_t limit, SerializeBinaryBulkSettings &settings,
+                                              SerializeBinaryBulkStatePtr &state) const override;
 
-    void serializeBinary(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeBinary(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeBinaryBulkWithMultipleStreamsAndUpdateVariantStatistics(const IColumn &column, size_t offset, size_t limit,
+                                                                        SerializeBinaryBulkSettings &settings,
+                                                                        SerializeBinaryBulkStatePtr &state,
+                                                                        std::unordered_map<String, size_t> &variants_statistics,
+                                                                        size_t &total_size_of_variants) const;
 
-    void serializeForHashCalculation(const IColumn & column, size_t row_num, WriteBuffer & ostr) const override;
+  void deserializeBinaryBulkWithMultipleStreams(ColumnPtr &column, size_t rows_offset, size_t limit,
+                                                DeserializeBinaryBulkSettings &settings, DeserializeBinaryBulkStatePtr &state,
+                                                SubstreamsCache *cache) const override;
 
-    void serializeTextEscaped(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeTextEscaped(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
-    bool tryDeserializeTextEscaped(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeBinary(const Field &field, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeBinary(Field &field, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    void serializeTextQuoted(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeTextQuoted(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
-    bool tryDeserializeTextQuoted(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeBinary(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeBinary(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    void serializeText(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeWholeText(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
-    bool tryDeserializeWholeText(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeForHashCalculation(const IColumn &column, size_t row_num, WriteBuffer &ostr) const override;
 
-    void serializeTextCSV(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeTextCSV(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
-    bool tryDeserializeTextCSV(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeTextEscaped(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeTextEscaped(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
+  bool tryDeserializeTextEscaped(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    void serializeTextJSON(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void serializeTextJSONPretty(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings, size_t indent) const override;
-    void deserializeTextJSON(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
-    bool tryDeserializeTextJSON(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeTextQuoted(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeTextQuoted(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
+  bool tryDeserializeTextQuoted(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    void serializeTextRaw(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
-    void deserializeTextRaw(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
-    bool tryDeserializeTextRaw(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const override;
+  void serializeText(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeWholeText(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
+  bool tryDeserializeWholeText(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    void serializeTextXML(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const override;
+  void serializeTextCSV(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeTextCSV(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
+  bool tryDeserializeTextCSV(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    /// Determine the order in which we should try to deserialize variants.
-    /// In some cases the text representation of a value can be deserialized
-    /// into several types (for example, almost all text values can be deserialized
-    /// into String type), so we uses some heuristics to determine the more optimal order.
-    static std::vector<size_t> getVariantsDeserializeTextOrder(const DataTypes & variant_types);
+  void serializeTextJSON(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void serializeTextJSONPretty(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings,
+                               size_t indent) const override;
+  void deserializeTextJSON(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
+  bool tryDeserializeTextJSON(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-private:
-    friend SerializationVariantElement;
-    friend SerializationVariantElementNullMap;
+  void serializeTextRaw(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
+  void deserializeTextRaw(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
+  bool tryDeserializeTextRaw(IColumn &column, ReadBuffer &istr, const FormatSettings &settings) const override;
 
-    void addVariantElementToPath(SubstreamPath & path, size_t i) const;
+  void serializeTextXML(const IColumn &column, size_t row_num, WriteBuffer &ostr, const FormatSettings &settings) const override;
 
-    enum CompactDiscriminatorsGranuleFormat
-    {
-        PLAIN = 0,   /// Granule has different discriminators and they are serialized as is row by row.
-        COMPACT = 1, /// Granule has single discriminator for all rows and it is serialized as single value.
-    };
+  /// Determine the order in which we should try to deserialize variants.
+  /// In some cases the text representation of a value can be deserialized
+  /// into several types (for example, almost all text values can be deserialized
+  /// into String type), so we uses some heuristics to determine the more optimal order.
+  static std::vector<size_t> getVariantsDeserializeTextOrder(const DataTypes &variant_types);
 
-    struct DeserializeBinaryBulkStateVariantDiscriminators : public ISerialization::DeserializeBinaryBulkState
-    {
-        explicit DeserializeBinaryBulkStateVariantDiscriminators(UInt64 mode_) : mode(mode_)
-        {
-        }
+ private:
+  friend SerializationVariantElement;
+  friend SerializationVariantElementNullMap;
 
-        DiscriminatorsSerializationMode mode;
+  void addVariantElementToPath(SubstreamPath &path, size_t i) const;
 
-        /// Deserialize state of currently read granule in compact mode.
-        CompactDiscriminatorsGranuleFormat granule_format = CompactDiscriminatorsGranuleFormat::PLAIN;
-        size_t remaining_rows_in_granule = 0;
-        ColumnVariant::Discriminator compact_discr = 0;
+  enum CompactDiscriminatorsGranuleFormat {
+    PLAIN = 0,    /// Granule has different discriminators and they are serialized as is row by row.
+    COMPACT = 1,  /// Granule has single discriminator for all rows and it is serialized as single value.
+  };
 
-        ISerialization::DeserializeBinaryBulkStatePtr clone() const override
-        {
-            return std::make_shared<DeserializeBinaryBulkStateVariantDiscriminators>(*this);
-        }
-    };
+  struct DeserializeBinaryBulkStateVariantDiscriminators : public ISerialization::DeserializeBinaryBulkState {
+    explicit DeserializeBinaryBulkStateVariantDiscriminators(UInt64 mode_) : mode(mode_) {}
 
-    static DeserializeBinaryBulkStatePtr deserializeDiscriminatorsStatePrefix(
-        DeserializeBinaryBulkSettings & settings,
-        SubstreamsDeserializeStatesCache * cache);
+    DiscriminatorsSerializationMode mode;
 
-    std::pair<std::vector<size_t>, std::vector<size_t>> deserializeCompactDiscriminators(
-        ColumnPtr & discriminators_column,
-        size_t rows_offset,
-        size_t limit,
-        ReadBuffer * stream,
-        bool continuous_reading,
-        DeserializeBinaryBulkStateVariantDiscriminators & state) const;
+    /// Deserialize state of currently read granule in compact mode.
+    CompactDiscriminatorsGranuleFormat granule_format = CompactDiscriminatorsGranuleFormat::PLAIN;
+    size_t remaining_rows_in_granule = 0;
+    ColumnVariant::Discriminator compact_discr = 0;
 
-    static void readDiscriminatorsGranuleStart(DeserializeBinaryBulkStateVariantDiscriminators & state, ReadBuffer * stream);
+    ISerialization::DeserializeBinaryBulkStatePtr clone() const override {
+      return std::make_shared<DeserializeBinaryBulkStateVariantDiscriminators>(*this);
+    }
+  };
 
-    bool tryDeserializeTextEscapedImpl(IColumn & column, const String & field, const FormatSettings & settings) const;
-    bool tryDeserializeTextQuotedImpl(IColumn & column, const String & field, const FormatSettings & settings) const;
-    bool tryDeserializeWholeTextImpl(IColumn & column, const String & field, const FormatSettings & settings) const;
-    bool tryDeserializeTextCSVImpl(IColumn & column, const String & field, const FormatSettings & settings) const;
-    bool tryDeserializeTextJSONImpl(IColumn & column, const String & field, const FormatSettings & settings) const;
-    bool tryDeserializeTextRawImpl(IColumn & column, const String & field, const FormatSettings & settings) const;
+  static DeserializeBinaryBulkStatePtr deserializeDiscriminatorsStatePrefix(DeserializeBinaryBulkSettings &settings,
+                                                                            SubstreamsDeserializeStatesCache *cache);
 
-    bool tryDeserializeImpl(
-        IColumn & column,
-        const String & field,
-        std::function<bool(ReadBuffer &)> check_for_null,
-        std::function<bool(IColumn & variant_columm, const SerializationPtr & nested, ReadBuffer &, const FormatSettings &)> try_deserialize_nested,
-        const FormatSettings & settings) const;
+  std::pair<std::vector<size_t>, std::vector<size_t>> deserializeCompactDiscriminators(
+      ColumnPtr &discriminators_column, size_t rows_offset, size_t limit, ReadBuffer *stream, bool continuous_reading,
+      DeserializeBinaryBulkStateVariantDiscriminators &state) const;
 
-    DataTypes variant_types;
-    VariantSerializations variant_serializations;
-    std::vector<String> variant_names;
-    std::vector<size_t> deserialize_text_order;
-    /// Name of Variant data type for better exception messages.
-    String variant_name;
+  static void readDiscriminatorsGranuleStart(DeserializeBinaryBulkStateVariantDiscriminators &state, ReadBuffer *stream);
+
+  bool tryDeserializeTextEscapedImpl(IColumn &column, const String &field, const FormatSettings &settings) const;
+  bool tryDeserializeTextQuotedImpl(IColumn &column, const String &field, const FormatSettings &settings) const;
+  bool tryDeserializeWholeTextImpl(IColumn &column, const String &field, const FormatSettings &settings) const;
+  bool tryDeserializeTextCSVImpl(IColumn &column, const String &field, const FormatSettings &settings) const;
+  bool tryDeserializeTextJSONImpl(IColumn &column, const String &field, const FormatSettings &settings) const;
+  bool tryDeserializeTextRawImpl(IColumn &column, const String &field, const FormatSettings &settings) const;
+
+  bool tryDeserializeImpl(IColumn &column, const String &field, std::function<bool(ReadBuffer &)> check_for_null,
+                          std::function<bool(IColumn &variant_columm, const SerializationPtr &nested, ReadBuffer &, const FormatSettings &)>
+                              try_deserialize_nested,
+                          const FormatSettings &settings) const;
+
+  DataTypes variant_types;
+  VariantSerializations variant_serializations;
+  std::vector<String> variant_names;
+  std::vector<size_t> deserialize_text_order;
+  /// Name of Variant data type for better exception messages.
+  String variant_name;
 };
 
-}
+}  // namespace DB

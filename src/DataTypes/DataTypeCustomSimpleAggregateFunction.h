@@ -6,8 +6,7 @@
 
 #include <IO/ReadHelpers.h>
 
-namespace DB
-{
+namespace DB {
 
 class IDataType;
 using DataTypePtr = std::shared_ptr<const IDataType>;
@@ -26,27 +25,27 @@ using DataTypes = std::vector<DataTypePtr>;
  * SimpleAggregateFunction(anyLast, IPv4)
  *
  * Technically, a standard IDataType is instantiated and customized with IDataTypeCustomName and DataTypeCustomDesc.
-  */
+ */
 
-class DataTypeCustomSimpleAggregateFunction : public IDataTypeCustomName
-{
-private:
-    const AggregateFunctionPtr function;
-    const DataTypes argument_types;
-    const Array parameters;
+class DataTypeCustomSimpleAggregateFunction : public IDataTypeCustomName {
+ private:
+  const AggregateFunctionPtr function;
+  const DataTypes argument_types;
+  const Array parameters;
 
-public:
-    DataTypeCustomSimpleAggregateFunction(const AggregateFunctionPtr & function_, const DataTypes & argument_types_, const Array & parameters_)
-            : function(function_), argument_types(argument_types_), parameters(parameters_) {}
+ public:
+  DataTypeCustomSimpleAggregateFunction(const AggregateFunctionPtr& function_, const DataTypes& argument_types_, const Array& parameters_)
+      : function(function_), argument_types(argument_types_), parameters(parameters_) {}
 
-    AggregateFunctionPtr getFunction() const { return function; }
-    String getFunctionName() const;
-    const DataTypes & getArgumentsDataTypes() const { return argument_types; }
-    const Array & getParameters() const { return parameters; }
-    String getName() const override;
-    static void checkSupportedFunctions(const AggregateFunctionPtr & function);
+  AggregateFunctionPtr getFunction() const { return function; }
+  String getFunctionName() const;
+  const DataTypes& getArgumentsDataTypes() const { return argument_types; }
+  const Array& getParameters() const { return parameters; }
+  String getName() const override;
+  static void checkSupportedFunctions(const AggregateFunctionPtr& function);
 };
 
-DataTypePtr createSimpleAggregateFunctionType(const AggregateFunctionPtr & function, const DataTypes & argument_types, const Array & parameters);
+DataTypePtr createSimpleAggregateFunctionType(const AggregateFunctionPtr& function, const DataTypes& argument_types,
+                                              const Array& parameters);
 
-}
+}  // namespace DB

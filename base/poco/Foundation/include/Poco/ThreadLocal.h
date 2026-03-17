@@ -13,28 +13,22 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ThreadLocal_INCLUDED
 #define Foundation_ThreadLocal_INCLUDED
-
 
 #include <map>
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API TLSAbstractSlot
 /// This is the base class for all objects
 /// that the ThreadLocalStorage class manages.
 {
-public:
-    TLSAbstractSlot();
-    virtual ~TLSAbstractSlot();
+ public:
+  TLSAbstractSlot();
+  virtual ~TLSAbstractSlot();
 };
-
 
 template <class C>
 class TLSSlot : public TLSAbstractSlot
@@ -43,52 +37,50 @@ class TLSSlot : public TLSAbstractSlot
 /// object. This class is used internally, and you
 /// must not create instances of it yourself.
 {
-public:
-    TLSSlot() : _value() { }
+ public:
+  TLSSlot() : _value() {}
 
-    ~TLSSlot() { }
+  ~TLSSlot() {}
 
-    C & value() { return _value; }
+  C &value() { return _value; }
 
-private:
-    TLSSlot(const TLSSlot &);
-    TLSSlot & operator=(const TLSSlot &);
+ private:
+  TLSSlot(const TLSSlot &);
+  TLSSlot &operator=(const TLSSlot &);
 
-    C _value;
+  C _value;
 };
-
 
 class Foundation_API ThreadLocalStorage
 /// This class manages the local storage for each thread.
 /// Never use this class directly, always use the
 /// ThreadLocal template for managing thread local storage.
 {
-public:
-    ThreadLocalStorage();
-    /// Creates the TLS.
+ public:
+  ThreadLocalStorage();
+  /// Creates the TLS.
 
-    ~ThreadLocalStorage();
-    /// Deletes the TLS.
+  ~ThreadLocalStorage();
+  /// Deletes the TLS.
 
-    TLSAbstractSlot *& get(const void * key);
-    /// Returns the slot for the given key.
+  TLSAbstractSlot *&get(const void *key);
+  /// Returns the slot for the given key.
 
-    static ThreadLocalStorage & current();
-    /// Returns the TLS object for the current thread
-    /// (which may also be the main thread).
+  static ThreadLocalStorage &current();
+  /// Returns the TLS object for the current thread
+  /// (which may also be the main thread).
 
-    static void clear();
-    /// Clears the current thread's TLS object.
-    /// Does nothing in the main thread.
+  static void clear();
+  /// Clears the current thread's TLS object.
+  /// Does nothing in the main thread.
 
-private:
-    typedef std::map<const void *, TLSAbstractSlot *> TLSMap;
+ private:
+  typedef std::map<const void *, TLSAbstractSlot *> TLSMap;
 
-    TLSMap _map;
+  TLSMap _map;
 
-    friend class Thread;
+  friend class Thread;
 };
-
 
 template <class C>
 class ThreadLocal
@@ -105,40 +97,37 @@ class ThreadLocal
 /// thread local data. There is no way for a thread
 /// to access another thread's local data.
 {
-    typedef TLSSlot<C> Slot;
+  typedef TLSSlot<C> Slot;
 
-public:
-    ThreadLocal() { }
+ public:
+  ThreadLocal() {}
 
-    ~ThreadLocal() { }
+  ~ThreadLocal() {}
 
-    C * operator->() { return &get(); }
+  C *operator->() { return &get(); }
 
-    C & operator*()
-    /// "Dereferences" the smart pointer and returns a reference
-    /// to the underlying data object. The reference can be used
-    /// to modify the object.
-    {
-        return get();
-    }
+  C &operator*()
+  /// "Dereferences" the smart pointer and returns a reference
+  /// to the underlying data object. The reference can be used
+  /// to modify the object.
+  {
+    return get();
+  }
 
-    C & get()
-    /// Returns a reference to the underlying data object.
-    /// The reference can be used to modify the object.
-    {
-        TLSAbstractSlot *& p = ThreadLocalStorage::current().get(this);
-        if (!p)
-            p = new Slot;
-        return static_cast<Slot *>(p)->value();
-    }
+  C &get()
+  /// Returns a reference to the underlying data object.
+  /// The reference can be used to modify the object.
+  {
+    TLSAbstractSlot *&p = ThreadLocalStorage::current().get(this);
+    if (!p) p = new Slot;
+    return static_cast<Slot *>(p)->value();
+  }
 
-private:
-    ThreadLocal(const ThreadLocal &);
-    ThreadLocal & operator=(const ThreadLocal &);
+ private:
+  ThreadLocal(const ThreadLocal &);
+  ThreadLocal &operator=(const ThreadLocal &);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ThreadLocal_INCLUDED
+#endif  // Foundation_ThreadLocal_INCLUDED

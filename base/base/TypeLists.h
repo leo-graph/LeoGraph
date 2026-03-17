@@ -1,12 +1,11 @@
 #pragma once
 
-#include "TypeList.h"
-#include "extended_types.h"
 #include "Decimal.h"
+#include "extended_types.h"
+#include "TypeList.h"
 #include "UUID.h"
 
-namespace DB
-{
+namespace DB {
 
 using TypeListNativeInt = TypeList<UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64>;
 using TypeListNativeFloat = TypeList<Float32, Float64>;
@@ -19,4 +18,4 @@ using TypeListDecimal = TypeList<Decimal32, Decimal64, Decimal128, Decimal256>;
 using TypeListNumber = TypeListConcat<TypeListIntAndFloat, TypeListDecimal>;
 using TypeListNumberWithUUID = TypeListAppend<UUID, TypeListNumber>;
 
-}
+}  // namespace DB

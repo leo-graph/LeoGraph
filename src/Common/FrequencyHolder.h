@@ -4,23 +4,21 @@
 
 #if USE_NLP
 
-#include <Common/logger_useful.h>
+#  include <Common/logger_useful.h>
 
-#include <string_view>
-#include <unordered_map>
+#  include <string_view>
+#  include <unordered_map>
 
-#include <Common/Arena.h>
-#include <Common/HashTable/HashMap.h>
-#include <Common/StringUtils.h>
-#include <IO/ReadBufferFromFile.h>
-#include <IO/ReadBufferFromString.h>
-#include <IO/ReadHelpers.h>
-#include <IO/readFloatText.h>
-#include <IO/ZstdInflatingReadBuffer.h>
+#  include <Common/Arena.h>
+#  include <Common/HashTable/HashMap.h>
+#  include <Common/StringUtils.h>
+#  include <IO/ReadBufferFromFile.h>
+#  include <IO/ReadBufferFromString.h>
+#  include <IO/readFloatText.h>
+#  include <IO/ReadHelpers.h>
+#  include <IO/ZstdInflatingReadBuffer.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /// FrequencyHolder class is responsible for storing and loading dictionaries
 /// needed for text classification functions:
@@ -30,58 +28,46 @@ namespace DB
 /// 3. detectTonality
 /// 4. detectProgrammingLanguage
 
-class FrequencyHolder
-{
-public:
-    struct Language
-    {
-        String name;
-        HashMap<std::string_view, Float64> map;
-    };
+class FrequencyHolder {
+ public:
+  struct Language {
+    String name;
+    HashMap<std::string_view, Float64> map;
+  };
 
-    struct Encoding
-    {
-        String name;
-        String lang;
-        HashMap<UInt16, Float64> map;
-    };
+  struct Encoding {
+    String name;
+    String lang;
+    HashMap<UInt16, Float64> map;
+  };
 
-    using Map = HashMap<std::string_view, Float64>;
-    using Container = std::vector<Language>;
+  using Map = HashMap<std::string_view, Float64>;
+  using Container = std::vector<Language>;
 
-    using EncodingMap = HashMap<UInt16, Float64>;
-    using EncodingContainer = std::vector<Encoding>;
+  using EncodingMap = HashMap<UInt16, Float64>;
+  using EncodingContainer = std::vector<Encoding>;
 
-    static FrequencyHolder & getInstance();
+  static FrequencyHolder& getInstance();
 
-    const Map & getEmotionalDict() const
-    {
-        return emotional_dict;
-    }
+  const Map& getEmotionalDict() const { return emotional_dict; }
 
-    const EncodingContainer & getEncodingsFrequency() const
-    {
-        return encodings_freq;
-    }
+  const EncodingContainer& getEncodingsFrequency() const { return encodings_freq; }
 
-    const Container & getProgrammingFrequency() const
-    {
-        return programming_freq;
-    }
+  const Container& getProgrammingFrequency() const { return programming_freq; }
 
-private:
-    FrequencyHolder();
+ private:
+  FrequencyHolder();
 
-    void loadEncodingsFrequency();
-    void loadEmotionalDict();
-    void loadProgrammingFrequency();
+  void loadEncodingsFrequency();
+  void loadEmotionalDict();
+  void loadProgrammingFrequency();
 
-    Arena string_pool;
+  Arena string_pool;
 
-    Map emotional_dict;
-    Container programming_freq;
-    EncodingContainer encodings_freq;
+  Map emotional_dict;
+  Container programming_freq;
+  EncodingContainer encodings_freq;
 };
-}
+}  // namespace DB
 
 #endif

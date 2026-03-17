@@ -13,42 +13,34 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_KeyFileHandler_INCLUDED
 #define NetSSL_KeyFileHandler_INCLUDED
-
 
 #include "Poco/Net/NetSSL.h"
 #include "Poco/Net/PrivateKeyPassphraseHandler.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class NetSSL_API KeyFileHandler : public PrivateKeyPassphraseHandler
+/// An implementation of PrivateKeyPassphraseHandler that
+/// reads the key for a certificate from a configuration file
+/// under the path "openSSL.privateKeyPassphraseHandler.options.password".
 {
-namespace Net
-{
+ public:
+  KeyFileHandler(bool server);
+  /// Creates the KeyFileHandler.
 
+  virtual ~KeyFileHandler();
+  /// Destroys the KeyFileHandler.
 
-    class NetSSL_API KeyFileHandler : public PrivateKeyPassphraseHandler
-    /// An implementation of PrivateKeyPassphraseHandler that
-    /// reads the key for a certificate from a configuration file
-    /// under the path "openSSL.privateKeyPassphraseHandler.options.password".
-    {
-    public:
-        KeyFileHandler(bool server);
-        /// Creates the KeyFileHandler.
+  void onPrivateKeyRequested(const void* pSender, std::string& privateKey);
 
-        virtual ~KeyFileHandler();
-        /// Destroys the KeyFileHandler.
+ private:
+  static const std::string CFG_PRIV_KEY_FILE;
+};
 
-        void onPrivateKeyRequested(const void * pSender, std::string & privateKey);
+}  // namespace Net
+}  // namespace Poco
 
-    private:
-        static const std::string CFG_PRIV_KEY_FILE;
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // NetSSL_KeyFileHandler_INCLUDED
+#endif  // NetSSL_KeyFileHandler_INCLUDED

@@ -3,9 +3,7 @@
 #include <base/types.h>
 #include <Columns/ColumnVector.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Columns with numbers. */
 
@@ -31,4 +29,4 @@ using ColumnUUID = ColumnVector<UUID>;
 using ColumnIPv4 = ColumnVector<IPv4>;
 using ColumnIPv6 = ColumnVector<IPv6>;
 
-}
+}  // namespace DB

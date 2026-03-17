@@ -1,31 +1,29 @@
 #pragma once
 
-#include <Core/UUID.h>
 #include <Common/Logger.h>
+#include <Core/UUID.h>
 #include <filesystem>
 
 namespace fs = std::filesystem;
 
-namespace DB
-{
+namespace DB {
 
-class ServerUUID
-{
-    inline static UUID server_uuid = UUIDHelpers::Nil;
+class ServerUUID {
+  inline static UUID server_uuid = UUIDHelpers::Nil;
 
-public:
-    /// Returns persistent UUID of current clickhouse-server or clickhouse-keeper instance.
-    static UUID get();
+ public:
+  /// Returns persistent UUID of current clickhouse-server or clickhouse-keeper instance.
+  static UUID get();
 
-    /// Loads server UUID from file or creates new one. Should be called on daemon startup.
-    static void load(const fs::path & server_uuid_file, Poco::Logger * log);
+  /// Loads server UUID from file or creates new one. Should be called on daemon startup.
+  static void load(const fs::path& server_uuid_file, Poco::Logger* log);
 
-    /// Sets specific server UUID.
-    static void set(UUID & uuid);
+  /// Sets specific server UUID.
+  static void set(UUID& uuid);
 
-    static void setRandomForUnitTests();
+  static void setRandomForUnitTests();
 };
 
-UUID loadServerUUID(const fs::path & server_uuid_file, Poco::Logger * log);
+UUID loadServerUUID(const fs::path& server_uuid_file, Poco::Logger* log);
 
-}
+}  // namespace DB

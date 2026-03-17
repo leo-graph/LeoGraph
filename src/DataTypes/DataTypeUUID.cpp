@@ -1,34 +1,19 @@
-#include <DataTypes/DataTypeUUID.h>
 #include <DataTypes/DataTypeFactory.h>
+#include <DataTypes/DataTypeUUID.h>
 #include <DataTypes/Serializations/SerializationUUID.h>
 
+namespace DB {
 
-namespace DB
-{
+bool DataTypeUUID::equals(const IDataType &rhs) const { return typeid(rhs) == typeid(*this); }
 
-bool DataTypeUUID::equals(const IDataType & rhs) const
-{
-    return typeid(rhs) == typeid(*this);
+SerializationPtr DataTypeUUID::doGetSerialization(const SerializationInfoSettings &) const { return std::make_shared<SerializationUUID>(); }
+
+Field DataTypeUUID::getDefault() const { return UUID{}; }
+
+MutableColumnPtr DataTypeUUID::createColumn() const { return ColumnVector<UUID>::create(); }
+
+void registerDataTypeUUID(DataTypeFactory &factory) {
+  factory.registerSimpleDataType("UUID", [] { return DataTypePtr(std::make_shared<DataTypeUUID>()); });
 }
 
-SerializationPtr DataTypeUUID::doGetSerialization(const SerializationInfoSettings &) const
-{
-    return std::make_shared<SerializationUUID>();
-}
-
-Field DataTypeUUID::getDefault() const
-{
-    return UUID{};
-}
-
-MutableColumnPtr DataTypeUUID::createColumn() const
-{
-    return ColumnVector<UUID>::create();
-}
-
-void registerDataTypeUUID(DataTypeFactory & factory)
-{
-    factory.registerSimpleDataType("UUID", [] { return DataTypePtr(std::make_shared<DataTypeUUID>()); });
-}
-
-}
+}  // namespace DB

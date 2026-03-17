@@ -11,34 +11,18 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Mutex.h"
-
 
 #include "Mutex_POSIX.cpp"
 
-
 namespace Poco {
 
+Mutex::Mutex() {}
 
-Mutex::Mutex()
-{
-}
+Mutex::~Mutex() {}
 
+FastMutex::FastMutex() {}
 
-Mutex::~Mutex()
-{
-}
+FastMutex::~FastMutex() {}
 
-
-FastMutex::FastMutex()
-{
-}
-
-
-FastMutex::~FastMutex()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

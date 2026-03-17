@@ -2,204 +2,161 @@
 
 #if USE_ULID
 
-#include <Common/intExp10.h>
-#include <Core/DecimalFunctions.h>
-#include <Columns/ColumnFixedString.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnsDateTime.h>
-#include <DataTypes/DataTypeFixedString.h>
-#include <DataTypes/DataTypeString.h>
-#include <Functions/extractTimeZoneFromFunctionArguments.h>
-#include <Functions/FunctionFactory.h>
-#include <Functions/FunctionHelpers.h>
-#include <Functions/IFunction.h>
-#include <Interpreters/Context.h>
+#  include <Columns/ColumnFixedString.h>
+#  include <Columns/ColumnsDateTime.h>
+#  include <Columns/ColumnString.h>
+#  include <Common/intExp10.h>
+#  include <Core/DecimalFunctions.h>
+#  include <DataTypes/DataTypeFixedString.h>
+#  include <DataTypes/DataTypeString.h>
+#  include <Functions/extractTimeZoneFromFunctionArguments.h>
+#  include <Functions/FunctionFactory.h>
+#  include <Functions/FunctionHelpers.h>
+#  include <Functions/IFunction.h>
+#  include <Interpreters/Context.h>
 
-#include <ulid.h>
+#  include <ulid.h>
 
+namespace DB {
 
-namespace DB
-{
+namespace ErrorCodes {
+extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+extern const int BAD_ARGUMENTS;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int ILLEGAL_COLUMN;
+}  // namespace ErrorCodes
 
-namespace ErrorCodes
-{
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int BAD_ARGUMENTS;
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int ILLEGAL_COLUMN;
-}
+class FunctionULIDStringToDateTime : public IFunction {
+ public:
+  static constexpr size_t ULID_LENGTH = 26;
+  static constexpr UInt32 DATETIME_SCALE = 3;
 
-class FunctionULIDStringToDateTime : public IFunction
-{
-public:
-    static constexpr size_t ULID_LENGTH = 26;
-    static constexpr UInt32 DATETIME_SCALE = 3;
+  static constexpr auto name = "ULIDStringToDateTime";
 
-    static constexpr auto name = "ULIDStringToDateTime";
+  static FunctionPtr create(ContextPtr /*context*/) { return std::make_shared<FunctionULIDStringToDateTime>(); }
 
-    static FunctionPtr create(ContextPtr /*context*/)
-    {
-        return std::make_shared<FunctionULIDStringToDateTime>();
+  String getName() const override { return name; }
+
+  bool isVariadic() const override { return true; }
+  size_t getNumberOfArguments() const override { return 0; }
+
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName &arguments) const override {
+    if (arguments.empty() || arguments.size() > 2)
+      throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH, "Wrong number of arguments for function {}: should be 1 or 2",
+                      getName());
+
+    const auto *arg_fixed_string = checkAndGetDataType<DataTypeFixedString>(arguments[0].type.get());
+    const auto *arg_string = checkAndGetDataType<DataTypeString>(arguments[0].type.get());
+
+    if (!arg_string && !(arg_fixed_string && arg_fixed_string->getN() == ULID_LENGTH))
+      throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                      "Illegal type {} of argument of function {}. Must be String or FixedString(26).", arguments[0].type->getName(),
+                      getName());
+
+    String timezone;
+    if (arguments.size() == 2) {
+      timezone = extractTimeZoneNameFromColumn(arguments[1].column.get(), arguments[1].name);
+
+      if (timezone.empty())
+        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                        "Function {} supports a 2nd argument (optional) that must be a valid time zone", getName());
     }
 
-    String getName() const override { return name; }
+    return std::make_shared<DataTypeDateTime64>(DATETIME_SCALE, timezone);
+  }
 
-    bool isVariadic() const override { return true; }
-    size_t getNumberOfArguments() const override { return 0; }
+  bool useDefaultImplementationForConstants() const override { return true; }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t input_rows_count) const override {
+    auto col_res = ColumnDateTime64::create(input_rows_count, DATETIME_SCALE);
+    auto &vec_res = col_res->getData();
 
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
-    {
-        if (arguments.empty() || arguments.size() > 2)
-            throw Exception(
-                ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                "Wrong number of arguments for function {}: should be 1 or 2",
-                getName());
+    const ColumnPtr column = arguments[0].column;
 
-        const auto * arg_fixed_string = checkAndGetDataType<DataTypeFixedString>(arguments[0].type.get());
-        const auto * arg_string = checkAndGetDataType<DataTypeString>(arguments[0].type.get());
+    const auto *column_fixed_string = checkAndGetColumn<ColumnFixedString>(column.get());
+    const auto *column_string = checkAndGetColumn<ColumnString>(column.get());
 
-        if (!arg_string && !(arg_fixed_string && arg_fixed_string->getN() == ULID_LENGTH))
-            throw Exception(
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                "Illegal type {} of argument of function {}. Must be String or FixedString(26).",
-                arguments[0].type->getName(),
-                getName());
+    if (column_fixed_string) {
+      if (column_fixed_string->getN() != ULID_LENGTH)
+        throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Illegal column {} of argument of function {}, expected String or FixedString({})",
+                        arguments[0].name, getName(), ULID_LENGTH);
 
-        String timezone;
-        if (arguments.size() == 2)
-        {
-            timezone = extractTimeZoneNameFromColumn(arguments[1].column.get(), arguments[1].name);
+      const auto &vec_src = column_fixed_string->getChars();
 
-            if (timezone.empty())
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                    "Function {} supports a 2nd argument (optional) that must be a valid time zone",
-                    getName());
-        }
+      for (size_t i = 0; i < input_rows_count; ++i) {
+        DateTime64 time = decode(vec_src.data() + i * ULID_LENGTH);
+        vec_res[i] = time;
+      }
+    } else if (column_string) {
+      const auto &vec_src = column_string->getChars();
+      const auto &offsets_src = column_string->getOffsets();
 
-        return std::make_shared<DataTypeDateTime64>(DATETIME_SCALE, timezone);
-    }
+      size_t src_offset = 0;
 
-    bool useDefaultImplementationForConstants() const override { return true; }
+      for (size_t i = 0; i < input_rows_count; ++i) {
+        DateTime64 time = 0;
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
-    {
-        auto col_res = ColumnDateTime64::create(input_rows_count, DATETIME_SCALE);
-        auto & vec_res = col_res->getData();
+        size_t string_size = offsets_src[i] - src_offset;
+        if (string_size != ULID_LENGTH)
+          throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Illegal value {} of argument of function {}, ULID must be {} characters long",
+                          arguments[0].name, getName(), ULID_LENGTH);
 
-        const ColumnPtr column = arguments[0].column;
+        time = decode(vec_src.data() + src_offset);
 
-        const auto * column_fixed_string = checkAndGetColumn<ColumnFixedString>(column.get());
-        const auto * column_string = checkAndGetColumn<ColumnString>(column.get());
+        src_offset += string_size;
+        vec_res[i] = time;
+      }
+    } else
+      throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Illegal column {} of argument of function {}, expected String or FixedString({})",
+                      arguments[0].name, getName(), ULID_LENGTH);
 
-        if (column_fixed_string)
-        {
-            if (column_fixed_string->getN() != ULID_LENGTH)
-                throw Exception(
-                    ErrorCodes::ILLEGAL_COLUMN,
-                    "Illegal column {} of argument of function {}, expected String or FixedString({})",
-                    arguments[0].name, getName(), ULID_LENGTH
-                );
+    return col_res;
+  }
 
-            const auto & vec_src = column_fixed_string->getChars();
+  static DateTime64 decode(const UInt8 *data) {
+    unsigned char buffer[16];
+    int ret = ulid_decode(buffer, reinterpret_cast<const char *>(data));
+    if (ret != 0)
+      throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot parse ULID {}",
+                      std::string_view(reinterpret_cast<const char *>(data), ULID_LENGTH));
 
-            for (size_t i = 0; i < input_rows_count; ++i)
-            {
-                DateTime64 time = decode(vec_src.data() + i * ULID_LENGTH);
-                vec_res[i] = time;
-            }
-        }
-        else if (column_string)
-        {
-            const auto & vec_src = column_string->getChars();
-            const auto & offsets_src = column_string->getOffsets();
+    /// Timestamp in milliseconds is the first 48 bits of the decoded ULID
+    Int64 ms = 0;
+    memcpy(reinterpret_cast<UInt8 *>(&ms) + 2, buffer, 6);
 
-            size_t src_offset = 0;
+    if constexpr (std::endian::native == std::endian::little) ms = std::byteswap(ms);
 
-            for (size_t i = 0; i < input_rows_count; ++i)
-            {
-                DateTime64 time = 0;
-
-                size_t string_size = offsets_src[i] - src_offset;
-                if (string_size != ULID_LENGTH)
-                    throw Exception(
-                        ErrorCodes::ILLEGAL_COLUMN,
-                        "Illegal value {} of argument of function {}, ULID must be {} characters long",
-                        arguments[0].name, getName(), ULID_LENGTH
-                    );
-
-                time = decode(vec_src.data() + src_offset);
-
-                src_offset += string_size;
-                vec_res[i] = time;
-            }
-        }
-        else
-            throw Exception(
-                ErrorCodes::ILLEGAL_COLUMN,
-                "Illegal column {} of argument of function {}, expected String or FixedString({})",
-                arguments[0].name, getName(), ULID_LENGTH
-            );
-
-        return col_res;
-    }
-
-    static DateTime64 decode(const UInt8 * data)
-    {
-        unsigned char buffer[16];
-        int ret = ulid_decode(buffer, reinterpret_cast<const char *>(data));
-        if (ret != 0)
-            throw Exception(
-                ErrorCodes::BAD_ARGUMENTS,
-                "Cannot parse ULID {}",
-                std::string_view(reinterpret_cast<const char *>(data), ULID_LENGTH)
-            );
-
-        /// Timestamp in milliseconds is the first 48 bits of the decoded ULID
-        Int64 ms = 0;
-        memcpy(reinterpret_cast<UInt8 *>(&ms) + 2, buffer, 6);
-
-        if constexpr (std::endian::native == std::endian::little)
-            ms = std::byteswap(ms);
-
-        return DecimalUtils::dateTimeFromComponents(ms / intExp10(DATETIME_SCALE), ms % intExp10(DATETIME_SCALE), DATETIME_SCALE);
-    }
+    return DecimalUtils::dateTimeFromComponents(ms / intExp10(DATETIME_SCALE), ms % intExp10(DATETIME_SCALE), DATETIME_SCALE);
+  }
 };
 
-
-REGISTER_FUNCTION(ULIDStringToDateTime)
-{
-    /// ULIDStringToDateTime documentation
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(ULIDStringToDateTime) {
+  /// ULIDStringToDateTime documentation
+  FunctionDocumentation::Description description = R"(
 This function extracts the timestamp from a [ULID](https://github.com/ulid/spec).
     )";
-    FunctionDocumentation::Syntax syntax = "ULIDStringToDateTime(ulid[, timezone])";
-    FunctionDocumentation::Arguments arguments = {
-        {"ulid", "Input ULID.", {"String", "FixedString(26)"}},
-        {"timezone", "Optional. Timezone name for the returned value.", {"String"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Timestamp with milliseconds precision.", {"DateTime64(3)"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "ULIDStringToDateTime(ulid[, timezone])";
+  FunctionDocumentation::Arguments arguments = {{"ulid", "Input ULID.", {"String", "FixedString(26)"}},
+                                                {"timezone", "Optional. Timezone name for the returned value.", {"String"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Timestamp with milliseconds precision.", {"DateTime64(3)"}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 SELECT ULIDStringToDateTime('01GNB2S2FGN2P93QPXDNB4EN2R')
         )",
-        R"(
+                                               R"(
 ┌─ULIDStringToDateTime('01GNB2S2FGN2P93QPXDNB4EN2R')─┐
 │                            2022-12-28 00:40:37.616 │
 └────────────────────────────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {23, 3};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::ULID;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {23, 3};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::ULID;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionULIDStringToDateTime>(documentation);
+  factory.registerFunction<FunctionULIDStringToDateTime>(documentation);
 }
 
-}
+}  // namespace DB
 
 #endif

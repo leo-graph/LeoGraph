@@ -3,58 +3,54 @@
 #include <base/types.h>
 #include <boost/core/noncopyable.hpp>
 
+#include <Common/CurrentMetrics.h>
+#include <Common/ISlotControl.h>
+#include <Common/ProfileEvents.h>
 #include <Common/Scheduler/ResourceLink.h>
 #include <Common/Scheduler/ResourceRequest.h>
-#include <Common/CurrentMetrics.h>
-#include <Common/ProfileEvents.h>
-#include <Common/ISlotControl.h>
 
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 
 class CPUSlotsAllocation;
 
 // Represents a resource request for a cpu slot for a single thread
-class CPUSlotRequest final : public ResourceRequest
-{
-public:
-    CPUSlotRequest()
-        // 1 second is a fixed cost of a CPU slot used without preemption (it does not depend on real consumption)
-        // The only purpose of this value is to ensure that during transition to/from `cpu_slot_preemption` mode,
-        // when preemptibale and non-preemptible slots are mixed, the request cost is reasonable enough.
-        : ResourceRequest(1'000'000'000)
-    {
-        // Ignore throttling for this request, because cost has no meaning in this case
-        // This disables `max_cpus` and `max_burst_cpu_seconds` throttling for non-preemptible CPU slots
-        ignore_throttling = true;
-    }
+class CPUSlotRequest final : public ResourceRequest {
+ public:
+  CPUSlotRequest()
+      // 1 second is a fixed cost of a CPU slot used without preemption (it does not depend on real consumption)
+      // The only purpose of this value is to ensure that during transition to/from `cpu_slot_preemption` mode,
+      // when preemptibale and non-preemptible slots are mixed, the request cost is reasonable enough.
+      : ResourceRequest(1'000'000'000) {
+    // Ignore throttling for this request, because cost has no meaning in this case
+    // This disables `max_cpus` and `max_burst_cpu_seconds` throttling for non-preemptible CPU slots
+    ignore_throttling = true;
+  }
 
-    ~CPUSlotRequest() override = default;
+  ~CPUSlotRequest() override = default;
 
-    /// Callback to trigger resource consumption.
-    void execute() override;
+  /// Callback to trigger resource consumption.
+  void execute() override;
 
-    /// Callback to trigger an error in case if resource is unavailable.
-    void failed(const std::exception_ptr & ptr) override;
+  /// Callback to trigger an error in case if resource is unavailable.
+  void failed(const std::exception_ptr &ptr) override;
 
-    CPUSlotsAllocation * allocation = nullptr;
+  CPUSlotsAllocation *allocation = nullptr;
 };
 
 // Scoped guard for acquired cpu slot
-class AcquiredCPUSlot final : public IAcquiredSlot
-{
-public:
-    explicit AcquiredCPUSlot(SlotAllocationPtr && allocation_, CPUSlotRequest * request_, size_t slot_id_);
-    ~AcquiredCPUSlot() override;
+class AcquiredCPUSlot final : public IAcquiredSlot {
+ public:
+  explicit AcquiredCPUSlot(SlotAllocationPtr &&allocation_, CPUSlotRequest *request_, size_t slot_id_);
+  ~AcquiredCPUSlot() override;
 
-private:
-    SlotAllocationPtr allocation; // Hold allocation to ensure request is not destructed
-    CPUSlotRequest * request; // Resource request to finalize in destructor or nullptr for non-competing slot
-    CurrentMetrics::Increment acquired_slot_increment;
+ private:
+  SlotAllocationPtr allocation;  // Hold allocation to ensure request is not destructed
+  CPUSlotRequest *request;       // Resource request to finalize in destructor or nullptr for non-competing slot
+  CurrentMetrics::Increment acquired_slot_increment;
 };
 
 // Manages group of cpu slots and slot requests for a single thread group (query)
@@ -65,55 +61,54 @@ private:
 // If either provided link is empty, then corresponding slots are considered
 // non-competing and `AcquiredCPUSlot` are provided w/o resource requests.
 // PipelineExecutor uses 1 master thread and `max_threads - 1` worker threads
-class CPUSlotsAllocation final : public ISlotAllocation
-{
-public:
-    CPUSlotsAllocation(SlotCount master_slots_, SlotCount worker_slots_, ResourceLink master_link_, ResourceLink worker_link_);
-    ~CPUSlotsAllocation() override;
+class CPUSlotsAllocation final : public ISlotAllocation {
+ public:
+  CPUSlotsAllocation(SlotCount master_slots_, SlotCount worker_slots_, ResourceLink master_link_, ResourceLink worker_link_);
+  ~CPUSlotsAllocation() override;
 
-    // Take one already granted slot if available. Lock-free iff there is no granted slot.
-    [[nodiscard]] AcquiredSlotPtr tryAcquire() override;
+  // Take one already granted slot if available. Lock-free iff there is no granted slot.
+  [[nodiscard]] AcquiredSlotPtr tryAcquire() override;
 
-    // Blocks until there is a granted slot to acquire
-    [[nodiscard]] AcquiredSlotPtr acquire() override;
+  // Blocks until there is a granted slot to acquire
+  [[nodiscard]] AcquiredSlotPtr acquire() override;
 
-    // For tests only. Returns true iff resource request is enqueued in the scheduler
-    bool isRequesting() const override;
+  // For tests only. Returns true iff resource request is enqueued in the scheduler
+  bool isRequesting() const override;
 
-private:
-    friend class CPUSlotRequest; // for grant() and failed()
+ private:
+  friend class CPUSlotRequest;  // for grant() and failed()
 
-    // Resource request failed
-    void failed(const std::exception_ptr & ptr);
+  // Resource request failed
+  void failed(const std::exception_ptr &ptr);
 
-    // Grant a slot and enqueue another resource request if necessary
-    void grant();
+  // Grant a slot and enqueue another resource request if necessary
+  void grant();
 
-    // Returns the queue for the current request
-    ISchedulerQueue * getCurrentQueue(const std::unique_lock<std::mutex> &) const;
+  // Returns the queue for the current request
+  ISchedulerQueue *getCurrentQueue(const std::unique_lock<std::mutex> &) const;
 
-    const SlotCount master_slots; // Max number of slots to allocate using master link
-    const SlotCount total_slots; // Total number of slots to allocate using both links
-    const SlotCount noncompeting_slots; // Number of slots granted without links
-    const ResourceLink master_link;
-    const ResourceLink worker_link;
+  const SlotCount master_slots;        // Max number of slots to allocate using master link
+  const SlotCount total_slots;         // Total number of slots to allocate using both links
+  const SlotCount noncompeting_slots;  // Number of slots granted without links
+  const ResourceLink master_link;
+  const ResourceLink worker_link;
 
-    static constexpr SlotCount exception_value = SlotCount(-1);
-    std::atomic<SlotCount> noncompeting{0}; // allocated noncompeting slots left to acquire
-    std::atomic<SlotCount> granted{0}; // allocated competing slots left to acquire
-    std::atomic<size_t> last_slot_id{0};
-    std::atomic<size_t> last_acquire_index{0};
+  static constexpr SlotCount exception_value = SlotCount(-1);
+  std::atomic<SlotCount> noncompeting{0};  // allocated noncompeting slots left to acquire
+  std::atomic<SlotCount> granted{0};       // allocated competing slots left to acquire
+  std::atomic<size_t> last_slot_id{0};
+  std::atomic<size_t> last_acquire_index{0};
 
-    // Field that require sync with the scheduler thread
-    mutable std::mutex schedule_mutex;
-    std::condition_variable schedule_cv;
-    std::exception_ptr exception;
-    SlotCount allocated = 0; // Total allocated slots including already released
-    size_t waiters = 0; // Number of threads waiting on acquire() call
-    std::vector<CPUSlotRequest> requests; // Requests per every slot
-    CPUSlotRequest * current_request;
-    std::optional<CurrentMetrics::Increment> scheduled_slot_increment;
-    std::optional<ProfileEvents::Timer> wait_timer;
+  // Field that require sync with the scheduler thread
+  mutable std::mutex schedule_mutex;
+  std::condition_variable schedule_cv;
+  std::exception_ptr exception;
+  SlotCount allocated = 0;               // Total allocated slots including already released
+  size_t waiters = 0;                    // Number of threads waiting on acquire() call
+  std::vector<CPUSlotRequest> requests;  // Requests per every slot
+  CPUSlotRequest *current_request;
+  std::optional<CurrentMetrics::Increment> scheduled_slot_increment;
+  std::optional<ProfileEvents::Timer> wait_timer;
 };
 
-}
+}  // namespace DB

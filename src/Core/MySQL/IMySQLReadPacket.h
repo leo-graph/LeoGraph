@@ -2,41 +2,37 @@
 
 #include <IO/ReadBuffer.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace MySQLProtocol
-{
+namespace MySQLProtocol {
 
-class IMySQLReadPacket
-{
-public:
-    IMySQLReadPacket() = default;
+class IMySQLReadPacket {
+ public:
+  IMySQLReadPacket() = default;
 
-    virtual ~IMySQLReadPacket() = default;
+  virtual ~IMySQLReadPacket() = default;
 
-    IMySQLReadPacket(IMySQLReadPacket &&) = default;
+  IMySQLReadPacket(IMySQLReadPacket &&) = default;
 
-    virtual void readPayload(ReadBuffer & in, uint8_t & sequence_id);
+  virtual void readPayload(ReadBuffer &in, uint8_t &sequence_id);
 
-    virtual void readPayloadWithUnpacked(ReadBuffer & in);
+  virtual void readPayloadWithUnpacked(ReadBuffer &in);
 
-protected:
-    virtual void readPayloadImpl(ReadBuffer & buf) = 0;
+ protected:
+  virtual void readPayloadImpl(ReadBuffer &buf) = 0;
 };
 
-class LimitedReadPacket : public IMySQLReadPacket
-{
-public:
-    void readPayload(ReadBuffer & in, uint8_t & sequence_id) override;
+class LimitedReadPacket : public IMySQLReadPacket {
+ public:
+  void readPayload(ReadBuffer &in, uint8_t &sequence_id) override;
 
-    void readPayloadWithUnpacked(ReadBuffer & in) override;
+  void readPayloadWithUnpacked(ReadBuffer &in) override;
 };
 
-uint64_t readLengthEncodedNumber(ReadBuffer & buffer);
-uint64_t readLengthEncodedNumber(ReadBuffer & buffer, UInt16 & bytes_read);
-void readLengthEncodedString(String & s, ReadBuffer & buffer);
+uint64_t readLengthEncodedNumber(ReadBuffer &buffer);
+uint64_t readLengthEncodedNumber(ReadBuffer &buffer, UInt16 &bytes_read);
+void readLengthEncodedString(String &s, ReadBuffer &buffer);
 
-}
+}  // namespace MySQLProtocol
 
-}
+}  // namespace DB

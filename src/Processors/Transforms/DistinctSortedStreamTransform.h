@@ -6,8 +6,7 @@
 #include <Processors/ISimpleTransform.h>
 #include <QueryPipeline/SizeLimits.h>
 
-namespace DB
-{
+namespace DB {
 
 using IColumnFilter = PaddedPODArray<UInt8>;
 
@@ -27,52 +26,46 @@ using IColumnFilter = PaddedPODArray<UInt8>;
 /// For this, we don't clear sorting prefix value and hash table after a range is processed,
 /// only right before a new range processing
 ///
-class DistinctSortedStreamTransform : public ISimpleTransform
-{
-public:
-    DistinctSortedStreamTransform(
-        SharedHeader header_,
-        const SizeLimits & output_size_limits_,
-        UInt64 limit_hint_,
-        const SortDescription & sorted_columns_descr_,
-        const Names & source_columns_);
+class DistinctSortedStreamTransform : public ISimpleTransform {
+ public:
+  DistinctSortedStreamTransform(SharedHeader header_, const SizeLimits& output_size_limits_, UInt64 limit_hint_,
+                                const SortDescription& sorted_columns_descr_, const Names& source_columns_);
 
-    String getName() const override { return "DistinctSortedStreamTransform"; }
+  String getName() const override { return "DistinctSortedStreamTransform"; }
 
-protected:
-    void transform(Chunk & chunk) override;
+ protected:
+  void transform(Chunk& chunk) override;
 
-private:
-    void initChunkProcessing(const Columns & input_columns);
-    std::pair<size_t, size_t> continueWithPrevRange(size_t chunk_rows, IColumnFilter & filter);
-    template<bool clear_data>
-    size_t ordinaryDistinctOnRange(IColumnFilter & filter, size_t range_begin, size_t range_end);
-    inline void saveLatestKey(size_t row_pos);
-    inline bool isLatestKeyFromPrevChunk(size_t row_pos) const;
-    inline bool isKey(size_t key_pos, size_t row_pos) const;
-    template<typename Predicate>
-    inline size_t getRangeEnd(size_t range_begin, size_t range_end, Predicate pred) const;
+ private:
+  void initChunkProcessing(const Columns& input_columns);
+  std::pair<size_t, size_t> continueWithPrevRange(size_t chunk_rows, IColumnFilter& filter);
+  template <bool clear_data>
+  size_t ordinaryDistinctOnRange(IColumnFilter& filter, size_t range_begin, size_t range_end);
+  inline void saveLatestKey(size_t row_pos);
+  inline bool isLatestKeyFromPrevChunk(size_t row_pos) const;
+  inline bool isKey(size_t key_pos, size_t row_pos) const;
+  template <typename Predicate>
+  inline size_t getRangeEnd(size_t range_begin, size_t range_end, Predicate pred) const;
 
-    template <typename Method>
-    size_t buildFilterForRange(Method & method, IColumnFilter & filter, size_t range_begin, size_t range_end);
+  template <typename Method>
+  size_t buildFilterForRange(Method& method, IColumnFilter& filter, size_t range_begin, size_t range_end);
 
+  ClearableSetVariants data;
+  const size_t limit_hint;
+  size_t total_output_rows = 0;
 
-    ClearableSetVariants data;
-    const size_t limit_hint;
-    size_t total_output_rows = 0;
+  /// Restrictions on the maximum size of the output data.
+  const SizeLimits output_size_limits;
 
-    /// Restrictions on the maximum size of the output data.
-    const SizeLimits output_size_limits;
+  const SortDescription sorted_columns_descr;
+  ColumnNumbers sorted_columns_pos;
+  ColumnRawPtrs sorted_columns;  // used during processing
 
-    const SortDescription sorted_columns_descr;
-    ColumnNumbers sorted_columns_pos;
-    ColumnRawPtrs sorted_columns; // used during processing
+  ColumnNumbers other_columns_pos;
+  Sizes other_columns_sizes;
+  ColumnRawPtrs other_columns;  // used during processing
 
-    ColumnNumbers other_columns_pos;
-    Sizes other_columns_sizes;
-    ColumnRawPtrs other_columns; // used during processing
-
-    MutableColumns prev_chunk_latest_key;
+  MutableColumns prev_chunk_latest_key;
 };
 
-}
+}  // namespace DB

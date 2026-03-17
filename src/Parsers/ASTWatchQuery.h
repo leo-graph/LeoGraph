@@ -11,61 +11,52 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-#include <Parsers/ASTQueryWithTableAndOutput.h>
 #include <Common/quoteString.h>
+#include <Parsers/ASTQueryWithTableAndOutput.h>
 
+namespace DB {
 
-namespace DB
-{
+class ASTWatchQuery : public ASTQueryWithTableAndOutput {
+ public:
+  ASTPtr limit_length;
+  bool is_watch_events = false;
 
-class ASTWatchQuery : public ASTQueryWithTableAndOutput
-{
+  ASTWatchQuery() = default;
+  String getID(char) const override { return "WatchQuery_" + getDatabase() + "_" + getTable(); }
 
-public:
-    ASTPtr limit_length;
-    bool is_watch_events = false;
+  ASTPtr clone() const override {
+    boost::intrusive_ptr<ASTWatchQuery> res = make_intrusive<ASTWatchQuery>(*this);
+    res->children.clear();
+    cloneOutputOptions(*res);
+    cloneTableOptions(*res);
+    return res;
+  }
 
-    ASTWatchQuery() = default;
-    String getID(char) const override { return "WatchQuery_" + getDatabase() + "_" + getTable(); }
+  QueryKind getQueryKind() const override { return QueryKind::Create; }
 
-    ASTPtr clone() const override
-    {
-        boost::intrusive_ptr<ASTWatchQuery> res = make_intrusive<ASTWatchQuery>(*this);
-        res->children.clear();
-        cloneOutputOptions(*res);
-        cloneTableOptions(*res);
-        return res;
+ protected:
+  void formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override {
+    std::string indent_str = settings.one_line ? "" : std::string(4 * frame.indent, ' ');
+
+    ostr << "WATCH ";
+
+    if (database) {
+      database->format(ostr, settings, state, frame);
+      ostr << '.';
     }
 
-    QueryKind getQueryKind() const override { return QueryKind::Create; }
+    chassert(table);
+    table->format(ostr, settings, state, frame);
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
-    {
-        std::string indent_str = settings.one_line ? "" : std::string(4 * frame.indent, ' ');
-
-        ostr << "WATCH ";
-
-        if (database)
-        {
-            database->format(ostr, settings, state, frame);
-            ostr << '.';
-        }
-
-        chassert(table);
-        table->format(ostr, settings, state, frame);
-
-        if (is_watch_events)
-        {
-            ostr << " " << "EVENTS";
-        }
-
-        if (limit_length)
-        {
-            ostr << settings.nl_or_ws << indent_str << "LIMIT ";
-            limit_length->format(ostr, settings, state, frame);
-        }
+    if (is_watch_events) {
+      ostr << " " << "EVENTS";
     }
+
+    if (limit_length) {
+      ostr << settings.nl_or_ws << indent_str << "LIMIT ";
+      limit_length->format(ostr, settings, state, frame);
+    }
+  }
 };
 
-}
+}  // namespace DB

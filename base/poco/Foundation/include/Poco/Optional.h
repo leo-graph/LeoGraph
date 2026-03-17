@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Optional_INCLUDED
 #define Foundation_Optional_INCLUDED
-
 
 #include <algorithm>
 #include "Poco/Exception.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <typename C>
 class Optional
@@ -53,104 +48,92 @@ class Optional
 /// minOccurs == 0, whereas Nullable would be used on an element with
 /// nillable == true.
 {
-public:
-    Optional()
-        : /// Creates an empty Optional.
-        _value()
-        , _isSpecified(false)
-    {
-    }
+ public:
+  Optional()
+      :  /// Creates an empty Optional.
+        _value(),
+        _isSpecified(false) {}
 
-    Optional(const C & value)
-        : /// Creates a Optional with the given value.
-        _value(value)
-        , _isSpecified(true)
-    {
-    }
+  Optional(const C& value)
+      :  /// Creates a Optional with the given value.
+        _value(value),
+        _isSpecified(true) {}
 
-    Optional(const Optional & other)
-        : /// Creates a Optional by copying another one.
-        _value(other._value)
-        , _isSpecified(other._isSpecified)
-    {
-    }
+  Optional(const Optional& other)
+      :  /// Creates a Optional by copying another one.
+        _value(other._value),
+        _isSpecified(other._isSpecified) {}
 
-    ~Optional()
-    /// Destroys the Optional.
-    {
-    }
+  ~Optional()
+  /// Destroys the Optional.
+  {}
 
-    Optional & assign(const C & value)
-    /// Assigns a value to the Optional.
-    {
-        _value = value;
-        _isSpecified = true;
-        return *this;
-    }
+  Optional& assign(const C& value)
+  /// Assigns a value to the Optional.
+  {
+    _value = value;
+    _isSpecified = true;
+    return *this;
+  }
 
-    Optional & assign(const Optional & other)
-    /// Assigns another Optional.
-    {
-        Optional tmp(other);
-        swap(tmp);
-        return *this;
-    }
+  Optional& assign(const Optional& other)
+  /// Assigns another Optional.
+  {
+    Optional tmp(other);
+    swap(tmp);
+    return *this;
+  }
 
-    Optional & operator=(const C & value) { return assign(value); }
+  Optional& operator=(const C& value) { return assign(value); }
 
-    Optional & operator=(const Optional & other) { return assign(other); }
+  Optional& operator=(const Optional& other) { return assign(other); }
 
-    void swap(Optional & other)
-    {
-        std::swap(_value, other._value);
-        std::swap(_isSpecified, other._isSpecified);
-    }
+  void swap(Optional& other) {
+    std::swap(_value, other._value);
+    std::swap(_isSpecified, other._isSpecified);
+  }
 
-    const C & value() const
-    /// Returns the Optional's value.
-    ///
-    /// Throws a Poco::NullValueException if the value has not been specified.
-    {
-        if (_isSpecified)
-            return _value;
-        else
-            throw Poco::NullValueException();
-    }
+  const C& value() const
+  /// Returns the Optional's value.
+  ///
+  /// Throws a Poco::NullValueException if the value has not been specified.
+  {
+    if (_isSpecified)
+      return _value;
+    else
+      throw Poco::NullValueException();
+  }
 
-    const C & value(const C & deflt) const
-    /// Returns the Optional's value, or the
-    /// given default value if the Optional's
-    /// value has not been specified.
-    {
-        return _isSpecified ? _value : deflt;
-    }
+  const C& value(const C& deflt) const
+  /// Returns the Optional's value, or the
+  /// given default value if the Optional's
+  /// value has not been specified.
+  {
+    return _isSpecified ? _value : deflt;
+  }
 
-    bool isSpecified() const
-    /// Returns true iff the Optional's value has been specified.
-    {
-        return _isSpecified;
-    }
+  bool isSpecified() const
+  /// Returns true iff the Optional's value has been specified.
+  {
+    return _isSpecified;
+  }
 
-    void clear()
-    /// Clears the Optional.
-    {
-        _isSpecified = false;
-    }
+  void clear()
+  /// Clears the Optional.
+  {
+    _isSpecified = false;
+  }
 
-private:
-    C _value;
-    bool _isSpecified;
+ private:
+  C _value;
+  bool _isSpecified;
 };
 
-
 template <typename C>
-inline void swap(Optional<C> & n1, Optional<C> & n2)
-{
-    n1.swap(n2);
+inline void swap(Optional<C>& n1, Optional<C>& n2) {
+  n1.swap(n2);
 }
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Optional_INCLUDED
+#endif  // Foundation_Optional_INCLUDED

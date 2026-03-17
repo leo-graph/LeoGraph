@@ -4,39 +4,34 @@
 #include <memory>
 #include <mutex>
 
-
-namespace CurrentMetrics
-{
-    extern const Metric OpenFileForRead;
+namespace CurrentMetrics {
+extern const Metric OpenFileForRead;
 }
 
-
-namespace DB
-{
+namespace DB {
 
 /// RAII for readonly opened file descriptor.
-class OpenedFile
-{
-public:
-    OpenedFile(const std::string & file_name_, int flags_);
-    ~OpenedFile();
+class OpenedFile {
+ public:
+  OpenedFile(const std::string& file_name_, int flags_);
+  ~OpenedFile();
 
-    /// Close prematurely.
-    void close();
+  /// Close prematurely.
+  void close();
 
-    int getFD() const;
-    std::string getFileName() const;
+  int getFD() const;
+  std::string getFileName() const;
 
-private:
-    std::string file_name;
-    int flags = 0;
+ private:
+  std::string file_name;
+  int flags = 0;
 
-    mutable int fd = -1;
-    mutable std::mutex mutex;
+  mutable int fd = -1;
+  mutable std::mutex mutex;
 
-    CurrentMetrics::Increment metric_increment{CurrentMetrics::OpenFileForRead};
+  CurrentMetrics::Increment metric_increment{CurrentMetrics::OpenFileForRead};
 
-    void open() const;
+  void open() const;
 };
 
-}
+}  // namespace DB

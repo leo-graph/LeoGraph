@@ -1,31 +1,27 @@
 #pragma once
 #include <Processors/ISimpleTransform.h>
 
-namespace DB
-{
+namespace DB {
 
-class ExtremesTransform : public ISimpleTransform
-{
+class ExtremesTransform : public ISimpleTransform {
+ public:
+  explicit ExtremesTransform(SharedHeader header);
 
-public:
-    explicit ExtremesTransform(SharedHeader header);
+  String getName() const override { return "ExtremesTransform"; }
 
-    String getName() const override { return "ExtremesTransform"; }
+  OutputPort& getExtremesPort() { return outputs.back(); }
 
-    OutputPort & getExtremesPort() { return outputs.back(); }
+  Status prepare() override;
+  void work() override;
 
-    Status prepare() override;
-    void work() override;
+ protected:
+  void transform(Chunk& chunk) override;
 
-protected:
-    void transform(Chunk & chunk) override;
+  bool finished_transform = false;
+  Chunk extremes;
 
-    bool finished_transform = false;
-    Chunk extremes;
-
-private:
-    MutableColumns extremes_columns;
+ private:
+  MutableColumns extremes_columns;
 };
 
-}
-
+}  // namespace DB

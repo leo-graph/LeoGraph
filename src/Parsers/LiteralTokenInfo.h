@@ -2,8 +2,7 @@
 
 #include <absl/container/flat_hash_map.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTLiteral;
 
@@ -13,18 +12,13 @@ class ASTLiteral;
 ///
 /// IMPORTANT: These are raw pointers into the original query string. They are only valid
 /// during parsing while the query buffer exists. Do not store or access after parsing.
-struct LiteralTokenInfo
-{
-    const char * begin = nullptr; /// Start of literal in query string
-    const char * end = nullptr;   /// End of literal in query string
+struct LiteralTokenInfo {
+  const char *begin = nullptr;  /// Start of literal in query string
+  const char *end = nullptr;    /// End of literal in query string
 
-    LiteralTokenInfo() = default;
+  LiteralTokenInfo() = default;
 
-    LiteralTokenInfo(const char * begin_, const char * end_)
-        : begin(begin_)
-        , end(end_)
-    {
-    }
+  LiteralTokenInfo(const char *begin_, const char *end_) : begin(begin_), end(end_) {}
 };
 
 /// Map from ASTLiteral pointer to its token position in the query string.
@@ -39,9 +33,8 @@ struct LiteralTokenInfo
 ///
 /// This is a struct (not a type alias) so it can be forward-declared,
 /// avoiding the heavy `absl/container/flat_hash_map.h` include in `IParser.h`.
-struct LiteralTokenMap : absl::flat_hash_map<const ASTLiteral *, LiteralTokenInfo>
-{
-    using absl::flat_hash_map<const ASTLiteral *, LiteralTokenInfo>::flat_hash_map;
+struct LiteralTokenMap : absl::flat_hash_map<const ASTLiteral *, LiteralTokenInfo> {
+  using absl::flat_hash_map<const ASTLiteral *, LiteralTokenInfo>::flat_hash_map;
 };
 
-}
+}  // namespace DB

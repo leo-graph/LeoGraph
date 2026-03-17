@@ -5,137 +5,112 @@
 #include <Storages/SelectQueryInfo.h>
 #include <Storages/StorageSnapshot.h>
 
-namespace DB
-{
+namespace DB {
 
-class SourceStepWithFilterBase : public ISourceStep
-{
-public:
-    using Base = ISourceStep;
-    using Base::Base;
+class SourceStepWithFilterBase : public ISourceStep {
+ public:
+  using Base = ISourceStep;
+  using Base::Base;
 
-    explicit SourceStepWithFilterBase(SharedHeader output_header_)
-        : ISourceStep(std::move(output_header_))
-    {
+  explicit SourceStepWithFilterBase(SharedHeader output_header_) : ISourceStep(std::move(output_header_)) {}
+
+  SourceStepWithFilterBase(const SourceStepWithFilterBase &other)
+      : ISourceStep(other), filter_nodes(), filter_dags(), limit(other.limit), filter_actions_dag() {
+    filter_dags.reserve(other.filter_dags.size());
+    filter_nodes.nodes.reserve(other.filter_dags.size());
+
+    for (size_t i = 0; i < other.filter_dags.size(); ++i) {
+      filter_dags.push_back(other.filter_dags[i].clone());
+      filter_nodes.nodes.push_back(&filter_dags.back().findInOutputs(other.filter_nodes.nodes[i]->result_name));
     }
 
-    SourceStepWithFilterBase(const SourceStepWithFilterBase & other)
-        : ISourceStep(other)
-        , filter_nodes()
-        , filter_dags()
-        , limit(other.limit)
-        , filter_actions_dag()
-    {
-        filter_dags.reserve(other.filter_dags.size());
-        filter_nodes.nodes.reserve(other.filter_dags.size());
+    if (other.filter_actions_dag) filter_actions_dag = std::make_shared<const ActionsDAG>(other.filter_actions_dag->clone());
+  }
+  SourceStepWithFilterBase(SourceStepWithFilterBase &&) = default;
 
-        for (size_t i = 0; i < other.filter_dags.size(); ++i)
-        {
-            filter_dags.push_back(other.filter_dags[i].clone());
-            filter_nodes.nodes.push_back(&filter_dags.back().findInOutputs(other.filter_nodes.nodes[i]->result_name));
-        }
+  void addFilter(ActionsDAG filter_dag, std::string column_name) {
+    filter_nodes.nodes.push_back(&filter_dag.findInOutputs(column_name));
+    filter_dags.push_back(std::move(filter_dag));
+  }
 
-        if (other.filter_actions_dag)
-            filter_actions_dag = std::make_shared<const ActionsDAG>(other.filter_actions_dag->clone());
-    }
-    SourceStepWithFilterBase(SourceStepWithFilterBase &&) = default;
+  void setLimit(size_t limit_value) {
+    if (limit) limit_value = std::min(limit_value, *limit);
 
-    void addFilter(ActionsDAG filter_dag, std::string column_name)
-    {
-        filter_nodes.nodes.push_back(&filter_dag.findInOutputs(column_name));
-        filter_dags.push_back(std::move(filter_dag));
-    }
+    limit = limit_value;
+  }
 
-    void setLimit(size_t limit_value)
-    {
-        if (limit)
-            limit_value = std::min(limit_value, *limit);
+  /// Apply filters that can optimize reading from storage.
+  void applyFilters() {
+    applyFilters(std::move(filter_nodes));
+    filter_dags.clear();
+  }
 
-        limit = limit_value;
-    }
+  virtual void applyFilters(ActionDAGNodes added_filter_nodes);
+  virtual FilterDAGInfoPtr getRowLevelFilter() const { return nullptr; }
+  virtual PrewhereInfoPtr getPrewhereInfo() const { return nullptr; }
 
-    /// Apply filters that can optimize reading from storage.
-    void applyFilters()
-    {
-        applyFilters(std::move(filter_nodes));
-        filter_dags.clear();
-    }
+  const std::shared_ptr<const ActionsDAG> &getFilterActionsDAG() const { return filter_actions_dag; }
+  std::shared_ptr<const ActionsDAG> detachFilterActionsDAG() { return std::move(filter_actions_dag); }
 
-    virtual void applyFilters(ActionDAGNodes added_filter_nodes);
-    virtual FilterDAGInfoPtr getRowLevelFilter() const { return nullptr; }
-    virtual PrewhereInfoPtr getPrewhereInfo() const { return nullptr; }
+  bool hasCorrelatedExpressions() const override {
+    if (filter_actions_dag) return filter_actions_dag->hasCorrelatedColumns();
+    return false;
+  }
 
-    const std::shared_ptr<const ActionsDAG> & getFilterActionsDAG() const { return filter_actions_dag; }
-    std::shared_ptr<const ActionsDAG> detachFilterActionsDAG() { return std::move(filter_actions_dag); }
+ private:
+  /// Will be cleared after applyFilters() is called.
+  ActionDAGNodes filter_nodes;
+  std::vector<ActionsDAG> filter_dags;
 
-    bool hasCorrelatedExpressions() const override
-    {
-        if (filter_actions_dag)
-            return filter_actions_dag->hasCorrelatedColumns();
-        return false;
-    }
-
-private:
-    /// Will be cleared after applyFilters() is called.
-    ActionDAGNodes filter_nodes;
-    std::vector<ActionsDAG> filter_dags;
-
-protected:
-    std::optional<size_t> limit;
-    std::shared_ptr<const ActionsDAG> filter_actions_dag;
+ protected:
+  std::optional<size_t> limit;
+  std::shared_ptr<const ActionsDAG> filter_actions_dag;
 };
 
 /** Source step that can use filters and limit for more efficient pipeline initialization.
-  * Filters must be added before pipeline initialization.
-  * Limit must be set before pipeline initialization.
-  */
-class SourceStepWithFilter : public SourceStepWithFilterBase
-{
-public:
-    using Base = SourceStepWithFilterBase;
-    using Base::Base;
+ * Filters must be added before pipeline initialization.
+ * Limit must be set before pipeline initialization.
+ */
+class SourceStepWithFilter : public SourceStepWithFilterBase {
+ public:
+  using Base = SourceStepWithFilterBase;
+  using Base::Base;
 
-    SourceStepWithFilter(
-        SharedHeader output_header_,
-        const Names & column_names_,
-        const SelectQueryInfo & query_info_,
-        const StorageSnapshotPtr & storage_snapshot_,
-        const ContextPtr & context_)
-        : SourceStepWithFilterBase(std::move(output_header_))
-        , required_source_columns(column_names_)
-        , query_info(query_info_)
-        , storage_snapshot(storage_snapshot_)
-        , context(context_)
-    {
-    }
+  SourceStepWithFilter(SharedHeader output_header_, const Names &column_names_, const SelectQueryInfo &query_info_,
+                       const StorageSnapshotPtr &storage_snapshot_, const ContextPtr &context_)
+      : SourceStepWithFilterBase(std::move(output_header_)),
+        required_source_columns(column_names_),
+        query_info(query_info_),
+        storage_snapshot(storage_snapshot_),
+        context(context_) {}
 
-    SourceStepWithFilter(const SourceStepWithFilter &) = default;
+  SourceStepWithFilter(const SourceStepWithFilter &) = default;
 
-    const SelectQueryInfo & getQueryInfo() const { return query_info; }
-    FilterDAGInfoPtr getRowLevelFilter() const override { return query_info.row_level_filter; }
-    PrewhereInfoPtr getPrewhereInfo() const override { return query_info.prewhere_info; }
-    ContextPtr getContext() const { return context; }
-    const StorageSnapshotPtr & getStorageSnapshot() const { return storage_snapshot; }
+  const SelectQueryInfo &getQueryInfo() const { return query_info; }
+  FilterDAGInfoPtr getRowLevelFilter() const override { return query_info.row_level_filter; }
+  PrewhereInfoPtr getPrewhereInfo() const override { return query_info.prewhere_info; }
+  ContextPtr getContext() const { return context; }
+  const StorageSnapshotPtr &getStorageSnapshot() const { return storage_snapshot; }
 
-    bool isQueryWithFinal() const { return query_info.isFinal(); }
+  bool isQueryWithFinal() const { return query_info.isFinal(); }
 
-    const Names & requiredSourceColumns() const { return required_source_columns; }
+  const Names &requiredSourceColumns() const { return required_source_columns; }
 
-    void applyFilters(ActionDAGNodes added_filter_nodes) override;
+  void applyFilters(ActionDAGNodes added_filter_nodes) override;
 
-    virtual void updatePrewhereInfo(const PrewhereInfoPtr & prewhere_info_value);
+  virtual void updatePrewhereInfo(const PrewhereInfoPtr &prewhere_info_value);
 
-    void describeActions(FormatSettings & format_settings) const override;
+  void describeActions(FormatSettings &format_settings) const override;
 
-    void describeActions(JSONBuilder::JSONMap & map) const override;
+  void describeActions(JSONBuilder::JSONMap &map) const override;
 
-    static Block applyPrewhereActions(Block block, const FilterDAGInfoPtr & row_level_filter, const PrewhereInfoPtr & prewhere_info);
+  static Block applyPrewhereActions(Block block, const FilterDAGInfoPtr &row_level_filter, const PrewhereInfoPtr &prewhere_info);
 
-protected:
-    Names required_source_columns;
-    SelectQueryInfo query_info;
-    StorageSnapshotPtr storage_snapshot;
-    ContextPtr context;
+ protected:
+  Names required_source_columns;
+  SelectQueryInfo query_info;
+  StorageSnapshotPtr storage_snapshot;
+  ContextPtr context;
 };
 
-}
+}  // namespace DB

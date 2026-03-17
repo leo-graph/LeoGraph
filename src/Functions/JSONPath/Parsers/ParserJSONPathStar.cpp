@@ -2,30 +2,25 @@
 
 #include <Functions/JSONPath/ASTs/ASTJSONPathStar.h>
 
-namespace DB
-{
-bool ParserJSONPathStar::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    if (pos->type != TokenType::OpeningSquareBracket)
-    {
-        return false;
-    }
-    ++pos;
-    if (pos->type != TokenType::Asterisk)
-    {
-        return false;
-    }
-    ++pos;
-    if (pos->type != TokenType::ClosingSquareBracket)
-    {
-        expected.add(pos, "Closing square bracket");
-        return false;
-    }
-    ++pos;
+namespace DB {
+bool ParserJSONPathStar::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  if (pos->type != TokenType::OpeningSquareBracket) {
+    return false;
+  }
+  ++pos;
+  if (pos->type != TokenType::Asterisk) {
+    return false;
+  }
+  ++pos;
+  if (pos->type != TokenType::ClosingSquareBracket) {
+    expected.add(pos, "Closing square bracket");
+    return false;
+  }
+  ++pos;
 
-    node = make_intrusive<ASTJSONPathStar>();
+  node = make_intrusive<ASTJSONPathStar>();
 
-    return true;
+  return true;
 }
 
-}
+}  // namespace DB

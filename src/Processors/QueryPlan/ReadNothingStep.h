@@ -1,20 +1,18 @@
 #pragma once
 #include <Processors/QueryPlan/ISourceStep.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Create NullSource with specified structure.
-class ReadNothingStep : public ISourceStep
-{
-public:
-    explicit ReadNothingStep(SharedHeader output_header);
+class ReadNothingStep : public ISourceStep {
+ public:
+  explicit ReadNothingStep(SharedHeader output_header);
 
-    String getName() const override { return "ReadNothing"; }
+  String getName() const override { return "ReadNothing"; }
 
-    QueryPlanStepPtr clone() const override;
+  QueryPlanStepPtr clone() const override;
 
-    void initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override;
+  void initializePipeline(QueryPipelineBuilder &pipeline, const BuildQueryPipelineSettings &) override;
 };
 
-}
+}  // namespace DB

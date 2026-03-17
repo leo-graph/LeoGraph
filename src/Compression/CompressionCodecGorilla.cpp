@@ -1,21 +1,19 @@
 #pragma clang diagnostic ignored "-Wreserved-identifier"
 
-#include <Common/SipHash.h>
-#include <Compression/ICompressionCodec.h>
-#include <Compression/CompressionInfo.h>
-#include <Compression/CompressionFactory.h>
-#include <DataTypes/IDataType.h>
 #include <base/unaligned.h>
-#include <Parsers/IAST_fwd.h>
-#include <Parsers/ASTLiteral.h>
-#include <IO/WriteHelpers.h>
+#include <Common/SipHash.h>
+#include <Compression/CompressionFactory.h>
+#include <Compression/CompressionInfo.h>
+#include <Compression/ICompressionCodec.h>
+#include <DataTypes/IDataType.h>
 #include <IO/BitHelpers.h>
+#include <IO/WriteHelpers.h>
+#include <Parsers/ASTLiteral.h>
+#include <Parsers/IAST_fwd.h>
 
 #include <cstring>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Gorilla column codec implementation.
  *
@@ -92,403 +90,358 @@ namespace DB
  * || |     |     |                        | |     |      |                            a[i]     = 00111101110011001100110011001101
  * || |     |     |                        | |     |      |                            xor_diff = 00000011100000000000000000000000
  * || |     |     |                        | |     |      |                            .- 2-bit prefix                            : 0b10
- * || |     |     |                        | |     |      |                            | .- data                                  : 0b11100000000000000000000000
- * VV_v____ v_____v________________________V_v_____v______v____________________________V_v_____________________________
- * 01101010 01011010 11011000 10110110 00111100 11001101 01110101 10110001 01101100 01110111 00000000 00000000 00000000
+ * || |     |     |                        | |     |      |                            | .- data                                  :
+ * 0b11100000000000000000000000 VV_v____
+ * v_____v________________________V_v_____v______v____________________________V_v_____________________________ 01101010 01011010 11011000
+ * 10110110 00111100 11001101 01110101 10110001 01101100 01110111 00000000 00000000 00000000
  *
  * Please also see unit tests for:
  *   * Examples on what output `BitWriter` produces on predefined input.
  *   * Compatibility tests solidifying encoded binary output on set of predefined sequences.
  */
-class CompressionCodecGorilla : public ICompressionCodec
-{
-public:
-    explicit CompressionCodecGorilla(UInt8 data_bytes_size_);
+class CompressionCodecGorilla : public ICompressionCodec {
+ public:
+  explicit CompressionCodecGorilla(UInt8 data_bytes_size_);
 
-    uint8_t getMethodByte() const override;
+  uint8_t getMethodByte() const override;
 
-    void updateHash(SipHash & hash) const override;
+  void updateHash(SipHash& hash) const override;
 
-protected:
+ protected:
+  UInt32 doCompressData(const char* source, UInt32 source_size, char* dest) const override;
 
-    UInt32 doCompressData(const char * source, UInt32 source_size, char * dest) const override;
+  UInt32 doDecompressData(const char* source, UInt32 source_size, char* dest, UInt32 uncompressed_size) const override;
 
-    UInt32 doDecompressData(const char * source, UInt32 source_size, char * dest, UInt32 uncompressed_size) const override;
+  UInt32 getMaxCompressedDataSize(UInt32 uncompressed_size) const override;
 
-    UInt32 getMaxCompressedDataSize(UInt32 uncompressed_size) const override;
+  bool isCompression() const override { return true; }
+  bool isGenericCompression() const override { return false; }
+  bool isFloatingPointTimeSeriesCodec() const override { return true; }
 
-    bool isCompression() const override { return true; }
-    bool isGenericCompression() const override { return false; }
-    bool isFloatingPointTimeSeriesCodec() const override { return true; }
+  String getDescription() const override {
+    return "Calculates XOR between current and previous value; suitable for slowly changing numbers.";
+  }
 
-    String getDescription() const override
-    {
-        return "Calculates XOR between current and previous value; suitable for slowly changing numbers.";
-    }
-
-private:
-    const UInt8 data_bytes_size;
+ private:
+  const UInt8 data_bytes_size;
 };
 
+namespace ErrorCodes {
+extern const int CANNOT_COMPRESS;
+extern const int CANNOT_DECOMPRESS;
+extern const int BAD_ARGUMENTS;
+extern const int ILLEGAL_SYNTAX_FOR_CODEC_TYPE;
+extern const int ILLEGAL_CODEC_PARAMETER;
+extern const int LOGICAL_ERROR;
+}  // namespace ErrorCodes
 
-namespace ErrorCodes
-{
-    extern const int CANNOT_COMPRESS;
-    extern const int CANNOT_DECOMPRESS;
-    extern const int BAD_ARGUMENTS;
-    extern const int ILLEGAL_SYNTAX_FOR_CODEC_TYPE;
-    extern const int ILLEGAL_CODEC_PARAMETER;
-    extern const int LOGICAL_ERROR;
+namespace {
+
+constexpr UInt8 getBitLengthOfLength(UInt8 data_bytes_size) {
+  // 1-byte value is 8 bits, and we need 4 bits to represent 8 : 1000,
+  // 2-byte         16 bits        =>    5
+  // 4-byte         32 bits        =>    6
+  // 8-byte         64 bits        =>    7
+  const UInt8 bit_lengths[] = {0, 4, 5, 0, 6, 0, 0, 0, 7};
+  assert(data_bytes_size >= 1 && data_bytes_size < sizeof(bit_lengths) && bit_lengths[data_bytes_size] != 0);
+  return bit_lengths[data_bytes_size];
 }
 
-namespace
-{
-
-constexpr UInt8 getBitLengthOfLength(UInt8 data_bytes_size)
-{
-    // 1-byte value is 8 bits, and we need 4 bits to represent 8 : 1000,
-    // 2-byte         16 bits        =>    5
-    // 4-byte         32 bits        =>    6
-    // 8-byte         64 bits        =>    7
-    const UInt8 bit_lengths[] = {0, 4, 5, 0, 6, 0, 0, 0, 7};
-    assert(data_bytes_size >= 1 && data_bytes_size < sizeof(bit_lengths) && bit_lengths[data_bytes_size] != 0);
-    return bit_lengths[data_bytes_size];
+UInt32 getCompressedHeaderSize(UInt8 data_bytes_size) {
+  constexpr UInt8 items_count_size = 4;
+  return items_count_size + data_bytes_size;
 }
 
+UInt32 getCompressedDataSize(UInt8 data_bytes_size, UInt32 uncompressed_size) {
+  const UInt32 items_count = uncompressed_size / data_bytes_size;
 
-UInt32 getCompressedHeaderSize(UInt8 data_bytes_size)
-{
-    constexpr UInt8 items_count_size = 4;
-    return items_count_size + data_bytes_size;
+  static const auto DATA_BIT_LENGTH = getBitLengthOfLength(data_bytes_size);
+  // -1 since there must be at least 1 non-zero bit.
+  static const auto LEADING_ZEROES_BIT_LENGTH = DATA_BIT_LENGTH - 1;
+
+  // worst case (for 32-bit value):
+  // 11 + 5 bits of leading zeroes bit-size + 5 bits of data bit-size + non-zero data bits.
+  const UInt32 max_item_size_bits = 2 + LEADING_ZEROES_BIT_LENGTH + DATA_BIT_LENGTH + data_bytes_size * 8;
+
+  // + 8 is to round up to next byte.
+  return (items_count * max_item_size_bits + 8) / 8;
 }
 
-UInt32 getCompressedDataSize(UInt8 data_bytes_size, UInt32 uncompressed_size)
-{
-    const UInt32 items_count = uncompressed_size / data_bytes_size;
-
-    static const auto DATA_BIT_LENGTH = getBitLengthOfLength(data_bytes_size);
-    // -1 since there must be at least 1 non-zero bit.
-    static const auto LEADING_ZEROES_BIT_LENGTH = DATA_BIT_LENGTH - 1;
-
-    // worst case (for 32-bit value):
-    // 11 + 5 bits of leading zeroes bit-size + 5 bits of data bit-size + non-zero data bits.
-    const UInt32 max_item_size_bits = 2 + LEADING_ZEROES_BIT_LENGTH + DATA_BIT_LENGTH + data_bytes_size * 8;
-
-    // + 8 is to round up to next byte.
-    return (items_count * max_item_size_bits + 8) / 8;
-}
-
-struct BinaryValueInfo
-{
-    UInt8 leading_zero_bits;
-    UInt8 data_bits;
-    UInt8 trailing_zero_bits;
+struct BinaryValueInfo {
+  UInt8 leading_zero_bits;
+  UInt8 data_bits;
+  UInt8 trailing_zero_bits;
 };
 
 template <typename T>
-BinaryValueInfo getBinaryValueInfo(const T & value)
-{
-    constexpr UInt8 bit_size = sizeof(T) * 8;
+BinaryValueInfo getBinaryValueInfo(const T& value) {
+  constexpr UInt8 bit_size = sizeof(T) * 8;
 
-    const UInt8 lz = static_cast<UInt8>(getLeadingZeroBits(value));
-    const UInt8 tz = static_cast<UInt8>(getTrailingZeroBits(value));
-    const UInt8 data_size = value == 0 ? 0 : static_cast<UInt8>(bit_size - lz - tz);
+  const UInt8 lz = static_cast<UInt8>(getLeadingZeroBits(value));
+  const UInt8 tz = static_cast<UInt8>(getTrailingZeroBits(value));
+  const UInt8 data_size = value == 0 ? 0 : static_cast<UInt8>(bit_size - lz - tz);
 
-    return {lz, data_size, tz};
+  return {lz, data_size, tz};
 }
 
 template <typename T>
-UInt32 compressDataForType(const char * source, UInt32 source_size, char * dest, UInt32 dest_size)
-{
-    if (source_size % sizeof(T) != 0)
-        throw Exception(ErrorCodes::CANNOT_COMPRESS, "Cannot compress with Gorilla codec, data size {} is not aligned to {}", source_size, sizeof(T));
+UInt32 compressDataForType(const char* source, UInt32 source_size, char* dest, UInt32 dest_size) {
+  if (source_size % sizeof(T) != 0)
+    throw Exception(ErrorCodes::CANNOT_COMPRESS, "Cannot compress with Gorilla codec, data size {} is not aligned to {}", source_size,
+                    sizeof(T));
 
-    const char * const source_end = source + source_size;
-    const char * const dest_start = dest;
-    const char * const dest_end = dest + dest_size;
+  const char* const source_end = source + source_size;
+  const char* const dest_start = dest;
+  const char* const dest_end = dest + dest_size;
 
-    const UInt32 items_count = source_size / sizeof(T);
+  const UInt32 items_count = source_size / sizeof(T);
 
-    unalignedStoreLittleEndian<UInt32>(dest, items_count);
-    dest += sizeof(items_count);
+  unalignedStoreLittleEndian<UInt32>(dest, items_count);
+  dest += sizeof(items_count);
 
-    T prev_value = 0;
-    // That would cause first XORed value to be written in-full.
-    BinaryValueInfo prev_xored_info{0, 0, 0};
+  T prev_value = 0;
+  // That would cause first XORed value to be written in-full.
+  BinaryValueInfo prev_xored_info{0, 0, 0};
 
-    if (source < source_end)
-    {
-        prev_value = unalignedLoadLittleEndian<T>(source);
-        unalignedStoreLittleEndian<T>(dest, prev_value);
-
-        source += sizeof(prev_value);
-        dest += sizeof(prev_value);
-    }
-
-    BitWriter writer(dest, dest_end - dest);
-
-    static const auto DATA_BIT_LENGTH = getBitLengthOfLength(sizeof(T));
-    // -1 since there must be at least 1 non-zero bit.
-    static const auto LEADING_ZEROES_BIT_LENGTH = DATA_BIT_LENGTH - 1;
-
-    while (source < source_end)
-    {
-        const T curr_value = unalignedLoadLittleEndian<T>(source);
-        source += sizeof(curr_value);
-
-        const auto xored_data = curr_value ^ prev_value;
-        const BinaryValueInfo curr_xored_info = getBinaryValueInfo(xored_data);
-
-        if (xored_data == 0)
-        {
-            writer.writeBits(1, 0);
-        }
-        else if (prev_xored_info.data_bits != 0
-                && prev_xored_info.leading_zero_bits <= curr_xored_info.leading_zero_bits
-                && prev_xored_info.trailing_zero_bits <= curr_xored_info.trailing_zero_bits)
-        {
-            writer.writeBits(2, 0b10);
-            writer.writeBits(prev_xored_info.data_bits, xored_data >> prev_xored_info.trailing_zero_bits);
-        }
-        else
-        {
-            writer.writeBits(2, 0b11);
-            writer.writeBits(LEADING_ZEROES_BIT_LENGTH, curr_xored_info.leading_zero_bits);
-            writer.writeBits(DATA_BIT_LENGTH, curr_xored_info.data_bits);
-            writer.writeBits(curr_xored_info.data_bits, xored_data >> curr_xored_info.trailing_zero_bits);
-            prev_xored_info = curr_xored_info;
-        }
-
-        prev_value = curr_value;
-    }
-
-    writer.flush();
-
-    return static_cast<UInt32>((dest - dest_start) + (writer.count() + 7) / 8);
-}
-
-template <typename T>
-UInt32 decompressDataForType(const char * source, UInt32 source_size, char * dest, UInt32 dest_size)
-{
-    const char * const original_dest = dest;
-    const char * const source_end = source + source_size;
-
-    if (source + sizeof(UInt32) > source_end)
-        return 0;
-
-    const UInt32 items_count = unalignedLoadLittleEndian<UInt32>(source);
-    source += sizeof(items_count);
-
-    T prev_value = 0;
-
-    // decoding first item
-    if (source + sizeof(T) > source_end || items_count < 1)
-        return 0;
-
-    if (static_cast<UInt64>(items_count) * sizeof(T) > dest_size)
-        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data: corrupted input data.");
-
+  if (source < source_end) {
     prev_value = unalignedLoadLittleEndian<T>(source);
     unalignedStoreLittleEndian<T>(dest, prev_value);
 
     source += sizeof(prev_value);
     dest += sizeof(prev_value);
+  }
 
-    BitReader reader(source, source_size - sizeof(items_count) - sizeof(prev_value));
+  BitWriter writer(dest, dest_end - dest);
 
-    BinaryValueInfo prev_xored_info{0, 0, 0};
+  static const auto DATA_BIT_LENGTH = getBitLengthOfLength(sizeof(T));
+  // -1 since there must be at least 1 non-zero bit.
+  static const auto LEADING_ZEROES_BIT_LENGTH = DATA_BIT_LENGTH - 1;
 
-    static const auto DATA_BIT_LENGTH = getBitLengthOfLength(sizeof(T));
-    // -1 since there must be at least 1 non-zero bit.
-    static const auto LEADING_ZEROES_BIT_LENGTH = DATA_BIT_LENGTH - 1;
+  while (source < source_end) {
+    const T curr_value = unalignedLoadLittleEndian<T>(source);
+    source += sizeof(curr_value);
 
-    // since data is tightly packed, up to 1 bit per value, and last byte is padded with zeroes,
-    // we have to keep track of items to avoid reading more that there is.
-    for (UInt32 items_read = 1; items_read < items_count && !reader.eof(); ++items_read)
-    {
-        T curr_value = prev_value;
-        BinaryValueInfo curr_xored_info = prev_xored_info;
-        T xored_data = 0;
+    const auto xored_data = curr_value ^ prev_value;
+    const BinaryValueInfo curr_xored_info = getBinaryValueInfo(xored_data);
 
-        if (reader.readBit() == 1)
-        {
-            if (reader.readBit() == 1)
-            {
-                // 0b11 prefix
-                curr_xored_info.leading_zero_bits = static_cast<UInt8>(reader.readBits(LEADING_ZEROES_BIT_LENGTH));
-                curr_xored_info.data_bits = static_cast<UInt8>(reader.readBits(DATA_BIT_LENGTH));
-                curr_xored_info.trailing_zero_bits = sizeof(T) * 8 - curr_xored_info.leading_zero_bits - curr_xored_info.data_bits;
-            }
-            // else: 0b10 prefix - use prev_xored_info
-
-            if (curr_xored_info.leading_zero_bits == 0
-                && curr_xored_info.data_bits == 0
-                && curr_xored_info.trailing_zero_bits == 0) [[unlikely]]
-            {
-                throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data: corrupted input data.");
-            }
-
-            xored_data = static_cast<T>(reader.readBits(curr_xored_info.data_bits));
-            xored_data <<= curr_xored_info.trailing_zero_bits;
-            curr_value = prev_value ^ xored_data;
-        }
-        // else: 0b0 prefix - use prev_value
-
-        unalignedStoreLittleEndian<T>(dest, curr_value);
-        dest += sizeof(curr_value);
-
-        prev_xored_info = curr_xored_info;
-        prev_value = curr_value;
+    if (xored_data == 0) {
+      writer.writeBits(1, 0);
+    } else if (prev_xored_info.data_bits != 0 && prev_xored_info.leading_zero_bits <= curr_xored_info.leading_zero_bits &&
+               prev_xored_info.trailing_zero_bits <= curr_xored_info.trailing_zero_bits) {
+      writer.writeBits(2, 0b10);
+      writer.writeBits(prev_xored_info.data_bits, xored_data >> prev_xored_info.trailing_zero_bits);
+    } else {
+      writer.writeBits(2, 0b11);
+      writer.writeBits(LEADING_ZEROES_BIT_LENGTH, curr_xored_info.leading_zero_bits);
+      writer.writeBits(DATA_BIT_LENGTH, curr_xored_info.data_bits);
+      writer.writeBits(curr_xored_info.data_bits, xored_data >> curr_xored_info.trailing_zero_bits);
+      prev_xored_info = curr_xored_info;
     }
 
-    return static_cast<UInt32>(dest - original_dest);
+    prev_value = curr_value;
+  }
+
+  writer.flush();
+
+  return static_cast<UInt32>((dest - dest_start) + (writer.count() + 7) / 8);
 }
 
-UInt8 getDataBytesSize(const IDataType * column_type)
-{
-    if (!column_type->isValueUnambiguouslyRepresentedInFixedSizeContiguousMemoryRegion())
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Codec Gorilla is not applicable for {} because the data type is not of fixed size",
-            column_type->getName());
+template <typename T>
+UInt32 decompressDataForType(const char* source, UInt32 source_size, char* dest, UInt32 dest_size) {
+  const char* const original_dest = dest;
+  const char* const source_end = source + source_size;
 
-    size_t max_size = column_type->getSizeOfValueInMemory();
-    if (max_size == 1 || max_size == 2 || max_size == 4 || max_size == 8)
-        return static_cast<UInt8>(max_size);
-    throw Exception(
-        ErrorCodes::BAD_ARGUMENTS,
-        "Codec Gorilla is only applicable for data types of size 1, 2, 4, 8 bytes. Given type {}",
-        column_type->getName());
+  if (source + sizeof(UInt32) > source_end) return 0;
+
+  const UInt32 items_count = unalignedLoadLittleEndian<UInt32>(source);
+  source += sizeof(items_count);
+
+  T prev_value = 0;
+
+  // decoding first item
+  if (source + sizeof(T) > source_end || items_count < 1) return 0;
+
+  if (static_cast<UInt64>(items_count) * sizeof(T) > dest_size)
+    throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data: corrupted input data.");
+
+  prev_value = unalignedLoadLittleEndian<T>(source);
+  unalignedStoreLittleEndian<T>(dest, prev_value);
+
+  source += sizeof(prev_value);
+  dest += sizeof(prev_value);
+
+  BitReader reader(source, source_size - sizeof(items_count) - sizeof(prev_value));
+
+  BinaryValueInfo prev_xored_info{0, 0, 0};
+
+  static const auto DATA_BIT_LENGTH = getBitLengthOfLength(sizeof(T));
+  // -1 since there must be at least 1 non-zero bit.
+  static const auto LEADING_ZEROES_BIT_LENGTH = DATA_BIT_LENGTH - 1;
+
+  // since data is tightly packed, up to 1 bit per value, and last byte is padded with zeroes,
+  // we have to keep track of items to avoid reading more that there is.
+  for (UInt32 items_read = 1; items_read < items_count && !reader.eof(); ++items_read) {
+    T curr_value = prev_value;
+    BinaryValueInfo curr_xored_info = prev_xored_info;
+    T xored_data = 0;
+
+    if (reader.readBit() == 1) {
+      if (reader.readBit() == 1) {
+        // 0b11 prefix
+        curr_xored_info.leading_zero_bits = static_cast<UInt8>(reader.readBits(LEADING_ZEROES_BIT_LENGTH));
+        curr_xored_info.data_bits = static_cast<UInt8>(reader.readBits(DATA_BIT_LENGTH));
+        curr_xored_info.trailing_zero_bits = sizeof(T) * 8 - curr_xored_info.leading_zero_bits - curr_xored_info.data_bits;
+      }
+      // else: 0b10 prefix - use prev_xored_info
+
+      if (curr_xored_info.leading_zero_bits == 0 && curr_xored_info.data_bits == 0 && curr_xored_info.trailing_zero_bits == 0)
+          [[unlikely]] {
+        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data: corrupted input data.");
+      }
+
+      xored_data = static_cast<T>(reader.readBits(curr_xored_info.data_bits));
+      xored_data <<= curr_xored_info.trailing_zero_bits;
+      curr_value = prev_value ^ xored_data;
+    }
+    // else: 0b0 prefix - use prev_value
+
+    unalignedStoreLittleEndian<T>(dest, curr_value);
+    dest += sizeof(curr_value);
+
+    prev_xored_info = curr_xored_info;
+    prev_value = curr_value;
+  }
+
+  return static_cast<UInt32>(dest - original_dest);
 }
 
+UInt8 getDataBytesSize(const IDataType* column_type) {
+  if (!column_type->isValueUnambiguouslyRepresentedInFixedSizeContiguousMemoryRegion())
+    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Codec Gorilla is not applicable for {} because the data type is not of fixed size",
+                    column_type->getName());
+
+  size_t max_size = column_type->getSizeOfValueInMemory();
+  if (max_size == 1 || max_size == 2 || max_size == 4 || max_size == 8) return static_cast<UInt8>(max_size);
+  throw Exception(ErrorCodes::BAD_ARGUMENTS, "Codec Gorilla is only applicable for data types of size 1, 2, 4, 8 bytes. Given type {}",
+                  column_type->getName());
 }
 
+}  // namespace
 
-CompressionCodecGorilla::CompressionCodecGorilla(UInt8 data_bytes_size_)
-    : data_bytes_size(data_bytes_size_)
-{
-    setCodecDescription("Gorilla", {make_intrusive<ASTLiteral>(static_cast<UInt64>(data_bytes_size))});
+CompressionCodecGorilla::CompressionCodecGorilla(UInt8 data_bytes_size_) : data_bytes_size(data_bytes_size_) {
+  setCodecDescription("Gorilla", {make_intrusive<ASTLiteral>(static_cast<UInt64>(data_bytes_size))});
 }
 
-uint8_t CompressionCodecGorilla::getMethodByte() const
-{
-    return static_cast<uint8_t>(CompressionMethodByte::Gorilla);
+uint8_t CompressionCodecGorilla::getMethodByte() const { return static_cast<uint8_t>(CompressionMethodByte::Gorilla); }
+
+void CompressionCodecGorilla::updateHash(SipHash& hash) const {
+  getCodecDesc()->updateTreeHash(hash, /*ignore_aliases=*/true);
+  hash.update(data_bytes_size);
 }
 
-void CompressionCodecGorilla::updateHash(SipHash & hash) const
-{
-    getCodecDesc()->updateTreeHash(hash, /*ignore_aliases=*/ true);
-    hash.update(data_bytes_size);
+UInt32 CompressionCodecGorilla::getMaxCompressedDataSize(UInt32 uncompressed_size) const {
+  const auto result = 2                                           // common header
+                      + data_bytes_size                           // max bytes skipped if source is not properly aligned.
+                      + getCompressedHeaderSize(data_bytes_size)  // data-specific header
+                      + getCompressedDataSize(data_bytes_size, uncompressed_size);
+
+  return result;
 }
 
-UInt32 CompressionCodecGorilla::getMaxCompressedDataSize(UInt32 uncompressed_size) const
-{
-    const auto result = 2 // common header
-            + data_bytes_size // max bytes skipped if source is not properly aligned.
-            + getCompressedHeaderSize(data_bytes_size) // data-specific header
-            + getCompressedDataSize(data_bytes_size, uncompressed_size);
+UInt32 CompressionCodecGorilla::doCompressData(const char* source, UInt32 source_size, char* dest) const {
+  UInt8 bytes_to_skip = source_size % data_bytes_size;
+  dest[0] = data_bytes_size;
+  dest[1] = bytes_to_skip;  /// unused (backward compatibility)
+  memcpy(&dest[2], source, bytes_to_skip);
+  size_t start_pos = 2 + bytes_to_skip;
+  UInt32 result_size = 0;
 
-    return result;
-}
-
-UInt32 CompressionCodecGorilla::doCompressData(const char * source, UInt32 source_size, char * dest) const
-{
-    UInt8 bytes_to_skip = source_size % data_bytes_size;
-    dest[0] = data_bytes_size;
-    dest[1] = bytes_to_skip; /// unused (backward compatibility)
-    memcpy(&dest[2], source, bytes_to_skip);
-    size_t start_pos = 2 + bytes_to_skip;
-    UInt32 result_size = 0;
-
-    const UInt32 compressed_size = getMaxCompressedDataSize(source_size);
-    switch (data_bytes_size)
-    {
+  const UInt32 compressed_size = getMaxCompressedDataSize(source_size);
+  switch (data_bytes_size) {
     case 1:
-        result_size = compressDataForType<UInt8>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
-        break;
+      result_size = compressDataForType<UInt8>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
+      break;
     case 2:
-        result_size = compressDataForType<UInt16>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
-        break;
+      result_size = compressDataForType<UInt16>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
+      break;
     case 4:
-        result_size = compressDataForType<UInt32>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
-        break;
+      result_size = compressDataForType<UInt32>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
+      break;
     case 8:
-        result_size = compressDataForType<UInt64>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
-        break;
+      result_size = compressDataForType<UInt64>(&source[bytes_to_skip], source_size - bytes_to_skip, &dest[start_pos], compressed_size);
+      break;
     default:
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot compress to Gorilla-encoded data. Invalid byte size {}", UInt32{data_bytes_size});
-    }
+      throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot compress to Gorilla-encoded data. Invalid byte size {}", UInt32{data_bytes_size});
+  }
 
-    return 2 + bytes_to_skip + result_size;
+  return 2 + bytes_to_skip + result_size;
 }
 
-UInt32 CompressionCodecGorilla::doDecompressData(const char * source, UInt32 source_size, char * dest, UInt32 uncompressed_size) const
-{
-    if (source_size < 2)
-        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
+UInt32 CompressionCodecGorilla::doDecompressData(const char* source, UInt32 source_size, char* dest, UInt32 uncompressed_size) const {
+  if (source_size < 2) throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
 
-    UInt8 bytes_size = source[0];
+  UInt8 bytes_size = source[0];
 
-    if (bytes_size == 0)
-        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
+  if (bytes_size == 0) throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
 
-    UInt8 bytes_to_skip = uncompressed_size % bytes_size;
+  UInt8 bytes_to_skip = uncompressed_size % bytes_size;
 
-    if (static_cast<UInt32>(2 + bytes_to_skip) > source_size)
-        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
+  if (static_cast<UInt32>(2 + bytes_to_skip) > source_size)
+    throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
 
-    if (bytes_to_skip > uncompressed_size)
-        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
+  if (bytes_to_skip > uncompressed_size)
+    throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
 
-    memcpy(dest, &source[2], bytes_to_skip);
+  memcpy(dest, &source[2], bytes_to_skip);
 
-    /// All data is in the skip section when data_bytes_size > uncompressed_size.
-    if (bytes_to_skip == uncompressed_size)
-        return uncompressed_size;
-    UInt32 source_size_no_header = source_size - bytes_to_skip - 2;
-    UInt32 uncompressed_size_left = uncompressed_size - bytes_to_skip;
-    switch (bytes_size)
-    {
+  /// All data is in the skip section when data_bytes_size > uncompressed_size.
+  if (bytes_to_skip == uncompressed_size) return uncompressed_size;
+  UInt32 source_size_no_header = source_size - bytes_to_skip - 2;
+  UInt32 uncompressed_size_left = uncompressed_size - bytes_to_skip;
+  switch (bytes_size) {
     case 1:
-        return bytes_to_skip + decompressDataForType<UInt8>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
+      return bytes_to_skip +
+             decompressDataForType<UInt8>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
     case 2:
-        return bytes_to_skip + decompressDataForType<UInt16>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
+      return bytes_to_skip +
+             decompressDataForType<UInt16>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
     case 4:
-        return bytes_to_skip + decompressDataForType<UInt32>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
+      return bytes_to_skip +
+             decompressDataForType<UInt32>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
     case 8:
-        return bytes_to_skip + decompressDataForType<UInt64>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
+      return bytes_to_skip +
+             decompressDataForType<UInt64>(&source[2 + bytes_to_skip], source_size_no_header, &dest[bytes_to_skip], uncompressed_size_left);
     default:
-        throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
+      throw Exception(ErrorCodes::CANNOT_DECOMPRESS, "Cannot decompress Gorilla-encoded data. File has wrong header");
+  }
+}
+
+void registerCodecGorilla(CompressionCodecFactory& factory) {
+  UInt8 method_code = static_cast<UInt8>(CompressionMethodByte::Gorilla);
+  auto codec_builder = [&](const ASTPtr& arguments, const IDataType* column_type) -> CompressionCodecPtr {
+    /// Default bytes size is 1
+    UInt8 data_bytes_size = 1;
+    if (arguments && !arguments->children.empty()) {
+      if (arguments->children.size() > 1)
+        throw Exception(ErrorCodes::ILLEGAL_SYNTAX_FOR_CODEC_TYPE, "Gorilla codec must have 1 parameter, given {}",
+                        arguments->children.size());
+
+      const auto children = arguments->children;
+      const auto* literal = children[0]->as<ASTLiteral>();
+      if (!literal || literal->value.getType() != Field::Types::Which::UInt64)
+        throw Exception(ErrorCodes::ILLEGAL_CODEC_PARAMETER, "Gorilla codec argument must be unsigned integer");
+
+      size_t user_bytes_size = literal->value.safeGet<UInt64>();
+      if (user_bytes_size != 1 && user_bytes_size != 2 && user_bytes_size != 4 && user_bytes_size != 8)
+        throw Exception(ErrorCodes::ILLEGAL_CODEC_PARAMETER, "Argument value for Gorilla codec can be 1, 2, 4 or 8, given {}",
+                        user_bytes_size);
+      data_bytes_size = static_cast<UInt8>(user_bytes_size);
+    } else if (column_type) {
+      data_bytes_size = getDataBytesSize(column_type);
     }
+
+    return std::make_shared<CompressionCodecGorilla>(data_bytes_size);
+  };
+  factory.registerCompressionCodecWithType("Gorilla", method_code, codec_builder);
 }
-
-void registerCodecGorilla(CompressionCodecFactory & factory)
-{
-    UInt8 method_code = static_cast<UInt8>(CompressionMethodByte::Gorilla);
-    auto codec_builder = [&](const ASTPtr & arguments, const IDataType * column_type) -> CompressionCodecPtr
-    {
-        /// Default bytes size is 1
-        UInt8 data_bytes_size = 1;
-        if (arguments && !arguments->children.empty())
-        {
-            if (arguments->children.size() > 1)
-                throw Exception(ErrorCodes::ILLEGAL_SYNTAX_FOR_CODEC_TYPE, "Gorilla codec must have 1 parameter, given {}", arguments->children.size());
-
-            const auto children = arguments->children;
-            const auto * literal = children[0]->as<ASTLiteral>();
-            if (!literal || literal->value.getType() != Field::Types::Which::UInt64)
-                throw Exception(ErrorCodes::ILLEGAL_CODEC_PARAMETER, "Gorilla codec argument must be unsigned integer");
-
-            size_t user_bytes_size = literal->value.safeGet<UInt64>();
-            if (user_bytes_size != 1 && user_bytes_size != 2 && user_bytes_size != 4 && user_bytes_size != 8)
-                throw Exception(ErrorCodes::ILLEGAL_CODEC_PARAMETER, "Argument value for Gorilla codec can be 1, 2, 4 or 8, given {}", user_bytes_size);
-            data_bytes_size = static_cast<UInt8>(user_bytes_size);
-        }
-        else if (column_type)
-        {
-            data_bytes_size = getDataBytesSize(column_type);
-        }
-
-        return std::make_shared<CompressionCodecGorilla>(data_bytes_size);
-    };
-    factory.registerCompressionCodecWithType("Gorilla", method_code, codec_builder);
-}
-}
+}  // namespace DB

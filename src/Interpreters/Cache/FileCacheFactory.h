@@ -4,75 +4,67 @@
 #include <Interpreters/Cache/FileCacheSettings.h>
 
 #include <boost/noncopyable.hpp>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
-#include <mutex>
 
-namespace DB
-{
+namespace DB {
 
 /**
  * Creates a FileCache object for cache_base_path.
  */
-class FileCacheFactory final : private boost::noncopyable
-{
-public:
-    class FileCacheData
-    {
-        friend class FileCacheFactory;
-    public:
-        FileCacheData(FileCachePtr cache_, const FileCacheSettings & settings_, const std::string & config_path_);
+class FileCacheFactory final : private boost::noncopyable {
+ public:
+  class FileCacheData {
+    friend class FileCacheFactory;
 
-        FileCacheSettings getSettings() const;
+   public:
+    FileCacheData(FileCachePtr cache_, const FileCacheSettings& settings_, const std::string& config_path_);
 
-        void setSettings(FileCacheSettings && new_settings);
+    FileCacheSettings getSettings() const;
 
-        const FileCachePtr cache;
-        const std::string config_path;
+    void setSettings(FileCacheSettings&& new_settings);
 
-    private:
-        FileCacheSettings settings;
-        mutable std::mutex settings_mutex;
-    };
+    const FileCachePtr cache;
+    const std::string config_path;
 
-    using FileCacheDataPtr = std::shared_ptr<FileCacheData>;
-    using CacheByName = std::unordered_map<std::string, FileCacheDataPtr>;
-    using Caches = std::unordered_set<FileCacheDataPtr>;
+   private:
+    FileCacheSettings settings;
+    mutable std::mutex settings_mutex;
+  };
 
-    static FileCacheFactory & instance();
+  using FileCacheDataPtr = std::shared_ptr<FileCacheData>;
+  using CacheByName = std::unordered_map<std::string, FileCacheDataPtr>;
+  using Caches = std::unordered_set<FileCacheDataPtr>;
 
-    FileCachePtr getOrCreate(
-        const std::string & cache_name,
-        const FileCacheSettings & file_cache_settings,
-        const std::string & config_path);
+  static FileCacheFactory& instance();
 
-    FileCachePtr get(const std::string & cache_name);
+  FileCachePtr getOrCreate(const std::string& cache_name, const FileCacheSettings& file_cache_settings, const std::string& config_path);
 
-    FileCachePtr create(
-        const std::string & cache_name,
-        const FileCacheSettings & file_cache_settings,
-        const std::string & config_path);
+  FileCachePtr get(const std::string& cache_name);
 
-    CacheByName getAll();
-    Caches getUniqueInstances();
+  FileCachePtr create(const std::string& cache_name, const FileCacheSettings& file_cache_settings, const std::string& config_path);
 
-    FileCacheDataPtr getByName(const std::string & cache_name);
+  CacheByName getAll();
+  Caches getUniqueInstances();
 
-    void loadDefaultCaches(const Poco::Util::AbstractConfiguration & config, ContextPtr context);
+  FileCacheDataPtr getByName(const std::string& cache_name);
 
-    void updateSettingsFromConfig(const Poco::Util::AbstractConfiguration & config);
+  void loadDefaultCaches(const Poco::Util::AbstractConfiguration& config, ContextPtr context);
 
-    void remove(FileCachePtr cache);
+  void updateSettingsFromConfig(const Poco::Util::AbstractConfiguration& config);
 
-    void clear();
+  void remove(FileCachePtr cache);
 
-private:
-    std::mutex mutex;
-    CacheByName caches_by_name;
+  void clear();
+
+ private:
+  std::mutex mutex;
+  CacheByName caches_by_name;
 };
 
 /// Get default path prefix for non-disk caches.
 /// For disk we have a similar method in registerDiskCache.
 std::string getPathPrefixForRelativeCachePath(ContextPtr context);
 
-}
+}  // namespace DB

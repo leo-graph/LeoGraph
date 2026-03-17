@@ -1,168 +1,154 @@
 #pragma once
 
 #include <Coordination/InMemoryLogStore.h>
-#include <Coordination/KeeperStateMachine.h>
-#include <Coordination/KeeperStateManager.h>
-#include <libnuraft/raft_params.hxx>
-#include <libnuraft/raft_server.hxx>
-#include <Poco/Util/AbstractConfiguration.h>
 #include <Coordination/Keeper4LWInfo.h>
 #include <Coordination/KeeperContext.h>
+#include <Coordination/KeeperStateMachine.h>
+#include <Coordination/KeeperStateManager.h>
 #include <Coordination/RaftServerConfig.h>
+#include <Poco/Util/AbstractConfiguration.h>
+#include <libnuraft/raft_params.hxx>
+#include <libnuraft/raft_server.hxx>
 
-namespace DB
-{
+namespace DB {
 
 using RaftAppendResult = nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>>;
 
 struct KeeperConfigurationAndSettings;
 using KeeperConfigurationAndSettingsPtr = std::shared_ptr<KeeperConfigurationAndSettings>;
 
-class KeeperServer
-{
-public:
-    struct RespondingCounts
-    {
-        uint64_t learners = 0;
-        uint64_t followers = 0;
-        uint64_t synced_followers = 0;
-        uint64_t synced_non_voting_followers = 0;
-    };
+class KeeperServer {
+ public:
+  struct RespondingCounts {
+    uint64_t learners = 0;
+    uint64_t followers = 0;
+    uint64_t synced_followers = 0;
+    uint64_t synced_non_voting_followers = 0;
+  };
 
-private:
-    const int server_id;
+ private:
+  const int server_id;
 
-    nuraft::ptr<IKeeperStateMachine> state_machine;
+  nuraft::ptr<IKeeperStateMachine> state_machine;
 
-    nuraft::ptr<KeeperStateManager> state_manager;
+  nuraft::ptr<KeeperStateManager> state_manager;
 
-    struct KeeperRaftServer;
-    nuraft::ptr<KeeperRaftServer> raft_instance; // TSA_GUARDED_BY(server_write_mutex);
-    nuraft::ptr<nuraft::asio_service> asio_service;
-    std::vector<nuraft::ptr<nuraft::rpc_listener>> asio_listeners;
+  struct KeeperRaftServer;
+  nuraft::ptr<KeeperRaftServer> raft_instance;  // TSA_GUARDED_BY(server_write_mutex);
+  nuraft::ptr<nuraft::asio_service> asio_service;
+  std::vector<nuraft::ptr<nuraft::rpc_listener>> asio_listeners;
 
-    // because some actions can be applied
-    // when we are sure that there are no requests currently being
-    // processed (e.g. recovery) we do all write actions
-    // on raft_server under this mutex.
-    mutable std::mutex server_write_mutex;
+  // because some actions can be applied
+  // when we are sure that there are no requests currently being
+  // processed (e.g. recovery) we do all write actions
+  // on raft_server under this mutex.
+  mutable std::mutex server_write_mutex;
 
-    std::mutex initialized_mutex;
-    std::atomic<bool> initialized_flag = false;
-    std::condition_variable initialized_cv;
-    std::atomic<bool> initial_batch_committed = false;
+  std::mutex initialized_mutex;
+  std::atomic<bool> initialized_flag = false;
+  std::condition_variable initialized_cv;
+  std::atomic<bool> initial_batch_committed = false;
 
-    std::atomic<uint64_t> last_log_idx_on_disk = 0;
+  std::atomic<uint64_t> last_log_idx_on_disk = 0;
 
-    nuraft::ptr<nuraft::cluster_config> last_local_config;
+  nuraft::ptr<nuraft::cluster_config> last_local_config;
 
-    LoggerPtr log;
+  LoggerPtr log;
 
-    /// Callback func which is called by NuRaft on all internal events.
-    /// Used to determine the moment when raft is ready to server new requests
-    nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
+  /// Callback func which is called by NuRaft on all internal events.
+  /// Used to determine the moment when raft is ready to server new requests
+  nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param* param);
 
-    /// Almost copy-paste from nuraft::launcher, but with separated server init and start
-    /// Allows to avoid race conditions.
-    void launchRaftServer(const Poco::Util::AbstractConfiguration & config, bool enable_ipv6);
+  /// Almost copy-paste from nuraft::launcher, but with separated server init and start
+  /// Allows to avoid race conditions.
+  void launchRaftServer(const Poco::Util::AbstractConfiguration& config, bool enable_ipv6);
 
-    void shutdownRaftServer();
+  void shutdownRaftServer();
 
-    void loadLatestConfig();
+  void loadLatestConfig();
 
-    void enterRecoveryMode(nuraft::raft_params & params);
+  void enterRecoveryMode(nuraft::raft_params& params);
 
-    std::atomic_bool is_recovering = false;
+  std::atomic_bool is_recovering = false;
 
-    KeeperContextPtr keeper_context;
+  KeeperContextPtr keeper_context;
 
-    const bool create_snapshot_on_exit;
-    const bool enable_reconfiguration;
-public:
-    KeeperServer(
-        const KeeperConfigurationAndSettingsPtr & settings_,
-        const Poco::Util::AbstractConfiguration & config_,
-        ResponsesQueue & responses_queue_,
-        SnapshotsQueue & snapshots_queue_,
-        KeeperContextPtr keeper_context_,
-        KeeperSnapshotManagerS3 & snapshot_manager_s3,
-        IKeeperStateMachine::CommitCallback commit_callback);
+  const bool create_snapshot_on_exit;
+  const bool enable_reconfiguration;
 
-    /// Load state machine from the latest snapshot and load log storage. Start NuRaft with required settings.
-    void startup(const Poco::Util::AbstractConfiguration & config, bool enable_ipv6 = true);
+ public:
+  KeeperServer(const KeeperConfigurationAndSettingsPtr& settings_, const Poco::Util::AbstractConfiguration& config_,
+               ResponsesQueue& responses_queue_, SnapshotsQueue& snapshots_queue_, KeeperContextPtr keeper_context_,
+               KeeperSnapshotManagerS3& snapshot_manager_s3, IKeeperStateMachine::CommitCallback commit_callback);
 
-    /// Put local read request and execute in state machine directly and response into
-    /// responses queue
-    void putLocalReadRequest(const KeeperRequestForSession & request);
+  /// Load state machine from the latest snapshot and load log storage. Start NuRaft with required settings.
+  void startup(const Poco::Util::AbstractConfiguration& config, bool enable_ipv6 = true);
 
-    bool isRecovering() const { return is_recovering; }
-    bool reconfigEnabled() const { return enable_reconfiguration; }
+  /// Put local read request and execute in state machine directly and response into
+  /// responses queue
+  void putLocalReadRequest(const KeeperRequestForSession& request);
 
-    /// Put batch of requests into Raft and get result of put. Responses will be set separately into
-    /// responses_queue.
-    RaftAppendResult putRequestBatch(const KeeperRequestsForSessions & requests);
+  bool isRecovering() const { return is_recovering; }
+  bool reconfigEnabled() const { return enable_reconfiguration; }
 
-    /// Return set of the non-active sessions
-    std::vector<int64_t> getDeadSessions();
+  /// Put batch of requests into Raft and get result of put. Responses will be set separately into
+  /// responses_queue.
+  RaftAppendResult putRequestBatch(const KeeperRequestsForSessions& requests);
 
-    nuraft::ptr<IKeeperStateMachine> getKeeperStateMachine() const { return state_machine; }
+  /// Return set of the non-active sessions
+  std::vector<int64_t> getDeadSessions();
 
-    void forceRecovery();
+  nuraft::ptr<IKeeperStateMachine> getKeeperStateMachine() const { return state_machine; }
 
-    bool isLeader() const;
+  void forceRecovery();
 
-    bool isFollower() const;
+  bool isLeader() const;
 
-    bool isObserver() const;
+  bool isFollower() const;
 
-    bool isLeaderAlive() const;
+  bool isObserver() const;
 
-    bool isExceedingMemorySoftLimit() const;
+  bool isLeaderAlive() const;
 
-    int64_t getLeaderID() const;
+  bool isExceedingMemorySoftLimit() const;
 
-    Keeper4LWInfo getPartiallyFilled4LWInfo() const;
+  int64_t getLeaderID() const;
 
-    /// @return responding learners/followers/synced followers; all zero when node is not leader
-    RespondingCounts getRespondingCounts() const;
+  Keeper4LWInfo getPartiallyFilled4LWInfo() const;
 
-    /// Wait server initialization (see callbackFunc)
-    void waitInit();
+  /// @return responding learners/followers/synced followers; all zero when node is not leader
+  RespondingCounts getRespondingCounts() const;
 
-    /// Return true if KeeperServer initialized
-    bool checkInit() const { return initialized_flag; }
+  /// Wait server initialization (see callbackFunc)
+  void waitInit();
 
-    void shutdown();
+  /// Return true if KeeperServer initialized
+  bool checkInit() const { return initialized_flag; }
 
-    int getServerID() const { return server_id; }
+  void shutdown();
 
-    enum class ConfigUpdateState : uint8_t
-    {
-        Accepted,
-        Declined,
-        WaitBeforeChangingLeader
-    };
+  int getServerID() const { return server_id; }
 
-    ConfigUpdateState applyConfigUpdate(
-        const ClusterUpdateAction & action,
-        bool last_command_was_leader_change = false);
+  enum class ConfigUpdateState : uint8_t { Accepted, Declined, WaitBeforeChangingLeader };
 
-    // TODO (myrrc) these functions should be removed once "reconfig" is stabilized
-    void applyConfigUpdateWithReconfigDisabled(const ClusterUpdateAction& action);
-    bool waitForConfigUpdateWithReconfigDisabled(const ClusterUpdateAction& action);
-    ClusterUpdateActions getRaftConfigurationDiff(const Poco::Util::AbstractConfiguration & config);
+  ConfigUpdateState applyConfigUpdate(const ClusterUpdateAction& action, bool last_command_was_leader_change = false);
 
-    uint64_t createSnapshot();
+  // TODO (myrrc) these functions should be removed once "reconfig" is stabilized
+  void applyConfigUpdateWithReconfigDisabled(const ClusterUpdateAction& action);
+  bool waitForConfigUpdateWithReconfigDisabled(const ClusterUpdateAction& action);
+  ClusterUpdateActions getRaftConfigurationDiff(const Poco::Util::AbstractConfiguration& config);
 
-    KeeperLogInfo getKeeperLogInfo();
+  uint64_t createSnapshot();
 
-    bool requestLeader();
+  KeeperLogInfo getKeeperLogInfo();
 
-    void yieldLeadership();
+  bool requestLeader();
 
-    void recalculateStorageStats();
+  void yieldLeadership();
 
-    std::optional<AuthenticationData> getAuthenticationData() const { return state_manager->getAuthenticationData(); }
+  void recalculateStorageStats();
+
+  std::optional<AuthenticationData> getAuthenticationData() const { return state_manager->getAuthenticationData(); }
 };
 
-}
+}  // namespace DB

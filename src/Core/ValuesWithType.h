@@ -4,9 +4,7 @@
 
 #include <Core/ValueWithType.h>
 
-
-namespace DB
-{
+namespace DB {
 
 using ValuesWithType = std::vector<ValueWithType>;
 

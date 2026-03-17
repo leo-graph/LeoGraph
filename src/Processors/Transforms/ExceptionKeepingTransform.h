@@ -3,8 +3,7 @@
 #include <Processors/Port.h>
 #include <memory>
 
-namespace DB
-{
+namespace DB {
 
 class ThreadGroup;
 using ThreadGroupPtr = std::shared_ptr<ThreadGroup>;
@@ -23,55 +22,52 @@ using ThreadGroupPtr = std::shared_ptr<ThreadGroup>;
 /// Method onStart() is called before reading any data.
 /// Method onFinish() is called after all data from input is processed, if no exception happened.
 /// In case of exception, it is additionally pushed into pipeline.
-class ExceptionKeepingTransform : public IProcessor
-{
-protected:
-    InputPort & input;
-    OutputPort & output;
-    Port::Data data;
+class ExceptionKeepingTransform : public IProcessor {
+ protected:
+  InputPort& input;
+  OutputPort& output;
+  Port::Data data;
 
-    enum class Stage : uint8_t
-    {
-        Start,
-        Consume,
-        Generate,
-        Finish,
-        Exception,
-    };
+  enum class Stage : uint8_t {
+    Start,
+    Consume,
+    Generate,
+    Finish,
+    Exception,
+  };
 
-    Stage stage = Stage::Start;
-    bool ready_input = false;
-    bool ready_output = false;
-    const bool ignore_on_start_and_finish = true;
+  Stage stage = Stage::Start;
+  bool ready_input = false;
+  bool ready_output = false;
+  const bool ignore_on_start_and_finish = true;
 
-    struct GenerateResult
-    {
-        Chunk chunk;
-        bool is_done = true;
-    };
+  struct GenerateResult {
+    Chunk chunk;
+    bool is_done = true;
+  };
 
-    virtual void onStart() {}
-    virtual void onConsume(Chunk chunk) = 0;
-    virtual GenerateResult onGenerate() = 0;
-    virtual void onFinish() {}
-    virtual void onException(std::exception_ptr /* exception */) { }
+  virtual void onStart() {}
+  virtual void onConsume(Chunk chunk) = 0;
+  virtual GenerateResult onGenerate() = 0;
+  virtual void onFinish() {}
+  virtual void onException(std::exception_ptr /* exception */) {}
 
-    virtual bool canGenerate() { return true; }
-    virtual GenerateResult getRemaining() { return {};}
+  virtual bool canGenerate() { return true; }
+  virtual GenerateResult getRemaining() { return {}; }
 
-public:
-    ExceptionKeepingTransform(SharedHeader in_header, SharedHeader out_header, bool ignore_on_start_and_finish_ = true);
+ public:
+  ExceptionKeepingTransform(SharedHeader in_header, SharedHeader out_header, bool ignore_on_start_and_finish_ = true);
 
-    Status prepare() override;
-    void work() override;
+  Status prepare() override;
+  void work() override;
 
-    InputPort & getInputPort() { return input; }
-    OutputPort & getOutputPort() { return output; }
+  InputPort& getInputPort() { return input; }
+  OutputPort& getOutputPort() { return output; }
 
-    void setRuntimeData(ThreadGroupPtr thread_group_);
+  void setRuntimeData(ThreadGroupPtr thread_group_);
 
-private:
-    ThreadGroupPtr thread_group = nullptr;
+ private:
+  ThreadGroupPtr thread_group = nullptr;
 };
 
-}
+}  // namespace DB

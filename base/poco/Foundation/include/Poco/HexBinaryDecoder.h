@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_HexBinaryDecoder_INCLUDED
 #define Foundation_HexBinaryDecoder_INCLUDED
-
 
 #include <istream>
 #include "Poco/Foundation.h"
 #include "Poco/UnbufferedStreamBuf.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API HexBinaryDecoderBuf : public UnbufferedStreamBuf
 /// This streambuf decodes all hexBinary-encoded data read
@@ -41,17 +36,16 @@ class Foundation_API HexBinaryDecoderBuf : public UnbufferedStreamBuf
 /// of the istream will not reflect that of
 /// its streambuf.
 {
-public:
-    HexBinaryDecoderBuf(std::istream & istr);
-    ~HexBinaryDecoderBuf();
+ public:
+  HexBinaryDecoderBuf(std::istream& istr);
+  ~HexBinaryDecoderBuf();
 
-private:
-    int readFromDevice();
-    int readOne();
+ private:
+  int readFromDevice();
+  int readOne();
 
-    std::streambuf & _buf;
+  std::streambuf& _buf;
 };
-
 
 class Foundation_API HexBinaryDecoderIOS : public virtual std::ios
 /// The base class for HexBinaryDecoder.
@@ -59,17 +53,17 @@ class Foundation_API HexBinaryDecoderIOS : public virtual std::ios
 /// This class is needed to ensure the correct initialization
 /// order of the stream buffer and base classes.
 {
-public:
-    HexBinaryDecoderIOS(std::istream & istr);
-    ~HexBinaryDecoderIOS();
-    HexBinaryDecoderBuf * rdbuf();
+ public:
+  HexBinaryDecoderIOS(std::istream& istr);
+  ~HexBinaryDecoderIOS();
+  HexBinaryDecoderBuf* rdbuf();
 
-protected:
-    HexBinaryDecoderBuf _buf;
+ protected:
+  HexBinaryDecoderBuf _buf;
 };
 
-
-class Foundation_API HexBinaryDecoder : public HexBinaryDecoderIOS, public std::istream
+class Foundation_API HexBinaryDecoder : public HexBinaryDecoderIOS,
+                                        public std::istream
 /// This istream decodes all hexBinary-encoded data read
 /// from the istream connected to it.
 /// In hexBinary encoding, each binary octet is encoded as a character tuple,
@@ -83,13 +77,11 @@ class Foundation_API HexBinaryDecoder : public HexBinaryDecoderIOS, public std::
 /// of the istream will not reflect that of
 /// its streambuf.
 {
-public:
-    HexBinaryDecoder(std::istream & istr);
-    ~HexBinaryDecoder();
+ public:
+  HexBinaryDecoder(std::istream& istr);
+  ~HexBinaryDecoder();
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_HexBinaryDecoder_INCLUDED
+#endif  // Foundation_HexBinaryDecoder_INCLUDED

@@ -11,39 +11,26 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/JSON/Parser.h"
-#include "Poco/JSON/JSONException.h"
 #include "Poco/Ascii.h"
+#include "Poco/JSON/JSONException.h"
+#include "Poco/String.h"
 #include "Poco/Token.h"
 #include "Poco/UTF8Encoding.h"
-#include "Poco/String.h"
 #undef min
 #undef max
-#include <limits>
 #include <clocale>
 #include <istream>
-
+#include <limits>
 
 namespace Poco {
 namespace JSON {
 
+Parser::Parser(const Handler::Ptr& pHandler, std::size_t bufSize) : ParserImpl(pHandler, bufSize) {}
 
-Parser::Parser(const Handler::Ptr& pHandler, std::size_t bufSize):
-	ParserImpl(pHandler, bufSize)
-{
-}
+Parser::~Parser() {}
 
+void Parser::setHandler(const Handler::Ptr& pHandler) { setHandlerImpl(pHandler); }
 
-Parser::~Parser()
-{
-}
-
-
-void Parser::setHandler(const Handler::Ptr& pHandler)
-{
-	setHandlerImpl(pHandler);
-}
-
-
-} } // namespace Poco::JSON
+}  // namespace JSON
+}  // namespace Poco

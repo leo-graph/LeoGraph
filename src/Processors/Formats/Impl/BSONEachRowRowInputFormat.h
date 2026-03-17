@@ -1,15 +1,13 @@
 #pragma once
 
+#include <Common/HashTable/HashMap.h>
 #include <Core/BlockNameMap.h>
-#include <Formats/FormatSettings.h>
 #include <Formats/BSONTypes.h>
+#include <Formats/FormatSettings.h>
 #include <Processors/Formats/IRowInputFormat.h>
 #include <Processors/Formats/ISchemaReader.h>
-#include <Common/HashTable/HashMap.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /*
  * Class for parsing data in BSON format.
@@ -47,69 +45,66 @@ namespace DB
  */
 
 class ReadBuffer;
-class BSONEachRowRowInputFormat final : public IRowInputFormat
-{
-public:
-    BSONEachRowRowInputFormat(
-        ReadBuffer & in_, SharedHeader header_, Params params_, const FormatSettings & format_settings_);
+class BSONEachRowRowInputFormat final : public IRowInputFormat {
+ public:
+  BSONEachRowRowInputFormat(ReadBuffer& in_, SharedHeader header_, Params params_, const FormatSettings& format_settings_);
 
-    String getName() const override { return "BSONEachRowRowInputFormat"; }
-    void resetParser() override;
+  String getName() const override { return "BSONEachRowRowInputFormat"; }
+  void resetParser() override;
 
-private:
-    bool readRow(MutableColumns & columns, RowReadExtension & ext) override;
-    bool allowSyncAfterError() const override { return true; }
-    void syncAfterError() override;
+ private:
+  bool readRow(MutableColumns& columns, RowReadExtension& ext) override;
+  bool allowSyncAfterError() const override { return true; }
+  void syncAfterError() override;
 
-    bool supportsCountRows() const override { return true; }
-    size_t countRows(size_t max_block_size) override;
+  bool supportsCountRows() const override { return true; }
+  size_t countRows(size_t max_block_size) override;
 
-    size_t columnIndex(std::string_view name, size_t key_index);
+  size_t columnIndex(std::string_view name, size_t key_index);
 
-    using ColumnReader = std::function<void(std::string_view name, BSONType type)>;
+  using ColumnReader = std::function<void(std::string_view name, BSONType type)>;
 
-    bool readField(IColumn & column, const DataTypePtr & data_type, BSONType bson_type);
-    void skipUnknownField(BSONType type, const String & key_name);
+  bool readField(IColumn& column, const DataTypePtr& data_type, BSONType bson_type);
+  void skipUnknownField(BSONType type, const String& key_name);
 
-    void readTuple(IColumn & column, const DataTypePtr & data_type, BSONType bson_type);
-    void readArray(IColumn & column, const DataTypePtr & data_type, BSONType bson_type);
-    void readMap(IColumn & column, const DataTypePtr & data_type, BSONType bson_type);
+  void readTuple(IColumn& column, const DataTypePtr& data_type, BSONType bson_type);
+  void readArray(IColumn& column, const DataTypePtr& data_type, BSONType bson_type);
+  void readMap(IColumn& column, const DataTypePtr& data_type, BSONType bson_type);
 
-    const FormatSettings format_settings;
+  const FormatSettings format_settings;
 
-    /// Buffer for the read from the stream field name. Used when you have to copy it.
-    String current_key_name;
+  /// Buffer for the read from the stream field name. Used when you have to copy it.
+  String current_key_name;
 
-    /// Set of columns for which the values were read. The rest will be filled with default values.
-    std::vector<UInt8> read_columns;
-    /// Set of columns which already met in row. Exception is thrown if there are more than one column with the same name.
-    std::vector<UInt8> seen_columns;
-    /// These sets may be different, because if null_as_default=1 read_columns[i] will be false and seen_columns[i] will be true
-    /// for row like {..., "non-nullable column name" : null, ...}
+  /// Set of columns for which the values were read. The rest will be filled with default values.
+  std::vector<UInt8> read_columns;
+  /// Set of columns which already met in row. Exception is thrown if there are more than one column with the same name.
+  std::vector<UInt8> seen_columns;
+  /// These sets may be different, because if null_as_default=1 read_columns[i] will be false and seen_columns[i] will be true
+  /// for row like {..., "non-nullable column name" : null, ...}
 
-    /// Hash table match `field name -> position in the block`.
-    BlockNameMap name_map;
+  /// Hash table match `field name -> position in the block`.
+  BlockNameMap name_map;
 
-    /// Cached search results for previous row (keyed as index in JSON object) - used as a hint.
-    std::vector<BlockNameMap::const_iterator> prev_positions;
+  /// Cached search results for previous row (keyed as index in JSON object) - used as a hint.
+  std::vector<BlockNameMap::const_iterator> prev_positions;
 
-    DataTypes types;
+  DataTypes types;
 
-    size_t current_document_start;
-    BSONSizeT current_document_size;
+  size_t current_document_start;
+  BSONSizeT current_document_size;
 };
 
-class BSONEachRowSchemaReader : public IRowWithNamesSchemaReader
-{
-public:
-    BSONEachRowSchemaReader(ReadBuffer & in_, const FormatSettings & settings_);
+class BSONEachRowSchemaReader : public IRowWithNamesSchemaReader {
+ public:
+  BSONEachRowSchemaReader(ReadBuffer& in_, const FormatSettings& settings_);
 
-private:
-    NamesAndTypesList readRowAndGetNamesAndDataTypes(bool & eof) override;
-    void transformTypesIfNeeded(DataTypePtr & type, DataTypePtr & new_type) override;
+ private:
+  NamesAndTypesList readRowAndGetNamesAndDataTypes(bool& eof) override;
+  void transformTypesIfNeeded(DataTypePtr& type, DataTypePtr& new_type) override;
 
-    NamesAndTypesList getDataTypesFromBSONDocument(bool skip_unsupported_types);
-    DataTypePtr getDataTypeFromBSONField(BSONType type, bool skip_unsupported_types, bool & skip);
+  NamesAndTypesList getDataTypesFromBSONDocument(bool skip_unsupported_types);
+  DataTypePtr getDataTypeFromBSONField(BSONType type, bool skip_unsupported_types, bool& skip);
 };
 
-}
+}  // namespace DB

@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/DTDHandler.h"
-
 
 namespace Poco {
 namespace XML {
 
+DTDHandler::~DTDHandler() {}
 
-DTDHandler::~DTDHandler()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

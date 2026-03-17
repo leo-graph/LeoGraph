@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPSSessionInstantiator_INCLUDED
 #define Net_HTTPSSessionInstantiator_INCLUDED
-
 
 #include "Poco/Net/Context.h"
 #include "Poco/Net/HTTPSessionInstantiator.h"
@@ -24,45 +22,39 @@
 #include "Poco/Net/Utility.h"
 #include "Poco/URI.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class NetSSL_API HTTPSSessionInstantiator : public HTTPSessionInstantiator
+/// The HTTPSessionInstantiator for HTTPSClientSession.
 {
-namespace Net
-{
+ public:
+  HTTPSSessionInstantiator();
+  /// Creates the HTTPSSessionInstantiator.
 
+  HTTPSSessionInstantiator(Context::Ptr pContext);
+  /// Creates the HTTPSSessionInstantiator using the given SSL context.
 
-    class NetSSL_API HTTPSSessionInstantiator : public HTTPSessionInstantiator
-    /// The HTTPSessionInstantiator for HTTPSClientSession.
-    {
-    public:
-        HTTPSSessionInstantiator();
-        /// Creates the HTTPSSessionInstantiator.
+  ~HTTPSSessionInstantiator();
+  /// Destroys the HTTPSSessionInstantiator.
 
-        HTTPSSessionInstantiator(Context::Ptr pContext);
-        /// Creates the HTTPSSessionInstantiator using the given SSL context.
+  HTTPClientSession* createClientSession(const Poco::URI& uri);
+  /// Creates a HTTPSClientSession for the given URI.
 
-        ~HTTPSSessionInstantiator();
-        /// Destroys the HTTPSSessionInstantiator.
+  static void registerInstantiator();
+  /// Registers the instantiator with the global HTTPSessionFactory.
 
-        HTTPClientSession * createClientSession(const Poco::URI & uri);
-        /// Creates a HTTPSClientSession for the given URI.
+  static void registerInstantiator(Context::Ptr pContext);
+  /// Registers the instantiator with the global HTTPSessionFactory using the given SSL context.
 
-        static void registerInstantiator();
-        /// Registers the instantiator with the global HTTPSessionFactory.
+  static void unregisterInstantiator();
+  /// Unregisters the factory with the global HTTPSessionFactory.
 
-        static void registerInstantiator(Context::Ptr pContext);
-        /// Registers the instantiator with the global HTTPSessionFactory using the given SSL context.
+ private:
+  Context::Ptr _pContext;
+};
 
-        static void unregisterInstantiator();
-        /// Unregisters the factory with the global HTTPSessionFactory.
+}  // namespace Net
+}  // namespace Poco
 
-    private:
-        Context::Ptr _pContext;
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPSSessionInstantiator_INCLUDED
+#endif  // Net_HTTPSSessionInstantiator_INCLUDED

@@ -11,203 +11,142 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/JSON/PrintHandler.h"
-#include "Poco/JSON/Stringifier.h"
 #include <iostream>
-
+#include "Poco/JSON/Stringifier.h"
 
 namespace Poco {
 namespace JSON {
 
+PrintHandler::PrintHandler(unsigned indent, int options)
+    : _out(std::cout), _indent(indent), _array(0), _objStart(true), _options(options) {}
 
-PrintHandler::PrintHandler(unsigned indent, int options):
-	_out(std::cout),
-	_indent(indent),
-	_array(0),
-	_objStart(true),
-	_options(options)
-{
+PrintHandler::PrintHandler(std::ostream& out, unsigned indent, int options)
+    : _out(out), _indent(indent), _array(0), _objStart(true), _options(options) {}
+
+PrintHandler::~PrintHandler() {}
+
+void PrintHandler::reset() {
+  _out.flush();
+  _tab = "";
+  _array = 0;
+  _objStart = true;
 }
 
-
-PrintHandler::PrintHandler(std::ostream& out, unsigned indent, int options):
-	_out(out),
-	_indent(indent),
-	_array(0),
-	_objStart(true),
-	_options(options)
-{
+const char* PrintHandler::endLine() const {
+  if (!printFlat())
+    return "\n";
+  else
+    return "";
 }
 
+bool PrintHandler::printFlat() const { return _indent == JSON_PRINT_FLAT; }
 
-PrintHandler::~PrintHandler()
-{
+unsigned PrintHandler::indent() {
+  if (!printFlat()) return _indent;
+
+  return 0;
 }
 
-
-void PrintHandler::reset()
-{
-	_out.flush();
-	_tab = "";
-	_array = 0;
-	_objStart = true;
+void PrintHandler::startObject() {
+  arrayValue();
+  _out << '{';
+  _out << endLine();
+  _tab.append(indent(), ' ');
+  _objStart = true;
 }
 
+void PrintHandler::endObject() {
+  if (_tab.length() >= indent()) _tab.erase(_tab.length() - indent());
 
-const char* PrintHandler::endLine() const
-{
-	if (!printFlat()) return "\n";
-	else return "";
+  _out << endLine() << _tab << '}';
+  _objStart = false;
 }
 
-
-bool PrintHandler::printFlat() const
-{
-	return _indent == JSON_PRINT_FLAT;
+void PrintHandler::startArray() {
+  arrayValue();
+  _out << '[' << endLine();
+  _tab.append(indent(), ' ');
+  ++_array;
+  _objStart = true;
 }
 
-
-unsigned PrintHandler::indent()
-{
-	if (!printFlat()) return _indent;
-	
-	return 0;
+void PrintHandler::endArray() {
+  _tab.erase(_tab.length() - indent());
+  _out << endLine() << _tab << ']';
+  --_array;
+  poco_assert(_array >= 0);
+  _objStart = false;
 }
 
+void PrintHandler::key(const std::string& k) {
+  if (!_objStart) comma();
 
-void PrintHandler::startObject()
-{
-	arrayValue();
-	_out << '{';
-	_out << endLine();
-	_tab.append(indent(), ' ');
-	_objStart = true;
+  _objStart = true;
+
+  _out << _tab;
+  Stringifier::formatString(k, _out, _options);
+  if (!printFlat()) _out << ' ';
+  _out << ':';
+  if (!printFlat()) _out << ' ';
 }
 
-
-void PrintHandler::endObject()
-{
-	if (_tab.length() >= indent())
-		_tab.erase(_tab.length() - indent());
-
-	_out << endLine() << _tab << '}';
-	_objStart = false;
+void PrintHandler::null() {
+  arrayValue();
+  _out << "null";
+  _objStart = false;
 }
 
-
-void PrintHandler::startArray()
-{
-	arrayValue();
-	_out << '[' << endLine();
-	_tab.append(indent(), ' ');
-	++_array;
-	_objStart = true;
+void PrintHandler::value(int v) {
+  arrayValue();
+  _out << v;
+  _objStart = false;
 }
 
-
-void PrintHandler::endArray()
-{
-	_tab.erase(_tab.length() - indent());
-	_out << endLine() << _tab << ']';
-	--_array;
-	poco_assert (_array >= 0);
-	_objStart = false;
+void PrintHandler::value(unsigned v) {
+  arrayValue();
+  _out << v;
+  _objStart = false;
 }
 
-
-void PrintHandler::key(const std::string& k)
-{
-	if (!_objStart) comma();
-	
-	_objStart = true;
-		
-	_out << _tab;
-	Stringifier::formatString(k, _out, _options);
-	if (!printFlat()) _out << ' ';
-	_out << ':';
-	if (!printFlat()) _out << ' ';
+void PrintHandler::value(Int64 v) {
+  arrayValue();
+  _out << v;
+  _objStart = false;
 }
 
-
-void PrintHandler::null()
-{
-	arrayValue();
-	_out << "null";
-	_objStart = false;
+void PrintHandler::value(UInt64 v) {
+  arrayValue();
+  _out << v;
+  _objStart = false;
 }
 
-
-void PrintHandler::value(int v)
-{
-	arrayValue();
-	_out << v;
-	_objStart = false;
+void PrintHandler::value(const std::string& value) {
+  arrayValue();
+  Stringifier::formatString(value, _out, _options);
+  _objStart = false;
 }
 
-
-void PrintHandler::value(unsigned v)
-{
-	arrayValue();
-	_out << v;
-	_objStart = false;
+void PrintHandler::value(double d) {
+  arrayValue();
+  _out << d;
+  _objStart = false;
 }
 
-
-void PrintHandler::value(Int64 v)
-{
-	arrayValue();
-	_out << v;
-	_objStart = false;
+void PrintHandler::value(bool b) {
+  arrayValue();
+  _out << b;
+  _objStart = false;
 }
 
+void PrintHandler::comma() { _out << ',' << endLine(); }
 
-void PrintHandler::value(UInt64 v)
-{
-	arrayValue();
-	_out << v;
-	_objStart = false;
+void PrintHandler::arrayValue() {
+  if (!_objStart) comma();
+  if (array()) {
+    _out << _tab;
+  }
 }
 
-
-void PrintHandler::value(const std::string& value)
-{
-	arrayValue();
-	Stringifier::formatString(value, _out, _options);
-	_objStart = false;
-}
-
-
-void PrintHandler::value(double d)
-{
-	arrayValue();
-	_out << d;
-	_objStart = false;
-}
-
-
-void PrintHandler::value(bool b)
-{
-	arrayValue();
-	_out << b;
-	_objStart = false;
-}
-
-
-void PrintHandler::comma()
-{
-	_out << ',' << endLine();
-}
-
-
-void PrintHandler::arrayValue()
-{
-	if (!_objStart) comma();
-	if (array()) 
-	{
-		_out << _tab;
-	}
-}
-
-
-} } // namespace Poco::JSON
+}  // namespace JSON
+}  // namespace Poco

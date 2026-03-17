@@ -1,12 +1,10 @@
 #include <Common/register_objects.h>
 
-namespace DB
-{
+namespace DB {
 
-FunctionRegisterMap & FunctionRegisterMap::instance()
-{
-    static FunctionRegisterMap map;
-    return map;
+FunctionRegisterMap& FunctionRegisterMap::instance() {
+  static FunctionRegisterMap map;
+  return map;
 }
 
-}
+}  // namespace DB

@@ -16,24 +16,20 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/XML/XMLStreamParser.h"
 #include "Poco/XML/XMLStreamParserException.h"
-
 
 namespace Poco {
 namespace XML {
 
-
-bool DefaultValueTraits<bool>::parse(std::string s, const XMLStreamParser& p)
-{
-	if (s == "true" || s == "1" || s == "True" || s == "TRUE")
-		return true;
-	else if (s == "false" || s == "0" || s == "False" || s == "FALSE")
-		return false;
-	else
-		throw XMLStreamParserException(p, "invalid bool value '" + s + "'");
+bool DefaultValueTraits<bool>::parse(std::string s, const XMLStreamParser& p) {
+  if (s == "true" || s == "1" || s == "True" || s == "TRUE")
+    return true;
+  else if (s == "false" || s == "0" || s == "False" || s == "FALSE")
+    return false;
+  else
+    throw XMLStreamParserException(p, "invalid bool value '" + s + "'");
 }
 
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

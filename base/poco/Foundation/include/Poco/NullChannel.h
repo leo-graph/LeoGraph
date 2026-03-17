@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NullChannel_INCLUDED
 #define Foundation_NullChannel_INCLUDED
-
 
 #include "Poco/Channel.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API NullChannel : public Channel
 /// The NullChannel is the /dev/null of Channels.
@@ -35,22 +30,20 @@ class Foundation_API NullChannel : public Channel
 /// nice feature that it can stand in for any
 /// other channel class in a logging configuration.
 {
-public:
-    NullChannel();
-    /// Creates the NullChannel.
+ public:
+  NullChannel();
+  /// Creates the NullChannel.
 
-    ~NullChannel();
-    /// Destroys the NullChannel.
+  ~NullChannel();
+  /// Destroys the NullChannel.
 
-    void log(const Message & msg);
-    /// Does nothing.
+  void log(const Message& msg);
+  /// Does nothing.
 
-    void setProperty(const std::string & name, const std::string & value);
-    /// Ignores both name and value.
+  void setProperty(const std::string& name, const std::string& value);
+  /// Ignores both name and value.
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_NullChannel_INCLUDED
+#endif  // Foundation_NullChannel_INCLUDED

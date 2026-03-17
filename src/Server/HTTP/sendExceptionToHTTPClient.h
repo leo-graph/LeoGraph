@@ -1,10 +1,9 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 class HTTPServerRequest;
 class HTTPServerResponse;
 
-void drainRequestIfNeeded(HTTPServerRequest & request, HTTPServerResponse & response) noexcept;
+void drainRequestIfNeeded(HTTPServerRequest& request, HTTPServerResponse& response) noexcept;
 
-}
+}  // namespace DB

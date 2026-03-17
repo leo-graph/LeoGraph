@@ -11,48 +11,26 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/PartSource.h"
-
 
 namespace Poco {
 namespace Net {
 
+const int PartSource::UNKNOWN_CONTENT_LENGTH = -1;
 
-const int         PartSource::UNKNOWN_CONTENT_LENGTH     = -1;
+PartSource::PartSource() : _mediaType("application/octet-stream") {}
 
+PartSource::PartSource(const std::string& mediaType) : _mediaType(mediaType) {}
 
-PartSource::PartSource():
-	_mediaType("application/octet-stream")
-{
+PartSource::~PartSource() {}
+
+namespace {
+static const std::string EMPTY;
 }
 
-	
-PartSource::PartSource(const std::string& mediaType):
-	_mediaType(mediaType)
-{
-}
+const std::string& PartSource::filename() const { return EMPTY; }
 
+std::streamsize PartSource::getContentLength() const { return UNKNOWN_CONTENT_LENGTH; }
 
-PartSource::~PartSource()
-{
-}
-
-
-namespace
-{
-	static const std::string EMPTY;
-}
-
-
-const std::string& PartSource::filename() const
-{
-	return EMPTY;
-}
-
-std::streamsize PartSource::getContentLength() const
-{
-	return UNKNOWN_CONTENT_LENGTH;
-}
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

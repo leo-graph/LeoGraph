@@ -3,8 +3,7 @@
 
 #include <Parsers/Lexer.h>
 
-namespace DB
-{
+namespace DB {
 /**
  *
  * @param pos token iterator
@@ -12,16 +11,14 @@ namespace DB
  * @param expected stuff for logging
  * @return was parse successful
  */
-bool ParserJSONPathRoot::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    if (pos->type != TokenType::DollarSign)
-    {
-        expected.add(pos, "dollar sign (start of jsonpath)");
-        return false;
-    }
-    node = make_intrusive<ASTJSONPathRoot>();
-    ++pos;
-    return true;
+bool ParserJSONPathRoot::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  if (pos->type != TokenType::DollarSign) {
+    expected.add(pos, "dollar sign (start of jsonpath)");
+    return false;
+  }
+  node = make_intrusive<ASTJSONPathRoot>();
+  ++pos;
+  return true;
 }
 
-}
+}  // namespace DB

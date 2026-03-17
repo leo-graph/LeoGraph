@@ -2,20 +2,18 @@
 
 #include <Storages/System/IStorageSystemOneBlock.h>
 
-namespace DB
-{
+namespace DB {
 
-class StorageSystemTokenizers final : public IStorageSystemOneBlock
-{
-public:
-    explicit StorageSystemTokenizers(const StorageID & table_id_);
+class StorageSystemTokenizers final : public IStorageSystemOneBlock {
+ public:
+  explicit StorageSystemTokenizers(const StorageID &table_id_);
 
-    std::string getName() const override { return "SystemTokenizers"; }
+  std::string getName() const override { return "SystemTokenizers"; }
 
-    static ColumnsDescription getColumnsDescription();
+  static ColumnsDescription getColumnsDescription();
 
-protected:
-    void fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
+ protected:
+  void fillData(MutableColumns &res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
 };
 
-}
+}  // namespace DB

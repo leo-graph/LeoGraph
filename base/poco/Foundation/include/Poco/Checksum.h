@@ -13,17 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Checksum_INCLUDED
 #define Foundation_Checksum_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API Checksum
 /// This class calculates CRC-32 or Adler-32 checksums
@@ -39,71 +34,49 @@ class Foundation_API Checksum
 /// but is significantly faster to calculate in software.
 
 {
-public:
-    enum Type
-    {
-        TYPE_ADLER32 = 0,
-        TYPE_CRC32
-    };
+ public:
+  enum Type { TYPE_ADLER32 = 0, TYPE_CRC32 };
 
-    Checksum();
-    /// Creates a CRC-32 checksum initialized to 0.
+  Checksum();
+  /// Creates a CRC-32 checksum initialized to 0.
 
-    Checksum(Type t);
-    /// Creates the Checksum, using the given type.
+  Checksum(Type t);
+  /// Creates the Checksum, using the given type.
 
-    ~Checksum();
-    /// Destroys the Checksum.
+  ~Checksum();
+  /// Destroys the Checksum.
 
-    void update(const char * data, unsigned length);
-    /// Updates the checksum with the given data.
+  void update(const char* data, unsigned length);
+  /// Updates the checksum with the given data.
 
-    void update(const std::string & data);
-    /// Updates the checksum with the given data.
+  void update(const std::string& data);
+  /// Updates the checksum with the given data.
 
-    void update(char data);
-    /// Updates the checksum with the given data.
+  void update(char data);
+  /// Updates the checksum with the given data.
 
-    Poco::UInt32 checksum() const;
-    /// Returns the calculated checksum.
+  Poco::UInt32 checksum() const;
+  /// Returns the calculated checksum.
 
-    Type type() const;
-    /// Which type of checksum are we calulcating
+  Type type() const;
+  /// Which type of checksum are we calulcating
 
-private:
-    Type _type;
-    Poco::UInt32 _value;
+ private:
+  Type _type;
+  Poco::UInt32 _value;
 };
-
 
 //
 // inlines
 //
-inline void Checksum::update(const std::string & data)
-{
-    update(data.c_str(), static_cast<unsigned int>(data.size()));
-}
+inline void Checksum::update(const std::string& data) { update(data.c_str(), static_cast<unsigned int>(data.size())); }
 
+inline void Checksum::update(char c) { update(&c, 1); }
 
-inline void Checksum::update(char c)
-{
-    update(&c, 1);
-}
+inline Poco::UInt32 Checksum::checksum() const { return _value; }
 
+inline Checksum::Type Checksum::type() const { return _type; }
 
-inline Poco::UInt32 Checksum::checksum() const
-{
-    return _value;
-}
+}  // namespace Poco
 
-
-inline Checksum::Type Checksum::type() const
-{
-    return _type;
-}
-
-
-} // namespace Poco
-
-
-#endif // Foundation_Checksum_INCLUDED
+#endif  // Foundation_Checksum_INCLUDED

@@ -3,37 +3,32 @@
 #include <DataTypes/IDataType.h>
 #include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 class IMergeTreeDataPart;
 
-struct RowExistsColumn
-{
-    static const String name;
-    static const DataTypePtr type;
+struct RowExistsColumn {
+  static const String name;
+  static const DataTypePtr type;
 };
 
-struct BlockNumberColumn
-{
-    static const String name;
-    static const DataTypePtr type;
-    static const ASTPtr codec;
+struct BlockNumberColumn {
+  static const String name;
+  static const DataTypePtr type;
+  static const ASTPtr codec;
 };
 
-struct BlockOffsetColumn
-{
-    static const String name;
-    static const DataTypePtr type;
-    static const ASTPtr codec;
+struct BlockOffsetColumn {
+  static const String name;
+  static const DataTypePtr type;
+  static const ASTPtr codec;
 };
 
-struct PartDataVersionColumn
-{
-    static const String name;
-    static const DataTypePtr type;
+struct PartDataVersionColumn {
+  static const String name;
+  static const DataTypePtr type;
 };
 
-Field getFieldForConstVirtualColumn(const String & column_name, const IMergeTreeDataPart & part_or_projection);
+Field getFieldForConstVirtualColumn(const String& column_name, const IMergeTreeDataPart& part_or_projection);
 
-}
+}  // namespace DB

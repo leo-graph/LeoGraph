@@ -4,43 +4,35 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int CANNOT_PARSE_BACKUP_SETTINGS;
+namespace ErrorCodes {
+extern const int CANNOT_PARSE_BACKUP_SETTINGS;
 }
 
 SettingFieldOptionalUUID::operator Field() const { return Field(value ? toString(*value) : ""); }
 
-SettingFieldOptionalUUID::SettingFieldOptionalUUID(const Field & field)
-{
-    if (field.getType() == Field::Types::Null)
-    {
-        value = std::nullopt;
-        return;
+SettingFieldOptionalUUID::SettingFieldOptionalUUID(const Field& field) {
+  if (field.getType() == Field::Types::Null) {
+    value = std::nullopt;
+    return;
+  }
+
+  if (field.getType() == Field::Types::String) {
+    const String& str = field.safeGet<String>();
+    if (str.empty()) {
+      value = std::nullopt;
+      return;
     }
 
-    if (field.getType() == Field::Types::String)
-    {
-        const String & str = field.safeGet<String>();
-        if (str.empty())
-        {
-            value = std::nullopt;
-            return;
-        }
-
-        UUID id;
-        if (tryParse(id, str))
-        {
-            value = id;
-            return;
-        }
+    UUID id;
+    if (tryParse(id, str)) {
+      value = id;
+      return;
     }
+  }
 
-    throw Exception(ErrorCodes::CANNOT_PARSE_BACKUP_SETTINGS, "Cannot parse uuid from {}", field);
+  throw Exception(ErrorCodes::CANNOT_PARSE_BACKUP_SETTINGS, "Cannot parse uuid from {}", field);
 }
 
-}
+}  // namespace DB

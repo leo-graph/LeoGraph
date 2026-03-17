@@ -13,28 +13,20 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef XML_XMLException_INCLUDED
 #define XML_XMLException_INCLUDED
-
 
 #include "Poco/Exception.h"
 #include "Poco/XML/XML.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
-{
-namespace XML
-{
+POCO_DECLARE_EXCEPTION(XML_API, XMLException, Poco::RuntimeException)
+/// The base class for all XML-related exceptions like SAXException
+/// and DOMException.
 
+}  // namespace XML
+}  // namespace Poco
 
-    POCO_DECLARE_EXCEPTION(XML_API, XMLException, Poco::RuntimeException)
-    /// The base class for all XML-related exceptions like SAXException
-    /// and DOMException.
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // XML_XMLException_INCLUDED
+#endif  // XML_XMLException_INCLUDED

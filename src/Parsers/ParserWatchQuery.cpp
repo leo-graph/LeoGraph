@@ -11,68 +11,55 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 #include <Parsers/ASTWatchQuery.h>
 #include <Parsers/CommonParsers.h>
-#include <Parsers/ParserWatchQuery.h>
 #include <Parsers/ExpressionElementParsers.h>
+#include <Parsers/ParserWatchQuery.h>
 
+namespace DB {
 
-namespace DB
-{
+bool ParserWatchQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  ParserKeyword s_watch(Keyword::WATCH);
+  ParserToken s_dot(TokenType::Dot);
+  ParserIdentifier name_p(true);
+  ParserKeyword s_events(Keyword::EVENTS);
+  ParserKeyword s_limit(Keyword::LIMIT);
 
-bool ParserWatchQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    ParserKeyword s_watch(Keyword::WATCH);
-    ParserToken s_dot(TokenType::Dot);
-    ParserIdentifier name_p(true);
-    ParserKeyword s_events(Keyword::EVENTS);
-    ParserKeyword s_limit(Keyword::LIMIT);
+  ASTPtr database;
+  ASTPtr table;
+  auto query = make_intrusive<ASTWatchQuery>();
 
-    ASTPtr database;
-    ASTPtr table;
-    auto query = make_intrusive<ASTWatchQuery>();
+  if (!s_watch.ignore(pos, expected)) {
+    return false;
+  }
 
-    if (!s_watch.ignore(pos, expected))
-    {
-        return false;
-    }
+  if (!name_p.parse(pos, table, expected)) return false;
 
-    if (!name_p.parse(pos, table, expected))
-        return false;
+  if (s_dot.ignore(pos, expected)) {
+    database = table;
+    if (!name_p.parse(pos, table, expected)) return false;
+  }
 
-    if (s_dot.ignore(pos, expected))
-    {
-        database = table;
-        if (!name_p.parse(pos, table, expected))
-            return false;
-    }
+  /// EVENTS
+  if (s_events.ignore(pos, expected)) {
+    query->is_watch_events = true;
+  }
 
-    /// EVENTS
-    if (s_events.ignore(pos, expected))
-    {
-        query->is_watch_events = true;
-    }
+  /// LIMIT length
+  if (s_limit.ignore(pos, expected)) {
+    ParserNumber num;
 
-    /// LIMIT length
-    if (s_limit.ignore(pos, expected))
-    {
-        ParserNumber num;
+    if (!num.parse(pos, query->limit_length, expected)) return false;
+  }
 
-        if (!num.parse(pos, query->limit_length, expected))
-            return false;
-    }
+  query->database = database;
+  query->table = table;
 
-    query->database = database;
-    query->table = table;
+  if (database) query->children.push_back(database);
 
-    if (database)
-        query->children.push_back(database);
+  if (table) query->children.push_back(table);
 
-    if (table)
-        query->children.push_back(table);
+  node = query;
 
-    node = query;
-
-    return true;
+  return true;
 }
 
-
-}
+}  // namespace DB

@@ -2,9 +2,7 @@
 
 #include <base/Decimal.h>
 
-
-namespace DB::PrometheusQueryToSQL
-{
+namespace DB::PrometheusQueryToSQL {
 
 /// Represents evaluation times found for a node in PrometheusQueryTree.
 ///
@@ -24,18 +22,20 @@ namespace DB::PrometheusQueryToSQL
 ///
 /// TIME ---------->
 ///
-/// (start_time - window)      start_time      (start_time + step - window)      (start_time + step)      (start_time + 2 * step - window)      (start_time + 2 * step)      ...      (end_time - window)      end_time
-///  ************************************       ****************************************************       ************************************************************                ********************************
-///             first window                                     second window                                                 third window                                                      last window
+/// (start_time - window)      start_time      (start_time + step - window)      (start_time + step)      (start_time + 2 * step - window)
+/// (start_time + 2 * step)      ...      (end_time - window)      end_time
+///  ************************************       ****************************************************
+///  ************************************************************                ********************************
+///             first window                                     second window                                                 third window
+///             last window
 
-struct NodeEvaluationRange
-{
-    DateTime64 start_time;
-    DateTime64 end_time;
-    Decimal64 step;
-    Decimal64 window;
+struct NodeEvaluationRange {
+  DateTime64 start_time;
+  DateTime64 end_time;
+  Decimal64 step;
+  Decimal64 window;
 
-    bool empty() const { return start_time > end_time; }  /// If `start_time == end_time` it's one point
+  bool empty() const { return start_time > end_time; }  /// If `start_time == end_time` it's one point
 };
 
-}
+}  // namespace DB::PrometheusQueryToSQL

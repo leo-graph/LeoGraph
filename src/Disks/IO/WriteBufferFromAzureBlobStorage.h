@@ -4,108 +4,100 @@
 
 #if USE_AZURE_BLOB_STORAGE
 
-#include <memory>
+#  include <memory>
 
-#include <IO/WriteBufferFromFileBase.h>
-#include <IO/WriteBuffer.h>
-#include <IO/WriteSettings.h>
-#include <azure/storage/blobs.hpp>
-#include <azure/core/io/body_stream.hpp>
-#include <Common/ThreadPoolTaskTracker.h>
-#include <Common/BufferAllocationPolicy.h>
-#include <Common/BlobStorageLogWriter.h>
-#include <Disks/DiskObjectStorage/ObjectStorages/AzureBlobStorage/AzureObjectStorage.h>
+#  include <Common/BlobStorageLogWriter.h>
+#  include <Common/BufferAllocationPolicy.h>
+#  include <Common/ThreadPoolTaskTracker.h>
+#  include <Disks/DiskObjectStorage/ObjectStorages/AzureBlobStorage/AzureObjectStorage.h>
+#  include <IO/WriteBuffer.h>
+#  include <IO/WriteBufferFromFileBase.h>
+#  include <IO/WriteSettings.h>
+#  include <azure/core/io/body_stream.hpp>
+#  include <azure/storage/blobs.hpp>
 
-namespace Poco
-{
+namespace Poco {
 class Logger;
 }
 
-namespace DB
-{
+namespace DB {
 
 class TaskTracker;
 
-class WriteBufferFromAzureBlobStorage : public WriteBufferFromFileBase
-{
-public:
-    using AzureClientPtr = std::shared_ptr<const AzureBlobStorage::ContainerClient>;
+class WriteBufferFromAzureBlobStorage : public WriteBufferFromFileBase {
+ public:
+  using AzureClientPtr = std::shared_ptr<const AzureBlobStorage::ContainerClient>;
 
-    WriteBufferFromAzureBlobStorage(
-        AzureClientPtr blob_container_client_,
-        const String & blob_path_,
-        size_t buf_size_,
-        const WriteSettings & write_settings_,
-        std::shared_ptr<const AzureBlobStorage::RequestSettings> settings_,
-        const String & container_for_logging_ = {},
-        BlobStorageLogWriterPtr blob_log_ = {},
-        ThreadPoolCallbackRunnerUnsafe<void> schedule_ = {});
+  WriteBufferFromAzureBlobStorage(AzureClientPtr blob_container_client_, const String& blob_path_, size_t buf_size_,
+                                  const WriteSettings& write_settings_, std::shared_ptr<const AzureBlobStorage::RequestSettings> settings_,
+                                  const String& container_for_logging_ = {}, BlobStorageLogWriterPtr blob_log_ = {},
+                                  ThreadPoolCallbackRunnerUnsafe<void> schedule_ = {});
 
-    ~WriteBufferFromAzureBlobStorage() override;
+  ~WriteBufferFromAzureBlobStorage() override;
 
-    void nextImpl() override;
-    void preFinalize() override;
-    std::string getFileName() const override { return blob_path; }
-    void sync() override { next(); }
+  void nextImpl() override;
+  void preFinalize() override;
+  std::string getFileName() const override { return blob_path; }
+  void sync() override { next(); }
 
-private:
-    struct PartData;
+ private:
+  struct PartData;
 
-    void writeMultipartUpload();
-    void writePart(PartData && part_data);
-    void detachBuffer();
-    void reallocateFirstBuffer();
-    void allocateBuffer();
-    void hidePartialData();
-    void setFakeBufferWhenPreFinalized();
+  void writeMultipartUpload();
+  void writePart(PartData&& part_data);
+  void detachBuffer();
+  void reallocateFirstBuffer();
+  void allocateBuffer();
+  void hidePartialData();
+  void setFakeBufferWhenPreFinalized();
 
-    void finalizeImpl() override;
-    void execWithRetry(std::function<void(size_t)> func, size_t num_tries, size_t cost = 0);
-    void uploadBlock(const char * data, size_t size);
+  void finalizeImpl() override;
+  void execWithRetry(std::function<void(size_t)> func, size_t num_tries, size_t cost = 0);
+  void uploadBlock(const char* data, size_t size);
 
-    /// Returns true if not a single byte was written to the buffer
-    bool isEmpty() const { return total_size == 0 && count() == 0 && hidden_size == 0 && offset() == 0; }
+  /// Returns true if not a single byte was written to the buffer
+  bool isEmpty() const { return total_size == 0 && count() == 0 && hidden_size == 0 && offset() == 0; }
 
-    Azure::Core::Context azure_context;
+  Azure::Core::Context azure_context;
 
-    LoggerPtr log;
-    LogSeriesLimiterPtr limited_log = std::make_shared<LogSeriesLimiter>(log, 1, 5);
+  LoggerPtr log;
+  LogSeriesLimiterPtr limited_log = std::make_shared<LogSeriesLimiter>(log, 1, 5);
 
-    BufferAllocationPolicyPtr buffer_allocation_policy;
+  BufferAllocationPolicyPtr buffer_allocation_policy;
 
-    const size_t max_single_part_upload_size;
-    const size_t max_unexpected_write_error_retries;
-    const std::string blob_path;
-    const WriteSettings write_settings;
+  const size_t max_single_part_upload_size;
+  const size_t max_unexpected_write_error_retries;
+  const std::string blob_path;
+  const WriteSettings write_settings;
 
-    /// Track that prefinalize() is called only once
-    bool is_prefinalized = false;
+  /// Track that prefinalize() is called only once
+  bool is_prefinalized = false;
 
-    AzureClientPtr blob_container_client;
-    std::vector<std::string> block_ids;
+  AzureClientPtr blob_container_client;
+  std::vector<std::string> block_ids;
 
-    using MemoryBufferPtr = std::unique_ptr<Memory<>>;
-    MemoryBufferPtr tmp_buffer;
-    size_t tmp_buffer_write_offset = 0;
+  using MemoryBufferPtr = std::unique_ptr<Memory<>>;
+  MemoryBufferPtr tmp_buffer;
+  size_t tmp_buffer_write_offset = 0;
 
-    MemoryBufferPtr allocateBuffer() const;
+  MemoryBufferPtr allocateBuffer() const;
 
-    char fake_buffer_when_prefinalized[1] = {};
+  char fake_buffer_when_prefinalized[1] = {};
 
-    bool first_buffer = true;
+  bool first_buffer = true;
 
-    size_t total_size = 0;
-    size_t hidden_size = 0;
+  size_t total_size = 0;
+  size_t hidden_size = 0;
 
-    std::unique_ptr<TaskTracker> task_tracker;
-    bool check_objects_after_upload = false;
+  std::unique_ptr<TaskTracker> task_tracker;
+  bool check_objects_after_upload = false;
 
-    std::deque<PartData> detached_part_data;
+  std::deque<PartData> detached_part_data;
 
-    String container_for_logging;
-    BlobStorageLogWriterPtr blob_log;
+  String container_for_logging;
+  BlobStorageLogWriterPtr blob_log;
 };
 
-}
+}  // namespace DB
 
 #endif

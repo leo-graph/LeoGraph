@@ -1,48 +1,46 @@
 #pragma once
 
+#include <base/types.h>
 #include <Core/Block.h>
 #include <Interpreters/ClientInfo.h>
 #include <Interpreters/OpenTelemetrySpanLog.h>
-#include <base/types.h>
 #include <string>
 
-namespace DB
-{
+namespace DB {
 
 class ReadBufferFromFile;
 struct Settings;
 
-namespace OpenTelemetry
-{
+namespace OpenTelemetry {
 struct TracingContextHolder;
 using TracingContextHolderPtr = std::unique_ptr<TracingContextHolder>;
-}
+}  // namespace OpenTelemetry
 
 /// Header for the binary files that are stored on disk for async INSERT into Distributed.
-struct DistributedAsyncInsertHeader
-{
-    DistributedAsyncInsertHeader();
+struct DistributedAsyncInsertHeader {
+  DistributedAsyncInsertHeader();
 
-    UInt64 revision = 0;
-    std::unique_ptr<Settings> insert_settings;
-    std::string insert_query;
-    ClientInfo client_info;
+  UInt64 revision = 0;
+  std::unique_ptr<Settings> insert_settings;
+  std::string insert_query;
+  ClientInfo client_info;
 
-    /// .bin file cannot have zero rows/bytes.
-    size_t rows = 0;
-    size_t bytes = 0;
+  /// .bin file cannot have zero rows/bytes.
+  size_t rows = 0;
+  size_t bytes = 0;
 
-    UInt32 shard_num = 0;
-    std::string cluster;
-    std::string distributed_table;
-    std::string remote_table;
+  UInt32 shard_num = 0;
+  std::string cluster;
+  std::string distributed_table;
+  std::string remote_table;
 
-    /// dumpStructure() of the header -- obsolete
-    std::string block_header_string;
-    Block block_header;
+  /// dumpStructure() of the header -- obsolete
+  std::string block_header_string;
+  Block block_header;
 
-    static DistributedAsyncInsertHeader read(ReadBufferFromFile & in, LoggerPtr log);
-    OpenTelemetry::TracingContextHolderPtr createTracingContextHolder(const char * function, std::shared_ptr<OpenTelemetrySpanLog> open_telemetry_span_log) const;
+  static DistributedAsyncInsertHeader read(ReadBufferFromFile& in, LoggerPtr log);
+  OpenTelemetry::TracingContextHolderPtr createTracingContextHolder(const char* function,
+                                                                    std::shared_ptr<OpenTelemetrySpanLog> open_telemetry_span_log) const;
 };
 
-}
+}  // namespace DB

@@ -1,12 +1,9 @@
 #pragma once
 
-#include <Parsers/IParserBase.h>
 #include <Parsers/ASTCopyQuery.h>
+#include <Parsers/IParserBase.h>
 
-
-namespace DB
-{
-
+namespace DB {
 
 /* Useful for expressions like COPY table_name FROM/TO output_file.
  * This Parser is relevant only for Postgres wire protocol.
@@ -14,17 +11,16 @@ namespace DB
  *
  * This class parse table name and copy query type (from or to) and put it in ASTCopyQuery.
  */
-class ParserCopyQuery : public IParserBase
-{
-private:
-    bool parseOptions(Pos & pos, boost::intrusive_ptr<ASTCopyQuery> node, Expected & expected);
+class ParserCopyQuery : public IParserBase {
+ private:
+  bool parseOptions(Pos& pos, boost::intrusive_ptr<ASTCopyQuery> node, Expected& expected);
 
-protected:
-    const char * getName() const override { return "COPY query"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+ protected:
+  const char* getName() const override { return "COPY query"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 
-public:
-    ParserCopyQuery() = default;
+ public:
+  ParserCopyQuery() = default;
 };
 
-}
+}  // namespace DB

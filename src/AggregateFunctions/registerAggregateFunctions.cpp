@@ -3,9 +3,7 @@
 #include <AggregateFunctions/AggregateFunctionFactory.h>
 #include <AggregateFunctions/Combinators/AggregateFunctionCombinatorFactory.h>
 
-
-namespace DB
-{
+namespace DB {
 struct Settings;
 
 class AggregateFunctionFactory;
@@ -14,9 +12,9 @@ void registerAggregateFunctionAvgWeighted(AggregateFunctionFactory &);
 void registerAggregateFunctionCount(AggregateFunctionFactory &);
 void registerAggregateFunctionDeltaSum(AggregateFunctionFactory &);
 void registerAggregateFunctionDeltaSumTimestamp(AggregateFunctionFactory &);
-void registerAggregateFunctionEstimateCompressionRatio(AggregateFunctionFactory & factory);
+void registerAggregateFunctionEstimateCompressionRatio(AggregateFunctionFactory &factory);
 void registerAggregateFunctionGroupArray(AggregateFunctionFactory &);
-void registerAggregateFunctionGroupArraySorted(AggregateFunctionFactory & factory);
+void registerAggregateFunctionGroupArraySorted(AggregateFunctionFactory &factory);
 void registerAggregateFunctionGroupUniqArray(AggregateFunctionFactory &);
 void registerAggregateFunctionGroupArrayInsertAt(AggregateFunctionFactory &);
 void registerAggregateFunctionGroupArrayIntersect(AggregateFunctionFactory &);
@@ -91,14 +89,14 @@ void registerAggregateFunctionSparkbar(AggregateFunctionFactory &);
 void registerAggregateFunctionIntervalLengthSum(AggregateFunctionFactory &);
 void registerAggregateFunctionAnalysisOfVariance(AggregateFunctionFactory &);
 void registerAggregateFunctionFlameGraph(AggregateFunctionFactory &);
-void registerAggregateFunctionKolmogorovSmirnovTest(AggregateFunctionFactory & factory);
-void registerAggregateFunctionLargestTriangleThreeBuckets(AggregateFunctionFactory & factory);
-void registerAggregateFunctionDistinctDynamicTypes(AggregateFunctionFactory & factory);
-void registerAggregateFunctionDistinctJSONPathsAndTypes(AggregateFunctionFactory & factory);
+void registerAggregateFunctionKolmogorovSmirnovTest(AggregateFunctionFactory &factory);
+void registerAggregateFunctionLargestTriangleThreeBuckets(AggregateFunctionFactory &factory);
+void registerAggregateFunctionDistinctDynamicTypes(AggregateFunctionFactory &factory);
+void registerAggregateFunctionDistinctJSONPathsAndTypes(AggregateFunctionFactory &factory);
 
-void registerAggregateFunctionLast2Samples(AggregateFunctionFactory & factory);
-void registerAggregateFunctionTimeseries(AggregateFunctionFactory & factory);
-void registerAggregateFunctionTimeseriesGroupArray(AggregateFunctionFactory & factory);
+void registerAggregateFunctionLast2Samples(AggregateFunctionFactory &factory);
+void registerAggregateFunctionTimeseries(AggregateFunctionFactory &factory);
+void registerAggregateFunctionTimeseriesGroupArray(AggregateFunctionFactory &factory);
 
 class AggregateFunctionCombinatorFactory;
 void registerAggregateFunctionCombinatorIf(AggregateFunctionCombinatorFactory &);
@@ -111,125 +109,124 @@ void registerAggregateFunctionCombinatorNull(AggregateFunctionCombinatorFactory 
 void registerAggregateFunctionCombinatorOrFill(AggregateFunctionCombinatorFactory &);
 void registerAggregateFunctionCombinatorResample(AggregateFunctionCombinatorFactory &);
 void registerAggregateFunctionCombinatorDistinct(AggregateFunctionCombinatorFactory &);
-void registerAggregateFunctionCombinatorMap(AggregateFunctionCombinatorFactory & factory);
-void registerAggregateFunctionCombinatorsArgMinArgMax(AggregateFunctionCombinatorFactory & factory);
+void registerAggregateFunctionCombinatorMap(AggregateFunctionCombinatorFactory &factory);
+void registerAggregateFunctionCombinatorsArgMinArgMax(AggregateFunctionCombinatorFactory &factory);
 
-void registerWindowFunctions(AggregateFunctionFactory & factory);
+void registerWindowFunctions(AggregateFunctionFactory &factory);
 
-void registerAggregateFunctions()
-{
-    {
-        auto & factory = AggregateFunctionFactory::instance();
+void registerAggregateFunctions() {
+  {
+    auto &factory = AggregateFunctionFactory::instance();
 
-        registerAggregateFunctionAvg(factory);
-        registerAggregateFunctionAvgWeighted(factory);
-        registerAggregateFunctionCount(factory);
-        registerAggregateFunctionDeltaSum(factory);
-        registerAggregateFunctionDeltaSumTimestamp(factory);
-        registerAggregateFunctionEstimateCompressionRatio(factory);
-        registerAggregateFunctionGroupArray(factory);
-        registerAggregateFunctionGroupArraySorted(factory);
-        registerAggregateFunctionGroupUniqArray(factory);
-        registerAggregateFunctionGroupArrayInsertAt(factory);
-        registerAggregateFunctionGroupArrayIntersect(factory);
-        registerAggregateFunctionGroupConcat(factory);
-        registerAggregateFunctionsQuantile(factory);
-        registerAggregateFunctionsQuantileDeterministic(factory);
-        registerAggregateFunctionsQuantileExact(factory);
-        registerAggregateFunctionsQuantileExactWeighted(factory);
-        registerAggregateFunctionsQuantileInterpolatedWeighted(factory);
-        registerAggregateFunctionsQuantileExactLow(factory);
-        registerAggregateFunctionsQuantileExactHigh(factory);
-        registerAggregateFunctionsQuantileExactInclusive(factory);
-        registerAggregateFunctionsQuantileExactExclusive(factory);
-        registerAggregateFunctionsQuantileTiming(factory);
-        registerAggregateFunctionsQuantileTimingWeighted(factory);
-        registerAggregateFunctionsQuantileTDigest(factory);
-        registerAggregateFunctionsQuantileTDigestWeighted(factory);
-        registerAggregateFunctionsQuantileBFloat16(factory);
-        registerAggregateFunctionsQuantileDD(factory);
-        registerAggregateFunctionsQuantileBFloat16Weighted(factory);
-        registerAggregateFunctionsQuantileApprox(factory);
-        registerAggregateFunctionsQuantilePrometheusHistogram(factory);
-        registerAggregateFunctionsSequenceMatch(factory);
-        registerAggregateFunctionWindowFunnel(factory);
-        registerAggregateFunctionRate(factory);
-        registerAggregateFunctionsMinMax(factory);
-        registerAggregateFunctionsArgMinArgMax(factory);
-        registerAggregateFunctionsAny(factory);
-        registerAggregateFunctionAnyHeavy(factory);
-        registerAggregateFunctionsAnyRespectNulls(factory);
-        registerAggregateFunctionsStatisticsStable(factory);
-        registerAggregateFunctionsStatisticsSecondMoment(factory);
-        registerAggregateFunctionsStatisticsThirdMoment(factory);
-        registerAggregateFunctionsStatisticsFourthMoment(factory);
-        registerAggregateFunctionsStatisticsCovar(factory);
-        registerAggregateFunctionsStatisticsCorr(factory);
-        registerAggregateFunctionsVarianceMatrix(factory);
-        registerAggregateFunctionSum(factory);
-        registerAggregateFunctionSumCount(factory);
-        registerAggregateFunctionSumMap(factory);
-        registerAggregateFunctionsUniq(factory);
-        registerAggregateFunctionUniqCombined(factory);
-        registerAggregateFunctionUniqUpTo(factory);
-        registerAggregateFunctionTopK(factory);
-        registerAggregateFunctionsBitwise(factory);
-        registerAggregateFunctionCramersV(factory);
-        registerAggregateFunctionTheilsU(factory);
-        registerAggregateFunctionContingency(factory);
-        registerAggregateFunctionCramersVBiasCorrected(factory);
-        registerAggregateFunctionsBitmap(factory);
-        registerAggregateFunctionsNumericIndexedVector(factory);
-        registerAggregateFunctionsMaxIntersections(factory);
-        registerAggregateFunctionHistogram(factory);
-        registerAggregateFunctionRetention(factory);
-        registerAggregateFunctionMLMethod(factory);
-        registerAggregateFunctionEntropy(factory);
-        registerAggregateFunctionSimpleLinearRegression(factory);
-        registerAggregateFunctionMoving(factory);
-        registerAggregateFunctionCategoricalIV(factory);
-        registerAggregateFunctionAggThrow(factory);
-        registerAggregateFunctionRankCorrelation(factory);
-        registerAggregateFunctionMannWhitney(factory);
-        registerAggregateFunctionSequenceNextNode(factory);
-        registerAggregateFunctionWelchTTest(factory);
-        registerAggregateFunctionStudentTTest(factory);
-        registerAggregateFunctionStudentTTestOneSample(factory);
-        registerAggregateFunctionMeanZTest(factory);
-        registerAggregateFunctionNothing(factory);
-        registerAggregateFunctionSingleValueOrNull(factory);
-        registerAggregateFunctionIntervalLengthSum(factory);
-        registerAggregateFunctionExponentialMovingAverage(factory);
-        registerAggregateFunctionSparkbar(factory);
-        registerAggregateFunctionAnalysisOfVariance(factory);
-        registerAggregateFunctionFlameGraph(factory);
-        registerAggregateFunctionKolmogorovSmirnovTest(factory);
-        registerAggregateFunctionLargestTriangleThreeBuckets(factory);
-        registerAggregateFunctionDistinctDynamicTypes(factory);
-        registerAggregateFunctionDistinctJSONPathsAndTypes(factory);
-        registerAggregateFunctionLast2Samples(factory);
-        registerAggregateFunctionTimeseries(factory);
-        registerAggregateFunctionTimeseriesGroupArray(factory);
+    registerAggregateFunctionAvg(factory);
+    registerAggregateFunctionAvgWeighted(factory);
+    registerAggregateFunctionCount(factory);
+    registerAggregateFunctionDeltaSum(factory);
+    registerAggregateFunctionDeltaSumTimestamp(factory);
+    registerAggregateFunctionEstimateCompressionRatio(factory);
+    registerAggregateFunctionGroupArray(factory);
+    registerAggregateFunctionGroupArraySorted(factory);
+    registerAggregateFunctionGroupUniqArray(factory);
+    registerAggregateFunctionGroupArrayInsertAt(factory);
+    registerAggregateFunctionGroupArrayIntersect(factory);
+    registerAggregateFunctionGroupConcat(factory);
+    registerAggregateFunctionsQuantile(factory);
+    registerAggregateFunctionsQuantileDeterministic(factory);
+    registerAggregateFunctionsQuantileExact(factory);
+    registerAggregateFunctionsQuantileExactWeighted(factory);
+    registerAggregateFunctionsQuantileInterpolatedWeighted(factory);
+    registerAggregateFunctionsQuantileExactLow(factory);
+    registerAggregateFunctionsQuantileExactHigh(factory);
+    registerAggregateFunctionsQuantileExactInclusive(factory);
+    registerAggregateFunctionsQuantileExactExclusive(factory);
+    registerAggregateFunctionsQuantileTiming(factory);
+    registerAggregateFunctionsQuantileTimingWeighted(factory);
+    registerAggregateFunctionsQuantileTDigest(factory);
+    registerAggregateFunctionsQuantileTDigestWeighted(factory);
+    registerAggregateFunctionsQuantileBFloat16(factory);
+    registerAggregateFunctionsQuantileDD(factory);
+    registerAggregateFunctionsQuantileBFloat16Weighted(factory);
+    registerAggregateFunctionsQuantileApprox(factory);
+    registerAggregateFunctionsQuantilePrometheusHistogram(factory);
+    registerAggregateFunctionsSequenceMatch(factory);
+    registerAggregateFunctionWindowFunnel(factory);
+    registerAggregateFunctionRate(factory);
+    registerAggregateFunctionsMinMax(factory);
+    registerAggregateFunctionsArgMinArgMax(factory);
+    registerAggregateFunctionsAny(factory);
+    registerAggregateFunctionAnyHeavy(factory);
+    registerAggregateFunctionsAnyRespectNulls(factory);
+    registerAggregateFunctionsStatisticsStable(factory);
+    registerAggregateFunctionsStatisticsSecondMoment(factory);
+    registerAggregateFunctionsStatisticsThirdMoment(factory);
+    registerAggregateFunctionsStatisticsFourthMoment(factory);
+    registerAggregateFunctionsStatisticsCovar(factory);
+    registerAggregateFunctionsStatisticsCorr(factory);
+    registerAggregateFunctionsVarianceMatrix(factory);
+    registerAggregateFunctionSum(factory);
+    registerAggregateFunctionSumCount(factory);
+    registerAggregateFunctionSumMap(factory);
+    registerAggregateFunctionsUniq(factory);
+    registerAggregateFunctionUniqCombined(factory);
+    registerAggregateFunctionUniqUpTo(factory);
+    registerAggregateFunctionTopK(factory);
+    registerAggregateFunctionsBitwise(factory);
+    registerAggregateFunctionCramersV(factory);
+    registerAggregateFunctionTheilsU(factory);
+    registerAggregateFunctionContingency(factory);
+    registerAggregateFunctionCramersVBiasCorrected(factory);
+    registerAggregateFunctionsBitmap(factory);
+    registerAggregateFunctionsNumericIndexedVector(factory);
+    registerAggregateFunctionsMaxIntersections(factory);
+    registerAggregateFunctionHistogram(factory);
+    registerAggregateFunctionRetention(factory);
+    registerAggregateFunctionMLMethod(factory);
+    registerAggregateFunctionEntropy(factory);
+    registerAggregateFunctionSimpleLinearRegression(factory);
+    registerAggregateFunctionMoving(factory);
+    registerAggregateFunctionCategoricalIV(factory);
+    registerAggregateFunctionAggThrow(factory);
+    registerAggregateFunctionRankCorrelation(factory);
+    registerAggregateFunctionMannWhitney(factory);
+    registerAggregateFunctionSequenceNextNode(factory);
+    registerAggregateFunctionWelchTTest(factory);
+    registerAggregateFunctionStudentTTest(factory);
+    registerAggregateFunctionStudentTTestOneSample(factory);
+    registerAggregateFunctionMeanZTest(factory);
+    registerAggregateFunctionNothing(factory);
+    registerAggregateFunctionSingleValueOrNull(factory);
+    registerAggregateFunctionIntervalLengthSum(factory);
+    registerAggregateFunctionExponentialMovingAverage(factory);
+    registerAggregateFunctionSparkbar(factory);
+    registerAggregateFunctionAnalysisOfVariance(factory);
+    registerAggregateFunctionFlameGraph(factory);
+    registerAggregateFunctionKolmogorovSmirnovTest(factory);
+    registerAggregateFunctionLargestTriangleThreeBuckets(factory);
+    registerAggregateFunctionDistinctDynamicTypes(factory);
+    registerAggregateFunctionDistinctJSONPathsAndTypes(factory);
+    registerAggregateFunctionLast2Samples(factory);
+    registerAggregateFunctionTimeseries(factory);
+    registerAggregateFunctionTimeseriesGroupArray(factory);
 
-        registerWindowFunctions(factory);
-    }
+    registerWindowFunctions(factory);
+  }
 
-    {
-        auto & factory = AggregateFunctionCombinatorFactory::instance();
+  {
+    auto &factory = AggregateFunctionCombinatorFactory::instance();
 
-        registerAggregateFunctionCombinatorIf(factory);
-        registerAggregateFunctionCombinatorArray(factory);
-        registerAggregateFunctionCombinatorForEach(factory);
-        registerAggregateFunctionCombinatorSimpleState(factory);
-        registerAggregateFunctionCombinatorState(factory);
-        registerAggregateFunctionCombinatorMerge(factory);
-        registerAggregateFunctionCombinatorNull(factory);
-        registerAggregateFunctionCombinatorOrFill(factory);
-        registerAggregateFunctionCombinatorResample(factory);
-        registerAggregateFunctionCombinatorDistinct(factory);
-        registerAggregateFunctionCombinatorMap(factory);
-        registerAggregateFunctionCombinatorsArgMinArgMax(factory);
-    }
+    registerAggregateFunctionCombinatorIf(factory);
+    registerAggregateFunctionCombinatorArray(factory);
+    registerAggregateFunctionCombinatorForEach(factory);
+    registerAggregateFunctionCombinatorSimpleState(factory);
+    registerAggregateFunctionCombinatorState(factory);
+    registerAggregateFunctionCombinatorMerge(factory);
+    registerAggregateFunctionCombinatorNull(factory);
+    registerAggregateFunctionCombinatorOrFill(factory);
+    registerAggregateFunctionCombinatorResample(factory);
+    registerAggregateFunctionCombinatorDistinct(factory);
+    registerAggregateFunctionCombinatorMap(factory);
+    registerAggregateFunctionCombinatorsArgMinArgMax(factory);
+  }
 }
 
-}
+}  // namespace DB

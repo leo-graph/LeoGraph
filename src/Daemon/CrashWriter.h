@@ -1,23 +1,19 @@
 #pragma once
 
-#include <string>
 #include <Common/StackTrace.h>
+#include <string>
 
+namespace Poco {
 
-namespace Poco
-{
-
-namespace Util
-{
+namespace Util {
 class LayeredConfiguration;
 };
 
 class Logger;
 
-}
+}  // namespace Poco
 
 using LoggerPtr = std::shared_ptr<Poco::Logger>;
-
 
 /// Sends crash reports and LOGICAL_ERRORs (if "send_logical_errors" is enabled)
 /// to ClickHouse core developer team.
@@ -26,50 +22,33 @@ using LoggerPtr = std::shared_ptr<Poco::Logger>;
 ///
 /// It is possible to send those reports to your own endpoint
 /// by overriding the "send_crash_reports.endpoint" setting.
-class CrashWriter
-{
-public:
-    using FramePointers = FramePointers;
+class CrashWriter {
+ public:
+  using FramePointers = FramePointers;
 
-    static void initialize(Poco::Util::LayeredConfiguration & config);
-    static bool initialized();
+  static void initialize(Poco::Util::LayeredConfiguration& config);
+  static bool initialized();
 
-    /// Can't be called from a signal handler. Call from a separate thread when a signal happens.
-    static void onSignal(
-        int sig,
-        std::string_view error_message,
-        const FramePointers & frame_pointers,
-        size_t offset,
-        size_t size);
+  /// Can't be called from a signal handler. Call from a separate thread when a signal happens.
+  static void onSignal(int sig, std::string_view error_message, const FramePointers& frame_pointers, size_t offset, size_t size);
 
-    static void onException(
-        int code,
-        std::string_view format_string,
-        const FramePointers & frame_pointers,
-        size_t offset,
-        size_t size);
+  static void onException(int code, std::string_view format_string, const FramePointers& frame_pointers, size_t offset, size_t size);
 
-private:
-    explicit CrashWriter(std::string endpoint_, std::string server_data_path_);
+ private:
+  explicit CrashWriter(std::string endpoint_, std::string server_data_path_);
 
-    static std::unique_ptr<CrashWriter> instance;
+  static std::unique_ptr<CrashWriter> instance;
 
-    std::string endpoint;
-    std::string server_data_path;
+  std::string endpoint;
+  std::string server_data_path;
 
-    LoggerPtr logger;
+  LoggerPtr logger;
 
-    enum Type
-    {
-        SIGNAL,
-        EXCEPTION,
-    };
+  enum Type {
+    SIGNAL,
+    EXCEPTION,
+  };
 
-    void sendError(
-        Type type,
-        int sig_or_error,
-        std::string_view error_message,
-        const FramePointers & frame_pointers,
-        size_t offset,
-        size_t size);
+  void sendError(Type type, int sig_or_error, std::string_view error_message, const FramePointers& frame_pointers, size_t offset,
+                 size_t size);
 };

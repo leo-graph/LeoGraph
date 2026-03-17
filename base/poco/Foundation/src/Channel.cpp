@@ -11,43 +11,20 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Channel.h"
-
 
 namespace Poco {
 
+Channel::Channel() {}
 
-Channel::Channel()
-{
-}
+Channel::~Channel() {}
 
+void Channel::open() {}
 
-Channel::~Channel()
-{
-}
+void Channel::close() {}
 
+void Channel::setProperty(const std::string& name, const std::string& value) { throw PropertyNotSupportedException(name); }
 
-void Channel::open()
-{
-}
+std::string Channel::getProperty(const std::string& name) const { throw PropertyNotSupportedException(name); }
 
-
-void Channel::close()
-{
-}
-
-
-void Channel::setProperty(const std::string& name, const std::string& value)
-{
-	throw PropertyNotSupportedException(name);
-}
-
-
-std::string Channel::getProperty(const std::string& name) const
-{
-	throw PropertyNotSupportedException(name);
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
 /// We do track memory allocations from standard containers by default, but we do it through
 /// non-throwing methods of the `MemoryTracker` (see `trackMemory` in src/Common/memory.h).
@@ -21,4 +20,4 @@ namespace DB
 template <typename T>
 using VectorWithMemoryTracking = std::vector<T, AllocatorWithMemoryTracking<T>>;
 
-}
+}  // namespace DB

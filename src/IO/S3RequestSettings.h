@@ -5,13 +5,11 @@
 #include <Core/SettingsFields.h>
 #include <IO/HTTPRequestThrottler.h>
 
-namespace Poco::Util
-{
+namespace Poco::Util {
 class AbstractConfiguration;
 };
 
-namespace DB
-{
+namespace DB {
 class NamedCollection;
 struct ProxyConfigurationResolver;
 struct S3RequestSettingsImpl;
@@ -19,14 +17,13 @@ struct Settings;
 
 /// List of available types supported in the Settings object
 #define S3REQUEST_SETTINGS_SUPPORTED_TYPES(CLASS_NAME, M) \
-    M(CLASS_NAME, Bool) \
-    M(CLASS_NAME, UInt64) \
-    M(CLASS_NAME, String)
+  M(CLASS_NAME, Bool)                                     \
+  M(CLASS_NAME, UInt64)                                   \
+  M(CLASS_NAME, String)
 
 S3REQUEST_SETTINGS_SUPPORTED_TYPES(S3RequestSettings, DECLARE_SETTING_TRAIT)
 
-namespace S3
-{
+namespace S3 {
 
 /// We use s3 settings for DiskS3, StorageS3 (StorageS3Cluster, S3Queue, etc), BackupIO_S3, etc.
 /// 1. For DiskS3 we usually have configuration in disk section in configuration file.
@@ -38,49 +35,44 @@ namespace S3
 /// 2. For StorageS3 and similar - we look up to "s3." config section (again - settings there do not have "s3_" prefix).
 ///    If some setting is absent from there, we look up for it in Users config.
 
-struct S3RequestSettings
-{
-    S3RequestSettings();
-    S3RequestSettings(const S3RequestSettings & settings);
-    S3RequestSettings(S3RequestSettings && settings) noexcept;
+struct S3RequestSettings {
+  S3RequestSettings();
+  S3RequestSettings(const S3RequestSettings& settings);
+  S3RequestSettings(S3RequestSettings&& settings) noexcept;
 
-    /// Create request settings from Config.
-    S3RequestSettings(
-        const Poco::Util::AbstractConfiguration & config,
-        const DB::Settings & settings,
-        const std::string & config_prefix,
-        const std::string & setting_name_prefix = "",
-        bool validate_settings = true);
+  /// Create request settings from Config.
+  S3RequestSettings(const Poco::Util::AbstractConfiguration& config, const DB::Settings& settings, const std::string& config_prefix,
+                    const std::string& setting_name_prefix = "", bool validate_settings = true);
 
-    /// Create request settings from DB::Settings.
-    explicit S3RequestSettings(const DB::Settings & settings, bool validate_settings = true);
+  /// Create request settings from DB::Settings.
+  explicit S3RequestSettings(const DB::Settings& settings, bool validate_settings = true);
 
-    /// Create request settings from NamedCollection.
-    S3RequestSettings(const NamedCollection & collection, const DB::Settings & settings, bool validate_settings = true);
+  /// Create request settings from NamedCollection.
+  S3RequestSettings(const NamedCollection& collection, const DB::Settings& settings, bool validate_settings = true);
 
-    ~S3RequestSettings();
+  ~S3RequestSettings();
 
-    S3RequestSettings & operator=(S3RequestSettings && settings) noexcept;
+  S3RequestSettings& operator=(S3RequestSettings&& settings) noexcept;
 
-    S3REQUEST_SETTINGS_SUPPORTED_TYPES(S3RequestSettings, DECLARE_SETTING_SUBSCRIPT_OPERATOR)
+  S3REQUEST_SETTINGS_SUPPORTED_TYPES(S3RequestSettings, DECLARE_SETTING_SUBSCRIPT_OPERATOR)
 
-    void updateFromSettings(const DB::Settings & settings, bool if_changed, bool validate_settings = true);
-    void updateIfChanged(const S3RequestSettings & settings);
-    void validateUploadSettings();
+  void updateFromSettings(const DB::Settings& settings, bool if_changed, bool validate_settings = true);
+  void updateIfChanged(const S3RequestSettings& settings);
+  void validateUploadSettings();
 
-    HTTPRequestThrottler request_throttler;
-    std::shared_ptr<ProxyConfigurationResolver> proxy_resolver;
+  HTTPRequestThrottler request_throttler;
+  std::shared_ptr<ProxyConfigurationResolver> proxy_resolver;
 
-    void serialize(WriteBuffer & out, ContextPtr context) const;
-    static S3RequestSettings deserialize(ReadBuffer & in, ContextPtr context);
+  void serialize(WriteBuffer& out, ContextPtr context) const;
+  static S3RequestSettings deserialize(ReadBuffer& in, ContextPtr context);
 
-private:
-    void finishInit(const DB::Settings & settings, bool validate_settings);
-    void normalizeSettings();
+ private:
+  void finishInit(const DB::Settings& settings, bool validate_settings);
+  void normalizeSettings();
 
-    std::unique_ptr<S3RequestSettingsImpl> impl;
+  std::unique_ptr<S3RequestSettingsImpl> impl;
 };
 
-}
+}  // namespace S3
 
-}
+}  // namespace DB

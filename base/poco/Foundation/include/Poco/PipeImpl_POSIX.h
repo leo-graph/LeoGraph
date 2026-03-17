@@ -13,42 +13,35 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_PipeImpl_POSIX_INCLUDED
 #define Foundation_PipeImpl_POSIX_INCLUDED
-
 
 #include "Poco/Foundation.h"
 #include "Poco/RefCountedObject.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API PipeImpl : public RefCountedObject
 /// A dummy implementation of PipeImpl for platforms
 /// that do not support pipes.
 {
-public:
-    typedef int Handle;
+ public:
+  typedef int Handle;
 
-    PipeImpl();
-    ~PipeImpl();
-    int writeBytes(const void * buffer, int length);
-    int readBytes(void * buffer, int length);
-    Handle readHandle() const;
-    Handle writeHandle() const;
-    void closeRead();
-    void closeWrite();
+  PipeImpl();
+  ~PipeImpl();
+  int writeBytes(const void* buffer, int length);
+  int readBytes(void* buffer, int length);
+  Handle readHandle() const;
+  Handle writeHandle() const;
+  void closeRead();
+  void closeWrite();
 
-private:
-    int _readfd;
-    int _writefd;
+ private:
+  int _readfd;
+  int _writefd;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_PipeImpl_POSIX_INCLUDED
+#endif  // Foundation_PipeImpl_POSIX_INCLUDED

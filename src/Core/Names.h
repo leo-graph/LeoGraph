@@ -1,14 +1,12 @@
 #pragma once
 
-#include <vector>
-#include <string>
 #include <set>
-#include <unordered_set>
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
-
-namespace DB
-{
+namespace DB {
 
 using Names = std::vector<std::string>;
 using NameSet = std::unordered_set<std::string>;
@@ -22,8 +20,7 @@ using NameToIndexMap = std::unordered_map<std::string, size_t>;
 using NameWithAlias = std::pair<std::string, std::string>;
 using NamesWithAliases = std::vector<NameWithAlias>;
 
-struct NamesHash
-{
-    size_t operator()(const Names & column_names) const;
+struct NamesHash {
+  size_t operator()(const Names& column_names) const;
 };
-}
+}  // namespace DB

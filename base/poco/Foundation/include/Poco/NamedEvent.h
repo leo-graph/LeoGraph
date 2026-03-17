@@ -13,24 +13,18 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NamedEvent_INCLUDED
 #define Foundation_NamedEvent_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-#if   POCO_OS == POCO_OS_ANDROID
-#    include "Poco/NamedEvent_Android.h"
+#if POCO_OS == POCO_OS_ANDROID
+#  include "Poco/NamedEvent_Android.h"
 #elif defined(POCO_OS_FAMILY_UNIX)
-#    include "Poco/NamedEvent_UNIX.h"
+#  include "Poco/NamedEvent_UNIX.h"
 #endif
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API NamedEvent : public NamedEventImpl
 /// An NamedEvent is a global synchronization object
@@ -50,44 +44,34 @@ class Foundation_API NamedEvent : public NamedEventImpl
 /// a given name in a process. Otherwise, the instances may
 /// interfere with each other.
 {
-public:
-    NamedEvent(const std::string & name);
-    /// Creates the event.
+ public:
+  NamedEvent(const std::string &name);
+  /// Creates the event.
 
-    ~NamedEvent();
-    /// Destroys the event.
+  ~NamedEvent();
+  /// Destroys the event.
 
-    void set();
-    /// Signals the event.
-    /// The one thread or process waiting for the event
-    /// can resume execution.
+  void set();
+  /// Signals the event.
+  /// The one thread or process waiting for the event
+  /// can resume execution.
 
-    void wait();
-    /// Waits for the event to become signalled.
+  void wait();
+  /// Waits for the event to become signalled.
 
-private:
-    NamedEvent();
-    NamedEvent(const NamedEvent &);
-    NamedEvent & operator=(const NamedEvent &);
+ private:
+  NamedEvent();
+  NamedEvent(const NamedEvent &);
+  NamedEvent &operator=(const NamedEvent &);
 };
-
 
 //
 // inlines
 //
-inline void NamedEvent::set()
-{
-    setImpl();
-}
+inline void NamedEvent::set() { setImpl(); }
 
+inline void NamedEvent::wait() { waitImpl(); }
 
-inline void NamedEvent::wait()
-{
-    waitImpl();
-}
+}  // namespace Poco
 
-
-} // namespace Poco
-
-
-#endif // Foundation_NamedEvent_INCLUDED
+#endif  // Foundation_NamedEvent_INCLUDED

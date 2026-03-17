@@ -13,36 +13,28 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_ServerSocketImpl_INCLUDED
 #define Net_ServerSocketImpl_INCLUDED
-
 
 #include "Poco/Net/Net.h"
 #include "Poco/Net/SocketImpl.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API ServerSocketImpl : public SocketImpl
+/// This class implements a TCP server socket.
 {
-namespace Net
-{
+ public:
+  ServerSocketImpl();
+  /// Creates the ServerSocketImpl.
 
+ protected:
+  virtual ~ServerSocketImpl();
+  /// Destroys the ServerSocketImpl.
+};
 
-    class Net_API ServerSocketImpl : public SocketImpl
-    /// This class implements a TCP server socket.
-    {
-    public:
-        ServerSocketImpl();
-        /// Creates the ServerSocketImpl.
+}  // namespace Net
+}  // namespace Poco
 
-    protected:
-        virtual ~ServerSocketImpl();
-        /// Destroys the ServerSocketImpl.
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_ServerSocketImpl_INCLUDED
+#endif  // Net_ServerSocketImpl_INCLUDED

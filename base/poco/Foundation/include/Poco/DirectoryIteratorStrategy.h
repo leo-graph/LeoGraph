@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_RecursiveDirectoryIteratorStrategy_INCLUDED
 #define Foundation_RecursiveDirectoryIteratorStrategy_INCLUDED
-
 
 #include <functional>
 #include <queue>
@@ -24,70 +22,59 @@
 #include "Poco/DirectoryIterator.h"
 #include "Poco/Foundation.h"
 
+namespace Poco {
 
-namespace Poco
-{
+class Foundation_API TraverseBase {
+ public:
+  typedef std::stack<DirectoryIterator> Stack;
+  typedef std::function<UInt16(const Stack &)> DepthFunPtr;
 
+  enum {
+    D_INFINITE = 0  /// Special value for infinite traverse depth.
+  };
 
-class Foundation_API TraverseBase
-{
-public:
-    typedef std::stack<DirectoryIterator> Stack;
-    typedef std::function<UInt16(const Stack &)> DepthFunPtr;
+  TraverseBase(DepthFunPtr depthDeterminer, UInt16 maxDepth = D_INFINITE);
 
-    enum
-    {
-        D_INFINITE = 0 /// Special value for infinite traverse depth.
-    };
+ protected:
+  bool isFiniteDepth();
+  bool isDirectory(Poco::File &file);
 
-    TraverseBase(DepthFunPtr depthDeterminer, UInt16 maxDepth = D_INFINITE);
+  DepthFunPtr _depthDeterminer;
+  UInt16 _maxDepth;
+  DirectoryIterator _itEnd;
 
-protected:
-    bool isFiniteDepth();
-    bool isDirectory(Poco::File & file);
-
-    DepthFunPtr _depthDeterminer;
-    UInt16 _maxDepth;
-    DirectoryIterator _itEnd;
-
-private:
-    TraverseBase();
-    TraverseBase(const TraverseBase &);
-    TraverseBase & operator=(const TraverseBase &);
+ private:
+  TraverseBase();
+  TraverseBase(const TraverseBase &);
+  TraverseBase &operator=(const TraverseBase &);
 };
 
+class Foundation_API ChildrenFirstTraverse : public TraverseBase {
+ public:
+  ChildrenFirstTraverse(DepthFunPtr depthDeterminer, UInt16 maxDepth = D_INFINITE);
 
-class Foundation_API ChildrenFirstTraverse : public TraverseBase
-{
-public:
-    ChildrenFirstTraverse(DepthFunPtr depthDeterminer, UInt16 maxDepth = D_INFINITE);
+  const std::string next(Stack *itStack, bool *isFinished);
 
-    const std::string next(Stack * itStack, bool * isFinished);
-
-private:
-    ChildrenFirstTraverse();
-    ChildrenFirstTraverse(const ChildrenFirstTraverse &);
-    ChildrenFirstTraverse & operator=(const ChildrenFirstTraverse &);
+ private:
+  ChildrenFirstTraverse();
+  ChildrenFirstTraverse(const ChildrenFirstTraverse &);
+  ChildrenFirstTraverse &operator=(const ChildrenFirstTraverse &);
 };
 
+class Foundation_API SiblingsFirstTraverse : public TraverseBase {
+ public:
+  SiblingsFirstTraverse(DepthFunPtr depthDeterminer, UInt16 maxDepth = D_INFINITE);
 
-class Foundation_API SiblingsFirstTraverse : public TraverseBase
-{
-public:
-    SiblingsFirstTraverse(DepthFunPtr depthDeterminer, UInt16 maxDepth = D_INFINITE);
+  const std::string next(Stack *itStack, bool *isFinished);
 
-    const std::string next(Stack * itStack, bool * isFinished);
+ private:
+  SiblingsFirstTraverse();
+  SiblingsFirstTraverse(const SiblingsFirstTraverse &);
+  SiblingsFirstTraverse &operator=(const SiblingsFirstTraverse &);
 
-private:
-    SiblingsFirstTraverse();
-    SiblingsFirstTraverse(const SiblingsFirstTraverse &);
-    SiblingsFirstTraverse & operator=(const SiblingsFirstTraverse &);
-
-    std::stack<std::queue<std::string>> _dirsStack;
+  std::stack<std::queue<std::string>> _dirsStack;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_RecursiveDirectoryIteratorStrategy_INCLUDED
+#endif  // Foundation_RecursiveDirectoryIteratorStrategy_INCLUDED

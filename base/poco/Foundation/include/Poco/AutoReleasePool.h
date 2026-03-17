@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_AutoReleasePool_INCLUDED
 #define Foundation_AutoReleasePool_INCLUDED
-
 
 #include <list>
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class C>
 class AutoReleasePool
@@ -42,46 +37,41 @@ class AutoReleasePool
 ///    ...
 ///    arp.add(ptr.duplicate());
 {
-public:
-    AutoReleasePool()
-    /// Creates the AutoReleasePool.
-    {
+ public:
+  AutoReleasePool()
+  /// Creates the AutoReleasePool.
+  {}
+
+  ~AutoReleasePool()
+  /// Destroys the AutoReleasePool and releases
+  /// all objects it currently holds.
+  {
+    release();
+  }
+
+  void add(C *pObject)
+  /// Adds the given object to the AutoReleasePool.
+  /// The object's reference count is not modified
+  {
+    if (pObject) _list.push_back(pObject);
+  }
+
+  void release()
+  /// Releases all objects the AutoReleasePool currently holds
+  /// by calling each object's release() method.
+  {
+    while (!_list.empty()) {
+      _list.front()->release();
+      _list.pop_front();
     }
+  }
 
-    ~AutoReleasePool()
-    /// Destroys the AutoReleasePool and releases
-    /// all objects it currently holds.
-    {
-        release();
-    }
+ private:
+  typedef std::list<C *> ObjectList;
 
-    void add(C * pObject)
-    /// Adds the given object to the AutoReleasePool.
-    /// The object's reference count is not modified
-    {
-        if (pObject)
-            _list.push_back(pObject);
-    }
-
-    void release()
-    /// Releases all objects the AutoReleasePool currently holds
-    /// by calling each object's release() method.
-    {
-        while (!_list.empty())
-        {
-            _list.front()->release();
-            _list.pop_front();
-        }
-    }
-
-private:
-    typedef std::list<C *> ObjectList;
-
-    ObjectList _list;
+  ObjectList _list;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_AutoReleasePool_INCLUDED
+#endif  // Foundation_AutoReleasePool_INCLUDED

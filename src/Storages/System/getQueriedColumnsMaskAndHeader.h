@@ -1,12 +1,11 @@
 #pragma once
-#include <Core/Names.h>
 #include <base/types.h>
+#include <Core/Names.h>
 
-namespace DB
-{
+namespace DB {
 
 class Block;
 
-std::pair<std::vector<UInt8>, Block> getQueriedColumnsMaskAndHeader(const Block & sample_block, const Names & column_names);
+std::pair<std::vector<UInt8>, Block> getQueriedColumnsMaskAndHeader(const Block& sample_block, const Names& column_names);
 
-}
+}  // namespace DB

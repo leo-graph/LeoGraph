@@ -2,11 +2,9 @@
 
 #include <Server/HTTP/HTTPRequest.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /// Checks whether we should defer the HTTP 100 Continue response to after quota checks.
-bool shouldDeferHTTP100Continue(const HTTPRequest & request);
+bool shouldDeferHTTP100Continue(const HTTPRequest& request);
 
-}
+}  // namespace DB

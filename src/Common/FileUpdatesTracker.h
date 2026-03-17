@@ -1,36 +1,22 @@
 #pragma once
 
-#include <Poco/Timestamp.h>
-#include <string>
-#include <filesystem>
 #include <Common/filesystemHelpers.h>
+#include <Poco/Timestamp.h>
+#include <filesystem>
+#include <string>
 
+class FileUpdatesTracker {
+ private:
+  std::string path;
+  Poco::Timestamp known_time;
 
-class FileUpdatesTracker
-{
-private:
-    std::string path;
-    Poco::Timestamp known_time;
+ public:
+  explicit FileUpdatesTracker(const std::string& path_) : path(path_), known_time(0) {}
 
-public:
-    explicit FileUpdatesTracker(const std::string & path_)
-        : path(path_)
-        , known_time(0)
-    {}
+  bool isModified() const { return getLastModificationTime() > known_time; }
 
-    bool isModified() const
-    {
-        return getLastModificationTime() > known_time;
-    }
+  void fixCurrentVersion() { known_time = getLastModificationTime(); }
 
-    void fixCurrentVersion()
-    {
-        known_time = getLastModificationTime();
-    }
-
-private:
-    Poco::Timestamp getLastModificationTime() const
-    {
-        return FS::getModificationTimestamp(path);
-    }
+ private:
+  Poco::Timestamp getLastModificationTime() const { return FS::getModificationTimestamp(path); }
 };

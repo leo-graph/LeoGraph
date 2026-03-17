@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_TCPServerParams_INCLUDED
 #define Net_TCPServerParams_INCLUDED
-
 
 #include "Poco/AutoPtr.h"
 #include "Poco/Net/Net.h"
@@ -24,131 +22,105 @@
 #include "Poco/Thread.h"
 #include "Poco/Timespan.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API TCPServerParams : public Poco::RefCountedObject
+/// This class is used to specify parameters to both the
+/// TCPServer, as well as to TCPServerDispatcher objects.
+///
+/// Subclasses may add new parameters to the class.
 {
-namespace Net
-{
+ public:
+  typedef Poco::AutoPtr<TCPServerParams> Ptr;
 
+  TCPServerParams();
+  /// Creates the TCPServerParams.
+  ///
+  /// Sets the following default values:
+  ///   - threadIdleTime:       10 seconds
+  ///   - maxThreads:           0
+  ///   - maxQueued:            64
 
-    class Net_API TCPServerParams : public Poco::RefCountedObject
-    /// This class is used to specify parameters to both the
-    /// TCPServer, as well as to TCPServerDispatcher objects.
-    ///
-    /// Subclasses may add new parameters to the class.
-    {
-    public:
-        typedef Poco::AutoPtr<TCPServerParams> Ptr;
+  void setThreadIdleTime(const Poco::Timespan& idleTime);
+  /// Sets the maximum idle time for a thread before
+  /// it is terminated.
+  ///
+  /// The default idle time is 10 seconds;
 
-        TCPServerParams();
-        /// Creates the TCPServerParams.
-        ///
-        /// Sets the following default values:
-        ///   - threadIdleTime:       10 seconds
-        ///   - maxThreads:           0
-        ///   - maxQueued:            64
+  const Poco::Timespan& getThreadIdleTime() const;
+  /// Returns the maximum thread idle time.
 
-        void setThreadIdleTime(const Poco::Timespan & idleTime);
-        /// Sets the maximum idle time for a thread before
-        /// it is terminated.
-        ///
-        /// The default idle time is 10 seconds;
+  void setMaxQueued(int count);
+  /// Sets the maximum number of queued connections.
+  /// Must be greater than 0.
+  ///
+  /// If there are already the maximum number of connections
+  /// in the queue, new connections will be silently discarded.
+  ///
+  /// The default number is 64.
 
-        const Poco::Timespan & getThreadIdleTime() const;
-        /// Returns the maximum thread idle time.
+  int getMaxQueued() const;
+  /// Returns the maximum number of queued connections.
 
-        void setMaxQueued(int count);
-        /// Sets the maximum number of queued connections.
-        /// Must be greater than 0.
-        ///
-        /// If there are already the maximum number of connections
-        /// in the queue, new connections will be silently discarded.
-        ///
-        /// The default number is 64.
+  void setMaxThreads(int count);
+  /// Sets the maximum number of simultaneous threads
+  /// available for this TCPServerDispatcher.
+  ///
+  /// Must be greater than or equal to 0.
+  /// If 0 is specified, the TCPServerDispatcher will
+  /// set this parameter to the number of available threads
+  /// in its thread pool.
+  ///
+  /// The thread pool used by the TCPServerDispatcher
+  /// must at least have the capacity for the given
+  /// number of threads.
 
-        int getMaxQueued() const;
-        /// Returns the maximum number of queued connections.
+  int getMaxThreads() const;
+  /// Returns the maximum number of simultaneous threads
+  /// available for this TCPServerDispatcher.
 
-        void setMaxThreads(int count);
-        /// Sets the maximum number of simultaneous threads
-        /// available for this TCPServerDispatcher.
-        ///
-        /// Must be greater than or equal to 0.
-        /// If 0 is specified, the TCPServerDispatcher will
-        /// set this parameter to the number of available threads
-        /// in its thread pool.
-        ///
-        /// The thread pool used by the TCPServerDispatcher
-        /// must at least have the capacity for the given
-        /// number of threads.
+  void setThreadPriority(Poco::Thread::Priority prio);
+  /// Sets the priority of TCP server threads
+  /// created by TCPServer.
 
-        int getMaxThreads() const;
-        /// Returns the maximum number of simultaneous threads
-        /// available for this TCPServerDispatcher.
+  Poco::Thread::Priority getThreadPriority() const;
+  /// Returns the priority of TCP server threads
+  /// created by TCPServer.
 
-        void setThreadPriority(Poco::Thread::Priority prio);
-        /// Sets the priority of TCP server threads
-        /// created by TCPServer.
+  void setNoDelay(bool flag);
+  /// Sets the TCP_NODELAY socket option for connections.
+  /// Default is true (nodelay enabled).
 
-        Poco::Thread::Priority getThreadPriority() const;
-        /// Returns the priority of TCP server threads
-        /// created by TCPServer.
+  bool getNoDelay() const;
+  /// Returns the TCP_NODELAY socket option setting.
 
-        void setNoDelay(bool flag);
-        /// Sets the TCP_NODELAY socket option for connections.
-        /// Default is true (nodelay enabled).
+ protected:
+  virtual ~TCPServerParams();
+  /// Destroys the TCPServerParams.
 
-        bool getNoDelay() const;
-        /// Returns the TCP_NODELAY socket option setting.
+ private:
+  Poco::Timespan _threadIdleTime;
+  int _maxThreads;
+  int _maxQueued;
+  Poco::Thread::Priority _threadPriority;
+  bool _noDelay;
+};
 
-    protected:
-        virtual ~TCPServerParams();
-        /// Destroys the TCPServerParams.
+//
+// inlines
+//
+inline const Poco::Timespan& TCPServerParams::getThreadIdleTime() const { return _threadIdleTime; }
 
-    private:
-        Poco::Timespan _threadIdleTime;
-        int _maxThreads;
-        int _maxQueued;
-        Poco::Thread::Priority _threadPriority;
-        bool _noDelay;
-    };
+inline int TCPServerParams::getMaxThreads() const { return _maxThreads; }
 
+inline int TCPServerParams::getMaxQueued() const { return _maxQueued; }
 
-    //
-    // inlines
-    //
-    inline const Poco::Timespan & TCPServerParams::getThreadIdleTime() const
-    {
-        return _threadIdleTime;
-    }
+inline Poco::Thread::Priority TCPServerParams::getThreadPriority() const { return _threadPriority; }
 
+inline bool TCPServerParams::getNoDelay() const { return _noDelay; }
 
-    inline int TCPServerParams::getMaxThreads() const
-    {
-        return _maxThreads;
-    }
+}  // namespace Net
+}  // namespace Poco
 
-
-    inline int TCPServerParams::getMaxQueued() const
-    {
-        return _maxQueued;
-    }
-
-
-    inline Poco::Thread::Priority TCPServerParams::getThreadPriority() const
-    {
-        return _threadPriority;
-    }
-
-
-    inline bool TCPServerParams::getNoDelay() const
-    {
-        return _noDelay;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_TCPServerParams_INCLUDED
+#endif  // Net_TCPServerParams_INCLUDED

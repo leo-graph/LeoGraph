@@ -11,66 +11,28 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/NullStream.h"
-
 
 namespace Poco {
 
+NullStreamBuf::NullStreamBuf() {}
 
-NullStreamBuf::NullStreamBuf()
-{
-}
+NullStreamBuf::~NullStreamBuf() {}
 
+int NullStreamBuf::readFromDevice() { return -1; }
 
-NullStreamBuf::~NullStreamBuf()
-{
-}
+int NullStreamBuf::writeToDevice(char c) { return charToInt(c); }
 
+NullIOS::NullIOS() { poco_ios_init(&_buf); }
 
-int NullStreamBuf::readFromDevice()
-{
-	return -1;
-}
+NullIOS::~NullIOS() {}
 
+NullInputStream::NullInputStream() : std::istream(&_buf) { poco_ios_init(&_buf); }
 
-int NullStreamBuf::writeToDevice(char c)
-{
-	return charToInt(c);
-}
+NullInputStream::~NullInputStream() {}
 
+NullOutputStream::NullOutputStream() : std::ostream(&_buf) { poco_ios_init(&_buf); }
 
-NullIOS::NullIOS()
-{
-	poco_ios_init(&_buf);
-}
+NullOutputStream::~NullOutputStream() {}
 
-
-NullIOS::~NullIOS()
-{
-}
-
-
-NullInputStream::NullInputStream(): std::istream(&_buf)
-{
-	poco_ios_init(&_buf);
-}
-
-
-NullInputStream::~NullInputStream()
-{
-}
-
-
-NullOutputStream::NullOutputStream(): std::ostream(&_buf)
-{
-	poco_ios_init(&_buf);
-}
-
-
-NullOutputStream::~NullOutputStream()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -13,89 +13,68 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Redis_AsyncReader_INCLUDED
 #define Redis_AsyncReader_INCLUDED
-
 
 #include "Poco/Activity.h"
 #include "Poco/Redis/Client.h"
 #include "Poco/Redis/Redis.h"
 #include "Poco/Redis/RedisEventArgs.h"
 
+namespace Poco {
+namespace Redis {
 
-namespace Poco
+class Redis_API AsyncReader
+/// Wrapper around a Redis client to read messages asynchronously. Use this
+/// for publish/subscribe. The redisResponse event is used to notify that
+/// a message is received. When a reader is started for a Redis server,
+/// you should use execute<void>, because this class is responsible for
+/// reading all replies.
 {
-namespace Redis
-{
+ public:
+  BasicEvent<RedisEventArgs> redisResponse;
+  /// Event that is fired when a message is received.
 
+  BasicEvent<RedisEventArgs> redisException;
+  /// Event that is fired when an error occurred.
 
-    class Redis_API AsyncReader
-    /// Wrapper around a Redis client to read messages asynchronously. Use this
-    /// for publish/subscribe. The redisResponse event is used to notify that
-    /// a message is received. When a reader is started for a Redis server,
-    /// you should use execute<void>, because this class is responsible for
-    /// reading all replies.
-    {
-    public:
-        BasicEvent<RedisEventArgs> redisResponse;
-        /// Event that is fired when a message is received.
+  AsyncReader(Client &client);
+  /// Creates the AsyncReader using the given Client.
 
-        BasicEvent<RedisEventArgs> redisException;
-        /// Event that is fired when an error occurred.
+  virtual ~AsyncReader();
+  /// Destroys the AsyncReader.
 
-        AsyncReader(Client & client);
-        /// Creates the AsyncReader using the given Client.
+  bool isStopped();
+  /// Returns true if the activity is not running, false when it is.
 
-        virtual ~AsyncReader();
-        /// Destroys the AsyncReader.
+  void start();
+  /// Starts the activity to read replies from the Redis server.
 
-        bool isStopped();
-        /// Returns true if the activity is not running, false when it is.
+  void stop();
+  /// Stops the read activity.
 
-        void start();
-        /// Starts the activity to read replies from the Redis server.
+ protected:
+  void runActivity();
 
-        void stop();
-        /// Stops the read activity.
+ private:
+  AsyncReader(const AsyncReader &);
+  AsyncReader &operator=(const AsyncReader &);
 
-    protected:
-        void runActivity();
+  Client &_client;
+  Activity<AsyncReader> _activity;
+};
 
-    private:
-        AsyncReader(const AsyncReader &);
-        AsyncReader & operator=(const AsyncReader &);
+//
+// inlines
+//
 
-        Client & _client;
-        Activity<AsyncReader> _activity;
-    };
+inline bool AsyncReader::isStopped() { return _activity.isStopped(); }
 
+inline void AsyncReader::start() { _activity.start(); }
 
-    //
-    // inlines
-    //
+inline void AsyncReader::stop() { _activity.stop(); }
 
+}  // namespace Redis
+}  // namespace Poco
 
-    inline bool AsyncReader::isStopped()
-    {
-        return _activity.isStopped();
-    }
-
-
-    inline void AsyncReader::start()
-    {
-        _activity.start();
-    }
-
-
-    inline void AsyncReader::stop()
-    {
-        _activity.stop();
-    }
-
-
-}
-} // namespace Poco::Redis
-
-
-#endif //Redis_AsyncReader_INCLUDED
+#endif  // Redis_AsyncReader_INCLUDED

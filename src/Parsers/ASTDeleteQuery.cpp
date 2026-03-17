@@ -1,64 +1,53 @@
 #include <Parsers/ASTDeleteQuery.h>
 
+namespace DB {
 
-namespace DB
-{
+String ASTDeleteQuery::getID(char delim) const { return "DeleteQuery" + (delim + getDatabase()) + delim + getTable(); }
 
-String ASTDeleteQuery::getID(char delim) const
-{
-    return "DeleteQuery" + (delim + getDatabase()) + delim + getTable();
+ASTPtr ASTDeleteQuery::clone() const {
+  auto res = make_intrusive<ASTDeleteQuery>(*this);
+  res->children.clear();
+
+  if (partition) {
+    res->partition = partition->clone();
+    res->children.push_back(res->partition);
+  }
+
+  if (predicate) {
+    res->predicate = predicate->clone();
+    res->children.push_back(res->predicate);
+  }
+
+  if (settings_ast) {
+    res->settings_ast = settings_ast->clone();
+    res->children.push_back(res->settings_ast);
+  }
+
+  cloneTableOptions(*res);
+  return res;
 }
 
-ASTPtr ASTDeleteQuery::clone() const
-{
-    auto res = make_intrusive<ASTDeleteQuery>(*this);
-    res->children.clear();
+void ASTDeleteQuery::formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                     FormatStateStacked frame) const {
+  ostr << "DELETE FROM ";
 
-    if (partition)
-    {
-        res->partition = partition->clone();
-        res->children.push_back(res->partition);
-    }
+  if (database) {
+    database->format(ostr, settings, state, frame);
+    ostr << '.';
+  }
 
-    if (predicate)
-    {
-        res->predicate = predicate->clone();
-        res->children.push_back(res->predicate);
-    }
+  chassert(table);
+  table->format(ostr, settings, state, frame);
 
-    if (settings_ast)
-    {
-        res->settings_ast = settings_ast->clone();
-        res->children.push_back(res->settings_ast);
-    }
+  formatOnCluster(ostr, settings);
 
-    cloneTableOptions(*res);
-    return res;
+  if (partition) {
+    ostr << " IN PARTITION ";
+    partition->format(ostr, settings, state, frame);
+  }
+
+  ostr << " WHERE ";
+  predicate->format(ostr, settings, state, frame);
 }
 
-void ASTDeleteQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    ostr << "DELETE FROM ";
-
-    if (database)
-    {
-        database->format(ostr, settings, state, frame);
-        ostr << '.';
-    }
-
-    chassert(table);
-    table->format(ostr, settings, state, frame);
-
-    formatOnCluster(ostr, settings);
-
-    if (partition)
-    {
-        ostr << " IN PARTITION ";
-        partition->format(ostr, settings, state, frame);
-    }
-
-    ostr << " WHERE ";
-    predicate->format(ostr, settings, state, frame);
-}
-
-}
+}  // namespace DB

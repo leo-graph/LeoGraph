@@ -1,13 +1,11 @@
 #include <Functions/FunctionsConversion.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace detail
-{
+namespace detail {
 
 template class FunctionConvert<DataTypeIPv6, NameToIPv6, ToNumberMonotonicity<UInt128>>;
 
 }
 
-}
+}  // namespace DB

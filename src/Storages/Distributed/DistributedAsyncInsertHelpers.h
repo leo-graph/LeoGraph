@@ -2,9 +2,7 @@
 
 #include <Common/Logger.h>
 
-
-namespace DB
-{
+namespace DB {
 
 struct DistributedAsyncInsertHeader;
 class ReadBufferFromFile;
@@ -23,11 +21,7 @@ class RemoteInserter;
 ///     and mark batch as broken.
 bool isDistributedSendBroken(int code, bool remote_error);
 
-void writeRemoteConvert(
-    const DistributedAsyncInsertHeader & distributed_header,
-    RemoteInserter & remote,
-    bool compression_expected,
-    ReadBufferFromFile & in,
-    LoggerPtr log);
+void writeRemoteConvert(const DistributedAsyncInsertHeader& distributed_header, RemoteInserter& remote, bool compression_expected,
+                        ReadBufferFromFile& in, LoggerPtr log);
 
-}
+}  // namespace DB

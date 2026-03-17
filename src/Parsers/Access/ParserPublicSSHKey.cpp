@@ -4,41 +4,31 @@
 #include <Parsers/CommonParsers.h>
 #include <Parsers/parseIdentifierOrStringLiteral.h>
 
+namespace DB {
 
-namespace DB
-{
+namespace {
+bool parsePublicSSHKey(IParserBase::Pos& pos, Expected& expected, boost::intrusive_ptr<ASTPublicSSHKey>& ast) {
+  return IParserBase::wrapParseImpl(pos, [&] {
+    String key_base64;
+    if (!ParserKeyword{Keyword::KEY}.ignore(pos, expected) || !parseIdentifierOrStringLiteral(pos, expected, key_base64)) return false;
 
-namespace
-{
-    bool parsePublicSSHKey(IParserBase::Pos & pos, Expected & expected, boost::intrusive_ptr<ASTPublicSSHKey> & ast)
-    {
-        return IParserBase::wrapParseImpl(pos, [&]
-        {
-            String key_base64;
-            if (!ParserKeyword{Keyword::KEY}.ignore(pos, expected) || !parseIdentifierOrStringLiteral(pos, expected, key_base64))
-                return false;
+    String type;
+    if (!ParserKeyword{Keyword::TYPE}.ignore(pos, expected) || !parseIdentifierOrStringLiteral(pos, expected, type)) return false;
 
-            String type;
-            if (!ParserKeyword{Keyword::TYPE}.ignore(pos, expected) || !parseIdentifierOrStringLiteral(pos, expected, type))
-                return false;
-
-            ast = make_intrusive<ASTPublicSSHKey>();
-            ast->key_base64 = std::move(key_base64);
-            ast->type = std::move(type);
-            return true;
-        });
-    }
-}
-
-
-bool ParserPublicSSHKey::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    boost::intrusive_ptr<ASTPublicSSHKey> res;
-    if (!parsePublicSSHKey(pos, expected, res))
-        return false;
-
-    node = res;
+    ast = make_intrusive<ASTPublicSSHKey>();
+    ast->key_base64 = std::move(key_base64);
+    ast->type = std::move(type);
     return true;
+  });
+}
+}  // namespace
+
+bool ParserPublicSSHKey::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  boost::intrusive_ptr<ASTPublicSSHKey> res;
+  if (!parsePublicSSHKey(pos, expected, res)) return false;
+
+  node = res;
+  return true;
 }
 
-}
+}  // namespace DB

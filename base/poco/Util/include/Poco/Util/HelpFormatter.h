@@ -13,193 +13,156 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Util_HelpFormatter_INCLUDED
 #define Util_HelpFormatter_INCLUDED
-
 
 #include <ostream>
 #include "Poco/Util/Util.h"
 
+namespace Poco {
+namespace Util {
 
-namespace Poco
+class OptionSet;
+class Option;
+
+class Util_API HelpFormatter
+/// This class formats a help message from an OptionSet.
 {
-namespace Util
-{
+ public:
+  HelpFormatter(const OptionSet &options);
+  /// Creates the HelpFormatter, using the given
+  /// options.
+  ///
+  /// The HelpFormatter just stores a reference
+  /// to the given OptionSet, so the OptionSet must not
+  /// be destroyed during the lifetime of the HelpFormatter.
 
+  ~HelpFormatter();
+  /// Destroys the HelpFormatter.
 
-    class OptionSet;
-    class Option;
+  void setCommand(const std::string &command);
+  /// Sets the command name.
 
+  const std::string &getCommand() const;
+  /// Returns the command name.
 
-    class Util_API HelpFormatter
-    /// This class formats a help message from an OptionSet.
-    {
-    public:
-        HelpFormatter(const OptionSet & options);
-        /// Creates the HelpFormatter, using the given
-        /// options.
-        ///
-        /// The HelpFormatter just stores a reference
-        /// to the given OptionSet, so the OptionSet must not
-        /// be destroyed during the lifetime of the HelpFormatter.
+  void setUsage(const std::string &usage);
+  /// Sets the usage string.
 
-        ~HelpFormatter();
-        /// Destroys the HelpFormatter.
+  const std::string &getUsage() const;
+  /// Returns the usage string.
 
-        void setCommand(const std::string & command);
-        /// Sets the command name.
+  void setHeader(const std::string &header);
+  /// Sets the header string.
 
-        const std::string & getCommand() const;
-        /// Returns the command name.
+  const std::string &getHeader() const;
+  /// Returns the header string.
 
-        void setUsage(const std::string & usage);
-        /// Sets the usage string.
+  void setFooter(const std::string &footer);
+  /// Sets the footer string.
 
-        const std::string & getUsage() const;
-        /// Returns the usage string.
+  const std::string &getFooter() const;
+  /// Returns the footer string.
 
-        void setHeader(const std::string & header);
-        /// Sets the header string.
+  void format(std::ostream &ostr) const;
+  /// Writes the formatted help text to the given stream.
 
-        const std::string & getHeader() const;
-        /// Returns the header string.
+  void setWidth(int width);
+  /// Sets the line width for the formatted help text.
 
-        void setFooter(const std::string & footer);
-        /// Sets the footer string.
+  int getWidth() const;
+  /// Returns the line width for the formatted help text.
+  ///
+  /// The default width is 72.
 
-        const std::string & getFooter() const;
-        /// Returns the footer string.
+  void setIndent(int indent);
+  /// Sets the indentation for description continuation lines.
 
-        void format(std::ostream & ostr) const;
-        /// Writes the formatted help text to the given stream.
+  int getIndent() const;
+  /// Returns the indentation for description continuation lines.
 
-        void setWidth(int width);
-        /// Sets the line width for the formatted help text.
+  void setAutoIndent();
+  /// Sets the indentation for description continuation lines so that
+  /// the description text is left-aligned.
 
-        int getWidth() const;
-        /// Returns the line width for the formatted help text.
-        ///
-        /// The default width is 72.
+  void setUnixStyle(bool flag);
+  /// Enables Unix-style options. Both short and long option names
+  /// are printed if Unix-style is set. Otherwise, only long option
+  /// names are printed.
+  ///
+  /// After calling setUnixStyle(), setAutoIndent() should be called
+  /// as well to ensure proper help text formatting.
 
-        void setIndent(int indent);
-        /// Sets the indentation for description continuation lines.
+  bool isUnixStyle() const;
+  /// Returns if Unix-style options are set.
 
-        int getIndent() const;
-        /// Returns the indentation for description continuation lines.
+  std::string shortPrefix() const;
+  /// Returns the platform-specific prefix for short options.
+  /// "-" on Unix, "/" on Windows and OpenVMS.
 
-        void setAutoIndent();
-        /// Sets the indentation for description continuation lines so that
-        /// the description text is left-aligned.
+  std::string longPrefix() const;
+  /// Returns the platform-specific prefix for long options.
+  /// "--" on Unix, "/" on Windows and OpenVMS.
 
-        void setUnixStyle(bool flag);
-        /// Enables Unix-style options. Both short and long option names
-        /// are printed if Unix-style is set. Otherwise, only long option
-        /// names are printed.
-        ///
-        /// After calling setUnixStyle(), setAutoIndent() should be called
-        /// as well to ensure proper help text formatting.
+ protected:
+  int calcIndent() const;
+  /// Calculates the indentation for the option descriptions
+  /// from the given options.
 
-        bool isUnixStyle() const;
-        /// Returns if Unix-style options are set.
+  void formatOptions(std::ostream &ostr) const;
+  /// Formats all options.
 
-        std::string shortPrefix() const;
-        /// Returns the platform-specific prefix for short options.
-        /// "-" on Unix, "/" on Windows and OpenVMS.
+  void formatOption(std::ostream &ostr, const Option &option, int width) const;
+  /// Formats an option, using the platform-specific
+  /// prefixes.
 
-        std::string longPrefix() const;
-        /// Returns the platform-specific prefix for long options.
-        /// "--" on Unix, "/" on Windows and OpenVMS.
+  void formatText(std::ostream &ostr, const std::string &text, int indent) const;
+  /// Formats the given text.
 
-    protected:
-        int calcIndent() const;
-        /// Calculates the indentation for the option descriptions
-        /// from the given options.
+  void formatText(std::ostream &ostr, const std::string &text, int indent, int firstIndent) const;
+  /// Formats the given text.
 
-        void formatOptions(std::ostream & ostr) const;
-        /// Formats all options.
+  void formatWord(std::ostream &ostr, int &pos, const std::string &word, int indent) const;
+  /// Formats the given word.
 
-        void formatOption(std::ostream & ostr, const Option & option, int width) const;
-        /// Formats an option, using the platform-specific
-        /// prefixes.
+  void clearWord(std::ostream &ostr, int &pos, std::string &word, int indent) const;
+  /// Formats and then clears the given word.
 
-        void formatText(std::ostream & ostr, const std::string & text, int indent) const;
-        /// Formats the given text.
+ private:
+  HelpFormatter(const HelpFormatter &);
+  HelpFormatter &operator=(const HelpFormatter &);
 
-        void formatText(std::ostream & ostr, const std::string & text, int indent, int firstIndent) const;
-        /// Formats the given text.
+  const OptionSet &_options;
+  int _width;
+  int _indent;
+  std::string _command;
+  std::string _usage;
+  std::string _header;
+  std::string _footer;
+  bool _unixStyle;
 
-        void formatWord(std::ostream & ostr, int & pos, const std::string & word, int indent) const;
-        /// Formats the given word.
+  static const int TAB_WIDTH;
+  static const int LINE_WIDTH;
+};
 
-        void clearWord(std::ostream & ostr, int & pos, std::string & word, int indent) const;
-        /// Formats and then clears the given word.
+//
+// inlines
+//
+inline int HelpFormatter::getWidth() const { return _width; }
 
-    private:
-        HelpFormatter(const HelpFormatter &);
-        HelpFormatter & operator=(const HelpFormatter &);
+inline int HelpFormatter::getIndent() const { return _indent; }
 
-        const OptionSet & _options;
-        int _width;
-        int _indent;
-        std::string _command;
-        std::string _usage;
-        std::string _header;
-        std::string _footer;
-        bool _unixStyle;
+inline const std::string &HelpFormatter::getCommand() const { return _command; }
 
-        static const int TAB_WIDTH;
-        static const int LINE_WIDTH;
-    };
+inline const std::string &HelpFormatter::getUsage() const { return _usage; }
 
+inline const std::string &HelpFormatter::getHeader() const { return _header; }
 
-    //
-    // inlines
-    //
-    inline int HelpFormatter::getWidth() const
-    {
-        return _width;
-    }
+inline const std::string &HelpFormatter::getFooter() const { return _footer; }
 
+inline bool HelpFormatter::isUnixStyle() const { return _unixStyle; }
 
-    inline int HelpFormatter::getIndent() const
-    {
-        return _indent;
-    }
+}  // namespace Util
+}  // namespace Poco
 
-
-    inline const std::string & HelpFormatter::getCommand() const
-    {
-        return _command;
-    }
-
-
-    inline const std::string & HelpFormatter::getUsage() const
-    {
-        return _usage;
-    }
-
-
-    inline const std::string & HelpFormatter::getHeader() const
-    {
-        return _header;
-    }
-
-
-    inline const std::string & HelpFormatter::getFooter() const
-    {
-        return _footer;
-    }
-
-
-    inline bool HelpFormatter::isUnixStyle() const
-    {
-        return _unixStyle;
-    }
-
-
-}
-} // namespace Poco::Util
-
-
-#endif // Util_HelpFormatter_INCLUDED
+#endif  // Util_HelpFormatter_INCLUDED

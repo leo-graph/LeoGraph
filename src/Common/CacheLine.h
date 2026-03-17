@@ -2,8 +2,7 @@
 
 #include <cstddef>
 
-namespace DB
-{
+namespace DB {
 
 /// This constant is meant to replace `std::hardware_destructive_interference_size` that we've tried to use, but faced some issues,
 /// see https://github.com/ClickHouse/ClickHouse/pull/97357#issuecomment-3969653804.
@@ -23,8 +22,8 @@ constexpr size_t CH_CACHE_LINE_SIZE = 256;
 constexpr size_t CH_CACHE_LINE_SIZE = 64;
 #elif defined(__e2k__)
 constexpr size_t CH_CACHE_LINE_SIZE = 64;
-#else // x86_64 and AArch64
+#else  // x86_64 and AArch64
 constexpr size_t CH_CACHE_LINE_SIZE = 64;
 #endif
 
-}
+}  // namespace DB

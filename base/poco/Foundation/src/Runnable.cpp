@@ -11,22 +11,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Runnable.h"
 #include "Poco/Thread.h"
 
-
 namespace Poco {
 
+Runnable::Runnable() {}
 
-Runnable::Runnable()
-{
-}
+Runnable::~Runnable() {}
 
-
-Runnable::~Runnable()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

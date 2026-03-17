@@ -1,17 +1,15 @@
 #pragma once
 
+#include <Interpreters/Context_fwd.h>
 #include <IO/WriteBufferFromString.h>
 #include <Processors/Sinks/SinkToStorage.h>
 #include <Storages/IMessageProducer.h>
-#include <Interpreters/Context_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 class IOutputFormat;
 class IRowOutputFormat;
 using IOutputFormatPtr = std::shared_ptr<IOutputFormat>;
-
 
 /// Storage sink for streaming engines like Kafka/RabbitMQ/NATS.
 /// It implements formatting input data into messages.
@@ -23,41 +21,35 @@ using IOutputFormatPtr = std::shared_ptr<IOutputFormat>;
 /// After formatting, created message is propagated to IMessageProducer::produce() method.
 /// To use MessageQueueSink for specific streaming engine, you should implement
 /// IMessageProducer for it.
-class MessageQueueSink : public SinkToStorage
-{
-public:
-    MessageQueueSink(
-        SharedHeader header,
-        const String & format_name_,
-        size_t max_rows_per_message_,
-        std::unique_ptr<IMessageProducer> producer_,
-        const String & storage_name_,
-        const ContextPtr & context_);
-    ~MessageQueueSink() override;
+class MessageQueueSink : public SinkToStorage {
+ public:
+  MessageQueueSink(SharedHeader header, const String& format_name_, size_t max_rows_per_message_,
+                   std::unique_ptr<IMessageProducer> producer_, const String& storage_name_, const ContextPtr& context_);
+  ~MessageQueueSink() override;
 
-    String getName() const override { return storage_name + "Sink"; }
+  String getName() const override { return storage_name + "Sink"; }
 
-    void consume(Chunk & chunk) override;
+  void consume(Chunk& chunk) override;
 
-    void onStart() override;
-    void onFinish() override;
-    void onException(std::exception_ptr /* exception */) override;
+  void onStart() override;
+  void onFinish() override;
+  void onException(std::exception_ptr /* exception */) override;
 
-protected:
-    /// Do some specific initialization before consuming data.
-    virtual void initialize() {}
+ protected:
+  /// Do some specific initialization before consuming data.
+  virtual void initialize() {}
 
-private:
-    const String format_name;
-    size_t max_rows_per_message;
+ private:
+  const String format_name;
+  size_t max_rows_per_message;
 
-    std::unique_ptr<WriteBufferFromOwnString> buffer;
-    IOutputFormatPtr format;
-    IRowOutputFormat * row_format;
-    std::unique_ptr<IMessageProducer> producer;
+  std::unique_ptr<WriteBufferFromOwnString> buffer;
+  IOutputFormatPtr format;
+  IRowOutputFormat* row_format;
+  std::unique_ptr<IMessageProducer> producer;
 
-    const String storage_name;
-    const ContextPtr context;
+  const String storage_name;
+  const ContextPtr context;
 };
 
-}
+}  // namespace DB

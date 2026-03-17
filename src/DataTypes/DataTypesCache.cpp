@@ -1,12 +1,10 @@
 #include <DataTypes/DataTypesCache.h>
 
-namespace DB
-{
+namespace DB {
 
-DataTypesCache & getDataTypesCache()
-{
-    thread_local static DataTypesCache data_types_cache;
-    return data_types_cache;
+DataTypesCache& getDataTypesCache() {
+  thread_local static DataTypesCache data_types_cache;
+  return data_types_cache;
 }
 
-}
+}  // namespace DB

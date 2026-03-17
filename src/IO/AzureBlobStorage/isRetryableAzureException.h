@@ -2,12 +2,11 @@
 #include "config.h"
 
 #if USE_AZURE_BLOB_STORAGE
-#include <azure/core/http/http.hpp>
+#  include <azure/core/http/http.hpp>
 
-namespace DB
-{
+namespace DB {
 
-bool isRetryableAzureException(const Azure::Core::RequestFailedException & e, bool may_be_provisioning_access = false);
+bool isRetryableAzureException(const Azure::Core::RequestFailedException& e, bool may_be_provisioning_access = false);
 
 }
 

@@ -3,40 +3,40 @@
 #include "config.h"
 
 #if USE_AWS_S3
-#include <aws/core/utils/logging/LogSystemInterface.h>
-#include <base/types.h>
-#include <unordered_map>
-#include <Common/Logger.h>
+#  include <aws/core/utils/logging/LogSystemInterface.h>
+#  include <base/types.h>
+#  include <Common/Logger.h>
+#  include <unordered_map>
 
-namespace Poco { class Logger; }
+namespace Poco {
+class Logger;
+}
 
-namespace DB::S3
-{
-class AWSLogger final : public Aws::Utils::Logging::LogSystemInterface
-{
-public:
-    explicit AWSLogger(bool enable_s3_requests_logging_);
+namespace DB::S3 {
+class AWSLogger final : public Aws::Utils::Logging::LogSystemInterface {
+ public:
+  explicit AWSLogger(bool enable_s3_requests_logging_);
 
-    ~AWSLogger() final = default;
+  ~AWSLogger() final = default;
 
-    Aws::Utils::Logging::LogLevel GetLogLevel() const final;
+  Aws::Utils::Logging::LogLevel GetLogLevel() const final;
 
-    void Log(Aws::Utils::Logging::LogLevel log_level, const char * tag, const char * format_str, ...) final; // NOLINT
+  void Log(Aws::Utils::Logging::LogLevel log_level, const char* tag, const char* format_str, ...) final;  // NOLINT
 
-    void LogStream(Aws::Utils::Logging::LogLevel log_level, const char * tag, const Aws::OStringStream & message_stream) final;
+  void LogStream(Aws::Utils::Logging::LogLevel log_level, const char* tag, const Aws::OStringStream& message_stream) final;
 
-    void callLogImpl(Aws::Utils::Logging::LogLevel log_level, const char * tag, const char * message);
+  void callLogImpl(Aws::Utils::Logging::LogLevel log_level, const char* tag, const char* message);
 
-    void Flush() final {}
+  void Flush() final {}
 
-    void vaLog(Aws::Utils::Logging::LogLevel log_level, const char * tag, const char * format_str, va_list args) final;
+  void vaLog(Aws::Utils::Logging::LogLevel log_level, const char* tag, const char* format_str, va_list args) final;
 
-private:
-    LoggerPtr default_logger;
-    bool enable_s3_requests_logging;
-    std::unordered_map<String, LoggerPtr> tag_loggers;
+ private:
+  LoggerPtr default_logger;
+  bool enable_s3_requests_logging;
+  std::unordered_map<String, LoggerPtr> tag_loggers;
 };
 
-}
+}  // namespace DB::S3
 
 #endif

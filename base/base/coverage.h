@@ -1,7 +1,7 @@
 #pragma once
 
-#include <span>
 #include <cstdint>
+#include <span>
 #include <string>
 
 /// Flush coverage report to file, depending on coverage system

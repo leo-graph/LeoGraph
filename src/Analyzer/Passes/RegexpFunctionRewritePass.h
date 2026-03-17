@@ -2,8 +2,7 @@
 
 #include <Analyzer/IQueryTreePass.h>
 
-namespace DB
-{
+namespace DB {
 
 /// 1. If a regular expression without alternatives starts with ^ or ends with an unescaped $, rewrite replaceRegexpAll
 /// with replaceRegexpOne.
@@ -13,15 +12,13 @@ namespace DB
 ///
 /// 3. If an extract function has a regexp with some subpatterns and the regexp starts with ^.* or ending with an
 /// unescaped .*$, remove this prefix and/or suffix.
-class RegexpFunctionRewritePass final : public IQueryTreePass
-{
-public:
-    String getName() override { return "RegexpFunctionRewrite"; }
+class RegexpFunctionRewritePass final : public IQueryTreePass {
+ public:
+  String getName() override { return "RegexpFunctionRewrite"; }
 
-    String getDescription() override { return "Rewrite regexp related functions into more efficient forms."; }
+  String getDescription() override { return "Rewrite regexp related functions into more efficient forms."; }
 
-    void run(QueryTreeNodePtr & query_tree_node, ContextPtr context) override;
-
+  void run(QueryTreeNodePtr& query_tree_node, ContextPtr context) override;
 };
 
-}
+}  // namespace DB

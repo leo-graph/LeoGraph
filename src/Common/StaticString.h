@@ -2,25 +2,24 @@
 
 #include <string_view>
 
-namespace DB
-{
+namespace DB {
 
-class StaticString
-{
-    std::string_view stored_view;
-public:
-    template <size_t n>
-    consteval StaticString(const char(&s)[n]) : stored_view(s) {}  /// NOLINT(google-explicit-constructor)
-    explicit consteval StaticString(const char* s) : stored_view(s) {}
-    explicit consteval StaticString(std::string_view sv) : stored_view(sv) {}
+class StaticString {
+  std::string_view stored_view;
 
-    StaticString() = default;
+ public:
+  template <size_t n>
+  consteval StaticString(const char (&s)[n]) : stored_view(s) {}  /// NOLINT(google-explicit-constructor)
+  explicit consteval StaticString(const char* s) : stored_view(s) {}
+  explicit consteval StaticString(std::string_view sv) : stored_view(sv) {}
 
-    bool operator==(const StaticString & other) const = default;
+  StaticString() = default;
 
-    constexpr bool empty() const { return stored_view.empty(); }
+  bool operator==(const StaticString& other) const = default;
 
-    constexpr std::string_view view() const { return stored_view; }
+  constexpr bool empty() const { return stored_view.empty(); }
+
+  constexpr std::string_view view() const { return stored_view; }
 };
 
-}
+}  // namespace DB

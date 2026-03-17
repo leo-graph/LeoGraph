@@ -1,6 +1,6 @@
 /*************************************************
-*      Perl-Compatible Regular Expressions       *
-*************************************************/
+ *      Perl-Compatible Regular Expressions       *
+ *************************************************/
 
 /* PCRE is a library of functions to support regular expressions whose syntax
 and semantics are as close as possible to those of the Perl 5 language.
@@ -37,7 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 -----------------------------------------------------------------------------
 */
 
-#pragma warning( disable : 4244)  // conversion from 'int' to 'unsigned short', possible loss of data
+#pragma warning(disable : 4244)  // conversion from 'int' to 'unsigned short', possible loss of data
 
 /* This file contains a private PCRE function that converts an ordinal
 character value into a UTF8 string. */
@@ -48,8 +48,8 @@ character value into a UTF8 string. */
 #include "pcre_internal.h"
 
 /*************************************************
-*       Convert character value to UTF-8         *
-*************************************************/
+ *       Convert character value to UTF-8         *
+ *************************************************/
 
 /* This function takes an integer value in the range 0 - 0x10ffff
 and encodes it as a UTF-8 character in 1 to 4 pcre_uchars.
@@ -61,30 +61,26 @@ Arguments:
 Returns:     number of characters placed in the buffer
 */
 
-unsigned
-int
-PRIV(ord2utf)(pcre_uint32 cvalue, pcre_uchar *buffer)
-{
+unsigned int PRIV(ord2utf)(pcre_uint32 cvalue, pcre_uchar *buffer) {
 #ifdef SUPPORT_UTF
 
-register int i, j;
+  register int i, j;
 
-for (i = 0; i < PRIV(utf8_table1_size); i++)
-  if ((int)cvalue <= PRIV(utf8_table1)[i]) break;
-buffer += i;
-for (j = i; j > 0; j--)
- {
- *buffer-- = 0x80 | (cvalue & 0x3f);
- cvalue >>= 6;
- }
-*buffer = PRIV(utf8_table2)[i] | cvalue;
-return i + 1;
+  for (i = 0; i < PRIV(utf8_table1_size); i++)
+    if ((int)cvalue <= PRIV(utf8_table1)[i]) break;
+  buffer += i;
+  for (j = i; j > 0; j--) {
+    *buffer-- = 0x80 | (cvalue & 0x3f);
+    cvalue >>= 6;
+  }
+  *buffer = PRIV(utf8_table2)[i] | cvalue;
+  return i + 1;
 
 #else
 
-(void)(cvalue);  /* Keep compiler happy; this function won't ever be */
-(void)(buffer);  /* called when SUPPORT_UTF is not defined. */
-return 0;
+  (void)(cvalue); /* Keep compiler happy; this function won't ever be */
+  (void)(buffer); /* called when SUPPORT_UTF is not defined. */
+  return 0;
 
 #endif
 }

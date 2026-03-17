@@ -11,22 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/ServerSocketImpl.h"
-
 
 namespace Poco {
 namespace Net {
 
+ServerSocketImpl::ServerSocketImpl() {}
 
-ServerSocketImpl::ServerSocketImpl()
-{
-}
+ServerSocketImpl::~ServerSocketImpl() {}
 
-
-ServerSocketImpl::~ServerSocketImpl()
-{
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

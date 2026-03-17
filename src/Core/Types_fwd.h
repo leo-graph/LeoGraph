@@ -1,15 +1,14 @@
 #pragma once
 
-#include <cstdint>
-#include <vector>
-#include <unordered_set>
-#include <base/strong_typedef.h>
-#include <base/defines.h>
-#include <base/types.h>
 #include <base/Decimal_fwd.h>
+#include <base/defines.h>
+#include <base/strong_typedef.h>
+#include <base/types.h>
+#include <cstdint>
+#include <unordered_set>
+#include <vector>
 
-namespace wide
-{
+namespace wide {
 
 template <size_t Bits, typename Signed>
 class integer;
@@ -22,8 +21,7 @@ using Int256 = wide::integer<256, signed>;
 using UInt256 = wide::integer<256, unsigned>;
 class BFloat16;
 
-namespace DB
-{
+namespace DB {
 
 using UUID = StrongTypedef<UInt128, struct UUIDTag>;
 
@@ -38,4 +36,4 @@ enum class TypeIndex : uint8_t;
 using Strings = std::vector<String>;
 using TypeIndexesSet = std::unordered_set<TypeIndex>;
 
-}
+}  // namespace DB

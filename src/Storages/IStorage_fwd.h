@@ -1,13 +1,12 @@
 #pragma once
 
-#include <Core/Types_fwd.h>
 #include <base/types.h>
+#include <Core/Types_fwd.h>
 
 #include <map>
 #include <memory>
 
-namespace DB
-{
+namespace DB {
 
 class IStorage;
 struct SnapshotDetachedTable;
@@ -20,4 +19,4 @@ using SnapshotDetachedTables = std::map<String, SnapshotDetachedTable>;
 class IStoragePolicy;
 using StoragePolicyPtr = std::shared_ptr<const IStoragePolicy>;
 
-}
+}  // namespace DB

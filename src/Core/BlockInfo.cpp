@@ -1,65 +1,54 @@
 #include <base/types.h>
 #include <Common/Exception.h>
-#include <IO/ReadBuffer.h>
-#include <IO/WriteBuffer.h>
-#include <IO/VarInt.h>
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
 #include <Core/BlockInfo.h>
+#include <IO/ReadBuffer.h>
+#include <IO/ReadHelpers.h>
+#include <IO/VarInt.h>
+#include <IO/WriteBuffer.h>
+#include <IO/WriteHelpers.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int UNKNOWN_BLOCK_INFO_FIELD;
+namespace ErrorCodes {
+extern const int UNKNOWN_BLOCK_INFO_FIELD;
 }
 
-
 /// Write values in binary form. NOTE: You could use protobuf, but it would be overkill for this case.
-void BlockInfo::write(WriteBuffer & out, UInt64 server_protocol_revision) const
-{
+void BlockInfo::write(WriteBuffer& out, UInt64 server_protocol_revision) const {
 /// Set of pairs `FIELD_NUM`, value in binary form. Then 0.
 #define WRITE_FIELD(TYPE, NAME, DEFAULT, FIELD_NUM, MIN_PROTOCOL_REVISION) \
-    if (server_protocol_revision >= (MIN_PROTOCOL_REVISION)) \
-    { \
-        writeVarUInt(FIELD_NUM, out); \
-        writeBinary(NAME, out); \
-    }
+  if (server_protocol_revision >= (MIN_PROTOCOL_REVISION)) {               \
+    writeVarUInt(FIELD_NUM, out);                                          \
+    writeBinary(NAME, out);                                                \
+  }
 
-    APPLY_FOR_BLOCK_INFO_FIELDS(WRITE_FIELD)
+  APPLY_FOR_BLOCK_INFO_FIELDS(WRITE_FIELD)
 
 #undef WRITE_FIELD
-    writeVarUInt(0, out);
+  writeVarUInt(0, out);
 }
 
 /// Read values in binary form.
-void BlockInfo::read(ReadBuffer & in, UInt64 client_protocol_revision)
-{
-    UInt64 field_num = 0;
+void BlockInfo::read(ReadBuffer& in, UInt64 client_protocol_revision) {
+  UInt64 field_num = 0;
 
-    while (true)
-    {
-        readVarUInt(field_num, in);
-        if (field_num == 0)
-            break;
+  while (true) {
+    readVarUInt(field_num, in);
+    if (field_num == 0) break;
 
-        switch (field_num)
-        {
-#define READ_FIELD(TYPE, NAME, DEFAULT, FIELD_NUM, MIN_PROTOCOL_REVISION) \
-    case FIELD_NUM: \
-        if (client_protocol_revision >= (MIN_PROTOCOL_REVISION)) \
-            readBinary(NAME, in); \
-        break;
+    switch (field_num) {
+#define READ_FIELD(TYPE, NAME, DEFAULT, FIELD_NUM, MIN_PROTOCOL_REVISION)          \
+  case FIELD_NUM:                                                                  \
+    if (client_protocol_revision >= (MIN_PROTOCOL_REVISION)) readBinary(NAME, in); \
+    break;
 
-            APPLY_FOR_BLOCK_INFO_FIELDS(READ_FIELD)
+      APPLY_FOR_BLOCK_INFO_FIELDS(READ_FIELD)
 
-        #undef READ_FIELD
-            default:
-                throw Exception(ErrorCodes::UNKNOWN_BLOCK_INFO_FIELD, "Unknown BlockInfo field number: {}", field_num);
-        }
+#undef READ_FIELD
+      default:
+        throw Exception(ErrorCodes::UNKNOWN_BLOCK_INFO_FIELD, "Unknown BlockInfo field number: {}", field_num);
     }
+  }
 }
 
-}
+}  // namespace DB

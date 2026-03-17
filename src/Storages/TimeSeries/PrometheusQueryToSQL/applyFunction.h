@@ -2,11 +2,9 @@
 
 #include <Storages/TimeSeries/PrometheusQueryToSQL/SQLQueryPiece.h>
 
-
-namespace DB::PrometheusQueryToSQL
-{
+namespace DB::PrometheusQueryToSQL {
 
 /// Applies a prometheus function.
-SQLQueryPiece applyFunction(const PQT::Function * function_node, std::vector<SQLQueryPiece> && arguments, ConverterContext & context);
+SQLQueryPiece applyFunction(const PQT::Function* function_node, std::vector<SQLQueryPiece>&& arguments, ConverterContext& context);
 
-}
+}  // namespace DB::PrometheusQueryToSQL

@@ -15,21 +15,17 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Foundation_INCLUDED
 #define Foundation_Foundation_INCLUDED
-
 
 //
 // Include library configuration
 //
 #include "Poco/Config.h"
 
-
 //
 // Ensure that POCO_DLL is default unless POCO_STATIC is defined
 //
-
 
 //
 // The following block is the standard way of creating macros which make exporting
@@ -40,29 +36,25 @@
 // defined with this macro as being exported.
 //
 
-
 #if !defined(Foundation_API)
-#    if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
-#        define Foundation_API __attribute__((visibility("default")))
-#    else
-#        define Foundation_API
-#    endif
+#  if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
+#    define Foundation_API __attribute__((visibility("default")))
+#  else
+#    define Foundation_API
+#  endif
 #endif
-
 
 //
 // Automatically link Foundation library.
 //
 
-
 //
 // Include platform-specific definitions
 //
 #include "Poco/Platform.h"
-#if   defined(POCO_OS_FAMILY_UNIX)
-#    include "Poco/Platform_POSIX.h"
+#if defined(POCO_OS_FAMILY_UNIX)
+#  include "Poco/Platform_POSIX.h"
 #endif
-
 
 //
 // Include alignment settings early
@@ -72,7 +64,6 @@
 //
 // Cleanup inconsistencies
 //
-
 
 //
 // POCO_JOIN
@@ -87,7 +78,6 @@
 #define POCO_DO_JOIN(X, Y) POCO_DO_JOIN2(X, Y)
 #define POCO_DO_JOIN2(X, Y) X##Y
 
-
 //
 // POCO_DEPRECATED
 //
@@ -95,13 +85,12 @@
 // mark a class or function as deprecated.
 //
 #if defined(POCO_NO_DEPRECATED)
-#    define POCO_DEPRECATED
+#  define POCO_DEPRECATED
 #elif defined(_GNUC_)
-#    define POCO_DEPRECATED __attribute__((deprecated))
+#  define POCO_DEPRECATED __attribute__((deprecated))
 #else
-#    define POCO_DEPRECATED __attribute__((deprecated))
+#  define POCO_DEPRECATED __attribute__((deprecated))
 #endif
-
 
 //
 // Pull in basic definitions
@@ -110,5 +99,4 @@
 #include "Poco/Bugcheck.h"
 #include "Poco/Types.h"
 
-
-#endif // Foundation_Foundation_INCLUDED
+#endif  // Foundation_Foundation_INCLUDED

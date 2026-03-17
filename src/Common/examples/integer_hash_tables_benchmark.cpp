@@ -1,77 +1,62 @@
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <vector>
 
 #include <unordered_map>
 
+#include <absl/container/flat_hash_map.h>
 #include <sparsehash/dense_hash_map>
 #include <sparsehash/sparse_hash_map>
-#include <absl/container/flat_hash_map.h>
 
 #include <Common/Stopwatch.h>
 
 #include <base/types.h>
-#include <IO/ReadBufferFromFileDescriptor.h>
-#include <Compression/CompressedReadBuffer.h>
 #include <Common/HashTable/HashMap.h>
+#include <Compression/CompressedReadBuffer.h>
+#include <IO/ReadBufferFromFileDescriptor.h>
 
 template <typename Key, typename Map>
-void NO_INLINE test(const Key * data, size_t size, const std::string & name, std::function<void(Map &)> init = {})
-{
-    Stopwatch watch;
+void NO_INLINE test(const Key *data, size_t size, const std::string &name, std::function<void(Map &)> init = {}) {
+  Stopwatch watch;
 
-    Map map;
+  Map map;
 
-    if (init)
-        init(map);
+  if (init) init(map);
 
-    for (const auto * end = data + size; data < end; ++data)
-        ++map[*data];
+  for (const auto *end = data + size; data < end; ++data) ++map[*data];
 
-    watch.stop();
-    std::cerr << name
-        << ":\nElapsed: " << watch.elapsedSeconds()
-        << " (" << static_cast<double>(size) / watch.elapsedSeconds() << " elem/sec.)"
-        << ", map size: " << map.size() << "\n";
+  watch.stop();
+  std::cerr << name << ":\nElapsed: " << watch.elapsedSeconds() << " (" << static_cast<double>(size) / watch.elapsedSeconds()
+            << " elem/sec.)"
+            << ", map size: " << map.size() << "\n";
 }
 
 template <typename Key>
-static void NO_INLINE testForType(size_t method, size_t rows_size)
-{
-    std::cerr << std::fixed << std::setprecision(3);
+static void NO_INLINE testForType(size_t method, size_t rows_size) {
+  std::cerr << std::fixed << std::setprecision(3);
 
-    std::vector<Key> data(rows_size);
+  std::vector<Key> data(rows_size);
 
-    {
-        DB::ReadBufferFromFileDescriptor in1(STDIN_FILENO);
-        DB::CompressedReadBuffer in2(in1);
-        in2.readStrict(reinterpret_cast<char*>(data.data()), sizeof(data[0]) * rows_size);
-    }
+  {
+    DB::ReadBufferFromFileDescriptor in1(STDIN_FILENO);
+    DB::CompressedReadBuffer in2(in1);
+    in2.readStrict(reinterpret_cast<char *>(data.data()), sizeof(data[0]) * rows_size);
+  }
 
-    if (method == 0)
-    {
-        test<Key, HashMap<Key, UInt64, DefaultHash<Key>>>(data.data(), data.size(), "CH HashMap");
-    }
-    else if (method == 1)
-    {
-        test<Key, ::google::dense_hash_map<Key, UInt64, absl::Hash<Key>>>(data.data(), data.size(), "Google DenseMap", [](auto & map){ map.set_empty_key(0); });
-    }
-    else if (method == 2)
-    {
-        test<Key, ::absl::flat_hash_map<Key, UInt64>>(data.data(), data.size(), "Abseil HashMap");
-    }
-    else if (method == 3)
-    {
-        test<Key, ::absl::flat_hash_map<Key, UInt64, DefaultHash<Key>>>(data.data(), data.size(), "Abseil HashMap with CH Hash");
-    }
-    else if (method == 4)
-    {
-        test<Key, std::unordered_map<Key, UInt64>>(data.data(), data.size(), "std::unordered_map");
-    }
-    else
-    {
-        std::cerr << "Unexpected method passed " << method << std::endl;
-    }
+  if (method == 0) {
+    test<Key, HashMap<Key, UInt64, DefaultHash<Key>>>(data.data(), data.size(), "CH HashMap");
+  } else if (method == 1) {
+    test<Key, ::google::dense_hash_map<Key, UInt64, absl::Hash<Key>>>(data.data(), data.size(), "Google DenseMap",
+                                                                      [](auto &map) { map.set_empty_key(0); });
+  } else if (method == 2) {
+    test<Key, ::absl::flat_hash_map<Key, UInt64>>(data.data(), data.size(), "Abseil HashMap");
+  } else if (method == 3) {
+    test<Key, ::absl::flat_hash_map<Key, UInt64, DefaultHash<Key>>>(data.data(), data.size(), "Abseil HashMap with CH Hash");
+  } else if (method == 4) {
+    test<Key, std::unordered_map<Key, UInt64>>(data.data(), data.size(), "std::unordered_map");
+  } else {
+    std::cerr << "Unexpected method passed " << method << std::endl;
+  }
 }
 
 /** This benchmark does not test which hash table is fastest.
@@ -191,36 +176,34 @@ static void NO_INLINE testForType(size_t method, size_t rows_size)
  * std::unordered_map: Elapsed: 0.585 (171059989.837 elem/sec.), map size: 19
  */
 
-int main(int argc, char ** argv)
-{
-    if (argc < 4)
-    {
-        std::cerr << "Usage: program method column_type_name rows_count < input_column.bin \n";
-        return 1;
-    }
+int main(int argc, char **argv) {
+  if (argc < 4) {
+    std::cerr << "Usage: program method column_type_name rows_count < input_column.bin \n";
+    return 1;
+  }
 
-    size_t method = std::stoull(argv[1]);
-    std::string type_name = std::string(argv[2]);
-    size_t n = std::stoull(argv[3]);
+  size_t method = std::stoull(argv[1]);
+  std::string type_name = std::string(argv[2]);
+  size_t n = std::stoull(argv[3]);
 
-    if (type_name == "UInt8")
-        testForType<UInt8>(method, n);
-    else if (type_name == "UInt16")
-        testForType<UInt16>(method, n);
-    else if (type_name == "UInt32")
-        testForType<UInt32>(method, n);
-    else if (type_name == "UInt64")
-        testForType<UInt64>(method, n);
-    else if (type_name == "Int8")
-        testForType<Int8>(method, n);
-    else if (type_name == "Int16")
-        testForType<Int16>(method, n);
-    else if (type_name == "Int32")
-        testForType<Int32>(method, n);
-    else if (type_name == "Int64")
-        testForType<Int64>(method, n);
-    else
-        std::cerr << "Unexpected type passed " << type_name << std::endl;
+  if (type_name == "UInt8")
+    testForType<UInt8>(method, n);
+  else if (type_name == "UInt16")
+    testForType<UInt16>(method, n);
+  else if (type_name == "UInt32")
+    testForType<UInt32>(method, n);
+  else if (type_name == "UInt64")
+    testForType<UInt64>(method, n);
+  else if (type_name == "Int8")
+    testForType<Int8>(method, n);
+  else if (type_name == "Int16")
+    testForType<Int16>(method, n);
+  else if (type_name == "Int32")
+    testForType<Int32>(method, n);
+  else if (type_name == "Int64")
+    testForType<Int64>(method, n);
+  else
+    std::cerr << "Unexpected type passed " << type_name << std::endl;
 
-    return 0;
+  return 0;
 }

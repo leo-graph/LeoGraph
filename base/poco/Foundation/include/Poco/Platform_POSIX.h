@@ -14,35 +14,30 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Platform_POSIX_INCLUDED
 #define Foundation_Platform_POSIX_INCLUDED
-
 
 //
 // PA-RISC based HP-UX platforms have some issues...
 //
 #if defined(hpux) || defined(_hpux)
-#    if defined(__hppa) || defined(__hppa__)
-#        define POCO_NO_SYS_SELECT_H 1
-#    endif
+#  if defined(__hppa) || defined(__hppa__)
+#    define POCO_NO_SYS_SELECT_H 1
+#  endif
 #endif
-
 
 //
 // Thread-safety of local static initialization
 //
 #ifndef POCO_LOCAL_STATIC_INIT_IS_THREADSAFE
-#    define POCO_LOCAL_STATIC_INIT_IS_THREADSAFE 1
+#  define POCO_LOCAL_STATIC_INIT_IS_THREADSAFE 1
 #endif
-
 
 //
 // No syslog.h on QNX/BB10
 //
 #if defined(__QNXNTO__)
-#    define POCO_NO_SYSLOGCHANNEL
+#  define POCO_NO_SYSLOGCHANNEL
 #endif
 
-
-#endif // Foundation_Platform_POSIX_INCLUDED
+#endif  // Foundation_Platform_POSIX_INCLUDED

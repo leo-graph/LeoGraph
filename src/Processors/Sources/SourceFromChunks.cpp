@@ -1,28 +1,19 @@
 #include <Processors/Sources/SourceFromChunks.h>
 
-namespace DB
-{
+namespace DB {
 
 SourceFromChunks::SourceFromChunks(SharedHeader header, Chunks chunks_)
-    : ISource(std::move(header))
-    , chunks(std::move(chunks_))
-    , it(chunks.begin())
-{}
+    : ISource(std::move(header)), chunks(std::move(chunks_)), it(chunks.begin()) {}
 
-String SourceFromChunks::getName() const
-{
-    return "SourceFromChunks";
+String SourceFromChunks::getName() const { return "SourceFromChunks"; }
+
+Chunk SourceFromChunks::generate() {
+  if (it != chunks.end()) {
+    Chunk&& chunk = std::move(*it);
+    ++it;
+    return chunk;
+  }
+  return {};
 }
 
-Chunk SourceFromChunks::generate()
-{
-    if (it != chunks.end())
-    {
-        Chunk && chunk = std::move(*it);
-        ++it;
-        return chunk;
-    }
-    return {};
-}
-
-}
+}  // namespace DB

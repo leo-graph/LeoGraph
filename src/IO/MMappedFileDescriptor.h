@@ -1,60 +1,54 @@
 #pragma once
 
-#include <cstddef>
 #include <Common/CurrentMetrics.h>
+#include <cstddef>
 
-namespace CurrentMetrics
-{
-    extern const Metric MMappedFiles;
-    extern const Metric MMappedFileBytes;
-}
+namespace CurrentMetrics {
+extern const Metric MMappedFiles;
+extern const Metric MMappedFileBytes;
+}  // namespace CurrentMetrics
 
-
-namespace DB
-{
+namespace DB {
 
 /// MMaps a region in file (or a whole file) into memory. Unmaps in destructor.
 /// Does not open or close file.
-class MMappedFileDescriptor
-{
-public:
-    MMappedFileDescriptor(int fd_, size_t offset_, size_t length_);
-    MMappedFileDescriptor(int fd_, size_t offset_);
+class MMappedFileDescriptor {
+ public:
+  MMappedFileDescriptor(int fd_, size_t offset_, size_t length_);
+  MMappedFileDescriptor(int fd_, size_t offset_);
 
-    /// Makes empty object that can be initialized with `set`.
-    MMappedFileDescriptor() = default;
+  /// Makes empty object that can be initialized with `set`.
+  MMappedFileDescriptor() = default;
 
-    virtual ~MMappedFileDescriptor();
+  virtual ~MMappedFileDescriptor();
 
-    char * getData() { return data; }
-    const char * getData() const { return data; }
+  char *getData() { return data; }
+  const char *getData() const { return data; }
 
-    int getFD() const { return fd; }
-    size_t getOffset() const { return offset; }
-    size_t getLength() const { return length; }
+  int getFD() const { return fd; }
+  size_t getOffset() const { return offset; }
+  size_t getLength() const { return length; }
 
-    /// Unmap memory before call to destructor
-    void finish();
+  /// Unmap memory before call to destructor
+  void finish();
 
-    /// Initialize or reset to another fd.
-    void set(int fd_, size_t offset_, size_t length_);
-    void set(int fd_, size_t offset_);
+  /// Initialize or reset to another fd.
+  void set(int fd_, size_t offset_, size_t length_);
+  void set(int fd_, size_t offset_);
 
-    MMappedFileDescriptor(const MMappedFileDescriptor &) = delete;
-    MMappedFileDescriptor(MMappedFileDescriptor &&) = delete;
+  MMappedFileDescriptor(const MMappedFileDescriptor &) = delete;
+  MMappedFileDescriptor(MMappedFileDescriptor &&) = delete;
 
-protected:
+ protected:
+  void init();
 
-    void init();
+  int fd = -1;
+  size_t offset = 0;
+  size_t length = 0;
+  char *data = nullptr;
 
-    int fd = -1;
-    size_t offset = 0;
-    size_t length = 0;
-    char * data = nullptr;
-
-    CurrentMetrics::Increment files_metric_increment{CurrentMetrics::MMappedFiles, 0};
-    CurrentMetrics::Increment bytes_metric_increment{CurrentMetrics::MMappedFileBytes, 0};
+  CurrentMetrics::Increment files_metric_increment{CurrentMetrics::MMappedFiles, 0};
+  CurrentMetrics::Increment bytes_metric_increment{CurrentMetrics::MMappedFileBytes, 0};
 };
 
-}
-
+}  // namespace DB

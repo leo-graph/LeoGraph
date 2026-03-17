@@ -1,10 +1,9 @@
 #pragma once
-#include <memory>
 #include <atomic>
+#include <memory>
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
 class Block;
 class Chunk;
@@ -26,33 +25,32 @@ using Processors = std::vector<ProcessorPtr>;
 /// while (auto chunk = ...)
 ///     executor.push(std::move(chunk));
 /// executor.finish();
-class PushingPipelineExecutor
-{
-public:
-    explicit PushingPipelineExecutor(QueryPipeline & pipeline_);
-    ~PushingPipelineExecutor();
+class PushingPipelineExecutor {
+ public:
+  explicit PushingPipelineExecutor(QueryPipeline& pipeline_);
+  ~PushingPipelineExecutor();
 
-    /// Get structure of returned block or chunk.
-    const Block & getHeader() const;
+  /// Get structure of returned block or chunk.
+  const Block& getHeader() const;
 
-    void start();
+  void start();
 
-    void push(Chunk chunk);
-    void push(Block block);
+  void push(Chunk chunk);
+  void push(Block block);
 
-    void finish();
+  void finish();
 
-    /// Stop execution. It is not necessary, but helps to stop execution before executor is destroyed.
-    void cancel();
+  /// Stop execution. It is not necessary, but helps to stop execution before executor is destroyed.
+  void cancel();
 
-private:
-    QueryPipeline & pipeline;
-    std::atomic_bool input_wait_flag = false;
-    std::shared_ptr<PushingSource> pushing_source;
+ private:
+  QueryPipeline& pipeline;
+  std::atomic_bool input_wait_flag = false;
+  std::shared_ptr<PushingSource> pushing_source;
 
-    PipelineExecutorPtr executor;
-    bool started = false;
-    bool finished = false;
+  PipelineExecutorPtr executor;
+  bool started = false;
+  bool finished = false;
 };
 
-}
+}  // namespace DB

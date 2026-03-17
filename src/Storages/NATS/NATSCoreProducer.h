@@ -2,16 +2,14 @@
 
 #include <Storages/NATS/INATSProducer.h>
 
-namespace DB
-{
+namespace DB {
 
-class NATSCoreProducer : public INATSProducer
-{
-public:
-    using INATSProducer::INATSProducer;
+class NATSCoreProducer : public INATSProducer {
+ public:
+  using INATSProducer::INATSProducer;
 
-private:
-    natsStatus publishMessage(const String & message) override;
+ private:
+  natsStatus publishMessage(const String& message) override;
 };
 
-}
+}  // namespace DB

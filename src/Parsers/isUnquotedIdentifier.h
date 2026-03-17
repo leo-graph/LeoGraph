@@ -2,8 +2,7 @@
 
 #include <base/types.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Checks if the input string @name is a valid unquoted identifier.
 ///
@@ -13,6 +12,6 @@ namespace DB
 ///   `123`   -> false  (quoted identifiers are not considered)
 ///   `abc`   -> false  (quoted identifiers are not considered)
 ///   null    -> false  (reserved literal keyword)
-bool isUnquotedIdentifier(const String & name);
+bool isUnquotedIdentifier(const String& name);
 
-}
+}  // namespace DB

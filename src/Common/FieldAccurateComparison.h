@@ -1,11 +1,10 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 class Field;
 
-bool accurateEquals(const Field & left, const Field & right);
-bool accurateLess(const Field & left, const Field & right);
-bool accurateLessOrEqual(const Field & left, const Field & right);
+bool accurateEquals(const Field& left, const Field& right);
+bool accurateLess(const Field& left, const Field& right);
+bool accurateLessOrEqual(const Field& left, const Field& right);
 
-}
+}  // namespace DB

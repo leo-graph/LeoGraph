@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/NodeFilter.h"
-
 
 namespace Poco {
 namespace XML {
 
+NodeFilter::~NodeFilter() {}
 
-NodeFilter::~NodeFilter()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

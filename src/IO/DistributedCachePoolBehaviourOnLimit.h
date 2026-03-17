@@ -2,13 +2,11 @@
 
 #include <cstdint>
 
-namespace DB
-{
+namespace DB {
 
-enum class DistributedCachePoolBehaviourOnLimit
-{
-    WAIT,
-    ALLOCATE_NEW_BYPASSING_POOL,
+enum class DistributedCachePoolBehaviourOnLimit {
+  WAIT,
+  ALLOCATE_NEW_BYPASSING_POOL,
 };
 
 }

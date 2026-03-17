@@ -13,140 +13,120 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_VarIterator_INCLUDED
 #define Foundation_VarIterator_INCLUDED
-
 
 #include <algorithm>
 #include <iterator>
 #include "Poco/Exception.h"
 
+namespace Poco {
+namespace Dynamic {
 
-namespace Poco
+class Var;
+
+class Foundation_API VarIterator
+/// VarIterator class.
 {
-namespace Dynamic
-{
+ public:
+  typedef std::bidirectional_iterator_tag iterator_category;
+  typedef Var value_type;
+  typedef std::ptrdiff_t difference_type;
+  typedef Var* pointer;
+  typedef Var& reference;
 
+  static const std::size_t POSITION_END;
+  /// End position indicator.
 
-    class Var;
+  VarIterator(Var* pVar, bool positionEnd);
+  /// Creates the VarIterator and positions it at the end of
+  /// the recordset if positionEnd is true. Otherwise, it is
+  /// positioned at the beginning.
 
+  VarIterator(const VarIterator& other);
+  /// Creates a copy of other VarIterator.
 
-    class Foundation_API VarIterator
-    /// VarIterator class.
-    {
-    public:
-        typedef std::bidirectional_iterator_tag iterator_category;
-        typedef Var value_type;
-        typedef std::ptrdiff_t difference_type;
-        typedef Var * pointer;
-        typedef Var & reference;
+  ~VarIterator();
+  /// Destroys the VarIterator.
 
-        static const std::size_t POSITION_END;
-        /// End position indicator.
+  VarIterator& operator=(const VarIterator& other);
+  /// Assigns the other VarIterator.
 
-        VarIterator(Var * pVar, bool positionEnd);
-        /// Creates the VarIterator and positions it at the end of
-        /// the recordset if positionEnd is true. Otherwise, it is
-        /// positioned at the beginning.
+  bool operator==(const VarIterator& other) const;
+  /// Equality operator.
 
-        VarIterator(const VarIterator & other);
-        /// Creates a copy of other VarIterator.
+  bool operator!=(const VarIterator& other) const;
+  /// Inequality operator.
 
-        ~VarIterator();
-        /// Destroys the VarIterator.
+  Var& operator*() const;
+  /// Returns value at the current position.
 
-        VarIterator & operator=(const VarIterator & other);
-        /// Assigns the other VarIterator.
+  Var* operator->() const;
+  /// Returns pointer to the value at current position.
 
-        bool operator==(const VarIterator & other) const;
-        /// Equality operator.
+  const VarIterator& operator++() const;
+  /// Advances by one position and returns current position.
 
-        bool operator!=(const VarIterator & other) const;
-        /// Inequality operator.
+  VarIterator operator++(int) const;
+  /// Advances by one position and returns copy of the iterator with
+  /// previous current position.
 
-        Var & operator*() const;
-        /// Returns value at the current position.
+  const VarIterator& operator--() const;
+  /// Goes back by one position and returns copy of the iterator with
+  /// previous current position.
 
-        Var * operator->() const;
-        /// Returns pointer to the value at current position.
+  VarIterator operator--(int) const;
+  /// Goes back by one position and returns previous current position.
 
-        const VarIterator & operator++() const;
-        /// Advances by one position and returns current position.
+  VarIterator operator+(std::size_t diff) const;
+  /// Returns a copy the VarIterator advanced by diff positions.
 
-        VarIterator operator++(int) const;
-        /// Advances by one position and returns copy of the iterator with
-        /// previous current position.
+  VarIterator operator-(std::size_t diff) const;
+  /// Returns a copy the VarIterator backed by diff positions.
+  /// Throws RangeException if diff is larger than current position.
 
-        const VarIterator & operator--() const;
-        /// Goes back by one position and returns copy of the iterator with
-        /// previous current position.
+  void swap(VarIterator& other);
+  /// Swaps the VarIterator with another one.
 
-        VarIterator operator--(int) const;
-        /// Goes back by one position and returns previous current position.
+ private:
+  VarIterator();
 
-        VarIterator operator+(std::size_t diff) const;
-        /// Returns a copy the VarIterator advanced by diff positions.
+  void increment() const;
+  /// Increments the iterator position by one.
+  /// Throws RangeException if position is out of range.
 
-        VarIterator operator-(std::size_t diff) const;
-        /// Returns a copy the VarIterator backed by diff positions.
-        /// Throws RangeException if diff is larger than current position.
+  void decrement() const;
+  /// Decrements the iterator position by one.
+  /// Throws RangeException if position is out of range.
 
-        void swap(VarIterator & other);
-        /// Swaps the VarIterator with another one.
+  void setPosition(std::size_t pos) const;
+  /// Sets the iterator position.
+  /// Throws RangeException if position is out of range.
 
-    private:
-        VarIterator();
+  Var* _pVar;
+  mutable std::size_t _position;
 
-        void increment() const;
-        /// Increments the iterator position by one.
-        /// Throws RangeException if position is out of range.
+  friend class Var;
+};
 
-        void decrement() const;
-        /// Decrements the iterator position by one.
-        /// Throws RangeException if position is out of range.
+///
+/// inlines
+///
 
-        void setPosition(std::size_t pos) const;
-        /// Sets the iterator position.
-        /// Throws RangeException if position is out of range.
+inline bool VarIterator::operator==(const VarIterator& other) const { return _pVar == other._pVar && _position == other._position; }
 
-        Var * _pVar;
-        mutable std::size_t _position;
+inline bool VarIterator::operator!=(const VarIterator& other) const { return _pVar != other._pVar || _position != other._position; }
 
-        friend class Var;
-    };
+}  // namespace Dynamic
+}  // namespace Poco
 
-
-    ///
-    /// inlines
-    ///
-
-
-    inline bool VarIterator::operator==(const VarIterator & other) const
-    {
-        return _pVar == other._pVar && _position == other._position;
-    }
-
-
-    inline bool VarIterator::operator!=(const VarIterator & other) const
-    {
-        return _pVar != other._pVar || _position != other._position;
-    }
-
-
-}
-} // namespace Poco::Dynamic
-
-
-namespace std
-{
+namespace std {
 template <>
-inline void swap<Poco::Dynamic::VarIterator>(Poco::Dynamic::VarIterator & s1, Poco::Dynamic::VarIterator & s2)
+inline void swap<Poco::Dynamic::VarIterator>(Poco::Dynamic::VarIterator& s1, Poco::Dynamic::VarIterator& s2)
 /// Full template specialization of std:::swap for VarIterator
 {
-    s1.swap(s2);
+  s1.swap(s2);
 }
-}
+}  // namespace std
 
-
-#endif // Foundation_VarIterator_INCLUDED
+#endif  // Foundation_VarIterator_INCLUDED

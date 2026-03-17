@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPServerConnection_INCLUDED
 #define Net_HTTPServerConnection_INCLUDED
-
 
 #include "Poco/Mutex.h"
 #include "Poco/Net/HTTPRequestHandlerFactory.h"
@@ -25,44 +23,37 @@
 #include "Poco/Net/Net.h"
 #include "Poco/Net/TCPServerConnection.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class HTTPServerSession;
+
+class Net_API HTTPServerConnection : public TCPServerConnection
+/// This subclass of TCPServerConnection handles HTTP
+/// connections.
 {
-namespace Net
-{
+ public:
+  HTTPServerConnection(const StreamSocket& socket, HTTPServerParams::Ptr pParams, HTTPRequestHandlerFactory::Ptr pFactory);
+  /// Creates the HTTPServerConnection.
 
+  virtual ~HTTPServerConnection();
+  /// Destroys the HTTPServerConnection.
 
-    class HTTPServerSession;
+  void run();
+  /// Handles all HTTP requests coming in.
 
+ protected:
+  void sendErrorResponse(HTTPServerSession& session, HTTPResponse::HTTPStatus status);
+  void onServerStopped(const bool& abortCurrent);
 
-    class Net_API HTTPServerConnection : public TCPServerConnection
-    /// This subclass of TCPServerConnection handles HTTP
-    /// connections.
-    {
-    public:
-        HTTPServerConnection(const StreamSocket & socket, HTTPServerParams::Ptr pParams, HTTPRequestHandlerFactory::Ptr pFactory);
-        /// Creates the HTTPServerConnection.
+ private:
+  HTTPServerParams::Ptr _pParams;
+  HTTPRequestHandlerFactory::Ptr _pFactory;
+  bool _stopped;
+  Poco::FastMutex _mutex;
+};
 
-        virtual ~HTTPServerConnection();
-        /// Destroys the HTTPServerConnection.
+}  // namespace Net
+}  // namespace Poco
 
-        void run();
-        /// Handles all HTTP requests coming in.
-
-    protected:
-        void sendErrorResponse(HTTPServerSession & session, HTTPResponse::HTTPStatus status);
-        void onServerStopped(const bool & abortCurrent);
-
-    private:
-        HTTPServerParams::Ptr _pParams;
-        HTTPRequestHandlerFactory::Ptr _pFactory;
-        bool _stopped;
-        Poco::FastMutex _mutex;
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPServerConnection_INCLUDED
+#endif  // Net_HTTPServerConnection_INCLUDED

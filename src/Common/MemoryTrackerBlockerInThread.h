@@ -1,13 +1,12 @@
 #pragma once
 
-#include <optional>
 #include <Common/VariableContext.h>
+#include <optional>
 
-namespace DB
-{
+namespace DB {
 class PageCache;
 class TraceCollector;
-}
+}  // namespace DB
 
 /// Temporarily stop memory tracking for the current thread.
 ///
@@ -17,31 +16,24 @@ class TraceCollector;
 ///
 /// In other cases (i.e. you need to just ignore MEMORY_LIMIT_EXCEEDED error)
 /// prefer LockMemoryExceptionInThread.
-struct MemoryTrackerBlockerInThread
-{
-private:
-    static thread_local VariableContext level;
+struct MemoryTrackerBlockerInThread {
+ private:
+  static thread_local VariableContext level;
 
-    std::optional<VariableContext> previous_level;
+  std::optional<VariableContext> previous_level;
 
-public:
-    /// level_ - block in level and above
-    explicit MemoryTrackerBlockerInThread(VariableContext level_ = VariableContext::User);
+ public:
+  /// level_ - block in level and above
+  explicit MemoryTrackerBlockerInThread(VariableContext level_ = VariableContext::User);
 
-    MemoryTrackerBlockerInThread(MemoryTrackerBlockerInThread &&) noexcept;
-    MemoryTrackerBlockerInThread & operator=(MemoryTrackerBlockerInThread &&) noexcept;
+  MemoryTrackerBlockerInThread(MemoryTrackerBlockerInThread &&) noexcept;
+  MemoryTrackerBlockerInThread &operator=(MemoryTrackerBlockerInThread &&) noexcept;
 
-    void reset();
+  void reset();
 
-    ~MemoryTrackerBlockerInThread();
+  ~MemoryTrackerBlockerInThread();
 
-    static bool isBlocked(VariableContext current_level)
-    {
-        return current_level >= level;
-    }
+  static bool isBlocked(VariableContext current_level) { return current_level >= level; }
 
-    static VariableContext getLevel()
-    {
-        return level;
-    }
+  static VariableContext getLevel() { return level; }
 };

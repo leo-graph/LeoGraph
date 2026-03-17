@@ -31,8 +31,7 @@ class ASTGraphQuery : public IAST {
   QueryKind getQueryKind() const override { return QueryKind::Select; }
 
  protected:
-  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state,
-                  FormatStateStacked frame) const override;
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state, FormatStateStacked frame) const override;
   void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override;
 };
 }  // namespace DB

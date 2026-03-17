@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_AbstractPriorityDelegate_INCLUDED
 #define Foundation_AbstractPriorityDelegate_INCLUDED
-
 
 #include "Poco/AbstractDelegate.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TArgs>
 class AbstractPriorityDelegate : public AbstractDelegate<TArgs>
@@ -32,21 +27,19 @@ class AbstractPriorityDelegate : public AbstractDelegate<TArgs>
 ///
 /// Extends AbstractDelegate with a priority value.
 {
-public:
-    AbstractPriorityDelegate(int prio) : _priority(prio) { }
+ public:
+  AbstractPriorityDelegate(int prio) : _priority(prio) {}
 
-    AbstractPriorityDelegate(const AbstractPriorityDelegate & del) : AbstractDelegate<TArgs>(del), _priority(del._priority) { }
+  AbstractPriorityDelegate(const AbstractPriorityDelegate& del) : AbstractDelegate<TArgs>(del), _priority(del._priority) {}
 
-    virtual ~AbstractPriorityDelegate() { }
+  virtual ~AbstractPriorityDelegate() {}
 
-    int priority() const { return _priority; }
+  int priority() const { return _priority; }
 
-protected:
-    int _priority;
+ protected:
+  int _priority;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_AbstractPriorityDelegate_INCLUDED
+#endif  // Foundation_AbstractPriorityDelegate_INCLUDED

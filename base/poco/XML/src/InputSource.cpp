@@ -11,70 +11,28 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/InputSource.h"
-
 
 namespace Poco {
 namespace XML {
 
+InputSource::InputSource() : _bistr(0), _cistr(0) {}
 
-InputSource::InputSource():
-	_bistr(0),
-	_cistr(0)
-{
-}
+InputSource::InputSource(const XMLString& systemId) : _systemId(systemId), _bistr(0), _cistr(0) {}
 
+InputSource::InputSource(XMLByteInputStream& bistr) : _bistr(&bistr), _cistr(0) {}
 
-InputSource::InputSource(const XMLString& systemId):
-	_systemId(systemId),
-	_bistr(0),
-	_cistr(0)
-{
-}
+InputSource::~InputSource() {}
 
+void InputSource::setPublicId(const XMLString& publicId) { _publicId = publicId; }
 
-InputSource::InputSource(XMLByteInputStream& bistr):
-	_bistr(&bistr),
-	_cistr(0)
-{
-}
+void InputSource::setSystemId(const XMLString& systemId) { _systemId = systemId; }
 
+void InputSource::setEncoding(const XMLString& encoding) { _encoding = encoding; }
 
-InputSource::~InputSource()
-{
-}
+void InputSource::setByteStream(XMLByteInputStream& bistr) { _bistr = &bistr; }
 
+void InputSource::setCharacterStream(XMLCharInputStream& cistr) { _cistr = &cistr; }
 
-void InputSource::setPublicId(const XMLString& publicId)
-{
-	_publicId = publicId;
-}
-
-
-void InputSource::setSystemId(const XMLString& systemId)
-{
-	_systemId = systemId;
-}
-
-
-void InputSource::setEncoding(const XMLString& encoding)
-{
-	_encoding = encoding;
-}
-
-
-void InputSource::setByteStream(XMLByteInputStream& bistr)
-{
-	_bistr = &bistr;
-}
-
-
-void InputSource::setCharacterStream(XMLCharInputStream& cistr)
-{
-	_cistr = &cistr;
-}
-
-
-} } // namespace Poco::XML
-
+}  // namespace XML
+}  // namespace Poco

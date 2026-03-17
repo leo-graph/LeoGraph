@@ -2,8 +2,7 @@
 
 #include <Processors/Formats/Impl/JSONColumnsBlockInputFormatBase.h>
 
-namespace DB
-{
+namespace DB {
 
 /* Format JSONCompactColumns reads each block of data in the next format:
  * [
@@ -12,14 +11,13 @@ namespace DB
  *     ...
  * ]
  */
-class JSONCompactColumnsReader : public JSONColumnsReaderBase
-{
-public:
-    explicit JSONCompactColumnsReader(ReadBuffer & in_);
+class JSONCompactColumnsReader : public JSONColumnsReaderBase {
+ public:
+  explicit JSONCompactColumnsReader(ReadBuffer& in_);
 
-    void readChunkStart() override;
-    std::optional<String> readColumnStart() override;
-    bool checkChunkEnd() override;
+  void readChunkStart() override;
+  std::optional<String> readColumnStart() override;
+  bool checkChunkEnd() override;
 };
 
-}
+}  // namespace DB

@@ -13,38 +13,30 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_KeyConsoleHandler_INCLUDED
 #define NetSSL_KeyConsoleHandler_INCLUDED
-
 
 #include "Poco/Net/NetSSL.h"
 #include "Poco/Net/PrivateKeyPassphraseHandler.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class NetSSL_API KeyConsoleHandler : public PrivateKeyPassphraseHandler
+/// An implementation of PrivateKeyPassphraseHandler that
+/// reads the key for a certificate from the console.
 {
-namespace Net
-{
+ public:
+  KeyConsoleHandler(bool server);
+  /// Creates the KeyConsoleHandler.
 
+  ~KeyConsoleHandler();
+  /// Destroys the KeyConsoleHandler.
 
-    class NetSSL_API KeyConsoleHandler : public PrivateKeyPassphraseHandler
-    /// An implementation of PrivateKeyPassphraseHandler that
-    /// reads the key for a certificate from the console.
-    {
-    public:
-        KeyConsoleHandler(bool server);
-        /// Creates the KeyConsoleHandler.
+  void onPrivateKeyRequested(const void* pSender, std::string& privateKey);
+};
 
-        ~KeyConsoleHandler();
-        /// Destroys the KeyConsoleHandler.
+}  // namespace Net
+}  // namespace Poco
 
-        void onPrivateKeyRequested(const void * pSender, std::string & privateKey);
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // NetSSL_KeyConsoleHandler_INCLUDED
+#endif  // NetSSL_KeyConsoleHandler_INCLUDED

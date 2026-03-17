@@ -13,84 +13,73 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPStreamFactory_INCLUDED
 #define Net_HTTPStreamFactory_INCLUDED
-
 
 #include "Poco/Net/HTTPSession.h"
 #include "Poco/Net/Net.h"
 #include "Poco/URIStreamFactory.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API HTTPStreamFactory : public Poco::URIStreamFactory
+/// An implementation of the URIStreamFactory interface
+/// that handles Hyper-Text Transfer Protocol (http) URIs.
 {
-namespace Net
-{
+ public:
+  HTTPStreamFactory();
+  /// Creates the HTTPStreamFactory.
 
+  HTTPStreamFactory(const std::string& proxyHost, Poco::UInt16 proxyPort = HTTPSession::HTTP_PORT);
+  /// Creates the HTTPStreamFactory.
+  ///
+  /// HTTP connections will use the given proxy.
 
-    class Net_API HTTPStreamFactory : public Poco::URIStreamFactory
-    /// An implementation of the URIStreamFactory interface
-    /// that handles Hyper-Text Transfer Protocol (http) URIs.
-    {
-    public:
-        HTTPStreamFactory();
-        /// Creates the HTTPStreamFactory.
+  HTTPStreamFactory(const std::string& proxyHost, Poco::UInt16 proxyPort, const std::string& proxyUsername,
+                    const std::string& proxyPassword);
+  /// Creates the HTTPStreamFactory.
+  ///
+  /// HTTP connections will use the given proxy and
+  /// will be authorized against the proxy using Basic authentication
+  /// with the given proxyUsername and proxyPassword.
 
-        HTTPStreamFactory(const std::string & proxyHost, Poco::UInt16 proxyPort = HTTPSession::HTTP_PORT);
-        /// Creates the HTTPStreamFactory.
-        ///
-        /// HTTP connections will use the given proxy.
+  virtual ~HTTPStreamFactory();
+  /// Destroys the HTTPStreamFactory.
 
-        HTTPStreamFactory(
-            const std::string & proxyHost, Poco::UInt16 proxyPort, const std::string & proxyUsername, const std::string & proxyPassword);
-        /// Creates the HTTPStreamFactory.
-        ///
-        /// HTTP connections will use the given proxy and
-        /// will be authorized against the proxy using Basic authentication
-        /// with the given proxyUsername and proxyPassword.
+  virtual std::istream* open(const Poco::URI& uri);
+  /// Creates and opens a HTTP stream for the given URI.
+  /// The URI must be a http://... URI.
+  ///
+  /// Throws a NetException if anything goes wrong.
+  ///
+  /// Redirect responses are handled and the redirect
+  /// location is automatically resolved, as long
+  /// as the redirect location is still accessible
+  /// via the HTTP protocol. If a redirection to
+  /// a non http://... URI is received, a
+  /// UnsupportedRedirectException exception is thrown.
+  /// The offending URI can then be obtained via the message()
+  /// method of UnsupportedRedirectException.
 
-        virtual ~HTTPStreamFactory();
-        /// Destroys the HTTPStreamFactory.
+  static void registerFactory();
+  /// Registers the HTTPStreamFactory with the
+  /// default URIStreamOpener instance.
 
-        virtual std::istream * open(const Poco::URI & uri);
-        /// Creates and opens a HTTP stream for the given URI.
-        /// The URI must be a http://... URI.
-        ///
-        /// Throws a NetException if anything goes wrong.
-        ///
-        /// Redirect responses are handled and the redirect
-        /// location is automatically resolved, as long
-        /// as the redirect location is still accessible
-        /// via the HTTP protocol. If a redirection to
-        /// a non http://... URI is received, a
-        /// UnsupportedRedirectException exception is thrown.
-        /// The offending URI can then be obtained via the message()
-        /// method of UnsupportedRedirectException.
+  static void unregisterFactory();
+  /// Unregisters the HTTPStreamFactory with the
+  /// default URIStreamOpener instance.
 
-        static void registerFactory();
-        /// Registers the HTTPStreamFactory with the
-        /// default URIStreamOpener instance.
+ private:
+  enum { MAX_REDIRECTS = 10 };
 
-        static void unregisterFactory();
-        /// Unregisters the HTTPStreamFactory with the
-        /// default URIStreamOpener instance.
+  std::string _proxyHost;
+  Poco::UInt16 _proxyPort;
+  std::string _proxyUsername;
+  std::string _proxyPassword;
+};
 
-    private:
-        enum
-        {
-            MAX_REDIRECTS = 10
-        };
+}  // namespace Net
+}  // namespace Poco
 
-        std::string _proxyHost;
-        Poco::UInt16 _proxyPort;
-        std::string _proxyUsername;
-        std::string _proxyPassword;
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPStreamFactory_INCLUDED
+#endif  // Net_HTTPStreamFactory_INCLUDED

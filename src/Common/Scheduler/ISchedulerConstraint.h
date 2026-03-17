@@ -2,8 +2,7 @@
 
 #include <Common/Scheduler/ISchedulerNode.h>
 
-namespace DB
-{
+namespace DB {
 
 /*
  * Constraint defined on the set of requests in consumption state.
@@ -17,23 +16,20 @@ namespace DB
  * Derived class behaviour requirements:
  *  - dequeueRequest() must call `request->addConstraint()`.
  */
-class ISchedulerConstraint : public ISchedulerNode
-{
-public:
-    explicit ISchedulerConstraint(EventQueue * event_queue_, const Poco::Util::AbstractConfiguration & config = emptyConfig(), const String & config_prefix = {})
-        : ISchedulerNode(event_queue_, config, config_prefix)
-    {}
+class ISchedulerConstraint : public ISchedulerNode {
+ public:
+  explicit ISchedulerConstraint(EventQueue* event_queue_, const Poco::Util::AbstractConfiguration& config = emptyConfig(),
+                                const String& config_prefix = {})
+      : ISchedulerNode(event_queue_, config, config_prefix) {}
 
-    ISchedulerConstraint(EventQueue * event_queue_, const SchedulerNodeInfo & info_)
-        : ISchedulerNode(event_queue_, info_)
-    {}
+  ISchedulerConstraint(EventQueue* event_queue_, const SchedulerNodeInfo& info_) : ISchedulerNode(event_queue_, info_) {}
 
-    /// Resource consumption by `request` is finished.
-    /// Should be called outside of scheduling subsystem, implementation must be thread-safe.
-    virtual void finishRequest(ResourceRequest * request) = 0;
+  /// Resource consumption by `request` is finished.
+  /// Should be called outside of scheduling subsystem, implementation must be thread-safe.
+  virtual void finishRequest(ResourceRequest* request) = 0;
 
-    /// For introspection of current state (true = satisfied, false = violated)
-    virtual bool isSatisfied() = 0;
+  /// For introspection of current state (true = satisfied, false = violated)
+  virtual bool isSatisfied() = 0;
 };
 
-}
+}  // namespace DB

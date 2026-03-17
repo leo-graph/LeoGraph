@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Notification_INCLUDED
 #define Foundation_Notification_INCLUDED
-
 
 #include "Poco/AutoPtr.h"
 #include "Poco/Foundation.h"
 #include "Poco/Mutex.h"
 #include "Poco/RefCountedObject.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API Notification : public RefCountedObject
 /// The base class for all notification classes used
@@ -35,22 +30,20 @@ class Foundation_API Notification : public RefCountedObject
 /// The Notification class can be used with the AutoPtr
 /// template class.
 {
-public:
-    typedef AutoPtr<Notification> Ptr;
+ public:
+  typedef AutoPtr<Notification> Ptr;
 
-    Notification();
-    /// Creates the notification.
+  Notification();
+  /// Creates the notification.
 
-    virtual std::string name() const;
-    /// Returns the name of the notification.
-    /// The default implementation returns the class name.
+  virtual std::string name() const;
+  /// Returns the name of the notification.
+  /// The default implementation returns the class name.
 
-protected:
-    virtual ~Notification();
+ protected:
+  virtual ~Notification();
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Notification_INCLUDED
+#endif  // Foundation_Notification_INCLUDED

@@ -1,57 +1,51 @@
-#include <DataTypes/DataTypesNumber.h>
 #include <Columns/ColumnsNumber.h>
-#include <Functions/IFunction.h>
+#include <Common/TargetSpecific.h>
+#include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionFactory.h>
+#include <Functions/IFunction.h>
 #include <Functions/PerformanceAdaptors.h>
 #include <Interpreters/castColumn.h>
-#include <Common/TargetSpecific.h>
 #include <cmath>
 #include <numbers>
 
-
-namespace DB
-{
-namespace Setting
-{
-    extern const SettingsBool geo_distance_returns_float64_on_float64_arguments;
+namespace DB {
+namespace Setting {
+extern const SettingsBool geo_distance_returns_float64_on_float64_arguments;
 }
 
-namespace ErrorCodes
-{
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int ILLEGAL_COLUMN;
-}
+namespace ErrorCodes {
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int ILLEGAL_COLUMN;
+}  // namespace ErrorCodes
 
 /** Calculates the distance between two geographical locations.
-  * There are three variants:
-  * greatCircleAngle: calculates the distance on a sphere in degrees: https://en.wikipedia.org/wiki/Great-circle_distance
-  * greatCircleDistance: calculates the distance on a sphere in meters.
-  * geoDistance: calculates the distance on WGS-84 ellipsoid in meters.
-  *
-  * The function calculates distance between two points on Earth specified by longitude and latitude in degrees.
-  *
-  * Latitude must be in [-90, 90], longitude must be [-180, 180].
-  *
-  * Original code of this implementation of this function is here:
-  * https://github.com/sphinxsearch/sphinx/blob/409f2c2b5b2ff70b04e38f92b6b1a890326bad65/src/sphinxexpr.cpp#L3825.
-  * Andrey Aksenov, the author of original code, permitted to use this code in ClickHouse under the Apache 2.0 license.
-  * Presentation about this code from Highload++ Siberia 2019 is here https://github.com/ClickHouse/ClickHouse/files/3324740/1_._._GEODIST_._.pdf
-  * The main idea of this implementation is optimizations based on Taylor series, trigonometric identity
-  *  and calculated constants once for cosine, arcsine(sqrt) and look up table.
-  */
+ * There are three variants:
+ * greatCircleAngle: calculates the distance on a sphere in degrees: https://en.wikipedia.org/wiki/Great-circle_distance
+ * greatCircleDistance: calculates the distance on a sphere in meters.
+ * geoDistance: calculates the distance on WGS-84 ellipsoid in meters.
+ *
+ * The function calculates distance between two points on Earth specified by longitude and latitude in degrees.
+ *
+ * Latitude must be in [-90, 90], longitude must be [-180, 180].
+ *
+ * Original code of this implementation of this function is here:
+ * https://github.com/sphinxsearch/sphinx/blob/409f2c2b5b2ff70b04e38f92b6b1a890326bad65/src/sphinxexpr.cpp#L3825.
+ * Andrey Aksenov, the author of original code, permitted to use this code in ClickHouse under the Apache 2.0 license.
+ * Presentation about this code from Highload++ Siberia 2019 is here
+ * https://github.com/ClickHouse/ClickHouse/files/3324740/1_._._GEODIST_._.pdf The main idea of this implementation is optimizations based
+ * on Taylor series, trigonometric identity and calculated constants once for cosine, arcsine(sqrt) and look up table.
+ */
 
-namespace
-{
+namespace {
 
-enum class Method : uint8_t
-{
-    SPHERE_DEGREES,
-    SPHERE_METERS,
-    WGS84_METERS,
+enum class Method : uint8_t {
+  SPHERE_DEGREES,
+  SPHERE_METERS,
+  WGS84_METERS,
 };
 
 constexpr size_t ASIN_SQRT_LUT_SIZE = 512;
-constexpr size_t COS_LUT_SIZE = 1024; // maxerr 0.00063%
+constexpr size_t COS_LUT_SIZE = 1024;  // maxerr 0.00063%
 constexpr size_t METRIC_LUT_SIZE = 1024;
 
 /// Earth radius in meters using WGS84 authalic radius.
@@ -61,95 +55,92 @@ constexpr double EARTH_DIAMETER = 2.0 * EARTH_RADIUS;
 constexpr double PI = std::numbers::pi_v<double>;
 
 template <typename T>
-T sqr(T v) { return v * v; }
+T sqr(T v) {
+  return v * v;
+}
 
 template <typename T>
-struct Impl
-{
-    T cos_lut[COS_LUT_SIZE + 1];       /// cos(x) table
-    T asin_sqrt_lut[ASIN_SQRT_LUT_SIZE + 1]; /// asin(sqrt(x)) * earth_diameter table
-    T sphere_metric_lut[METRIC_LUT_SIZE + 1]; /// sphere metric, unitless: the distance in degrees for one degree across longitude depending on latitude
-    T sphere_metric_meters_lut[METRIC_LUT_SIZE + 1]; /// sphere metric: the distance in meters for one degree across longitude depending on latitude
-    T wgs84_metric_meters_lut[2 * (METRIC_LUT_SIZE + 1)]; /// ellipsoid metric: the distance in meters across one degree latitude/longitude depending on latitude
+struct Impl {
+  T cos_lut[COS_LUT_SIZE + 1];              /// cos(x) table
+  T asin_sqrt_lut[ASIN_SQRT_LUT_SIZE + 1];  /// asin(sqrt(x)) * earth_diameter table
+  T sphere_metric_lut[METRIC_LUT_SIZE +
+                      1];  /// sphere metric, unitless: the distance in degrees for one degree across longitude depending on latitude
+  T sphere_metric_meters_lut[METRIC_LUT_SIZE +
+                             1];  /// sphere metric: the distance in meters for one degree across longitude depending on latitude
+  T wgs84_metric_meters_lut[2 * (METRIC_LUT_SIZE + 1)];  /// ellipsoid metric: the distance in meters across one degree latitude/longitude
+                                                         /// depending on latitude
 
-    Impl()
-    {
-        for (size_t i = 0; i <= COS_LUT_SIZE; ++i)
-            cos_lut[i] = T(std::cos(2 * PI * static_cast<double>(i) / COS_LUT_SIZE)); // [0, 2 * pi] -> [0, COS_LUT_SIZE]
+  Impl() {
+    for (size_t i = 0; i <= COS_LUT_SIZE; ++i)
+      cos_lut[i] = T(std::cos(2 * PI * static_cast<double>(i) / COS_LUT_SIZE));  // [0, 2 * pi] -> [0, COS_LUT_SIZE]
 
-        for (size_t i = 0; i <= ASIN_SQRT_LUT_SIZE; ++i)
-            asin_sqrt_lut[i] = T(std::asin(std::sqrt(static_cast<double>(i) / ASIN_SQRT_LUT_SIZE))); // [0, 1] -> [0, ASIN_SQRT_LUT_SIZE]
+    for (size_t i = 0; i <= ASIN_SQRT_LUT_SIZE; ++i)
+      asin_sqrt_lut[i] = T(std::asin(std::sqrt(static_cast<double>(i) / ASIN_SQRT_LUT_SIZE)));  // [0, 1] -> [0, ASIN_SQRT_LUT_SIZE]
 
-        for (size_t i = 0; i <= METRIC_LUT_SIZE; ++i)
-        {
-            double latitude = static_cast<double>(i) * (PI / static_cast<double>(METRIC_LUT_SIZE)) - PI * 0.5; // [-pi / 2, pi / 2] -> [0, METRIC_LUT_SIZE]
+    for (size_t i = 0; i <= METRIC_LUT_SIZE; ++i) {
+      double latitude =
+          static_cast<double>(i) * (PI / static_cast<double>(METRIC_LUT_SIZE)) - PI * 0.5;  // [-pi / 2, pi / 2] -> [0, METRIC_LUT_SIZE]
 
-            /// Squared metric coefficients (for the distance in meters) on a tangent plane, for latitude and longitude (in degrees),
-            /// depending on the latitude (in radians).
+      /// Squared metric coefficients (for the distance in meters) on a tangent plane, for latitude and longitude (in degrees),
+      /// depending on the latitude (in radians).
 
-            /// https://github.com/mapbox/cheap-ruler/blob/master/index.js#L67
-            wgs84_metric_meters_lut[i * 2] = T(sqr(111132.09 - 566.05 * std::cos(2.0 * latitude) + 1.20 * std::cos(4.0 * latitude)));
-            wgs84_metric_meters_lut[i * 2 + 1] = T(sqr(111415.13 * std::cos(latitude) - 94.55 * std::cos(3.0 * latitude) + 0.12 * std::cos(5.0 * latitude)));
-            sphere_metric_meters_lut[i] = T(sqr((EARTH_DIAMETER * PI / 360) * std::cos(latitude)));
+      /// https://github.com/mapbox/cheap-ruler/blob/master/index.js#L67
+      wgs84_metric_meters_lut[i * 2] = T(sqr(111132.09 - 566.05 * std::cos(2.0 * latitude) + 1.20 * std::cos(4.0 * latitude)));
+      wgs84_metric_meters_lut[i * 2 + 1] =
+          T(sqr(111415.13 * std::cos(latitude) - 94.55 * std::cos(3.0 * latitude) + 0.12 * std::cos(5.0 * latitude)));
+      sphere_metric_meters_lut[i] = T(sqr((EARTH_DIAMETER * PI / 360) * std::cos(latitude)));
 
-            sphere_metric_lut[i] = T(sqr(std::cos(latitude)));
-        }
+      sphere_metric_lut[i] = T(sqr(std::cos(latitude)));
     }
+  }
 
-    static NO_SANITIZE_UNDEFINED size_t toIndex(T x)
-    {
-        /// Implementation specific behaviour on overflow or infinite value.
-        return static_cast<size_t>(x);
-    }
+  static NO_SANITIZE_UNDEFINED size_t toIndex(T x) {
+    /// Implementation specific behaviour on overflow or infinite value.
+    return static_cast<size_t>(x);
+  }
 
-    static T degDiff(T f)
-    {
-        f = std::abs(f);
-        if (f > 180)
-            f = 360 - f;
-        return f;
-    }
+  static T degDiff(T f) {
+    f = std::abs(f);
+    if (f > 180) f = 360 - f;
+    return f;
+  }
 
-    T fastCos(T x)
-    {
-        T y = std::abs(x) * (T(COS_LUT_SIZE) / T(PI) / T(2.0));
-        size_t i = toIndex(y);
-        y -= static_cast<T>(i);
-        i &= (COS_LUT_SIZE - 1);
-        return cos_lut[i] + (cos_lut[i + 1] - cos_lut[i]) * y;
-    }
+  T fastCos(T x) {
+    T y = std::abs(x) * (T(COS_LUT_SIZE) / T(PI) / T(2.0));
+    size_t i = toIndex(y);
+    y -= static_cast<T>(i);
+    i &= (COS_LUT_SIZE - 1);
+    return cos_lut[i] + (cos_lut[i + 1] - cos_lut[i]) * y;
+  }
 
-    T fastSin(T x)
-    {
-        T y = std::abs(x) * (T(COS_LUT_SIZE) / T(PI) / T(2.0));
-        size_t i = toIndex(y);
-        y -= static_cast<T>(i);
-        i = (i - COS_LUT_SIZE / 4) & (COS_LUT_SIZE - 1); // cos(x - pi / 2) = sin(x), costable / 4 = pi / 2
-        return cos_lut[i] + (cos_lut[i + 1] - cos_lut[i]) * y;
-    }
+  T fastSin(T x) {
+    T y = std::abs(x) * (T(COS_LUT_SIZE) / T(PI) / T(2.0));
+    size_t i = toIndex(y);
+    y -= static_cast<T>(i);
+    i = (i - COS_LUT_SIZE / 4) & (COS_LUT_SIZE - 1);  // cos(x - pi / 2) = sin(x), costable / 4 = pi / 2
+    return cos_lut[i] + (cos_lut[i + 1] - cos_lut[i]) * y;
+  }
 
-    /// fast implementation of asin(sqrt(x))
-    /// max error in floats 0.00369%, in doubles 0.00072%
-    T fastAsinSqrt(T x)
-    {
-        if (x < T(0.122))
-        {
-            // distance under 4546 km, Taylor error under 0.00072%
-            T y = std::sqrt(x);
-            return y + x * y * T(0.166666666666666) + x * x * y * T(0.075) + x * x * x * y * T(0.044642857142857);
-        }
-        if (x < T(0.948))
-        {
-            // distance under 17083 km, 512-entry LUT error under 0.00072%
-            x *= ASIN_SQRT_LUT_SIZE;
-            size_t i = toIndex(x);
-            return asin_sqrt_lut[i] + (asin_sqrt_lut[i + 1] - asin_sqrt_lut[i]) * (x - static_cast<T>(i));
-        }
-        return std::asin(std::sqrt(x)); /// distance is over 17083 km, just compute exact
+  /// fast implementation of asin(sqrt(x))
+  /// max error in floats 0.00369%, in doubles 0.00072%
+  T fastAsinSqrt(T x) {
+    if (x < T(0.122)) {
+      // distance under 4546 km, Taylor error under 0.00072%
+      T y = std::sqrt(x);
+      return y + x * y * T(0.166666666666666) + x * x * y * T(0.075) + x * x * x * y * T(0.044642857142857);
     }
+    if (x < T(0.948)) {
+      // distance under 17083 km, 512-entry LUT error under 0.00072%
+      x *= ASIN_SQRT_LUT_SIZE;
+      size_t i = toIndex(x);
+      return asin_sqrt_lut[i] + (asin_sqrt_lut[i + 1] - asin_sqrt_lut[i]) * (x - static_cast<T>(i));
+    }
+    return std::asin(std::sqrt(x));  /// distance is over 17083 km, just compute exact
+  }
 };
 
-template <typename T> Impl<T> impl;
+template <typename T>
+Impl<T> impl;
 
 DECLARE_MULTITARGET_CODE(
 
@@ -332,129 +323,110 @@ private:
 ) // DECLARE_MULTITARGET_CODE
 
 template <Method method>
-class FunctionGeoDistance : public TargetSpecific::Default::FunctionGeoDistance<method>
-{
-public:
-    explicit FunctionGeoDistance(ContextPtr context)
-        : TargetSpecific::Default::FunctionGeoDistance<method>(context), selector(context)
-    {
-        selector.registerImplementation<TargetArch::Default,
-            TargetSpecific::Default::FunctionGeoDistance<method>>(context);
+class FunctionGeoDistance : public TargetSpecific::Default::FunctionGeoDistance<method> {
+ public:
+  explicit FunctionGeoDistance(ContextPtr context) : TargetSpecific::Default::FunctionGeoDistance<method>(context), selector(context) {
+    selector.registerImplementation<TargetArch::Default, TargetSpecific::Default::FunctionGeoDistance<method>>(context);
 
-    #if USE_MULTITARGET_CODE
-        selector.registerImplementation<TargetArch::x86_64_v3,
-            TargetSpecific::x86_64_v3::FunctionGeoDistance<method>>(context);
-        selector.registerImplementation<TargetArch::x86_64_v4,
-            TargetSpecific::x86_64_v4::FunctionGeoDistance<method>>(context);
-    #endif
-    }
+#if USE_MULTITARGET_CODE
+    selector.registerImplementation<TargetArch::x86_64_v3, TargetSpecific::x86_64_v3::FunctionGeoDistance<method>>(context);
+    selector.registerImplementation<TargetArch::x86_64_v4, TargetSpecific::x86_64_v4::FunctionGeoDistance<method>>(context);
+#endif
+  }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
-    {
-        return selector.selectAndExecute(arguments, result_type, input_rows_count);
-    }
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &result_type, size_t input_rows_count) const override {
+    return selector.selectAndExecute(arguments, result_type, input_rows_count);
+  }
 
-    static FunctionPtr create(ContextPtr context)
-    {
-        return std::make_shared<FunctionGeoDistance<method>>(context);
-    }
+  static FunctionPtr create(ContextPtr context) { return std::make_shared<FunctionGeoDistance<method>>(context); }
 
-private:
-    ImplementationSelector<IFunction> selector;
+ private:
+  ImplementationSelector<IFunction> selector;
 };
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(GeoDistance)
-{
-    {
-        FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(GeoDistance) {
+  {
+    FunctionDocumentation::Description description = R"(
 Calculates the central angle between two points on the Earth's surface using the [great-circle formula](https://en.wikipedia.org/wiki/Great-circle_distance).
 This function returns the angle in degrees between two points on a sphere.
         )";
-        FunctionDocumentation::Syntax syntax = "greatCircleAngle(lon1Deg, lat1Deg, lon2Deg, lat2Deg)";
-        FunctionDocumentation::Arguments arguments = {
-            {"lon1Deg", "Longitude of the first point in degrees. Range: `[-180°, 180°]`", {"(U)Int*", "Float*", "Decimal"}},
-            {"lat1Deg", "Latitude of the first point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lon2Deg", "Longitude of the second point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lat2Deg", "Latitude of the second point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}}
-        };
-        FunctionDocumentation::ReturnedValue returned_value = {"Returns the central angle between the two points in degrees", {"Float64"}};
-        FunctionDocumentation::Examples examples = {
-            {
-                "Basic usage",
-                "SELECT greatCircleAngle(0, 0, 45, 0) AS angle",
-                R"(
+    FunctionDocumentation::Syntax syntax = "greatCircleAngle(lon1Deg, lat1Deg, lon2Deg, lat2Deg)";
+    FunctionDocumentation::Arguments arguments = {
+        {"lon1Deg", "Longitude of the first point in degrees. Range: `[-180°, 180°]`", {"(U)Int*", "Float*", "Decimal"}},
+        {"lat1Deg", "Latitude of the first point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lon2Deg", "Longitude of the second point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lat2Deg", "Latitude of the second point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}}};
+    FunctionDocumentation::ReturnedValue returned_value = {"Returns the central angle between the two points in degrees", {"Float64"}};
+    FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT greatCircleAngle(0, 0, 45, 0) AS angle",
+                                                 R"(
 ┌─angle─┐
 │    45 │
 └───────┘
-                )"
-            }
-        };
-        FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-        FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-        FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
-        factory.registerFunction("greatCircleAngle", [](ContextPtr context) {return std::make_shared<FunctionGeoDistance<Method::SPHERE_DEGREES>>(std::move(context));}, documentation);
-    }
-    {
-        FunctionDocumentation::Description description = R"(
+                )"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+    factory.registerFunction(
+        "greatCircleAngle",
+        [](ContextPtr context) { return std::make_shared<FunctionGeoDistance<Method::SPHERE_DEGREES>>(std::move(context)); },
+        documentation);
+  }
+  {
+    FunctionDocumentation::Description description = R"(
 Calculates the distance between two points on the Earth's surface using [the great-circle formula](https://en.wikipedia.org/wiki/Great-circle_distance).
         )";
-        FunctionDocumentation::Syntax syntax = "greatCircleDistance(lon1Deg, lat1Deg, lon2Deg, lat2Deg)";
-        FunctionDocumentation::Arguments arguments = {
-            {"lon1Deg", "Longitude of the first point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lat1Deg", "Latitude of the first point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lon2Deg", "Longitude of the second point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lat2Deg", "Latitude of the second point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}}
-        };
-        FunctionDocumentation::ReturnedValue returned_value = {"Returns the distance between two points on the Earth's surface, in meters", {"Float64"}};
-        FunctionDocumentation::Examples examples = {
-            {
-                "Basic usage",
-                "SELECT greatCircleDistance(55.755831, 37.617673, -55.755831, -37.617673) AS greatCircleDistance",
-                R"(
+    FunctionDocumentation::Syntax syntax = "greatCircleDistance(lon1Deg, lat1Deg, lon2Deg, lat2Deg)";
+    FunctionDocumentation::Arguments arguments = {
+        {"lon1Deg", "Longitude of the first point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lat1Deg", "Latitude of the first point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lon2Deg", "Longitude of the second point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lat2Deg", "Latitude of the second point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}}};
+    FunctionDocumentation::ReturnedValue returned_value = {"Returns the distance between two points on the Earth's surface, in meters",
+                                                           {"Float64"}};
+    FunctionDocumentation::Examples examples = {
+        {"Basic usage", "SELECT greatCircleDistance(55.755831, 37.617673, -55.755831, -37.617673) AS greatCircleDistance",
+         R"(
 ┌─greatCircleDistance─┐
 │            14128352 │
 └─────────────────────┘
-                )"
-            }
-        };
-        FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-        FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-        FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
-        factory.registerFunction("greatCircleDistance", [](ContextPtr context) {return std::make_shared<FunctionGeoDistance<Method::SPHERE_METERS>>(std::move(context));}, documentation);
-    }
-    {
-        FunctionDocumentation::Description description = R"(
+                )"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+    factory.registerFunction(
+        "greatCircleDistance",
+        [](ContextPtr context) { return std::make_shared<FunctionGeoDistance<Method::SPHERE_METERS>>(std::move(context)); }, documentation);
+  }
+  {
+    FunctionDocumentation::Description description = R"(
 Similar to the `greatCircleDistance` function but it calculates the distance on the WGS-84 ellipsoid, which is a more accurate representation of Earth's shape than a perfect sphere.
 It offers the same performance as for `greatCircleDistance` and it is therefore recommended to use `geoDistance` to calculate distances on Earth.
 
 Technical note: for close enough points it calculates the distance using planar approximation with the metric on the tangent plane at the midpoint of the coordinates.
         )";
-        FunctionDocumentation::Syntax syntax = "geoDistance(lon1Deg, lat1Deg, lon2Deg, lat2Deg)";
-        FunctionDocumentation::Arguments arguments = {
-            {"lon1Deg", "Longitude of the first point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lat1Deg", "Latitude of the first point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lon2Deg", "Longitude of the second point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
-            {"lat2Deg", "Latitude of the second point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}}
-        };
-        FunctionDocumentation::ReturnedValue returned_value = {"Returns the distance between two points on the Earth's surface, in meters", {"Float64"}};
-        FunctionDocumentation::Examples examples = {
-            {
-                "Basic usage",
-                "SELECT geoDistance(38.8976, -77.0366, 39.9496, -75.1503) AS geoDistance",
-                R"(
+    FunctionDocumentation::Syntax syntax = "geoDistance(lon1Deg, lat1Deg, lon2Deg, lat2Deg)";
+    FunctionDocumentation::Arguments arguments = {
+        {"lon1Deg", "Longitude of the first point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lat1Deg", "Latitude of the first point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lon2Deg", "Longitude of the second point in degrees. Range: `[-180°, 180°]`.", {"(U)Int*", "Float*", "Decimal"}},
+        {"lat2Deg", "Latitude of the second point in degrees. Range: `[-90°, 90°]`.", {"(U)Int*", "Float*", "Decimal"}}};
+    FunctionDocumentation::ReturnedValue returned_value = {"Returns the distance between two points on the Earth's surface, in meters",
+                                                           {"Float64"}};
+    FunctionDocumentation::Examples examples = {{"Basic usage", "SELECT geoDistance(38.8976, -77.0366, 39.9496, -75.1503) AS geoDistance",
+                                                 R"(
 ┌─geoDistance─┐
 │   212458.73 │
 └─────────────┘
-                )"
-            }
-        };
-        FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-        FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
-        FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
-        factory.registerFunction("geoDistance", [](ContextPtr context) {return std::make_shared<FunctionGeoDistance<Method::WGS84_METERS>>(std::move(context));}, documentation);
-    }
+                )"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::Geo;
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+    factory.registerFunction(
+        "geoDistance", [](ContextPtr context) { return std::make_shared<FunctionGeoDistance<Method::WGS84_METERS>>(std::move(context)); },
+        documentation);
+  }
 }
 
-}
+}  // namespace DB

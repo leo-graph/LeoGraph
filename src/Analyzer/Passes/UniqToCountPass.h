@@ -2,8 +2,7 @@
 
 #include <Analyzer/IQueryTreePass.h>
 
-namespace DB
-{
+namespace DB {
 
 /** Optimize `uniq` and its variants(except uniqUpTo) into `count` over subquery.
  *     Example: 'SELECT uniq(x ...) FROM (SELECT DISTINCT x ...)' to
@@ -14,17 +13,15 @@ namespace DB
  *
  *     Note that we can rewrite all uniq variants except uniqUpTo.
  */
-class UniqToCountPass final : public IQueryTreePass
-{
-public:
-    String getName() override { return "UniqToCount"; }
+class UniqToCountPass final : public IQueryTreePass {
+ public:
+  String getName() override { return "UniqToCount"; }
 
-    String getDescription() override
-    {
-        return "Rewrite uniq and its variants(except uniqUpTo) to count if subquery has distinct or group by clause.";
-    }
+  String getDescription() override {
+    return "Rewrite uniq and its variants(except uniqUpTo) to count if subquery has distinct or group by clause.";
+  }
 
-    void run(QueryTreeNodePtr & query_tree_node, ContextPtr context) override;
+  void run(QueryTreeNodePtr& query_tree_node, ContextPtr context) override;
 };
 
-}
+}  // namespace DB

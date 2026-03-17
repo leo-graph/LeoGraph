@@ -11,35 +11,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/JSON/Handler.h"
 #include "Poco/JSON/Object.h"
-
 
 namespace Poco {
 namespace JSON {
 
+Handler::Handler() {}
 
-Handler::Handler()
-{
-}
+Handler::~Handler() {}
 
+Dynamic::Var Handler::asVar() const { return Dynamic::Var(); }
 
-Handler::~Handler()
-{
-}
+Poco::DynamicStruct Handler::asStruct() const { return Poco::DynamicStruct(); }
 
-
-Dynamic::Var Handler::asVar() const
-{
-	return Dynamic::Var();
-}
-
-
-Poco::DynamicStruct Handler::asStruct() const
-{
-	return Poco::DynamicStruct();
-}
-
-
-} } // namespace Poco::JSON
+}  // namespace JSON
+}  // namespace Poco

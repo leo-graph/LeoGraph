@@ -13,46 +13,38 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NamedMutex_UNIX_INCLUDED
 #define Foundation_NamedMutex_UNIX_INCLUDED
-
 
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "Poco/Foundation.h"
 #if defined(sun) || defined(__APPLE__) || defined(__osf__) || defined(__QNX__) || defined(_AIX)
-#    include <semaphore.h>
+#  include <semaphore.h>
 #endif
 
+namespace Poco {
 
-namespace Poco
-{
+class Foundation_API NamedMutexImpl {
+ protected:
+  NamedMutexImpl(const std::string& name);
+  ~NamedMutexImpl();
+  void lockImpl();
+  bool tryLockImpl();
+  void unlockImpl();
 
+ private:
+  std::string getFileName();
 
-class Foundation_API NamedMutexImpl
-{
-protected:
-    NamedMutexImpl(const std::string & name);
-    ~NamedMutexImpl();
-    void lockImpl();
-    bool tryLockImpl();
-    void unlockImpl();
-
-private:
-    std::string getFileName();
-
-    std::string _name;
+  std::string _name;
 #if defined(sun) || defined(__APPLE__) || defined(__osf__) || defined(__QNX__) || defined(_AIX)
-    sem_t * _sem;
+  sem_t* _sem;
 #else
-    int _semid; // semaphore id
-    bool _owned;
+  int _semid;  // semaphore id
+  bool _owned;
 #endif
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_NamedMutex_UNIX_INCLUDED
+#endif  // Foundation_NamedMutex_UNIX_INCLUDED

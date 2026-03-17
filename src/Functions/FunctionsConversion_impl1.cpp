@@ -1,10 +1,8 @@
 #include <Functions/FunctionsConversion.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace detail
-{
+namespace detail {
 
 template class FunctionConvertFromString<DataTypeUInt8, NameToUInt8OrZero, ConvertFromStringExceptionMode::Zero>;
 template class FunctionConvertFromString<DataTypeUInt16, NameToUInt16OrZero, ConvertFromStringExceptionMode::Zero>;
@@ -35,6 +33,6 @@ template class FunctionConvertFromString<DataTypeUUID, NameToUUIDOrZero, Convert
 template class FunctionConvertFromString<DataTypeIPv4, NameToIPv4OrZero, ConvertFromStringExceptionMode::Zero>;
 template class FunctionConvertFromString<DataTypeIPv6, NameToIPv6OrZero, ConvertFromStringExceptionMode::Zero>;
 
-}
+}  // namespace detail
 
-}
+}  // namespace DB

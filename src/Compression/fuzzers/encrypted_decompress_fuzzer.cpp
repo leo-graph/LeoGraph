@@ -10,9 +10,9 @@
 #include <Compression/CompressedReadBuffer.h>
 #include <Compression/CompressionCodecEncrypted.h>
 #include <Compression/ICompressionCodec.h>
+#include <Interpreters/Context.h>
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/ReadBufferFromMemory.h>
-#include <Interpreters/Context.h>
 #include <Poco/DOM/AutoPtr.h>
 #include <Poco/DOM/Document.h>
 #include <Poco/DOM/Element.h>
@@ -21,29 +21,25 @@
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Poco/Util/XMLConfiguration.h>
 
-inline DB::CompressionCodecPtr getCompressionCodecEncrypted(DB::EncryptionMethod Method)
-{
-    return std::make_shared<DB::CompressionCodecEncrypted>(Method);
+inline DB::CompressionCodecPtr getCompressionCodecEncrypted(DB::EncryptionMethod Method) {
+  return std::make_shared<DB::CompressionCodecEncrypted>(Method);
 }
 
 using namespace DB;
 ContextMutablePtr context;
-extern "C" int LLVMFuzzerInitialize(int *, char ***)
-{
-    if (context)
-        return true;
+extern "C" int LLVMFuzzerInitialize(int*, char***) {
+  if (context) return true;
 
-    static SharedContextHolder shared_context = Context::createShared();
-    context = Context::createGlobal(shared_context.get());
-    context->makeGlobalContext();
+  static SharedContextHolder shared_context = Context::createShared();
+  context = Context::createGlobal(shared_context.get());
+  context->makeGlobalContext();
 
-    MainThreadStatus::getInstance();
+  MainThreadStatus::getInstance();
 
-    return 0;
+  return 0;
 }
 
-namespace
-{
+namespace {
 
 using namespace Poco;
 using namespace Poco::XML;
@@ -87,50 +83,50 @@ Fuzzing data consists of:
 
     This class read data and generate xml documentation.
 */
-class XMLGenerator
-{
-public:
-    XMLGenerator(const uint8_t * data, size_t& size);
+class XMLGenerator {
+ public:
+  XMLGenerator(const uint8_t* data, size_t& size);
 
-    /// Try to generate config from input data using algorithm, which is described before class declaration
-    void generate();
+  /// Try to generate config from input data using algorithm, which is described before class declaration
+  void generate();
 
-    /// Size of part, which was used on generating config
-    size_t keySize() const;
+  /// Size of part, which was used on generating config
+  size_t keySize() const;
 
-    /// Get config
-    const Poco::AutoPtr<Poco::Util::XMLConfiguration>& getResult() const;
+  /// Get config
+  const Poco::AutoPtr<Poco::Util::XMLConfiguration>& getResult() const;
 
-    /// If something happened in generator, it will be true
-    bool hasError() const;
-private:
-    /// generate algorithm section with key and nonce
-    bool generateAlgorithmKeys(AutoPtr<Poco::XML::Element>& document_root, std::string name,
-                               uint8_t mask_for_algo, uint8_t mask_for_multiple_keys);
+  /// If something happened in generator, it will be true
+  bool hasError() const;
 
-    /// move on count bytes stream and increase counter
-    /// returns false if some errors occuried
-    bool next(ssize_t count=1);
+ private:
+  /// generate algorithm section with key and nonce
+  bool generateAlgorithmKeys(AutoPtr<Poco::XML::Element>& document_root, std::string name, uint8_t mask_for_algo,
+                             uint8_t mask_for_multiple_keys);
 
-    /// Create a key from data
-    ssize_t generateKey(std::string name, bool multiple=false);
+  /// move on count bytes stream and increase counter
+  /// returns false if some errors occuried
+  bool next(ssize_t count = 1);
 
-    const uint8_t * data;
+  /// Create a key from data
+  ssize_t generateKey(std::string name, bool multiple = false);
 
-    size_t start_size;
-    size_t keys_size;
+  const uint8_t* data;
 
-    AutoPtr<Poco::XML::Document> xml_document;
-    AutoPtr<Poco::XML::Element> algo;
-    AutoPtr<Poco::Util::XMLConfiguration> conf;
+  size_t start_size;
+  size_t keys_size;
 
-    uint8_t first_byte;
+  AutoPtr<Poco::XML::Document> xml_document;
+  AutoPtr<Poco::XML::Element> algo;
+  AutoPtr<Poco::Util::XMLConfiguration> conf;
 
-    bool error;
+  uint8_t first_byte;
+
+  bool error;
 };
 
-XMLGenerator::XMLGenerator(const uint8_t * Data, size_t& Size): data(Data), start_size(Size),
-                          conf(new Poco::Util::XMLConfiguration()), error(false) {}
+XMLGenerator::XMLGenerator(const uint8_t* Data, size_t& Size)
+    : data(Data), start_size(Size), conf(new Poco::Util::XMLConfiguration()), error(false) {}
 
 size_t XMLGenerator::keySize() const { return keys_size; }
 
@@ -138,27 +134,24 @@ const Poco::AutoPtr<Poco::Util::XMLConfiguration>& XMLGenerator::getResult() con
 
 bool XMLGenerator::hasError() const { return error; }
 
-bool XMLGenerator::next(ssize_t count)
-{
-    /// If negative step - something went wrong
-    if (count == -1)
-    {
-        error = true;
-        return false;
-    }
+bool XMLGenerator::next(ssize_t count) {
+  /// If negative step - something went wrong
+  if (count == -1) {
+    error = true;
+    return false;
+  }
 
-    /// move data and increase counter
-    keys_size += count;
+  /// move data and increase counter
+  keys_size += count;
 
-    /// If get after eof
-    if (keys_size >= start_size)
-    {
-        error = true;
-        return false;
-    }
-    data += count;
+  /// If get after eof
+  if (keys_size >= start_size) {
+    error = true;
+    return false;
+  }
+  data += count;
 
-    return true;
+  return true;
 }
 
 /*
@@ -166,168 +159,133 @@ bool XMLGenerator::next(ssize_t count)
 or
 <key id=..>key</key>
 */
-ssize_t XMLGenerator::generateKey(std::string name, bool multiple)
-{
-    /// set traditional key size for algorithms
-    uint64_t size = 0;
-    if (name == "aes_128_gcm_siv")
-        size = 16;
-    if (name == "aes_256_gcm_siv")
-        size = 32;
+ssize_t XMLGenerator::generateKey(std::string name, bool multiple) {
+  /// set traditional key size for algorithms
+  uint64_t size = 0;
+  if (name == "aes_128_gcm_siv") size = 16;
+  if (name == "aes_256_gcm_siv") size = 32;
 
-    /// try to read size from data
-    if (first_byte & 0x40)
-    {
-        size = *(reinterpret_cast<const uint64_t*>(data));
-        if (!next(8))
-            return -1;
-    }
-    /// if it is not defined, leave
-    if (!size)
-        return -1;
+  /// try to read size from data
+  if (first_byte & 0x40) {
+    size = *(reinterpret_cast<const uint64_t*>(data));
+    if (!next(8)) return -1;
+  }
+  /// if it is not defined, leave
+  if (!size) return -1;
 
-    AutoPtr<Poco::XML::Element> key_holder;
-    if (multiple)
-    {
-        /// multiple keys have ids.
-        uint64_t id = *(reinterpret_cast<const uint64_t*>(data));
-        if (!next(8))
-            return -1;
+  AutoPtr<Poco::XML::Element> key_holder;
+  if (multiple) {
+    /// multiple keys have ids.
+    uint64_t id = *(reinterpret_cast<const uint64_t*>(data));
+    if (!next(8)) return -1;
 
-        key_holder = xml_document->createElement("key[id=" + std::to_string(id) + "]");
+    key_holder = xml_document->createElement("key[id=" + std::to_string(id) + "]");
 
-    }
-    else
-    {
-        key_holder = xml_document->createElement("key");
-    }
-    AutoPtr<Text> key(xml_document->createTextNode(std::string(data, data + size)));
-    key_holder->appendChild(key);
-    algo->appendChild(key_holder);
+  } else {
+    key_holder = xml_document->createElement("key");
+  }
+  AutoPtr<Text> key(xml_document->createTextNode(std::string(data, data + size)));
+  key_holder->appendChild(key);
+  algo->appendChild(key_holder);
 
-    if (!next(size))
-        return -1;
-    return size;
+  if (!next(size)) return -1;
+  return size;
 }
 
-bool XMLGenerator::generateAlgorithmKeys(
-    AutoPtr<Poco::XML::Element>& document_root, std::string name, uint8_t mask_for_algo, uint8_t mask_for_multiple_keys)
-{
-    /// check if algorithm is enabled, then add multiple keys or single key
-    if (first_byte & mask_for_algo)
-    {
-        algo = xml_document->createElement(name);
-        document_root->appendChild(algo);
+bool XMLGenerator::generateAlgorithmKeys(AutoPtr<Poco::XML::Element>& document_root, std::string name, uint8_t mask_for_algo,
+                                         uint8_t mask_for_multiple_keys) {
+  /// check if algorithm is enabled, then add multiple keys or single key
+  if (first_byte & mask_for_algo) {
+    algo = xml_document->createElement(name);
+    document_root->appendChild(algo);
 
-        if (first_byte & mask_for_multiple_keys)
-        {
-            uint64_t count = *(reinterpret_cast<const uint64_t*>(data));
-            if (!next(8))
-                return false;
+    if (first_byte & mask_for_multiple_keys) {
+      uint64_t count = *(reinterpret_cast<const uint64_t*>(data));
+      if (!next(8)) return false;
 
-            for (size_t i = 0; i < count; ++i)
-            {
-                if (!next(generateKey(name)))
-                    return false;
-            }
-        }
-        else
-        {
-            if (!next(generateKey(name)))
-                return false;
-        }
+      for (size_t i = 0; i < count; ++i) {
+        if (!next(generateKey(name))) return false;
+      }
+    } else {
+      if (!next(generateKey(name))) return false;
+    }
+  }
+
+  /// add nonce
+  if (first_byte & 0x02) {
+    uint64_t nonce_size = 12;
+    if (first_byte & 0x80) {
+      nonce_size = *(reinterpret_cast<const uint64_t*>(data));
+      if (!next(8)) return false;
     }
 
-    /// add nonce
-    if (first_byte & 0x02)
-    {
-        uint64_t nonce_size = 12;
-        if (first_byte & 0x80)
-        {
-            nonce_size = *(reinterpret_cast<const uint64_t*>(data));
-            if (!next(8))
-                return false;
-        }
+    AutoPtr<Poco::XML::Element> nonce_holder(xml_document->createElement("nonce"));
+    AutoPtr<Text> nonce(xml_document->createTextNode(std::string(data, data + nonce_size)));
+    nonce_holder->appendChild(nonce);
+    algo->appendChild(nonce_holder);
+  }
 
-        AutoPtr<Poco::XML::Element> nonce_holder(xml_document->createElement("nonce"));
-        AutoPtr<Text> nonce(xml_document->createTextNode(std::string(data, data + nonce_size)));
-        nonce_holder->appendChild(nonce);
-        algo->appendChild(nonce_holder);
-    }
+  /// add current key id
+  if (first_byte & 0x01) {
+    uint64_t current_key = *(reinterpret_cast<const uint64_t*>(data));
+    if (!next(8)) return false;
 
-    /// add current key id
-    if (first_byte & 0x01)
-    {
-        uint64_t current_key = *(reinterpret_cast<const uint64_t*>(data));
-        if (!next(8))
-            return false;
+    AutoPtr<Poco::XML::Element> cur_key_holder(xml_document->createElement("nonce"));
+    AutoPtr<Text> cur_key(xml_document->createTextNode(std::to_string(current_key)));
+    cur_key_holder->appendChild(cur_key);
+    algo->appendChild(cur_key_holder);
+  }
 
-        AutoPtr<Poco::XML::Element> cur_key_holder(xml_document->createElement("nonce"));
-        AutoPtr<Text> cur_key(xml_document->createTextNode(std::to_string(current_key)));
-        cur_key_holder->appendChild(cur_key);
-        algo->appendChild(cur_key_holder);
-    }
-
-    return true;
+  return true;
 }
 
-void XMLGenerator::generate()
-{
-    AutoPtr<Poco::XML::Element> document_root(xml_document->createElement("encryption_codecs"));
-    xml_document->appendChild(document_root);
+void XMLGenerator::generate() {
+  AutoPtr<Poco::XML::Element> document_root(xml_document->createElement("encryption_codecs"));
+  xml_document->appendChild(document_root);
 
-    /// read first byte for parsing
-    first_byte = *data;
-    if (!next())
-        return;
+  /// read first byte for parsing
+  first_byte = *data;
+  if (!next()) return;
 
-    if (!generateAlgorithmKeys(document_root, "aes_128_gmc_siv", 0x20, 0x10))
-        return;
-    if (!generateAlgorithmKeys(document_root, "aes_256_gmc_siv", 0x08, 0x04))
-        return;
+  if (!generateAlgorithmKeys(document_root, "aes_128_gmc_siv", 0x20, 0x10)) return;
+  if (!generateAlgorithmKeys(document_root, "aes_256_gmc_siv", 0x08, 0x04)) return;
 
-    conf->load(xml_document);
+  conf->load(xml_document);
 }
 
-}
+}  // namespace
 
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+  try {
+    total_memory_tracker.resetCounters();
+    total_memory_tracker.setHardLimit(1_GiB);
+    CurrentThread::get().memory_tracker.resetCounters();
+    CurrentThread::get().memory_tracker.setHardLimit(1_GiB);
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
-{
-    try
-    {
-        total_memory_tracker.resetCounters();
-        total_memory_tracker.setHardLimit(1_GiB);
-        CurrentThread::get().memory_tracker.resetCounters();
-        CurrentThread::get().memory_tracker.setHardLimit(1_GiB);
+    XMLGenerator generator(data, size);
 
-        XMLGenerator generator(data, size);
+    generator.generate();
+    if (generator.hasError()) return 0;
 
-        generator.generate();
-        if (generator.hasError())
-            return 0;
+    auto config = generator.getResult();
+    auto codec_128 = getCompressionCodecEncrypted(DB::AES_128_GCM_SIV);
+    auto codec_256 = getCompressionCodecEncrypted(DB::AES_256_GCM_SIV);
+    DB::CompressionCodecEncrypted::Configuration::instance().tryLoad(*config, "");
 
-        auto config = generator.getResult();
-        auto codec_128 = getCompressionCodecEncrypted(DB::AES_128_GCM_SIV);
-        auto codec_256 = getCompressionCodecEncrypted(DB::AES_256_GCM_SIV);
-        DB::CompressionCodecEncrypted::Configuration::instance().tryLoad(*config, "");
+    size_t data_size = size - generator.keySize();
 
-        size_t data_size = size - generator.keySize();
+    std::string input = std::string(reinterpret_cast<const char*>(data), data_size);
+    fmt::print(stderr, "Using input {} of size {}, output size is {}. \n", input, data_size, input.size() - 31);
 
-        std::string input = std::string(reinterpret_cast<const char*>(data), data_size);
-        fmt::print(stderr, "Using input {} of size {}, output size is {}. \n", input, data_size, input.size() - 31);
+    DB::Memory<> memory;
+    memory.resize(input.size() + codec_128->getAdditionalSizeAtTheEndOfBuffer());
+    codec_128->doDecompressData(input.data(), static_cast<UInt32>(input.size()), memory.data(), static_cast<UInt32>(input.size()) - 31);
 
-        DB::Memory<> memory;
-        memory.resize(input.size() + codec_128->getAdditionalSizeAtTheEndOfBuffer());
-        codec_128->doDecompressData(input.data(), static_cast<UInt32>(input.size()), memory.data(), static_cast<UInt32>(input.size()) - 31);
+    memory.resize(input.size() + codec_128->getAdditionalSizeAtTheEndOfBuffer());
+    codec_256->doDecompressData(input.data(), static_cast<UInt32>(input.size()), memory.data(), static_cast<UInt32>(input.size()) - 31);
+  } catch (...) {
+    // Ok
+  }
 
-        memory.resize(input.size() + codec_128->getAdditionalSizeAtTheEndOfBuffer());
-        codec_256->doDecompressData(input.data(), static_cast<UInt32>(input.size()), memory.data(), static_cast<UInt32>(input.size()) - 31);
-    }
-    catch (...)
-    {
-        // Ok
-    }
-
-    return 0;
+  return 0;
 }

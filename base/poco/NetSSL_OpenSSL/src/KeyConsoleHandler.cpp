@@ -11,30 +11,20 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/KeyConsoleHandler.h"
 #include <iostream>
-
 
 namespace Poco {
 namespace Net {
 
+KeyConsoleHandler::KeyConsoleHandler(bool server) : PrivateKeyPassphraseHandler(server) {}
 
-KeyConsoleHandler::KeyConsoleHandler(bool server):PrivateKeyPassphraseHandler(server)
-{
+KeyConsoleHandler::~KeyConsoleHandler() {}
+
+void KeyConsoleHandler::onPrivateKeyRequested(const void* pSender, std::string& privateKey) {
+  std::cout << "Please enter the passphrase for the private key: ";
+  std::cin >> privateKey;
 }
 
-
-KeyConsoleHandler::~KeyConsoleHandler()
-{
-}
-
-
-void KeyConsoleHandler::onPrivateKeyRequested(const void* pSender, std::string& privateKey)
-{
-	std::cout << "Please enter the passphrase for the private key: ";
-	std::cin >> privateKey;
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

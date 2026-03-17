@@ -53,44 +53,29 @@
  *    //  uint64_t as HEX
  *    // [90 7B A6 00 6A D3 DB A0] [61 F0 C4 04 5C B3 11 E7]
  *    //                            ^^^^^^^^^^^^^^^^^^^^^^^
-*/
+ */
 
+namespace DB {
 
-namespace DB
-{
+namespace UUIDHelpers {
+/// Generate random UUID.
+UUID generateV4();
 
-namespace UUIDHelpers
-{
-    /// Generate random UUID.
-    UUID generateV4();
+/// Generate UUID from hash of a string.
+UUID makeUUIDv4FromHash(const String& string);
 
-    /// Generate UUID from hash of a string.
-    UUID makeUUIDv4FromHash(const String & string);
+constexpr size_t HighBytes = (std::endian::native == std::endian::little) ? 0 : 1;
+constexpr size_t LowBytes = (std::endian::native == std::endian::little) ? 1 : 0;
 
-    constexpr size_t HighBytes = (std::endian::native == std::endian::little) ? 0 : 1;
-    constexpr size_t LowBytes = (std::endian::native == std::endian::little) ? 1 : 0;
+inline uint64_t getHighBytes(const UUID& uuid) { return uuid.toUnderType().items[HighBytes]; }
 
-    inline uint64_t getHighBytes(const UUID & uuid)
-    {
-        return uuid.toUnderType().items[HighBytes];
-    }
+inline uint64_t& getHighBytes(UUID& uuid) { return uuid.toUnderType().items[HighBytes]; }
 
-    inline uint64_t & getHighBytes(UUID & uuid)
-    {
-        return uuid.toUnderType().items[HighBytes];
-    }
+inline uint64_t getLowBytes(const UUID& uuid) { return uuid.toUnderType().items[LowBytes]; }
 
-    inline uint64_t getLowBytes(const UUID & uuid)
-    {
-        return uuid.toUnderType().items[LowBytes];
-    }
+inline uint64_t& getLowBytes(UUID& uuid) { return uuid.toUnderType().items[LowBytes]; }
 
-    inline uint64_t & getLowBytes(UUID & uuid)
-    {
-        return uuid.toUnderType().items[LowBytes];
-    }
+const UUID Nil{};
+}  // namespace UUIDHelpers
 
-    const UUID Nil{};
-}
-
-}
+}  // namespace DB

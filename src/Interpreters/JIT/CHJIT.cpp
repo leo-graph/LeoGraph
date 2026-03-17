@@ -2,49 +2,45 @@
 
 #if USE_EMBEDDED_COMPILER
 
-#include <sys/mman.h>
-#include <boost/noncopyable.hpp>
+#  include <sys/mman.h>
+#  include <boost/noncopyable.hpp>
 
-#include <llvm/Analysis/CGSCCPassManager.h>
-#include <llvm/Analysis/LoopAnalysisManager.h>
-#include <llvm/Passes/PassBuilder.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/Mangler.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/ExecutionEngine/JITSymbol.h>
-#include <llvm/ExecutionEngine/SectionMemoryManager.h>
-#include <llvm/TargetParser/SubtargetFeature.h>
-#include <llvm/MC/TargetRegistry.h>
-#include <llvm/Support/DynamicLibrary.h>
-#include <llvm/TargetParser/Host.h>
-#include <llvm/Support/TargetSelect.h>
-#include <llvm/Support/SmallVectorMemoryBuffer.h>
+#  include <llvm/Analysis/CGSCCPassManager.h>
+#  include <llvm/Analysis/LoopAnalysisManager.h>
+#  include <llvm/ExecutionEngine/JITSymbol.h>
+#  include <llvm/ExecutionEngine/SectionMemoryManager.h>
+#  include <llvm/IR/IRBuilder.h>
+#  include <llvm/IR/LegacyPassManager.h>
+#  include <llvm/IR/Mangler.h>
+#  include <llvm/IR/Type.h>
+#  include <llvm/MC/TargetRegistry.h>
+#  include <llvm/Passes/PassBuilder.h>
+#  include <llvm/Support/DynamicLibrary.h>
+#  include <llvm/Support/SmallVectorMemoryBuffer.h>
+#  include <llvm/Support/TargetSelect.h>
+#  include <llvm/TargetParser/Host.h>
+#  include <llvm/TargetParser/SubtargetFeature.h>
 
-#include <base/getPageSize.h>
-#include <Common/Exception.h>
-#include <Common/ErrnoException.h>
-#include <Common/formatReadable.h>
-#include <Core/Types.h>
+#  include <base/getPageSize.h>
+#  include <Common/ErrnoException.h>
+#  include <Common/Exception.h>
+#  include <Common/formatReadable.h>
+#  include <Core/Types.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int CANNOT_COMPILE_CODE;
-    extern const int LOGICAL_ERROR;
-    extern const int CANNOT_ALLOCATE_MEMORY;
-    extern const int CANNOT_MPROTECT;
-}
-
+namespace ErrorCodes {
+extern const int CANNOT_COMPILE_CODE;
+extern const int LOGICAL_ERROR;
+extern const int CANNOT_ALLOCATE_MEMORY;
+extern const int CANNOT_MPROTECT;
+}  // namespace ErrorCodes
 
 /// These functions will be provided to the linker of JIT code,
 /// so it can call them to work with big integers on platforms without native support.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wbit-int-extension"
-#pragma clang diagnostic ignored "-Wreserved-identifier"
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wbit-int-extension"
+#  pragma clang diagnostic ignored "-Wreserved-identifier"
 
 using BitInt128 = signed _BitInt(128);
 using BitUInt128 = unsigned _BitInt(128);
@@ -62,298 +58,256 @@ extern "C" double __floattidf(BitInt128);
 extern "C" double __floatuntidf(BitUInt128);
 /// NOLINTEND
 
-#pragma clang diagnostic pop
-
+#  pragma clang diagnostic pop
 
 /** Simple module to object file compiler.
-  * Result object cannot be used as machine code directly, it should be passed to linker.
-  */
-class JITCompiler
-{
-public:
+ * Result object cannot be used as machine code directly, it should be passed to linker.
+ */
+class JITCompiler {
+ public:
+  explicit JITCompiler(llvm::TargetMachine &target_machine_) : target_machine(target_machine_) {}
 
-    explicit JITCompiler(llvm::TargetMachine &target_machine_)
-    : target_machine(target_machine_)
-    {
+  std::unique_ptr<llvm::MemoryBuffer> compile(llvm::Module &module) {
+    auto materialize_error = module.materializeAll();
+    if (materialize_error) {
+      std::string error_message;
+      handleAllErrors(std::move(materialize_error), [&](const llvm::ErrorInfoBase &error_info) { error_message = error_info.message(); });
+
+      throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot materialize module: {}", error_message);
     }
 
-    std::unique_ptr<llvm::MemoryBuffer> compile(llvm::Module & module)
-    {
-        auto materialize_error = module.materializeAll();
-        if (materialize_error)
-        {
-            std::string error_message;
-            handleAllErrors(std::move(materialize_error),
-                [&](const llvm::ErrorInfoBase & error_info) { error_message = error_info.message(); });
+    llvm::SmallVector<char, 4096> object_buffer;
 
-            throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot materialize module: {}", error_message);
-        }
+    llvm::raw_svector_ostream object_stream(object_buffer);
+    llvm::legacy::PassManager pass_manager;
+    llvm::MCContext *machine_code_context = nullptr;
 
-        llvm::SmallVector<char, 4096> object_buffer;
+    if (target_machine.addPassesToEmitMC(pass_manager, machine_code_context, object_stream))
+      throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "MachineCode is not supported for the platform");
 
-        llvm::raw_svector_ostream object_stream(object_buffer);
-        llvm::legacy::PassManager pass_manager;
-        llvm::MCContext * machine_code_context = nullptr;
+    pass_manager.run(module);
 
-        if (target_machine.addPassesToEmitMC(pass_manager, machine_code_context, object_stream))
-            throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "MachineCode is not supported for the platform");
+    std::unique_ptr<llvm::MemoryBuffer> compiled_object_buffer = std::make_unique<llvm::SmallVectorMemoryBuffer>(
+        std::move(object_buffer), "<in memory object compiled from " + module.getModuleIdentifier() + ">");
 
-        pass_manager.run(module);
+    return compiled_object_buffer;
+  }
 
-        std::unique_ptr<llvm::MemoryBuffer> compiled_object_buffer = std::make_unique<llvm::SmallVectorMemoryBuffer>(
-            std::move(object_buffer), "<in memory object compiled from " + module.getModuleIdentifier() + ">");
+  ~JITCompiler() = default;
 
-        return compiled_object_buffer;
-    }
-
-    ~JITCompiler() = default;
-
-private:
-    llvm::TargetMachine & target_machine;
+ private:
+  llvm::TargetMachine &target_machine;
 };
 
 /** Arena that allocate all memory with system page_size.
-  * All allocated pages can be protected with protection_flags using protect method.
-  * During destruction all allocated pages protection_flags will be reset.
-  */
-class PageArena : private boost::noncopyable
-{
-public:
-    PageArena() : page_size(::getPageSize()) {}
+ * All allocated pages can be protected with protection_flags using protect method.
+ * During destruction all allocated pages protection_flags will be reset.
+ */
+class PageArena : private boost::noncopyable {
+ public:
+  PageArena() : page_size(::getPageSize()) {}
 
-    char * allocate(size_t size, size_t alignment)
-    {
-        /** First check if in some allocated page blocks there are enough free memory to make allocation.
-          * If there is no such block create it and then allocate from it.
-          */
+  char *allocate(size_t size, size_t alignment) {
+    /** First check if in some allocated page blocks there are enough free memory to make allocation.
+     * If there is no such block create it and then allocate from it.
+     */
 
-        for (size_t i = 0; i < page_blocks.size(); ++i)
-        {
-            char * result = tryAllocateFromPageBlockWithIndex(size, alignment, i);
-            if (result)
-                return result;
-        }
-
-        allocateNextPageBlock(size);
-        size_t allocated_page_index = page_blocks.size() - 1;
-        char * result = tryAllocateFromPageBlockWithIndex(size, alignment, allocated_page_index);
-        assert(result);
-
-        return result;
+    for (size_t i = 0; i < page_blocks.size(); ++i) {
+      char *result = tryAllocateFromPageBlockWithIndex(size, alignment, i);
+      if (result) return result;
     }
 
-    size_t getAllocatedSize() const { return allocated_size; }
+    allocateNextPageBlock(size);
+    size_t allocated_page_index = page_blocks.size() - 1;
+    char *result = tryAllocateFromPageBlockWithIndex(size, alignment, allocated_page_index);
+    assert(result);
 
-    size_t getPageSize() const { return page_size; }
+    return result;
+  }
 
-    ~PageArena()
-    {
-        protect(PROT_READ | PROT_WRITE);
+  size_t getAllocatedSize() const { return allocated_size; }
 
-        for (auto & page_block : page_blocks)
-            free(page_block.base());
+  size_t getPageSize() const { return page_size; }
+
+  ~PageArena() {
+    protect(PROT_READ | PROT_WRITE);
+
+    for (auto &page_block : page_blocks) free(page_block.base());
+  }
+
+  void protect(int protection_flags) {
+    /** The code is partially based on the LLVM codebase
+     * The LLVM Project is under the Apache License v2.0 with LLVM Exceptions.
+     */
+
+#  if defined(__NetBSD__) && defined(PROT_MPROTECT)
+    protection_flags |= PROT_MPROTECT(PROT_READ | PROT_WRITE | PROT_EXEC);
+#  endif
+
+    bool invalidate_cache = (protection_flags & PROT_EXEC);
+
+    for (const auto &block : page_blocks) {
+#  if defined(__arm__) || defined(__aarch64__)
+      /// Certain ARM implementations treat icache clear instruction as a memory read,
+      /// and CPU segfaults on trying to clear cache on !PROT_READ page.
+      /// Therefore we need to temporarily add PROT_READ for the sake of flushing the instruction caches.
+      if (invalidate_cache && !(protection_flags & PROT_READ)) {
+        int res = mprotect(block.base(), block.blockSize(), protection_flags | PROT_READ);
+        if (res != 0) throw ErrnoException(ErrorCodes::CANNOT_MPROTECT, "Cannot mprotect memory region");
+
+        llvm::sys::Memory::InvalidateInstructionCache(block.base(), block.blockSize());
+        invalidate_cache = false;
+      }
+#  endif
+      int res = mprotect(block.base(), block.blockSize(), protection_flags);
+      if (res != 0) throw ErrnoException(ErrorCodes::CANNOT_MPROTECT, "Cannot mprotect memory region");
+
+      if (invalidate_cache) llvm::sys::Memory::InvalidateInstructionCache(block.base(), block.blockSize());
+    }
+  }
+
+ private:
+  struct PageBlock {
+   public:
+    PageBlock(void *pages_base_, size_t pages_size_, size_t page_size_)
+        : pages_base(pages_base_), pages_size(pages_size_), page_size(page_size_) {}
+
+    void *base() const { return pages_base; }
+    size_t pagesSize() const { return pages_size; }
+    size_t pageSize() const { return page_size; }
+    size_t blockSize() const { return pages_size * page_size; }
+
+   private:
+    void *pages_base;
+    size_t pages_size;
+    size_t page_size;
+  };
+
+  std::vector<PageBlock> page_blocks;
+
+  std::vector<size_t> page_blocks_allocated_size;
+
+  size_t page_size = 0;
+
+  size_t allocated_size = 0;
+
+  char *tryAllocateFromPageBlockWithIndex(size_t size, size_t alignment, size_t page_block_index) {
+    assert(page_block_index < page_blocks.size());
+    auto &pages_block = page_blocks[page_block_index];
+
+    size_t block_size = pages_block.blockSize();
+    size_t &block_allocated_size = page_blocks_allocated_size[page_block_index];
+    size_t block_free_size = block_size - block_allocated_size;
+
+    uint8_t *pages_start = static_cast<uint8_t *>(pages_block.base());
+    void *pages_offset = pages_start + block_allocated_size;
+
+    auto *result = std::align(alignment, size, pages_offset, block_free_size);
+
+    if (result) {
+      block_allocated_size = reinterpret_cast<uint8_t *>(result) - pages_start;
+      block_allocated_size += size;
+
+      return static_cast<char *>(result);
     }
 
-    void protect(int protection_flags)
-    {
-        /** The code is partially based on the LLVM codebase
-              * The LLVM Project is under the Apache License v2.0 with LLVM Exceptions.
-              */
+    return nullptr;
+  }
 
-#    if defined(__NetBSD__) && defined(PROT_MPROTECT)
-        protection_flags |= PROT_MPROTECT(PROT_READ | PROT_WRITE | PROT_EXEC);
-#    endif
+  void allocateNextPageBlock(size_t size) {
+    size_t pages_to_allocate_size = ((size / page_size) + 1) * 2;
+    size_t allocate_size = page_size * pages_to_allocate_size;
 
-        bool invalidate_cache = (protection_flags & PROT_EXEC);
+    void *buf = nullptr;
+    int res = posix_memalign(&buf, page_size, allocate_size);
 
-        for (const auto & block : page_blocks)
-        {
-#    if defined(__arm__) || defined(__aarch64__)
-            /// Certain ARM implementations treat icache clear instruction as a memory read,
-            /// and CPU segfaults on trying to clear cache on !PROT_READ page.
-            /// Therefore we need to temporarily add PROT_READ for the sake of flushing the instruction caches.
-            if (invalidate_cache && !(protection_flags & PROT_READ))
-            {
-                int res = mprotect(block.base(), block.blockSize(), protection_flags | PROT_READ);
-                if (res != 0)
-                    throw ErrnoException(ErrorCodes::CANNOT_MPROTECT, "Cannot mprotect memory region");
+    if (res != 0)
+      ErrnoException::throwWithErrno(ErrorCodes::CANNOT_ALLOCATE_MEMORY, res,
+                                     "Cannot allocate memory (posix_memalign) alignment {} size {}", page_size,
+                                     ReadableSize(allocate_size));
 
-                llvm::sys::Memory::InvalidateInstructionCache(block.base(), block.blockSize());
-                invalidate_cache = false;
-            }
-#    endif
-            int res = mprotect(block.base(), block.blockSize(), protection_flags);
-            if (res != 0)
-                throw ErrnoException(ErrorCodes::CANNOT_MPROTECT, "Cannot mprotect memory region");
+    page_blocks.emplace_back(buf, pages_to_allocate_size, page_size);
+    page_blocks_allocated_size.emplace_back(0);
 
-            if (invalidate_cache)
-                llvm::sys::Memory::InvalidateInstructionCache(block.base(), block.blockSize());
-        }
-    }
-
-private:
-    struct PageBlock
-    {
-    public:
-        PageBlock(void * pages_base_, size_t pages_size_, size_t page_size_)
-            : pages_base(pages_base_), pages_size(pages_size_), page_size(page_size_)
-        {
-        }
-
-        void * base() const { return pages_base; }
-        size_t pagesSize() const { return pages_size; }
-        size_t pageSize() const { return page_size; }
-        size_t blockSize() const { return pages_size * page_size; }
-
-    private:
-        void * pages_base;
-        size_t pages_size;
-        size_t page_size;
-    };
-
-    std::vector<PageBlock> page_blocks;
-
-    std::vector<size_t> page_blocks_allocated_size;
-
-    size_t page_size = 0;
-
-    size_t allocated_size = 0;
-
-    char * tryAllocateFromPageBlockWithIndex(size_t size, size_t alignment, size_t page_block_index)
-    {
-        assert(page_block_index < page_blocks.size());
-        auto & pages_block = page_blocks[page_block_index];
-
-        size_t block_size = pages_block.blockSize();
-        size_t & block_allocated_size = page_blocks_allocated_size[page_block_index];
-        size_t block_free_size = block_size - block_allocated_size;
-
-        uint8_t * pages_start = static_cast<uint8_t *>(pages_block.base());
-        void * pages_offset = pages_start + block_allocated_size;
-
-        auto * result = std::align(alignment, size, pages_offset, block_free_size);
-
-        if (result)
-        {
-            block_allocated_size = reinterpret_cast<uint8_t *>(result) - pages_start;
-            block_allocated_size += size;
-
-            return static_cast<char *>(result);
-        }
-
-        return nullptr;
-    }
-
-    void allocateNextPageBlock(size_t size)
-    {
-        size_t pages_to_allocate_size = ((size / page_size) + 1) * 2;
-        size_t allocate_size = page_size * pages_to_allocate_size;
-
-        void * buf = nullptr;
-        int res = posix_memalign(&buf, page_size, allocate_size);
-
-        if (res != 0)
-            ErrnoException::throwWithErrno(
-                ErrorCodes::CANNOT_ALLOCATE_MEMORY,
-                res,
-                "Cannot allocate memory (posix_memalign) alignment {} size {}",
-                page_size,
-                ReadableSize(allocate_size));
-
-        page_blocks.emplace_back(buf, pages_to_allocate_size, page_size);
-        page_blocks_allocated_size.emplace_back(0);
-
-        allocated_size += allocate_size;
-    }
+    allocated_size += allocate_size;
+  }
 };
 
-#ifdef PRINT_ASSEMBLY
+#  ifdef PRINT_ASSEMBLY
 
-class AssemblyPrinter
-{
-public:
-    explicit AssemblyPrinter(llvm::TargetMachine &target_machine_)
-        : target_machine(target_machine_)
-    {
-    }
+class AssemblyPrinter {
+ public:
+  explicit AssemblyPrinter(llvm::TargetMachine &target_machine_) : target_machine(target_machine_) {}
 
-    void print(llvm::Module & module)
-    {
-        llvm::legacy::PassManager pass_manager;
-        target_machine.Options.MCOptions.AsmVerbose = true;
-        if (target_machine.addPassesToEmitFile(pass_manager, llvm::errs(), nullptr, llvm::CodeGenFileType::AssemblyFile))
-            throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "MachineCode cannot be printed");
+  void print(llvm::Module &module) {
+    llvm::legacy::PassManager pass_manager;
+    target_machine.Options.MCOptions.AsmVerbose = true;
+    if (target_machine.addPassesToEmitFile(pass_manager, llvm::errs(), nullptr, llvm::CodeGenFileType::AssemblyFile))
+      throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "MachineCode cannot be printed");
 
-        pass_manager.run(module);
-    }
-private:
-    llvm::TargetMachine & target_machine;
+    pass_manager.run(module);
+  }
+
+ private:
+  llvm::TargetMachine &target_machine;
 };
 
-#endif
+#  endif
 
 /** MemoryManager for module.
-  * Keep total allocated size during RuntimeDyld linker execution.
-  */
-class JITModuleMemoryManager : public llvm::RTDyldMemoryManager
-{
-public:
-    uint8_t * allocateCodeSection(uintptr_t size, unsigned alignment, unsigned, llvm::StringRef) override
-    {
-        return reinterpret_cast<uint8_t *>(ex_page_arena.allocate(size, alignment));
-    }
+ * Keep total allocated size during RuntimeDyld linker execution.
+ */
+class JITModuleMemoryManager : public llvm::RTDyldMemoryManager {
+ public:
+  uint8_t *allocateCodeSection(uintptr_t size, unsigned alignment, unsigned, llvm::StringRef) override {
+    return reinterpret_cast<uint8_t *>(ex_page_arena.allocate(size, alignment));
+  }
 
-    uint8_t * allocateDataSection(uintptr_t size, unsigned alignment, unsigned, llvm::StringRef, bool is_read_only) override
-    {
-        if (is_read_only)
-            return reinterpret_cast<uint8_t *>(ro_page_arena.allocate(size, alignment));
-        return reinterpret_cast<uint8_t *>(rw_page_arena.allocate(size, alignment));
-    }
+  uint8_t *allocateDataSection(uintptr_t size, unsigned alignment, unsigned, llvm::StringRef, bool is_read_only) override {
+    if (is_read_only) return reinterpret_cast<uint8_t *>(ro_page_arena.allocate(size, alignment));
+    return reinterpret_cast<uint8_t *>(rw_page_arena.allocate(size, alignment));
+  }
 
-    bool finalizeMemory(std::string *) override
-    {
-        ro_page_arena.protect(PROT_READ);
-        ex_page_arena.protect(PROT_READ | PROT_EXEC);
-        return true;
-    }
+  bool finalizeMemory(std::string *) override {
+    ro_page_arena.protect(PROT_READ);
+    ex_page_arena.protect(PROT_READ | PROT_EXEC);
+    return true;
+  }
 
-    size_t allocatedSize() const
-    {
-        size_t data_size = rw_page_arena.getAllocatedSize() + ro_page_arena.getAllocatedSize();
-        size_t code_size = ex_page_arena.getAllocatedSize();
+  size_t allocatedSize() const {
+    size_t data_size = rw_page_arena.getAllocatedSize() + ro_page_arena.getAllocatedSize();
+    size_t code_size = ex_page_arena.getAllocatedSize();
 
-        return data_size + code_size;
-    }
+    return data_size + code_size;
+  }
 
-private:
-    PageArena rw_page_arena;
-    PageArena ro_page_arena;
-    PageArena ex_page_arena;
+ private:
+  PageArena rw_page_arena;
+  PageArena ro_page_arena;
+  PageArena ex_page_arena;
 };
 
-class JITSymbolResolver : public llvm::LegacyJITSymbolResolver
-{
-public:
-    llvm::JITSymbol findSymbolInLogicalDylib(const std::string &) override { return nullptr; }
+class JITSymbolResolver : public llvm::LegacyJITSymbolResolver {
+ public:
+  llvm::JITSymbol findSymbolInLogicalDylib(const std::string &) override { return nullptr; }
 
-    llvm::JITSymbol findSymbol(const std::string & Name) override
-    {
-        auto address_it = symbol_name_to_symbol_address.find(Name);
-        if (address_it == symbol_name_to_symbol_address.end())
-            throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Could not find symbol {}", Name);
+  llvm::JITSymbol findSymbol(const std::string &Name) override {
+    auto address_it = symbol_name_to_symbol_address.find(Name);
+    if (address_it == symbol_name_to_symbol_address.end())
+      throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Could not find symbol {}", Name);
 
-        uint64_t symbol_address = reinterpret_cast<uint64_t>(address_it->second);
-        auto jit_symbol = llvm::JITSymbol(symbol_address, llvm::JITSymbolFlags::None);
+    uint64_t symbol_address = reinterpret_cast<uint64_t>(address_it->second);
+    auto jit_symbol = llvm::JITSymbol(symbol_address, llvm::JITSymbolFlags::None);
 
-        return jit_symbol;
-    }
+    return jit_symbol;
+  }
 
-    void registerSymbol(const std::string & symbol_name, void * symbol) { symbol_name_to_symbol_address[symbol_name] = symbol; }
+  void registerSymbol(const std::string &symbol_name, void *symbol) { symbol_name_to_symbol_address[symbol_name] = symbol; }
 
-    ~JITSymbolResolver() override = default;
+  ~JITSymbolResolver() override = default;
 
-private:
-    std::unordered_map<std::string, void *> symbol_name_to_symbol_address;
+ private:
+  std::unordered_map<std::string, void *> symbol_name_to_symbol_address;
 };
 
 /// GDB JITEventListener. Can be used if result machine code need to be debugged.
@@ -382,202 +336,180 @@ private:
 // };
 
 CHJIT::CHJIT()
-    : machine(getTargetMachine())
-, layout(machine->createDataLayout())
-    , compiler(std::make_unique<JITCompiler>(*machine))
-    , symbol_resolver(std::make_unique<JITSymbolResolver>())
-{
-    /// Define common symbols that can be generated during compilation
-    /// Necessary for valid linker symbol resolution
-    symbol_resolver->registerSymbol("memset", reinterpret_cast<void *>(&memset));
-    symbol_resolver->registerSymbol("memcpy", reinterpret_cast<void *>(&memcpy));
-    symbol_resolver->registerSymbol("memcmp", reinterpret_cast<void *>(&memcmp));
+    : machine(getTargetMachine()),
+      layout(machine->createDataLayout()),
+      compiler(std::make_unique<JITCompiler>(*machine)),
+      symbol_resolver(std::make_unique<JITSymbolResolver>()) {
+  /// Define common symbols that can be generated during compilation
+  /// Necessary for valid linker symbol resolution
+  symbol_resolver->registerSymbol("memset", reinterpret_cast<void *>(&memset));
+  symbol_resolver->registerSymbol("memcpy", reinterpret_cast<void *>(&memcpy));
+  symbol_resolver->registerSymbol("memcmp", reinterpret_cast<void *>(&memcmp));
 
-    symbol_resolver->registerSymbol("fmod", reinterpret_cast<void *>(static_cast<double (*)(double, double)>(&fmod)));
-    symbol_resolver->registerSymbol("__divti3", reinterpret_cast<void *>(&__divti3));
-    symbol_resolver->registerSymbol("__modti3", reinterpret_cast<void *>(&__modti3));
+  symbol_resolver->registerSymbol("fmod", reinterpret_cast<void *>(static_cast<double (*)(double, double)>(&fmod)));
+  symbol_resolver->registerSymbol("__divti3", reinterpret_cast<void *>(&__divti3));
+  symbol_resolver->registerSymbol("__modti3", reinterpret_cast<void *>(&__modti3));
 
-    symbol_resolver->registerSymbol("__fixsfti", reinterpret_cast<void *>(&__fixsfti));
-    symbol_resolver->registerSymbol("__fixdfti", reinterpret_cast<void *>(&__fixdfti));
+  symbol_resolver->registerSymbol("__fixsfti", reinterpret_cast<void *>(&__fixsfti));
+  symbol_resolver->registerSymbol("__fixdfti", reinterpret_cast<void *>(&__fixdfti));
 
-    symbol_resolver->registerSymbol("__floattisf", reinterpret_cast<void *>(&__floattisf));
-    symbol_resolver->registerSymbol("__floatuntisf", reinterpret_cast<void *>(&__floatuntisf));
-    symbol_resolver->registerSymbol("__floattidf", reinterpret_cast<void *>(&__floattidf));
-    symbol_resolver->registerSymbol("__floatuntidf", reinterpret_cast<void *>(&__floatuntidf));
+  symbol_resolver->registerSymbol("__floattisf", reinterpret_cast<void *>(&__floattisf));
+  symbol_resolver->registerSymbol("__floatuntisf", reinterpret_cast<void *>(&__floatuntisf));
+  symbol_resolver->registerSymbol("__floattidf", reinterpret_cast<void *>(&__floattidf));
+  symbol_resolver->registerSymbol("__floatuntidf", reinterpret_cast<void *>(&__floatuntidf));
 }
 
 CHJIT::~CHJIT() = default;
 
-CHJIT::CompiledModule CHJIT::compileModule(std::function<void (llvm::Module &)> compile_function)
-{
-    std::lock_guard lock(jit_lock);
+CHJIT::CompiledModule CHJIT::compileModule(std::function<void(llvm::Module &)> compile_function) {
+  std::lock_guard lock(jit_lock);
 
-    auto module = createModuleForCompilation();
-    compile_function(*module);
-    auto module_info = compileModule(std::move(module));
+  auto module = createModuleForCompilation();
+  compile_function(*module);
+  auto module_info = compileModule(std::move(module));
 
-    ++current_module_key;
-    return module_info;
+  ++current_module_key;
+  return module_info;
 }
 
-std::unique_ptr<llvm::Module> CHJIT::createModuleForCompilation()
-{
-    std::unique_ptr<llvm::Module> module = std::make_unique<llvm::Module>("jit" + std::to_string(current_module_key), context);
-    module->setDataLayout(layout);
-    module->setTargetTriple(machine->getTargetTriple());
+std::unique_ptr<llvm::Module> CHJIT::createModuleForCompilation() {
+  std::unique_ptr<llvm::Module> module = std::make_unique<llvm::Module>("jit" + std::to_string(current_module_key), context);
+  module->setDataLayout(layout);
+  module->setTargetTriple(machine->getTargetTriple());
 
-    return module;
+  return module;
 }
 
-CHJIT::CompiledModule CHJIT::compileModule(std::unique_ptr<llvm::Module> module)
-{
-    runOptimizationPassesOnModule(*module);
+CHJIT::CompiledModule CHJIT::compileModule(std::unique_ptr<llvm::Module> module) {
+  runOptimizationPassesOnModule(*module);
 
-#ifdef PRINT_ASSEMBLY
-    AssemblyPrinter assembly_printer(*machine);
-    assembly_printer.print(*module);
-#endif
+#  ifdef PRINT_ASSEMBLY
+  AssemblyPrinter assembly_printer(*machine);
+  assembly_printer.print(*module);
+#  endif
 
-    auto buffer = compiler->compile(*module);
+  auto buffer = compiler->compile(*module);
 
-    llvm::Expected<std::unique_ptr<llvm::object::ObjectFile>> object = llvm::object::ObjectFile::createObjectFile(*buffer);
+  llvm::Expected<std::unique_ptr<llvm::object::ObjectFile>> object = llvm::object::ObjectFile::createObjectFile(*buffer);
 
-    if (!object)
-    {
-        std::string error_message;
-        handleAllErrors(object.takeError(), [&](const llvm::ErrorInfoBase & error_info) { error_message = error_info.message(); });
+  if (!object) {
+    std::string error_message;
+    handleAllErrors(object.takeError(), [&](const llvm::ErrorInfoBase &error_info) { error_message = error_info.message(); });
 
-        throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot create object file from compiled buffer: {}", error_message);
-    }
+    throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot create object file from compiled buffer: {}", error_message);
+  }
 
-    std::unique_ptr<JITModuleMemoryManager> module_memory_manager = std::make_unique<JITModuleMemoryManager>();
-    llvm::RuntimeDyld dynamic_linker = {*module_memory_manager, *symbol_resolver};
+  std::unique_ptr<JITModuleMemoryManager> module_memory_manager = std::make_unique<JITModuleMemoryManager>();
+  llvm::RuntimeDyld dynamic_linker = {*module_memory_manager, *symbol_resolver};
 
-    std::unique_ptr<llvm::RuntimeDyld::LoadedObjectInfo> linked_object = dynamic_linker.loadObject(*object.get());
+  std::unique_ptr<llvm::RuntimeDyld::LoadedObjectInfo> linked_object = dynamic_linker.loadObject(*object.get());
 
-    dynamic_linker.resolveRelocations();
-    module_memory_manager->finalizeMemory(nullptr);
+  dynamic_linker.resolveRelocations();
+  module_memory_manager->finalizeMemory(nullptr);
 
-    CompiledModule compiled_module;
+  CompiledModule compiled_module;
 
-    for (const auto & function : *module)
-    {
-        if (function.isDeclaration())
-            continue;
+  for (const auto &function : *module) {
+    if (function.isDeclaration()) continue;
 
-        auto function_name = std::string(function.getName());
+    auto function_name = std::string(function.getName());
 
-        auto mangled_name = getMangledName(function_name);
-        auto jit_symbol = dynamic_linker.getSymbol(mangled_name);
+    auto mangled_name = getMangledName(function_name);
+    auto jit_symbol = dynamic_linker.getSymbol(mangled_name);
 
-        if (!jit_symbol)
-            throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "DynamicLinker could not found symbol {} after compilation", function_name);
+    if (!jit_symbol)
+      throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "DynamicLinker could not found symbol {} after compilation", function_name);
 
-        auto * jit_symbol_address = reinterpret_cast<void *>(jit_symbol.getAddress());
-        compiled_module.function_name_to_symbol.emplace(std::move(function_name), jit_symbol_address);
-    }
+    auto *jit_symbol_address = reinterpret_cast<void *>(jit_symbol.getAddress());
+    compiled_module.function_name_to_symbol.emplace(std::move(function_name), jit_symbol_address);
+  }
 
-    compiled_module.size = module_memory_manager->allocatedSize();
-    compiled_module.identifier = current_module_key;
+  compiled_module.size = module_memory_manager->allocatedSize();
+  compiled_module.identifier = current_module_key;
 
-    module_identifier_to_memory_manager[current_module_key] = std::move(module_memory_manager);
+  module_identifier_to_memory_manager[current_module_key] = std::move(module_memory_manager);
 
-    compiled_code_size.fetch_add(compiled_module.size, std::memory_order_relaxed);
+  compiled_code_size.fetch_add(compiled_module.size, std::memory_order_relaxed);
 
-    return compiled_module;
+  return compiled_module;
 }
 
-void CHJIT::deleteCompiledModule(const CHJIT::CompiledModule & module)
-{
-    std::lock_guard lock(jit_lock);
+void CHJIT::deleteCompiledModule(const CHJIT::CompiledModule &module) {
+  std::lock_guard lock(jit_lock);
 
-    auto module_it = module_identifier_to_memory_manager.find(module.identifier);
-    if (module_it == module_identifier_to_memory_manager.end())
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "There is no compiled module with identifier {}", module.identifier);
+  auto module_it = module_identifier_to_memory_manager.find(module.identifier);
+  if (module_it == module_identifier_to_memory_manager.end())
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "There is no compiled module with identifier {}", module.identifier);
 
-    module_identifier_to_memory_manager.erase(module_it);
-    compiled_code_size.fetch_sub(module.size, std::memory_order_relaxed);
+  module_identifier_to_memory_manager.erase(module_it);
+  compiled_code_size.fetch_sub(module.size, std::memory_order_relaxed);
 }
 
-void CHJIT::registerExternalSymbol(const std::string & symbol_name, void * address)
-{
-    std::lock_guard lock(jit_lock);
-    symbol_resolver->registerSymbol(symbol_name, address);
+void CHJIT::registerExternalSymbol(const std::string &symbol_name, void *address) {
+  std::lock_guard lock(jit_lock);
+  symbol_resolver->registerSymbol(symbol_name, address);
 }
 
-std::string CHJIT::getMangledName(const std::string & name_to_mangle) const
-{
-    std::string mangled_name;
-    llvm::raw_string_ostream mangled_name_stream(mangled_name);
-    llvm::Mangler::getNameWithPrefix(mangled_name_stream, name_to_mangle, layout);
-    mangled_name_stream.flush();
+std::string CHJIT::getMangledName(const std::string &name_to_mangle) const {
+  std::string mangled_name;
+  llvm::raw_string_ostream mangled_name_stream(mangled_name);
+  llvm::Mangler::getNameWithPrefix(mangled_name_stream, name_to_mangle, layout);
+  mangled_name_stream.flush();
 
-    return mangled_name;
+  return mangled_name;
 }
 
-void CHJIT::runOptimizationPassesOnModule(llvm::Module & module) const
-{
-    llvm::LoopAnalysisManager lam;
-    llvm::FunctionAnalysisManager fam;
-    llvm::CGSCCAnalysisManager cgam;
-    llvm::ModuleAnalysisManager mam;
+void CHJIT::runOptimizationPassesOnModule(llvm::Module &module) const {
+  llvm::LoopAnalysisManager lam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::CGSCCAnalysisManager cgam;
+  llvm::ModuleAnalysisManager mam;
 
-    llvm::PipelineTuningOptions pto;
-    pto.SLPVectorization = true;
+  llvm::PipelineTuningOptions pto;
+  pto.SLPVectorization = true;
 
-    /// Pass the actual TargetMachine so that all optimization passes
-    /// (including target-specific ones) have proper target information.
-    llvm::PassBuilder pb(machine.get(), pto);
+  /// Pass the actual TargetMachine so that all optimization passes
+  /// (including target-specific ones) have proper target information.
+  llvm::PassBuilder pb(machine.get(), pto);
 
-    pb.registerModuleAnalyses(mam);
-    pb.registerCGSCCAnalyses(cgam);
-    pb.registerFunctionAnalyses(fam);
-    pb.registerLoopAnalyses(lam);
-    pb.crossRegisterProxies(lam, fam, cgam, mam);
+  pb.registerModuleAnalyses(mam);
+  pb.registerCGSCCAnalyses(cgam);
+  pb.registerFunctionAnalyses(fam);
+  pb.registerLoopAnalyses(lam);
+  pb.crossRegisterProxies(lam, fam, cgam, mam);
 
-    llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
-    mpm.run(module, mam);
+  llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
+  mpm.run(module, mam);
 }
 
-std::unique_ptr<llvm::TargetMachine> CHJIT::getTargetMachine()
-{
-    static std::once_flag llvm_target_initialized;
-    std::call_once(llvm_target_initialized, []()
-    {
-        llvm::InitializeNativeTarget();
-        llvm::InitializeNativeTargetAsmPrinter();
-        llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
-    });
+std::unique_ptr<llvm::TargetMachine> CHJIT::getTargetMachine() {
+  static std::once_flag llvm_target_initialized;
+  std::call_once(llvm_target_initialized, []() {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
+  });
 
-    std::string error;
-    auto cpu = llvm::sys::getHostCPUName();
-    auto triple = llvm::sys::getProcessTriple();
-    const auto * target = llvm::TargetRegistry::lookupTarget(triple, error);
-    if (!target)
-        throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot find target triple {} error: {}", triple, error);
+  std::string error;
+  auto cpu = llvm::sys::getHostCPUName();
+  auto triple = llvm::sys::getProcessTriple();
+  const auto *target = llvm::TargetRegistry::lookupTarget(triple, error);
+  if (!target) throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot find target triple {} error: {}", triple, error);
 
-    llvm::SubtargetFeatures features;
-    for (const auto & f : llvm::sys::getHostCPUFeatures())
-        features.AddFeature(f.first(), f.second);
+  llvm::SubtargetFeatures features;
+  for (const auto &f : llvm::sys::getHostCPUFeatures()) features.AddFeature(f.first(), f.second);
 
-    llvm::TargetOptions options;
+  llvm::TargetOptions options;
 
-    bool jit = true;
-    auto * target_machine = target->createTargetMachine(triple,
-        cpu,
-        features.getString(),
-        options,
-        std::nullopt,
-        std::nullopt,
-        llvm::CodeGenOptLevel::Aggressive,
-        jit);
+  bool jit = true;
+  auto *target_machine = target->createTargetMachine(triple, cpu, features.getString(), options, std::nullopt, std::nullopt,
+                                                     llvm::CodeGenOptLevel::Aggressive, jit);
 
-    if (!target_machine)
-        throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot create target machine");
+  if (!target_machine) throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot create target machine");
 
-    return std::unique_ptr<llvm::TargetMachine>(target_machine);
+  return std::unique_ptr<llvm::TargetMachine>(target_machine);
 }
 
-}
+}  // namespace DB
 
 #endif

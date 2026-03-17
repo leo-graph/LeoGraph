@@ -3,49 +3,43 @@
 #include "config.h"
 
 #if USE_SQLITE
-#include <Core/ExternalResultDescription.h>
-#include <DataTypes/IDataType.h>
-#include <Processors/ISource.h>
+#  include <Core/ExternalResultDescription.h>
+#  include <DataTypes/IDataType.h>
+#  include <Processors/ISource.h>
 
-#include <sqlite3.h>
+#  include <sqlite3.h>
 
+namespace DB {
 
-namespace DB
-{
+class SQLiteSource : public ISource {
+  using SQLitePtr = std::shared_ptr<sqlite3>;
 
-class SQLiteSource : public ISource
-{
+ public:
+  SQLiteSource(SQLitePtr sqlite_db_, const String& query_str_, const Block& sample_block, UInt64 max_block_size_);
 
-using SQLitePtr = std::shared_ptr<sqlite3>;
+  String getName() const override { return "SQLite"; }
 
-public:
-    SQLiteSource(SQLitePtr sqlite_db_, const String & query_str_, const Block & sample_block, UInt64 max_block_size_);
+ private:
+  using ValueType = ExternalResultDescription::ValueType;
 
-    String getName() const override { return "SQLite"; }
+  struct StatementDeleter {
+    void operator()(sqlite3_stmt* stmt) { sqlite3_finalize(stmt); }
+  };
 
-private:
+  Chunk generate() override;
 
-    using ValueType = ExternalResultDescription::ValueType;
+  void onCancel() noexcept override;
 
-    struct StatementDeleter
-    {
-        void operator()(sqlite3_stmt * stmt) { sqlite3_finalize(stmt); }
-    };
+  void insertValue(IColumn& column, ExternalResultDescription::ValueType type, int idx, const IDataType& data_type);
 
-    Chunk generate() override;
+  String query_str;
+  UInt64 max_block_size;
 
-    void onCancel() noexcept override;
-
-    void insertValue(IColumn & column, ExternalResultDescription::ValueType type, int idx, const IDataType & data_type);
-
-    String query_str;
-    UInt64 max_block_size;
-
-    ExternalResultDescription description;
-    SQLitePtr sqlite_db;
-    std::unique_ptr<sqlite3_stmt, StatementDeleter> compiled_statement;
+  ExternalResultDescription description;
+  SQLitePtr sqlite_db;
+  std::unique_ptr<sqlite3_stmt, StatementDeleter> compiled_statement;
 };
 
-}
+}  // namespace DB
 
 #endif

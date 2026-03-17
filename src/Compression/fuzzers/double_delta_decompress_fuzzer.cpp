@@ -6,68 +6,60 @@
 #include <Common/MemoryTracker.h>
 #include <Compression/CompressedReadBuffer.h>
 #include <Compression/ICompressionCodec.h>
+#include <Interpreters/Context.h>
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/ReadBufferFromMemory.h>
-#include <Interpreters/Context.h>
 
-namespace DB
-{
-    CompressionCodecPtr getCompressionCodecDoubleDelta(UInt8 data_bytes_size);
+namespace DB {
+CompressionCodecPtr getCompressionCodecDoubleDelta(UInt8 data_bytes_size);
 }
 
-struct AuxiliaryRandomData
-{
-    UInt8 data_bytes_size;
-    size_t decompressed_size;
+struct AuxiliaryRandomData {
+  UInt8 data_bytes_size;
+  size_t decompressed_size;
 };
 
 using namespace DB;
 ContextMutablePtr context;
-extern "C" int LLVMFuzzerInitialize(int *, char ***)
-{
-    if (context)
-        return true;
+extern "C" int LLVMFuzzerInitialize(int *, char ***) {
+  if (context) return true;
 
-    static SharedContextHolder shared_context = Context::createShared();
-    context = Context::createGlobal(shared_context.get());
-    context->makeGlobalContext();
+  static SharedContextHolder shared_context = Context::createShared();
+  context = Context::createGlobal(shared_context.get());
+  context->makeGlobalContext();
 
-    MainThreadStatus::getInstance();
+  MainThreadStatus::getInstance();
 
-    return 0;
+  return 0;
 }
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
-{
-    try
-    {
-        total_memory_tracker.resetCounters();
-        total_memory_tracker.setHardLimit(1_GiB);
-        CurrentThread::get().memory_tracker.resetCounters();
-        CurrentThread::get().memory_tracker.setHardLimit(1_GiB);
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+  try {
+    total_memory_tracker.resetCounters();
+    total_memory_tracker.setHardLimit(1_GiB);
+    CurrentThread::get().memory_tracker.resetCounters();
+    CurrentThread::get().memory_tracker.setHardLimit(1_GiB);
 
-        if (size < sizeof(AuxiliaryRandomData))
-            return 0;
+    if (size < sizeof(AuxiliaryRandomData)) return 0;
 
-        const auto * p = reinterpret_cast<const AuxiliaryRandomData *>(data);
-        auto codec = DB::getCompressionCodecDoubleDelta(p->data_bytes_size);
+    const auto *p = reinterpret_cast<const AuxiliaryRandomData *>(data);
+    auto codec = DB::getCompressionCodecDoubleDelta(p->data_bytes_size);
 
-        size_t output_buffer_size = p->decompressed_size % 65536;
-        size -= sizeof(AuxiliaryRandomData);
-        data += sizeof(AuxiliaryRandomData) / sizeof(uint8_t);
+    size_t output_buffer_size = p->decompressed_size % 65536;
+    size -= sizeof(AuxiliaryRandomData);
+    data += sizeof(AuxiliaryRandomData) / sizeof(uint8_t);
 
-        // std::string input = std::string(reinterpret_cast<const char*>(data), size);
-        // fmt::print(stderr, "Using input {} of size {}, output size is {}. \n", input, size, output_buffer_size);
+    // std::string input = std::string(reinterpret_cast<const char*>(data), size);
+    // fmt::print(stderr, "Using input {} of size {}, output size is {}. \n", input, size, output_buffer_size);
 
-        DB::Memory<> memory;
-        memory.resize(output_buffer_size + codec->getAdditionalSizeAtTheEndOfBuffer());
+    DB::Memory<> memory;
+    memory.resize(output_buffer_size + codec->getAdditionalSizeAtTheEndOfBuffer());
 
-        codec->doDecompressData(reinterpret_cast<const char *>(data), static_cast<UInt32>(size), memory.data(), static_cast<UInt32>(output_buffer_size));
-    }
-    catch (...)
-    {
-        // Ok
-    }
+    codec->doDecompressData(reinterpret_cast<const char *>(data), static_cast<UInt32>(size), memory.data(),
+                            static_cast<UInt32>(output_buffer_size));
+  } catch (...) {
+    // Ok
+  }
 
-    return 0;
+  return 0;
 }

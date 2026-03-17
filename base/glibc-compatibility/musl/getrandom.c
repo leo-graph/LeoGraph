@@ -4,20 +4,19 @@
  */
 #include <features.h>
 #if defined(__GLIBC__) && __GLIBC__ >= 2
-#   define GLIBC_MINOR __GLIBC_MINOR__
-#elif defined (__GNU_LIBRARY__) && __GNU_LIBRARY__ >= 2
-#   define GLIBC_MINOR __GNU_LIBRARY_MINOR__
+#  define GLIBC_MINOR __GLIBC_MINOR__
+#elif defined(__GNU_LIBRARY__) && __GNU_LIBRARY__ >= 2
+#  define GLIBC_MINOR __GNU_LIBRARY_MINOR__
 #endif
 
 #if defined(GLIBC_MINOR) && GLIBC_MINOR >= 25
 
-#include <unistd.h>
-#include <syscall.h>
-#include "syscall.h"
+#  include <syscall.h>
+#  include <unistd.h>
+#  include "syscall.h"
 
-ssize_t getrandom(void *buf, size_t buflen, unsigned flags)
-{
-    /// There was cancellable syscall (syscall_cp), but I don't care too.
-    return syscall(SYS_getrandom, buf, buflen, flags);
+ssize_t getrandom(void *buf, size_t buflen, unsigned flags) {
+  /// There was cancellable syscall (syscall_cp), but I don't care too.
+  return syscall(SYS_getrandom, buf, buflen, flags);
 }
 #endif

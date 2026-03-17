@@ -1,7 +1,6 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
 void registerSchedulerNodes();
 

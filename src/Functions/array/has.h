@@ -1,12 +1,11 @@
 #pragma once
 #include <memory>
 
-namespace DB
-{
+namespace DB {
 
 class IFunctionOverloadResolver;
 using FunctionOverloadResolverPtr = std::shared_ptr<IFunctionOverloadResolver>;
 
 FunctionOverloadResolverPtr createInternalFunctionHasOverloadResolver();
 
-}
+}  // namespace DB

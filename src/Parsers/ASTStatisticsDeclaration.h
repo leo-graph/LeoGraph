@@ -2,29 +2,27 @@
 
 #include <Parsers/IAST.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTFunction;
 
 /** name BY columns TYPE typename(args) in create query
-  */
-class ASTStatisticsDeclaration : public IAST
-{
-public:
-    IAST * columns;
-    IAST * types;
+ */
+class ASTStatisticsDeclaration : public IAST {
+ public:
+  IAST* columns;
+  IAST* types;
 
-    /** Get the text that identifies this element. */
-    String getID(char) const override { return "Stat"; }
+  /** Get the text that identifies this element. */
+  String getID(char) const override { return "Stat"; }
 
-    std::vector<String> getColumnNames() const;
-    std::vector<String> getTypeNames() const;
+  std::vector<String> getColumnNames() const;
+  std::vector<String> getTypeNames() const;
 
-    ASTPtr clone() const override;
+  ASTPtr clone() const override;
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & s, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer& ostr, const FormatSettings& s, FormatState& state, FormatStateStacked frame) const override;
 };
 
-}
+}  // namespace DB

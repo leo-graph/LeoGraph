@@ -2,16 +2,12 @@
 
 #include <Functions/FunctionFactory.h>
 
+namespace DB {
 
-namespace DB
-{
+void registerFunctions() {
+  auto& factory = FunctionFactory::instance();
 
-void registerFunctions()
-{
-    auto & factory = FunctionFactory::instance();
-
-    for (const auto & [_, reg] : FunctionRegisterMap::instance())
-        reg(factory);
+  for (const auto& [_, reg] : FunctionRegisterMap::instance()) reg(factory);
 }
 
-}
+}  // namespace DB

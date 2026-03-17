@@ -11,56 +11,31 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/HTTPIOStream.h"
 #include "Poco/Net/HTTPClientSession.h"
 
-
 using Poco::UnbufferedStreamBuf;
-
 
 namespace Poco {
 namespace Net {
 
-
-HTTPResponseStreamBuf::HTTPResponseStreamBuf(std::istream& istr):
-	_istr(istr)
-{
-	// make sure exceptions from underlying string propagate
-	_istr.exceptions(std::ios::badbit);
+HTTPResponseStreamBuf::HTTPResponseStreamBuf(std::istream& istr) : _istr(istr) {
+  // make sure exceptions from underlying string propagate
+  _istr.exceptions(std::ios::badbit);
 }
 
+HTTPResponseStreamBuf::~HTTPResponseStreamBuf() {}
 
-HTTPResponseStreamBuf::~HTTPResponseStreamBuf()
-{
+HTTPResponseIOS::HTTPResponseIOS(std::istream& istr) : _buf(istr) { poco_ios_init(&_buf); }
+
+HTTPResponseIOS::~HTTPResponseIOS() {}
+
+HTTPResponseStream::HTTPResponseStream(std::istream& istr, HTTPClientSession* pSession)
+    : HTTPResponseIOS(istr), std::istream(&_buf), _pSession(pSession) {
+  poco_ios_init(&_buf);
 }
 
+HTTPResponseStream::~HTTPResponseStream() { delete _pSession; }
 
-HTTPResponseIOS::HTTPResponseIOS(std::istream& istr):
-	_buf(istr)
-{
-	poco_ios_init(&_buf);
-}
-
-
-HTTPResponseIOS::~HTTPResponseIOS()
-{
-}
-
-
-HTTPResponseStream::HTTPResponseStream(std::istream& istr, HTTPClientSession* pSession):
-	HTTPResponseIOS(istr),
-	std::istream(&_buf),
-	_pSession(pSession)
-{
-	poco_ios_init(&_buf);
-}
-
-
-HTTPResponseStream::~HTTPResponseStream()
-{
-	delete _pSession;
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

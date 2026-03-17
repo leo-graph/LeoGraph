@@ -13,57 +13,45 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_AccessExpirationDecorator_INCLUDED
 #define Foundation_AccessExpirationDecorator_INCLUDED
-
 
 #include "Poco/Timespan.h"
 #include "Poco/Timestamp.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <typename TArgs>
 class AccessExpirationDecorator
 /// AccessExpirationDecorator adds an expiration method to values so that they can be used
 /// with the UniqueAccessExpireCache
 {
-public:
-    AccessExpirationDecorator() : _value(), _span() { }
+ public:
+  AccessExpirationDecorator() : _value(), _span() {}
 
-    AccessExpirationDecorator(const TArgs & p, const Poco::Timespan::TimeDiff & diffInMs)
-        : /// Creates an element that will expire in diff milliseconds
-        _value(p)
-        , _span(diffInMs * 1000)
-    {
-    }
+  AccessExpirationDecorator(const TArgs& p, const Poco::Timespan::TimeDiff& diffInMs)
+      :  /// Creates an element that will expire in diff milliseconds
+        _value(p),
+        _span(diffInMs * 1000) {}
 
-    AccessExpirationDecorator(const TArgs & p, const Poco::Timespan & timeSpan)
-        : /// Creates an element that will expire after the given timeSpan
-        _value(p)
-        , _span(timeSpan)
-    {
-    }
+  AccessExpirationDecorator(const TArgs& p, const Poco::Timespan& timeSpan)
+      :  /// Creates an element that will expire after the given timeSpan
+        _value(p),
+        _span(timeSpan) {}
 
+  ~AccessExpirationDecorator() {}
 
-    ~AccessExpirationDecorator() { }
+  const Poco::Timespan& getTimeout() const { return _span; }
 
-    const Poco::Timespan & getTimeout() const { return _span; }
+  const TArgs& value() const { return _value; }
 
-    const TArgs & value() const { return _value; }
+  TArgs& value() { return _value; }
 
-    TArgs & value() { return _value; }
-
-private:
-    TArgs _value;
-    Timespan _span;
+ private:
+  TArgs _value;
+  Timespan _span;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_AccessExpirationDecorator_INCLUDED
+#endif  // Foundation_AccessExpirationDecorator_INCLUDED

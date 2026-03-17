@@ -13,14 +13,13 @@ using UInt8 = char8_t;
 using Int8 = signed _BitInt(8);
 #pragma clang diagnostic pop
 
-namespace std
-{
+namespace std {
 template <>
-struct hash<Int8> /// NOLINT (cert-dcl58-cpp)
+struct hash<Int8>  /// NOLINT (cert-dcl58-cpp)
 {
-    size_t operator()(const Int8 x) const { return std::hash<int8_t>()(int8_t{x}); }
+  size_t operator()(const Int8 x) const { return std::hash<int8_t>()(int8_t{x}); }
 };
-}
+}  // namespace std
 
 using size_t = std::size_t;
 

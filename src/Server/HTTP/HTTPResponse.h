@@ -2,8 +2,7 @@
 
 #include <Poco/Net/HTTPResponse.h>
 
-namespace DB
-{
+namespace DB {
 
 using HTTPResponse = Poco::Net::HTTPResponse;
 

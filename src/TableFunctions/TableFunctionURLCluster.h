@@ -1,15 +1,13 @@
 #pragma once
 
-#include <TableFunctions/ITableFunctionFileLike.h>
-#include <TableFunctions/TableFunctionURL.h>
-#include <TableFunctions/ITableFunctionCluster.h>
+#include <IO/ReadWriteBufferFromHTTP.h>
 #include <Storages/StorageURL.h>
 #include <Storages/StorageURLCluster.h>
-#include <IO/ReadWriteBufferFromHTTP.h>
+#include <TableFunctions/ITableFunctionCluster.h>
+#include <TableFunctions/ITableFunctionFileLike.h>
+#include <TableFunctions/TableFunctionURL.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class Context;
 
@@ -21,33 +19,26 @@ class Context;
  * On worker node it asks initiator about next task to process, processes it.
  * This is repeated until the tasks are finished.
  */
-class TableFunctionURLCluster : public ITableFunctionCluster<TableFunctionURL>
-{
-public:
-    static constexpr auto name = "urlCluster";
-    static constexpr auto signature = " - cluster, uri\n"
-                                      " - cluster, uri, format\n"
-                                      " - cluster, uri, format, structure\n"
-                                      " - cluster, uri, format, structure, compression_method\n"
-                                      "All signatures supports optional headers (specified as `headers('name'='value', 'name2'='value2')`)";
+class TableFunctionURLCluster : public ITableFunctionCluster<TableFunctionURL> {
+ public:
+  static constexpr auto name = "urlCluster";
+  static constexpr auto signature =
+      " - cluster, uri\n"
+      " - cluster, uri, format\n"
+      " - cluster, uri, format, structure\n"
+      " - cluster, uri, format, structure, compression_method\n"
+      "All signatures supports optional headers (specified as `headers('name'='value', 'name2'='value2')`)";
 
-    String getName() const override
-    {
-        return name;
-    }
+  String getName() const override { return name; }
 
-    String getSignature() const override
-    {
-        return signature;
-    }
+  String getSignature() const override { return signature; }
 
-protected:
-    StoragePtr getStorage(
-        const String & source, const String & format_, const ColumnsDescription & columns, ContextPtr global_context,
-        const std::string & table_name, const String & compression_method_, bool) const override;
+ protected:
+  StoragePtr getStorage(const String& source, const String& format_, const ColumnsDescription& columns, ContextPtr global_context,
+                        const std::string& table_name, const String& compression_method_, bool) const override;
 
-    const char * getStorageEngineName() const override { return "URLCluster"; }
-    const char * getNonClusteredStorageEngineName() const override { return "URL"; }
+  const char* getStorageEngineName() const override { return "URLCluster"; }
+  const char* getNonClusteredStorageEngineName() const override { return "URL"; }
 };
 
-}
+}  // namespace DB

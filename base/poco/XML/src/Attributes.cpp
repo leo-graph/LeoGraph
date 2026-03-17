@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/Attributes.h"
-
 
 namespace Poco {
 namespace XML {
 
+Attributes::~Attributes() {}
 
-Attributes::~Attributes()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

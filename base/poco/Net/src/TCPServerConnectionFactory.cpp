@@ -11,22 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/TCPServerConnectionFactory.h"
-
 
 namespace Poco {
 namespace Net {
 
+TCPServerConnectionFactory::TCPServerConnectionFactory() {}
 
-TCPServerConnectionFactory::TCPServerConnectionFactory()
-{
-}
+TCPServerConnectionFactory::~TCPServerConnectionFactory() {}
 
-
-TCPServerConnectionFactory::~TCPServerConnectionFactory()
-{
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

@@ -11,21 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Configurable.h"
-
 
 namespace Poco {
 
+Configurable::Configurable() {}
 
-Configurable::Configurable()
-{
-}
+Configurable::~Configurable() {}
 
-
-Configurable::~Configurable()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -2,20 +2,18 @@
 
 #include <Storages/MergeTree/Compaction/PartProperties.h>
 
-#include <unordered_map>
 #include <string>
+#include <unordered_map>
 
-namespace DB
-{
+namespace DB {
 
-struct PartitionStatistics
-{
-    time_t min_age = std::numeric_limits<time_t>::max();
-    size_t part_count = 0;
-    size_t total_size = 0;
+struct PartitionStatistics {
+  time_t min_age = std::numeric_limits<time_t>::max();
+  size_t part_count = 0;
+  size_t total_size = 0;
 };
 using PartitionsStatistics = std::unordered_map<std::string, PartitionStatistics>;
 
-PartitionsStatistics calculateStatisticsForParts(const std::vector<MergeTreeDataPartPtr> & parts, time_t current_time);
+PartitionsStatistics calculateStatisticsForParts(const std::vector<MergeTreeDataPartPtr>& parts, time_t current_time);
 
-}
+}  // namespace DB

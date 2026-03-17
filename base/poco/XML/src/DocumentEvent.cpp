@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/DocumentEvent.h"
-
 
 namespace Poco {
 namespace XML {
 
+DocumentEvent::~DocumentEvent() {}
 
-DocumentEvent::~DocumentEvent()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

@@ -5,8 +5,7 @@
 #include <Formats/FormatSettings.h>
 #include <Processors/Formats/IRowOutputFormat.h>
 
-namespace DB
-{
+namespace DB {
 
 class Block;
 
@@ -44,39 +43,27 @@ class Block;
  * Note: on Big-Endian platforms this format will not work properly.
  */
 
-class BSONEachRowRowOutputFormat final : public IRowOutputFormat
-{
-public:
-    BSONEachRowRowOutputFormat(
-        WriteBuffer & out_, SharedHeader header_, const FormatSettings & settings_);
+class BSONEachRowRowOutputFormat final : public IRowOutputFormat {
+ public:
+  BSONEachRowRowOutputFormat(WriteBuffer &out_, SharedHeader header_, const FormatSettings &settings_);
 
-    String getName() const override { return "BSONEachRowRowOutputFormat"; }
+  String getName() const override { return "BSONEachRowRowOutputFormat"; }
 
-private:
-    void write(const Columns & columns, size_t row_num) override;
-    void writeField(const IColumn &, const ISerialization &, size_t) override { }
+ private:
+  void write(const Columns &columns, size_t row_num) override;
+  void writeField(const IColumn &, const ISerialization &, size_t) override {}
 
-    void serializeField(
-        const IColumn & column,
-        const DataTypePtr & data_type,
-        size_t row_num,
-        const String & name,
-        const String & path,
-        std::unordered_map<String, size_t> & nested_document_sizes);
+  void serializeField(const IColumn &column, const DataTypePtr &data_type, size_t row_num, const String &name, const String &path,
+                      std::unordered_map<String, size_t> &nested_document_sizes);
 
-    /// Count field size in bytes that we will get after serialization in BSON format.
-    /// It's needed to calculate document size before actual serialization,
-    /// because in BSON format we should write the size of the document before its content.
-    size_t countBSONFieldSize(
-        const IColumn & column,
-        const DataTypePtr & data_type,
-        size_t row_num,
-        const String & name,
-        const String & path,
-        std::unordered_map<String, size_t> & nested_document_sizes);
+  /// Count field size in bytes that we will get after serialization in BSON format.
+  /// It's needed to calculate document size before actual serialization,
+  /// because in BSON format we should write the size of the document before its content.
+  size_t countBSONFieldSize(const IColumn &column, const DataTypePtr &data_type, size_t row_num, const String &name, const String &path,
+                            std::unordered_map<String, size_t> &nested_document_sizes);
 
-    NamesAndTypes fields;
-    FormatSettings settings;
+  NamesAndTypes fields;
+  FormatSettings settings;
 };
 
-}
+}  // namespace DB

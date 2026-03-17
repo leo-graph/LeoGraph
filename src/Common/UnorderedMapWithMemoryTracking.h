@@ -4,8 +4,7 @@
 
 #include <unordered_map>
 
-namespace DB
-{
+namespace DB {
 
 /// We do track memory allocations from standard containers by default, but we do it through
 /// non-throwing methods of the `MemoryTracker` (see `trackMemory` in src/Common/memory.h).
@@ -22,7 +21,7 @@ template <typename K, typename V, typename Hash = std::hash<K>, typename KeyEqua
 using UnorderedMapWithMemoryTracking = std::unordered_map<K, V, Hash, KeyEqual, AllocatorWithMemoryTracking<std::pair<const K, V>>>;
 
 template <typename K, typename V, typename Hash = std::hash<K>, typename KeyEqual = std::equal_to<K>>
-using UnorderedMultiMapWithMemoryTracking
-    = std::unordered_multimap<K, V, Hash, KeyEqual, AllocatorWithMemoryTracking<std::pair<const K, V>>>;
+using UnorderedMultiMapWithMemoryTracking =
+    std::unordered_multimap<K, V, Hash, KeyEqual, AllocatorWithMemoryTracking<std::pair<const K, V>>>;
 
-}
+}  // namespace DB

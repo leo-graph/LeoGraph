@@ -1,50 +1,42 @@
-#include <Parsers/Access/ASTSetRoleQuery.h>
-#include <Parsers/Access/ASTRolesOrUsersSet.h>
 #include <Common/quoteString.h>
 #include <IO/Operators.h>
+#include <Parsers/Access/ASTRolesOrUsersSet.h>
+#include <Parsers/Access/ASTSetRoleQuery.h>
 
+namespace DB {
+String ASTSetRoleQuery::getID(char) const { return "SetRoleQuery"; }
 
-namespace DB
-{
-String ASTSetRoleQuery::getID(char) const
-{
-    return "SetRoleQuery";
+ASTPtr ASTSetRoleQuery::clone() const {
+  auto res = make_intrusive<ASTSetRoleQuery>(*this);
+
+  if (roles) res->roles = boost::static_pointer_cast<ASTRolesOrUsersSet>(roles->clone());
+
+  if (to_users) res->to_users = boost::static_pointer_cast<ASTRolesOrUsersSet>(to_users->clone());
+
+  return res;
 }
 
+void ASTSetRoleQuery::formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const {
+  switch (kind) {
+    case Kind::SET_ROLE:
+      ostr << "SET ROLE";
+      break;
+    case Kind::SET_ROLE_DEFAULT:
+      ostr << "SET ROLE DEFAULT";
+      break;
+    case Kind::SET_DEFAULT_ROLE:
+      ostr << "SET DEFAULT ROLE";
+      break;
+  }
 
-ASTPtr ASTSetRoleQuery::clone() const
-{
-    auto res = make_intrusive<ASTSetRoleQuery>(*this);
+  if (kind == Kind::SET_ROLE_DEFAULT) return;
 
-    if (roles)
-        res->roles = boost::static_pointer_cast<ASTRolesOrUsersSet>(roles->clone());
+  ostr << " ";
+  roles->format(ostr, settings);
 
-    if (to_users)
-        res->to_users = boost::static_pointer_cast<ASTRolesOrUsersSet>(to_users->clone());
+  if (kind == Kind::SET_ROLE) return;
 
-    return res;
+  ostr << " TO ";
+  to_users->format(ostr, settings);
 }
-
-
-void ASTSetRoleQuery::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const
-{
-    switch (kind)
-    {
-        case Kind::SET_ROLE: ostr << "SET ROLE"; break;
-        case Kind::SET_ROLE_DEFAULT: ostr << "SET ROLE DEFAULT"; break;
-        case Kind::SET_DEFAULT_ROLE: ostr << "SET DEFAULT ROLE"; break;
-    }
-
-    if (kind == Kind::SET_ROLE_DEFAULT)
-        return;
-
-    ostr << " ";
-    roles->format(ostr, settings);
-
-    if (kind == Kind::SET_ROLE)
-        return;
-
-    ostr << " TO ";
-    to_users->format(ostr, settings);
-}
-}
+}  // namespace DB

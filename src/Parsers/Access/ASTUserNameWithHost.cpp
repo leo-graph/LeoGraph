@@ -1,173 +1,141 @@
-#include <IO/Operators.h>
-#include <IO/WriteBufferFromString.h>
-#include <Interpreters/Context_fwd.h>
-#include <Parsers/ASTIdentifier.h>
-#include <Parsers/ASTLiteral.h>
-#include <Parsers/Access/ASTUserNameWithHost.h>
 #include <Common/Exception.h>
 #include <Common/quoteString.h>
+#include <Interpreters/Context_fwd.h>
+#include <IO/Operators.h>
+#include <IO/WriteBufferFromString.h>
+#include <Parsers/Access/ASTUserNameWithHost.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTLiteral.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
 }
 
-void ASTUserNameWithHost::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const
-{
-    username->format(ostr, settings);
-    if (host_pattern)
-    {
-        ostr << "@";
-        host_pattern->format(ostr, settings);
-    }
+void ASTUserNameWithHost::formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const {
+  username->format(ostr, settings);
+  if (host_pattern) {
+    ostr << "@";
+    host_pattern->format(ostr, settings);
+  }
 }
 
-String ASTUserNameWithHost::toString() const
-{
-    WriteBufferFromOwnString ostr;
+String ASTUserNameWithHost::toString() const {
+  WriteBufferFromOwnString ostr;
 
-    ostr << getBaseName();
-    if (auto pattern = getHostPattern(); !pattern.empty())
-        ostr << "@" << pattern;
+  ostr << getBaseName();
+  if (auto pattern = getHostPattern(); !pattern.empty()) ostr << "@" << pattern;
 
-    return ostr.str();
+  return ostr.str();
 }
 
-void ASTUserNameWithHost::replace(const String name)
-{
-    children.clear();
+void ASTUserNameWithHost::replace(const String name) {
+  children.clear();
 
-    username.reset();
-    host_pattern.reset();
+  username.reset();
+  host_pattern.reset();
 
-    username = make_intrusive<ASTIdentifier>(name);
-    children.emplace_back(username);
+  username = make_intrusive<ASTIdentifier>(name);
+  children.emplace_back(username);
 }
 
-ASTUserNameWithHost::ASTUserNameWithHost(const String & name)
-{
-    username = make_intrusive<ASTIdentifier>(name);
-    children.emplace_back(username);
+ASTUserNameWithHost::ASTUserNameWithHost(const String &name) {
+  username = make_intrusive<ASTIdentifier>(name);
+  children.emplace_back(username);
 }
 
-ASTUserNameWithHost::ASTUserNameWithHost(ASTPtr && name_, String && host_pattern_)
-{
-    username = std::move(name_);
-    children.emplace_back(username);
+ASTUserNameWithHost::ASTUserNameWithHost(ASTPtr &&name_, String &&host_pattern_) {
+  username = std::move(name_);
+  children.emplace_back(username);
 
-    if (!host_pattern_.empty() && host_pattern_ != "%")
-    {
-        host_pattern = make_intrusive<ASTLiteral>(std::move(host_pattern_));
-        children.emplace_back(host_pattern);
-    }
+  if (!host_pattern_.empty() && host_pattern_ != "%") {
+    host_pattern = make_intrusive<ASTLiteral>(std::move(host_pattern_));
+    children.emplace_back(host_pattern);
+  }
 }
 
-String ASTUserNameWithHost::getBaseName() const
-{
-    chassert(!children.empty());
-    if (!username)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Username is not set");
-    return getStringFromAST(username);
+String ASTUserNameWithHost::getBaseName() const {
+  chassert(!children.empty());
+  if (!username) throw Exception(ErrorCodes::LOGICAL_ERROR, "Username is not set");
+  return getStringFromAST(username);
 }
 
-String ASTUserNameWithHost::getHostPattern() const
-{
-    if (children.size() < 2)
-        return "";
+String ASTUserNameWithHost::getHostPattern() const {
+  if (children.size() < 2) return "";
 
-    chassert(children.size() == 2);
-    chassert(host_pattern);
+  chassert(children.size() == 2);
+  chassert(host_pattern);
 
-    return getStringFromAST(host_pattern);
+  return getStringFromAST(host_pattern);
 }
 
+ASTUserNamesWithHost::ASTUserNamesWithHost(const String &name_) { children.emplace_back(make_intrusive<ASTUserNameWithHost>(name_)); }
 
-ASTUserNamesWithHost::ASTUserNamesWithHost(const String & name_)
-{
-    children.emplace_back(make_intrusive<ASTUserNameWithHost>(name_));
+void ASTUserNamesWithHost::formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state,
+                                      FormatStateStacked frame) const {
+  assert(!children.empty());
+
+  bool need_comma = false;
+  for (const auto &child : children) {
+    if (std::exchange(need_comma, true)) ostr << ", ";
+    child->format(ostr, settings, state, frame);
+  }
 }
 
-void ASTUserNamesWithHost::formatImpl(
-    WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    assert(!children.empty());
-
-    bool need_comma = false;
-    for (const auto & child : children)
-    {
-        if (std::exchange(need_comma, true))
-            ostr << ", ";
-        child->format(ostr, settings, state, frame);
-    }
+Strings ASTUserNamesWithHost::toStrings() const {
+  Strings res;
+  res.reserve(children.size());
+  for (const auto &name : children) {
+    const auto &name_ast = name->as<const ASTUserNameWithHost &>();
+    res.emplace_back(name_ast.toString());
+  }
+  return res;
 }
 
-Strings ASTUserNamesWithHost::toStrings() const
-{
-    Strings res;
-    res.reserve(children.size());
-    for (const auto & name : children)
-    {
-        const auto & name_ast = name->as<const ASTUserNameWithHost &>();
-        res.emplace_back(name_ast.toString());
-    }
-    return res;
+bool ASTUserNamesWithHost::getHostPatternIfCommon(String &out_common_host_pattern) const {
+  out_common_host_pattern.clear();
+
+  if (children.empty()) return true;
+
+  for (size_t i = 1; i != children.size(); ++i)
+    if (children[i]->as<const ASTUserNameWithHost &>().getHostPattern() != children[0]->as<const ASTUserNameWithHost &>().getHostPattern())
+      return false;
+
+  out_common_host_pattern = children[0]->as<const ASTUserNameWithHost &>().getHostPattern();
+  return true;
 }
 
-bool ASTUserNamesWithHost::getHostPatternIfCommon(String & out_common_host_pattern) const
-{
-    out_common_host_pattern.clear();
+String ASTUserNameWithHost::getStringFromAST(const ASTPtr &ast) const {
+  if (const auto *literal = ast->as<ASTLiteral>())
+    return literal->value.safeGet<String>();
+  else if (const auto *identifier = ast->as<ASTIdentifier>()) {
+    if (!identifier->isParam()) return getIdentifierName(identifier);
 
-    if (children.empty())
-        return true;
+    WriteBufferFromOwnString buf;
+    FormatSettings settings(true);
 
-    for (size_t i = 1; i != children.size(); ++i)
-        if (children[i]->as<const ASTUserNameWithHost &>().getHostPattern()
-            != children[0]->as<const ASTUserNameWithHost &>().getHostPattern())
-            return false;
+    identifier->format(buf, settings);
+    return buf.str();
+  }
 
-    out_common_host_pattern = children[0]->as<const ASTUserNameWithHost &>().getHostPattern();
-    return true;
+  throw Exception(ErrorCodes::LOGICAL_ERROR, "Unsupported type '{}' in ASTUserNameWithHost for formatting to String",
+                  ast ? ast->getID() : "NULL");
 }
 
-String ASTUserNameWithHost::getStringFromAST(const ASTPtr & ast) const
-{
-    if (const auto * literal = ast->as<ASTLiteral>())
-        return literal->value.safeGet<String>();
-    else if (const auto * identifier = ast->as<ASTIdentifier>())
-    {
-        if (!identifier->isParam())
-            return getIdentifierName(identifier);
+ASTPtr ASTUserNameWithHost::clone() const {
+  auto clone = make_intrusive<ASTUserNameWithHost>(*this);
+  clone->children.clear();
 
-        WriteBufferFromOwnString buf;
-        FormatSettings settings(true);
+  clone->username = username->clone();
+  clone->children.emplace_back(clone->username);
 
-        identifier->format(buf, settings);
-        return buf.str();
-    }
+  if (host_pattern) {
+    clone->host_pattern = host_pattern->clone();
+    clone->children.emplace_back(clone->host_pattern);
+  }
 
-    throw Exception(
-        ErrorCodes::LOGICAL_ERROR, "Unsupported type '{}' in ASTUserNameWithHost for formatting to String", ast ? ast->getID() : "NULL");
+  return clone;
 }
 
-ASTPtr ASTUserNameWithHost::clone() const
-{
-    auto clone = make_intrusive<ASTUserNameWithHost>(*this);
-    clone->children.clear();
-
-    clone->username = username->clone();
-    clone->children.emplace_back(clone->username);
-
-    if (host_pattern)
-    {
-        clone->host_pattern = host_pattern->clone();
-        clone->children.emplace_back(clone->host_pattern);
-    }
-
-    return clone;
-}
-
-}
+}  // namespace DB

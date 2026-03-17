@@ -11,50 +11,32 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Stopwatch.h"
-
 
 namespace Poco {
 
+Stopwatch::Stopwatch() : _elapsed(0), _running(false) {}
 
-Stopwatch::Stopwatch(): _elapsed(0), _running(false)
-{
+Stopwatch::~Stopwatch() {}
+
+Clock::ClockDiff Stopwatch::elapsed() const {
+  if (_running) {
+    Clock current;
+    return _elapsed + (current - _start);
+  } else {
+    return _elapsed;
+  }
 }
 
-
-Stopwatch::~Stopwatch()
-{
+void Stopwatch::reset() {
+  _elapsed = 0;
+  _running = false;
 }
 
-
-Clock::ClockDiff Stopwatch::elapsed() const
-{
-	if (_running)
-	{
-		Clock current;
-		return _elapsed + (current - _start);
-	}
-	else
-	{
-		return _elapsed;
-	}
+void Stopwatch::restart() {
+  _elapsed = 0;
+  _start.update();
+  _running = true;
 }
 
-
-void Stopwatch::reset()
-{
-	_elapsed = 0;
-	_running = false;
-}
-
-
-void Stopwatch::restart()
-{
-	_elapsed = 0;
-	_start.update();
-	_running = true;
-}
-
-
-} // namespace Poco
+}  // namespace Poco

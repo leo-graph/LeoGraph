@@ -13,17 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_EventArgs_INCLUDED
 #define Foundation_EventArgs_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API EventArgs
 /// The purpose of the EventArgs class is to be used as parameter
@@ -33,14 +28,12 @@ class Foundation_API EventArgs
 /// but with the arguments being a template parameter this is not
 /// necessary.
 {
-public:
-    EventArgs();
+ public:
+  EventArgs();
 
-    virtual ~EventArgs();
+  virtual ~EventArgs();
 };
 
-
-} // namespace Poco
-
+}  // namespace Poco
 
 #endif

@@ -1,20 +1,18 @@
 #pragma once
 #include <Processors/ISimpleTransform.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Converts columns-constants to full columns ("materializes" them).
-class MaterializingTransform : public ISimpleTransform
-{
-public:
-    explicit MaterializingTransform(SharedHeader header, bool remove_special_representations_ = true);
+class MaterializingTransform : public ISimpleTransform {
+ public:
+  explicit MaterializingTransform(SharedHeader header, bool remove_special_representations_ = true);
 
-    String getName() const override { return "MaterializingTransform"; }
+  String getName() const override { return "MaterializingTransform"; }
 
-protected:
-    void transform(Chunk & chunk) override;
-    bool remove_special_representations;
+ protected:
+  void transform(Chunk& chunk) override;
+  bool remove_special_representations;
 };
 
-}
+}  // namespace DB

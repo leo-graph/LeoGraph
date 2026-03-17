@@ -13,30 +13,22 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_SSLException_INCLUDED
 #define NetSSL_SSLException_INCLUDED
-
 
 #include "Poco/Net/NetException.h"
 #include "Poco/Net/NetSSL.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
-{
-namespace Net
-{
+POCO_DECLARE_EXCEPTION(NetSSL_API, SSLException, NetException)
+POCO_DECLARE_EXCEPTION(NetSSL_API, SSLContextException, SSLException)
+POCO_DECLARE_EXCEPTION(NetSSL_API, InvalidCertificateException, SSLException)
+POCO_DECLARE_EXCEPTION(NetSSL_API, CertificateValidationException, SSLException)
+POCO_DECLARE_EXCEPTION(NetSSL_API, SSLConnectionUnexpectedlyClosedException, SSLException)
 
+}  // namespace Net
+}  // namespace Poco
 
-    POCO_DECLARE_EXCEPTION(NetSSL_API, SSLException, NetException)
-    POCO_DECLARE_EXCEPTION(NetSSL_API, SSLContextException, SSLException)
-    POCO_DECLARE_EXCEPTION(NetSSL_API, InvalidCertificateException, SSLException)
-    POCO_DECLARE_EXCEPTION(NetSSL_API, CertificateValidationException, SSLException)
-    POCO_DECLARE_EXCEPTION(NetSSL_API, SSLConnectionUnexpectedlyClosedException, SSLException)
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // NetSSL_SSLException_INCLUDED
+#endif  // NetSSL_SSLException_INCLUDED

@@ -6,117 +6,96 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ExpressionElementParsers.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace MySQLParser
-{
+namespace MySQLParser {
 
 template <bool recursive>
-bool ParserDeclareOptionImpl<recursive>::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    std::unordered_map<String, ASTPtr> changes;
-    std::unordered_map<String, std::shared_ptr<IParser>> usage_parsers_cached;
-    usage_parsers_cached.reserve(options_collection.size());
+bool ParserDeclareOptionImpl<recursive>::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  std::unordered_map<String, ASTPtr> changes;
+  std::unordered_map<String, std::shared_ptr<IParser>> usage_parsers_cached;
+  usage_parsers_cached.reserve(options_collection.size());
 
-    const auto & get_parser_from_cache = [&](const char * usage_name)
-    {
-        auto iterator = usage_parsers_cached.find(usage_name);
-        if (iterator == usage_parsers_cached.end())
-            iterator = usage_parsers_cached.insert(std::make_pair(usage_name, ParserKeyword::createDeprecatedPtr(usage_name))).first;
+  const auto& get_parser_from_cache = [&](const char* usage_name) {
+    auto iterator = usage_parsers_cached.find(usage_name);
+    if (iterator == usage_parsers_cached.end())
+      iterator = usage_parsers_cached.insert(std::make_pair(usage_name, ParserKeyword::createDeprecatedPtr(usage_name))).first;
 
-        return iterator->second;
-    };
+    return iterator->second;
+  };
 
-    do
-    {
-        ASTPtr value;
-        bool found{false};
-        for (const auto & option_describe : options_collection)
-        {
-            if (strlen(option_describe.usage_name) == 0)
-            {
-                if (option_describe.value_parser->parse(pos, value, expected))
-                {
-                    found = true;
-                    changes.insert(std::make_pair(option_describe.option_name, value));
-                    break;
-                }
-            }
-            else if (get_parser_from_cache(option_describe.usage_name)->ignore(pos, expected))
-            {
-                ParserToken{TokenType::Equals}.ignore(pos, expected);
-
-                if (!option_describe.value_parser->parse(pos, value, expected))
-                    return false;
-
-                found = true;
-                changes.insert(std::make_pair(option_describe.option_name, value));
-                break;
-            }
+  do {
+    ASTPtr value;
+    bool found{false};
+    for (const auto& option_describe : options_collection) {
+      if (strlen(option_describe.usage_name) == 0) {
+        if (option_describe.value_parser->parse(pos, value, expected)) {
+          found = true;
+          changes.insert(std::make_pair(option_describe.option_name, value));
+          break;
         }
+      } else if (get_parser_from_cache(option_describe.usage_name)->ignore(pos, expected)) {
+        ParserToken{TokenType::Equals}.ignore(pos, expected);
 
-        if (!found)
-            break;
-    } while (recursive);
+        if (!option_describe.value_parser->parse(pos, value, expected)) return false;
 
-    if (!changes.empty())
-    {
-        auto options_declare = make_intrusive<ASTDeclareOptions>();
-        options_declare->changes = changes;
-
-        node = options_declare;
+        found = true;
+        changes.insert(std::make_pair(option_describe.option_name, value));
+        break;
+      }
     }
 
-    return !changes.empty();
+    if (!found) break;
+  } while (recursive);
+
+  if (!changes.empty()) {
+    auto options_declare = make_intrusive<ASTDeclareOptions>();
+    options_declare->changes = changes;
+
+    node = options_declare;
+  }
+
+  return !changes.empty();
 }
 
-ASTPtr ASTDeclareOptions::clone() const
-{
-    auto res = make_intrusive<ASTDeclareOptions>(*this);
-    res->children.clear();
-    res->changes.clear();
+ASTPtr ASTDeclareOptions::clone() const {
+  auto res = make_intrusive<ASTDeclareOptions>(*this);
+  res->children.clear();
+  res->changes.clear();
 
-    for (const auto & [name, value] : this->changes)
-        res->changes.insert(std::make_pair(name, value->clone()));
+  for (const auto& [name, value] : this->changes) res->changes.insert(std::make_pair(name, value->clone()));
 
-    return res;
+  return res;
 }
 
-bool ParserAlwaysTrue::parseImpl(IParser::Pos & /*pos*/, ASTPtr & node, Expected & /*expected*/)
-{
-    node = make_intrusive<ASTLiteral>(Field(static_cast<UInt64>(1)));
+bool ParserAlwaysTrue::parseImpl(IParser::Pos& /*pos*/, ASTPtr& node, Expected& /*expected*/) {
+  node = make_intrusive<ASTLiteral>(Field(static_cast<UInt64>(1)));
+  return true;
+}
+
+bool ParserAlwaysFalse::parseImpl(IParser::Pos& /*pos*/, ASTPtr& node, Expected& /*expected*/) {
+  node = make_intrusive<ASTLiteral>(Field(static_cast<UInt64>(0)));
+  return true;
+}
+
+bool ParserCharsetOrCollateName::parseImpl(IParser::Pos& pos, ASTPtr& node, Expected& expected) {
+  ParserIdentifier p_identifier;
+  ParserStringLiteral p_string_literal;
+
+  if (p_identifier.parse(pos, node, expected)) return true;
+
+  if (p_string_literal.parse(pos, node, expected)) {
+    const auto& string_value = node->as<ASTLiteral>()->value.safeGet<String>();
+    node = make_intrusive<ASTIdentifier>(string_value);
     return true;
-}
+  }
 
-bool ParserAlwaysFalse::parseImpl(IParser::Pos & /*pos*/, ASTPtr & node, Expected & /*expected*/)
-{
-    node = make_intrusive<ASTLiteral>(Field(static_cast<UInt64>(0)));
-    return true;
-}
-
-bool ParserCharsetOrCollateName::parseImpl(IParser::Pos & pos, ASTPtr & node, Expected & expected)
-{
-    ParserIdentifier p_identifier;
-    ParserStringLiteral p_string_literal;
-
-    if (p_identifier.parse(pos, node, expected))
-        return true;
-
-    if (p_string_literal.parse(pos, node, expected))
-    {
-        const auto & string_value = node->as<ASTLiteral>()->value.safeGet<String>();
-        node = make_intrusive<ASTIdentifier>(string_value);
-        return true;
-    }
-
-
-    return false;
+  return false;
 }
 
 template class ParserDeclareOptionImpl<true>;
 template class ParserDeclareOptionImpl<false>;
 
-}
+}  // namespace MySQLParser
 
-}
+}  // namespace DB

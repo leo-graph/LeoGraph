@@ -1,24 +1,22 @@
 #pragma once
-#include <memory>
 #include <Core/Block.h>
 #include <Storages/MergeTree/MergeTreePartition.h>
+#include <memory>
 
-namespace DB
-{
+namespace DB {
 
-struct BlockWithPartition
-{
-    std::shared_ptr<Block> block;
-    MergeTreePartition partition;
-    std::string partition_id;
+struct BlockWithPartition {
+  std::shared_ptr<Block> block;
+  MergeTreePartition partition;
+  std::string partition_id;
 
-    BlockWithPartition() = default;
-    BlockWithPartition(const BlockWithPartition & block_) = default;
-    BlockWithPartition(BlockWithPartition && block_) = default;
+  BlockWithPartition() = default;
+  BlockWithPartition(const BlockWithPartition& block_) = default;
+  BlockWithPartition(BlockWithPartition&& block_) = default;
 
-    BlockWithPartition(std::shared_ptr<Block> block_, Row partition_);
+  BlockWithPartition(std::shared_ptr<Block> block_, Row partition_);
 
-    BlockWithPartition & operator=(BlockWithPartition && other) = default;
+  BlockWithPartition& operator=(BlockWithPartition&& other) = default;
 };
 
-}
+}  // namespace DB

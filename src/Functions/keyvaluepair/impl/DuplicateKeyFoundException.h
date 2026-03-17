@@ -2,19 +2,16 @@
 
 #include <Common/Exception.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace extractKV
-{
+namespace extractKV {
 
-struct DuplicateKeyFoundException : Exception
-{
-    explicit DuplicateKeyFoundException(std::string_view key_) : key(key_) {}
+struct DuplicateKeyFoundException : Exception {
+  explicit DuplicateKeyFoundException(std::string_view key_) : key(key_) {}
 
-    std::string_view key;
+  std::string_view key;
 };
 
-}
+}  // namespace extractKV
 
-}
+}  // namespace DB

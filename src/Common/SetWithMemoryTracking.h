@@ -4,8 +4,7 @@
 
 #include <set>
 
-namespace DB
-{
+namespace DB {
 
 /// We do track memory allocations from standard containers by default, but we do it through
 /// non-throwing methods of the `MemoryTracker` (see `trackMemory` in src/Common/memory.h).
@@ -24,4 +23,4 @@ using SetWithMemoryTracking = std::set<K, Compare, AllocatorWithMemoryTracking<K
 template <typename K>
 using MultiSetWithMemoryTracking = std::multiset<K, std::less<K>, AllocatorWithMemoryTracking<K>>;
 
-}
+}  // namespace DB

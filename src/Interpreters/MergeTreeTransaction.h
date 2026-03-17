@@ -1,16 +1,15 @@
 #pragma once
+#include <base/scope_guard.h>
+#include <Common/Stopwatch.h>
 #include <Interpreters/TransactionVersionMetadata.h>
-#include <boost/noncopyable.hpp>
 #include <Storages/IStorage_fwd.h>
 #include <Storages/TableLockHolder.h>
-#include <Common/Stopwatch.h>
-#include <base/scope_guard.h>
+#include <boost/noncopyable.hpp>
 
 #include <list>
 #include <unordered_set>
 
-namespace DB
-{
+namespace DB {
 
 class IMergeTreeDataPart;
 using DataPartPtr = std::shared_ptr<const IMergeTreeDataPart>;
@@ -19,78 +18,78 @@ using DataPartsVector = std::vector<DataPartPtr>;
 /// This object is responsible for tracking all changes that some transaction is making in MergeTree tables.
 /// It collects all changes that queries of current transaction made in data part sets of all MergeTree tables
 /// to either make them visible when transaction commits or undo when transaction rolls back.
-class MergeTreeTransaction : public std::enable_shared_from_this<MergeTreeTransaction>, private boost::noncopyable
-{
-    friend class TransactionLog;
-public:
-    enum State
-    {
-        RUNNING,
-        COMMITTING,
-        COMMITTED,
-        ROLLED_BACK,
-    };
+class MergeTreeTransaction : public std::enable_shared_from_this<MergeTreeTransaction>, private boost::noncopyable {
+  friend class TransactionLog;
 
-    CSN getSnapshot() const { return snapshot.load(std::memory_order_relaxed); }
-    void setSnapshot(CSN new_snapshot);
-    State getState() const;
+ public:
+  enum State {
+    RUNNING,
+    COMMITTING,
+    COMMITTED,
+    ROLLED_BACK,
+  };
 
-    const TransactionID tid;
+  CSN getSnapshot() const { return snapshot.load(std::memory_order_relaxed); }
+  void setSnapshot(CSN new_snapshot);
+  State getState() const;
 
-    MergeTreeTransaction(CSN snapshot_, LocalTID local_tid_, UUID host_id, std::list<CSN>::iterator snapshot_it_);
+  const TransactionID tid;
 
-    void addNewPart(const StoragePtr & storage, const DataPartPtr & new_part);
-    void removeOldPart(const StoragePtr & storage, const DataPartPtr & part_to_remove, const TransactionInfoContext & context);
+  MergeTreeTransaction(CSN snapshot_, LocalTID local_tid_, UUID host_id, std::list<CSN>::iterator snapshot_it_);
 
-    void addMutation(const StoragePtr & table, const String & mutation_id);
+  void addNewPart(const StoragePtr& storage, const DataPartPtr& new_part);
+  void removeOldPart(const StoragePtr& storage, const DataPartPtr& part_to_remove, const TransactionInfoContext& context);
 
-    static void addNewPart(const StoragePtr & storage, const DataPartPtr & new_part, MergeTreeTransaction * txn);
-    static void removeOldPart(const StoragePtr & storage, const DataPartPtr & part_to_remove, MergeTreeTransaction * txn);
-    static void addNewPartAndRemoveCovered(const StoragePtr & storage, const DataPartPtr & new_part, const DataPartsVector & covered_parts, MergeTreeTransaction * txn);
+  void addMutation(const StoragePtr& table, const String& mutation_id);
 
-    bool isReadOnly() const;
+  static void addNewPart(const StoragePtr& storage, const DataPartPtr& new_part, MergeTreeTransaction* txn);
+  static void removeOldPart(const StoragePtr& storage, const DataPartPtr& part_to_remove, MergeTreeTransaction* txn);
+  static void addNewPartAndRemoveCovered(const StoragePtr& storage, const DataPartPtr& new_part, const DataPartsVector& covered_parts,
+                                         MergeTreeTransaction* txn);
 
-    void onException();
+  bool isReadOnly() const;
 
-    String dumpDescription() const;
+  void onException();
 
-    Float64 elapsedSeconds() const { return elapsed.elapsedSeconds(); }
+  String dumpDescription() const;
 
-    /// Waits for transaction state to become not equal to the state corresponding to current_state_csn
-    bool waitStateChange(CSN current_state_csn) const;
+  Float64 elapsedSeconds() const { return elapsed.elapsedSeconds(); }
 
-    CSN getCSN() const { return csn; }
+  /// Waits for transaction state to become not equal to the state corresponding to current_state_csn
+  bool waitStateChange(CSN current_state_csn) const;
 
-private:
-    scope_guard beforeCommit();
-    void afterCommit(CSN assigned_csn) noexcept;
-    bool rollback() noexcept;
-    void afterFinalize();
+  CSN getCSN() const { return csn; }
 
-    void checkIsNotCancelled() const;
+ private:
+  scope_guard beforeCommit();
+  void afterCommit(CSN assigned_csn) noexcept;
+  bool rollback() noexcept;
+  void afterFinalize();
 
-    mutable std::mutex mutex;
-    Stopwatch elapsed;
+  void checkIsNotCancelled() const;
 
-    /// Usually it's equal to tid.start_csn, but can be changed by SET SNAPSHOT query (for introspection purposes and time-traveling)
-    std::atomic<CSN> snapshot;
-    const std::list<CSN>::iterator snapshot_in_use_it;
+  mutable std::mutex mutex;
+  Stopwatch elapsed;
 
-    bool finalized TSA_GUARDED_BY(mutex) = false;
+  /// Usually it's equal to tid.start_csn, but can be changed by SET SNAPSHOT query (for introspection purposes and time-traveling)
+  std::atomic<CSN> snapshot;
+  const std::list<CSN>::iterator snapshot_in_use_it;
 
-    /// Indicates if transaction was read-only before `afterFinalize`
-    bool is_read_only TSA_GUARDED_BY(mutex) = false;
+  bool finalized TSA_GUARDED_BY(mutex) = false;
 
-    /// Lists of changes made by transaction
-    std::unordered_set<StoragePtr> storages TSA_GUARDED_BY(mutex);
-    DataPartsVector creating_parts TSA_GUARDED_BY(mutex);
-    DataPartsVector removing_parts TSA_GUARDED_BY(mutex);
-    using RunningMutationsList = std::vector<std::pair<StoragePtr, String>>;
-    RunningMutationsList mutations TSA_GUARDED_BY(mutex);
+  /// Indicates if transaction was read-only before `afterFinalize`
+  bool is_read_only TSA_GUARDED_BY(mutex) = false;
 
-    std::atomic<CSN> csn;
+  /// Lists of changes made by transaction
+  std::unordered_set<StoragePtr> storages TSA_GUARDED_BY(mutex);
+  DataPartsVector creating_parts TSA_GUARDED_BY(mutex);
+  DataPartsVector removing_parts TSA_GUARDED_BY(mutex);
+  using RunningMutationsList = std::vector<std::pair<StoragePtr, String>>;
+  RunningMutationsList mutations TSA_GUARDED_BY(mutex);
+
+  std::atomic<CSN> csn;
 };
 
 using MergeTreeTransactionPtr = std::shared_ptr<MergeTreeTransaction>;
 
-}
+}  // namespace DB

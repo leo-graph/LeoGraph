@@ -3,8 +3,7 @@
 #include <Interpreters/InDepthNodeVisitor.h>
 #include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTSelectQuery;
 struct SettingChange;
@@ -15,23 +14,21 @@ class SettingsChanges;
 ///
 /// NOTE: INSERT ... SELECT ... FORMAT Null SETTINGS max_insert_threads=10 works even without push down,
 /// since ParserInsertQuery does not use ParserQueryWithOutput.
-class InsertQuerySettingsPushDownMatcher
-{
-public:
-    using Visitor = InDepthNodeVisitor<InsertQuerySettingsPushDownMatcher, true>;
+class InsertQuerySettingsPushDownMatcher {
+ public:
+  using Visitor = InDepthNodeVisitor<InsertQuerySettingsPushDownMatcher, true>;
 
-    struct Data
-    {
-        ASTPtr & insert_settings_ast;
-    };
+  struct Data {
+    ASTPtr &insert_settings_ast;
+  };
 
-    static bool needChildVisit(ASTPtr & node, const ASTPtr & child);
-    static void visit(ASTPtr & ast, Data & data);
+  static bool needChildVisit(ASTPtr &node, const ASTPtr &child);
+  static void visit(ASTPtr &ast, Data &data);
 
-private:
-    static void visit(ASTSelectQuery &, ASTPtr &, Data &);
+ private:
+  static void visit(ASTSelectQuery &, ASTPtr &, Data &);
 };
 
 using InsertQuerySettingsPushDownVisitor = InsertQuerySettingsPushDownMatcher::Visitor;
 
-}
+}  // namespace DB

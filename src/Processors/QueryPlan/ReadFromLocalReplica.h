@@ -4,24 +4,22 @@
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Storages/SelectQueryInfo.h>
 
-namespace DB
-{
+namespace DB {
 
-class ReadFromLocalParallelReplicaStep : public ISourceStep
-{
-public:
-    explicit ReadFromLocalParallelReplicaStep(QueryPlanPtr query_plan_);
+class ReadFromLocalParallelReplicaStep : public ISourceStep {
+ public:
+  explicit ReadFromLocalParallelReplicaStep(QueryPlanPtr query_plan_);
 
-    String getName() const override { return "ReadFromLocalReplica"; }
+  String getName() const override { return "ReadFromLocalReplica"; }
 
-    void initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override;
+  void initializePipeline(QueryPipelineBuilder &pipeline, const BuildQueryPipelineSettings &) override;
 
-    QueryPlanPtr extractQueryPlan();
+  QueryPlanPtr extractQueryPlan();
 
-    void addFilter(FilterDAGInfo filter);
+  void addFilter(FilterDAGInfo filter);
 
-private:
-    QueryPlanPtr query_plan;
+ private:
+  QueryPlanPtr query_plan;
 };
 
-}
+}  // namespace DB

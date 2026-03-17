@@ -1,11 +1,9 @@
 #pragma once
 
-#include <Processors/Formats/Impl/JSONEachRowRowOutputFormat.h>
 #include <Formats/FormatSettings.h>
+#include <Processors/Formats/Impl/JSONEachRowRowOutputFormat.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /* Outputs data as a single JSON Object with rows as fields:
  * {
@@ -15,30 +13,26 @@ namespace DB
  * }
  */
 
-class JSONObjectEachRowRowOutputFormat : public JSONEachRowRowOutputFormat
-{
-public:
-    JSONObjectEachRowRowOutputFormat(
-        WriteBuffer & out_,
-        SharedHeader header_,
-        const FormatSettings & settings_);
+class JSONObjectEachRowRowOutputFormat : public JSONEachRowRowOutputFormat {
+ public:
+  JSONObjectEachRowRowOutputFormat(WriteBuffer& out_, SharedHeader header_, const FormatSettings& settings_);
 
-    String getName() const override { return "JSONObjectEachRowRowOutputFormat"; }
+  String getName() const override { return "JSONObjectEachRowRowOutputFormat"; }
 
-private:
-    void write(const Columns & columns, size_t row) override;
-    void writeField(const IColumn & column, const ISerialization & serialization, size_t row) override;
-    void writeFieldDelimiter() override;
-    void writeRowStartDelimiter() override;
-    void writeRowEndDelimiter() override;
-    void writeRowBetweenDelimiter() override;
+ private:
+  void write(const Columns& columns, size_t row) override;
+  void writeField(const IColumn& column, const ISerialization& serialization, size_t row) override;
+  void writeFieldDelimiter() override;
+  void writeRowStartDelimiter() override;
+  void writeRowEndDelimiter() override;
+  void writeRowBetweenDelimiter() override;
 
-    void writePrefix() override;
-    void writeSuffix() override;
+  void writePrefix() override;
+  void writeSuffix() override;
 
-    std::optional<size_t> field_index_for_object_name;
-    String object_name;
-    size_t rows = 0;
+  std::optional<size_t> field_index_for_object_name;
+  String object_name;
+  size_t rows = 0;
 };
 
-}
+}  // namespace DB

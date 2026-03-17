@@ -11,34 +11,21 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Util/Subsystem.h"
-
 
 namespace Poco {
 namespace Util {
 
+Subsystem::Subsystem() {}
 
-Subsystem::Subsystem()
-{
+Subsystem::~Subsystem() {}
+
+void Subsystem::reinitialize(Application& app) {
+  uninitialize();
+  initialize(app);
 }
 
+void Subsystem::defineOptions(OptionSet& options) {}
 
-Subsystem::~Subsystem()
-{
-}
-
-
-void Subsystem::reinitialize(Application& app)
-{
-	uninitialize();
-	initialize(app);
-}
-
-
-void Subsystem::defineOptions(OptionSet& options)
-{
-}
-
-
-} } // namespace Poco::Util
+}  // namespace Util
+}  // namespace Poco

@@ -1,14 +1,12 @@
 #pragma once
-#include <IO/WriteBuffer.h>
 #include <IO/BufferWithOwnMemory.h>
+#include <IO/WriteBuffer.h>
 #include <stack>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
 }
 
 /// Similar to PeekableReadBuffer.
@@ -20,40 +18,37 @@ namespace ErrorCodes
 /// you reset() the state of peekable buffer after each change of underlying buffer)
 /// If position() of peekable buffer is explicitly set to some position before checkpoint
 /// (e.g. by istr.position() = prev_pos), behavior is undefined.
-class PeekableWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
-{
-    friend class PeekableWriteBufferCheckpoint;
-public:
-    explicit PeekableWriteBuffer(WriteBuffer & sub_buf_);
+class PeekableWriteBuffer : public BufferWithOwnMemory<WriteBuffer> {
+  friend class PeekableWriteBufferCheckpoint;
 
-    /// Sets checkpoint at current position
-    ALWAYS_INLINE inline void setCheckpoint()
-    {
-        if (checkpoint)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "PeekableWriteBuffer does not support recursive checkpoints.");
+ public:
+  explicit PeekableWriteBuffer(WriteBuffer& sub_buf_);
 
-        checkpoint.emplace(pos);
-    }
+  /// Sets checkpoint at current position
+  ALWAYS_INLINE inline void setCheckpoint() {
+    if (checkpoint) throw Exception(ErrorCodes::LOGICAL_ERROR, "PeekableWriteBuffer does not support recursive checkpoints.");
 
-    /// Forget checkpoint and send all data from checkpoint to position to sub-buffer.
-    void dropCheckpoint();
+    checkpoint.emplace(pos);
+  }
 
-    /// Sets position at checkpoint and forget all data written from checkpoint to position.
-    /// All pointers (such as this->buffer().end()) may be invalidated
-    void rollbackToCheckpoint(bool drop = false);
+  /// Forget checkpoint and send all data from checkpoint to position to sub-buffer.
+  void dropCheckpoint();
 
-    void finalizeImpl() override
-    {
-        assert(!checkpoint);
-        sub_buf.position() = position();
-    }
+  /// Sets position at checkpoint and forget all data written from checkpoint to position.
+  /// All pointers (such as this->buffer().end()) may be invalidated
+  void rollbackToCheckpoint(bool drop = false);
 
-private:
-    void nextImpl() override;
+  void finalizeImpl() override {
+    assert(!checkpoint);
+    sub_buf.position() = position();
+  }
 
-    WriteBuffer & sub_buf;
-    bool write_to_own_memory = false;
-    std::optional<Position> checkpoint = std::nullopt;
+ private:
+  void nextImpl() override;
+
+  WriteBuffer& sub_buf;
+  bool write_to_own_memory = false;
+  std::optional<Position> checkpoint = std::nullopt;
 };
 
-}
+}  // namespace DB

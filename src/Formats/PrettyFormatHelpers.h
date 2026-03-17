@@ -2,9 +2,7 @@
 
 #include <base/types.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class Chunk;
 class IColumn;
@@ -12,7 +10,8 @@ class WriteBuffer;
 struct FormatSettings;
 
 /// Prints text describing the number in the form of: -- 12.34 million
-void writeReadableNumberTip(WriteBuffer & out, const IColumn & column, size_t row, const FormatSettings & settings, bool color, size_t max_width = SIZE_MAX);
+void writeReadableNumberTip(WriteBuffer& out, const IColumn& column, size_t row, const FormatSettings& settings, bool color,
+                            size_t max_width = SIZE_MAX);
 
 /// Underscores digit groups related to thousands using terminal ANSI escape sequences.
 String highlightDigitGroups(String source);
@@ -25,4 +24,4 @@ String highlightTrailingSpaces(String source);
 /// by cutting it in the middle and replacing with a single filler character (ascii or unicode).
 std::pair<String, size_t> truncateName(String name, size_t cut_to, size_t hysteresis, bool ascii);
 
-}
+}  // namespace DB

@@ -2,7 +2,6 @@
 
 #include <city.h>
 
-namespace DB
-{
+namespace DB {
 using IASTHash = CityHash_v1_0_2::uint128;
 }

@@ -13,72 +13,59 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef DOM_EventException_INCLUDED
 #define DOM_EventException_INCLUDED
-
 
 #include "Poco/XML/XML.h"
 #include "Poco/XML/XMLException.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class XML_API EventException : public XMLException
+/// Event operations may throw an EventException as
+/// specified in their method descriptions.
 {
-namespace XML
-{
+ public:
+  enum {
+    UNSPECIFIED_EVENT_TYPE_ERR = 0  /// If the Event's type was not specified by initializing the
+                                    /// event before the method was called. Specification of the Event's
+                                    /// type as null or an empty string will also trigger this exception.
+  };
 
+  EventException(int code);
+  /// Creates an EventException with the given error code.
 
-    class XML_API EventException : public XMLException
-    /// Event operations may throw an EventException as
-    /// specified in their method descriptions.
-    {
-    public:
-        enum
-        {
-            UNSPECIFIED_EVENT_TYPE_ERR = 0 /// If the Event's type was not specified by initializing the
-            /// event before the method was called. Specification of the Event's
-            /// type as null or an empty string will also trigger this exception.
-        };
+  EventException(const EventException& exc);
+  /// Creates an EventException by copying another one.
 
-        EventException(int code);
-        /// Creates an EventException with the given error code.
+  ~EventException() noexcept;
+  /// Destroys the EventException.
 
-        EventException(const EventException & exc);
-        /// Creates an EventException by copying another one.
+  EventException& operator=(const EventException& exc);
 
-        ~EventException() noexcept;
-        /// Destroys the EventException.
+  const char* name() const noexcept;
+  /// Returns a static string describing the exception.
 
-        EventException & operator=(const EventException & exc);
+  const char* className() const noexcept;
+  /// Returns the name of the exception class.
 
-        const char * name() const noexcept;
-        /// Returns a static string describing the exception.
+  unsigned short code() const;
+  /// Returns the Event exception code.
 
-        const char * className() const noexcept;
-        /// Returns the name of the exception class.
+ protected:
+  Poco::Exception* clone() const;
 
-        unsigned short code() const;
-        /// Returns the Event exception code.
+ private:
+  EventException();
+};
 
-    protected:
-        Poco::Exception * clone() const;
+//
+// inlines
+//
+inline unsigned short EventException::code() const { return UNSPECIFIED_EVENT_TYPE_ERR; }
 
-    private:
-        EventException();
-    };
+}  // namespace XML
+}  // namespace Poco
 
-
-    //
-    // inlines
-    //
-    inline unsigned short EventException::code() const
-    {
-        return UNSPECIFIED_EVENT_TYPE_ERR;
-    }
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // DOM_EventException_INCLUDED
+#endif  // DOM_EventException_INCLUDED

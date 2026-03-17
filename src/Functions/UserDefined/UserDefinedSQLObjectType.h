@@ -1,12 +1,7 @@
 #pragma once
 
+namespace DB {
 
-namespace DB
-{
-
-enum class UserDefinedSQLObjectType : uint8_t
-{
-    Function
-};
+enum class UserDefinedSQLObjectType : uint8_t { Function };
 
 }

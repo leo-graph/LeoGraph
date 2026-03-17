@@ -16,10 +16,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef XML_ValueTraits_INCLUDED
 #define XML_ValueTraits_INCLUDED
-
 
 #include <cstddef>
 #include <iostream>
@@ -27,69 +25,48 @@
 #include <string>
 #include "XMLStreamParserException.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
-{
-namespace XML
-{
+class XMLStreamParser;
+class XMLStreamSerializer;
 
+template <typename T>
+struct DefaultValueTraits {
+  static T parse(std::string, const XMLStreamParser &);
 
-    class XMLStreamParser;
-    class XMLStreamSerializer;
+  static std::string serialize(const T &, const XMLStreamSerializer &);
+};
 
+template <>
+struct XML_API DefaultValueTraits<bool> {
+  static bool parse(std::string, const XMLStreamParser &);
 
-    template <typename T>
-    struct DefaultValueTraits
-    {
-        static T parse(std::string, const XMLStreamParser &);
+  static std::string serialize(bool v, const XMLStreamSerializer &) { return v ? "true" : "false"; }
+};
 
-        static std::string serialize(const T &, const XMLStreamSerializer &);
-    };
+template <>
+struct XML_API DefaultValueTraits<std::string> {
+  static std::string parse(std::string s, const XMLStreamParser &) { return s; }
 
+  static std::string serialize(const std::string &v, const XMLStreamSerializer &) { return v; }
+};
 
-    template <>
-    struct XML_API DefaultValueTraits<bool>
-    {
-        static bool parse(std::string, const XMLStreamParser &);
+template <typename T>
+struct ValueTraits : DefaultValueTraits<T> {};
 
-        static std::string serialize(bool v, const XMLStreamSerializer &) { return v ? "true" : "false"; }
-    };
+template <typename T, std::size_t N>
+struct ValueTraits<T[N]> : DefaultValueTraits<const T *> {};
 
-
-    template <>
-    struct XML_API DefaultValueTraits<std::string>
-    {
-        static std::string parse(std::string s, const XMLStreamParser &) { return s; }
-
-        static std::string serialize(const std::string & v, const XMLStreamSerializer &) { return v; }
-    };
-
-
-    template <typename T>
-    struct ValueTraits : DefaultValueTraits<T>
-    {
-    };
-
-
-    template <typename T, std::size_t N>
-    struct ValueTraits<T[N]> : DefaultValueTraits<const T *>
-    {
-    };
-
-
-    template <typename T>
-    T DefaultValueTraits<T>::parse(std::string s, const XMLStreamParser & p)
-    {
-        T r;
-        std::istringstream is(s);
-        if (!(is >> r && is.eof()))
-            throw XMLStreamParserException(p, "invalid value '" + s + "'");
-        return r;
-    }
-
-
+template <typename T>
+T DefaultValueTraits<T>::parse(std::string s, const XMLStreamParser &p) {
+  T r;
+  std::istringstream is(s);
+  if (!(is >> r && is.eof())) throw XMLStreamParserException(p, "invalid value '" + s + "'");
+  return r;
 }
-} // namespace Poco::XML
 
+}  // namespace XML
+}  // namespace Poco
 
-#endif // XML_ValueTraits_INCLUDED
+#endif  // XML_ValueTraits_INCLUDED

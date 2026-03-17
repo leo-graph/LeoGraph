@@ -1,52 +1,35 @@
 #include <Common/AlignedBuffer.h>
 
-#include <Common/Exception.h>
 #include <Common/ErrnoException.h>
+#include <Common/Exception.h>
 #include <Common/formatReadable.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int CANNOT_ALLOCATE_MEMORY;
+namespace ErrorCodes {
+extern const int CANNOT_ALLOCATE_MEMORY;
 }
 
-
-void AlignedBuffer::alloc(size_t size, size_t alignment)
-{
-    void * new_buf;
-    int res = ::posix_memalign(&new_buf, std::max(alignment, sizeof(void*)), size);
-    if (0 != res)
-        throw ErrnoException(
-            ErrorCodes::CANNOT_ALLOCATE_MEMORY,
-            "Cannot allocate memory (posix_memalign), size: {}, alignment: {}.",
-            ReadableSize(size),
-            ReadableSize(alignment));
-    buf = new_buf;
+void AlignedBuffer::alloc(size_t size, size_t alignment) {
+  void* new_buf;
+  int res = ::posix_memalign(&new_buf, std::max(alignment, sizeof(void*)), size);
+  if (0 != res)
+    throw ErrnoException(ErrorCodes::CANNOT_ALLOCATE_MEMORY, "Cannot allocate memory (posix_memalign), size: {}, alignment: {}.",
+                         ReadableSize(size), ReadableSize(alignment));
+  buf = new_buf;
 }
 
-void AlignedBuffer::dealloc()
-{
-    if (buf)
-        ::free(buf);
+void AlignedBuffer::dealloc() {
+  if (buf) ::free(buf);
 }
 
-void AlignedBuffer::reset(size_t size, size_t alignment)
-{
-    dealloc();
-    alloc(size, alignment);
+void AlignedBuffer::reset(size_t size, size_t alignment) {
+  dealloc();
+  alloc(size, alignment);
 }
 
-AlignedBuffer::AlignedBuffer(size_t size, size_t alignment)
-{
-    alloc(size, alignment);
-}
+AlignedBuffer::AlignedBuffer(size_t size, size_t alignment) { alloc(size, alignment); }
 
-AlignedBuffer::~AlignedBuffer()
-{
-    dealloc();
-}
+AlignedBuffer::~AlignedBuffer() { dealloc(); }
 
-}
+}  // namespace DB

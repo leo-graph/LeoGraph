@@ -1,58 +1,53 @@
 #pragma once
 
-#include <boost/noncopyable.hpp>
-#include <IO/ReadBuffer.h>
-#include <IO/WriteBuffer.h>
 #include <Core/MySQL/IMySQLReadPacket.h>
 #include <Core/MySQL/IMySQLWritePacket.h>
 #include <IO/MySQLPacketPayloadReadBuffer.h>
+#include <IO/ReadBuffer.h>
+#include <IO/WriteBuffer.h>
+#include <boost/noncopyable.hpp>
 
-namespace DB
-{
+namespace DB {
 
-namespace MySQLProtocol
-{
+namespace MySQLProtocol {
 
 /* Writes and reads packets, keeping sequence-id.
  * Throws ProtocolError, if packet with incorrect sequence-id was received.
  */
-class PacketEndpoint : boost::noncopyable
-{
-public:
-    uint8_t & sequence_id;
-    ReadBuffer * in;
-    WriteBuffer * out;
+class PacketEndpoint : boost::noncopyable {
+ public:
+  uint8_t& sequence_id;
+  ReadBuffer* in;
+  WriteBuffer* out;
 
-    /// For writing.
-    PacketEndpoint(WriteBuffer & out_, uint8_t & sequence_id_);
+  /// For writing.
+  PacketEndpoint(WriteBuffer& out_, uint8_t& sequence_id_);
 
-    /// For reading and writing.
-    PacketEndpoint(ReadBuffer & in_, WriteBuffer & out_, uint8_t & sequence_id_);
+  /// For reading and writing.
+  PacketEndpoint(ReadBuffer& in_, WriteBuffer& out_, uint8_t& sequence_id_);
 
-    MySQLPacketPayloadReadBuffer getPayload();
+  MySQLPacketPayloadReadBuffer getPayload();
 
-    void receivePacket(IMySQLReadPacket & packet);
+  void receivePacket(IMySQLReadPacket& packet);
 
-    bool tryReceivePacket(IMySQLReadPacket & packet, UInt64 millisecond = 0);
+  bool tryReceivePacket(IMySQLReadPacket& packet, UInt64 millisecond = 0);
 
-    /// Sets sequence-id to 0. Must be called before each command phase.
-    void resetSequenceId();
+  /// Sets sequence-id to 0. Must be called before each command phase.
+  void resetSequenceId();
 
-    template<class T>
-    void sendPacket(const T & packet, bool flush = true)
-    {
-        static_assert(std::is_base_of<IMySQLWritePacket, T>());
-        packet.writePayload(*out, sequence_id);
-        if (flush)
-            out->next();
-    }
+  template <class T>
+  void sendPacket(const T& packet, bool flush = true) {
+    static_assert(std::is_base_of<IMySQLWritePacket, T>());
+    packet.writePayload(*out, sequence_id);
+    if (flush) out->next();
+  }
 
-    /// Converts packet to text. Is used for debug output.
-    static String packetToText(const String & payload);
+  /// Converts packet to text. Is used for debug output.
+  static String packetToText(const String& payload);
 };
 
 using PacketEndpointPtr = std::shared_ptr<PacketEndpoint>;
 
-}
+}  // namespace MySQLProtocol
 
-}
+}  // namespace DB

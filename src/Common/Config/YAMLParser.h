@@ -3,39 +3,35 @@
 #include "config.h"
 
 #include <base/types.h>
-#include <Poco/DOM/Document.h>
 #include <Poco/DOM/AutoPtr.h>
+#include <Poco/DOM/Document.h>
 
 #if USE_YAML_CPP
 
-namespace DB
-{
+namespace DB {
 
 /// Real YAML parser: loads yaml file into a YAML::Node
-class YAMLParserImpl
-{
-public:
-    static Poco::AutoPtr<Poco::XML::Document> parse(const String& path);
+class YAMLParserImpl {
+ public:
+  static Poco::AutoPtr<Poco::XML::Document> parse(const String& path);
 };
 
 using YAMLParser = YAMLParserImpl;
 
-}
+}  // namespace DB
 
 #else
 
-namespace DB
-{
+namespace DB {
 
 /// Fake YAML parser: throws an exception if we try to parse YAML configs in a build without yaml-cpp
-class DummyYAMLParser
-{
-public:
-    static Poco::AutoPtr<Poco::XML::Document> parse(const String & path);
+class DummyYAMLParser {
+ public:
+  static Poco::AutoPtr<Poco::XML::Document> parse(const String& path);
 };
 
 using YAMLParser = DummyYAMLParser;
 
-}
+}  // namespace DB
 
 #endif

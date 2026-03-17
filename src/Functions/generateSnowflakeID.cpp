@@ -1,18 +1,16 @@
-#include <Functions/generateSnowflakeID.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <Functions/FunctionFactory.h>
-#include <Functions/FunctionsRandom.h>
-#include <Functions/FunctionHelpers.h>
-#include <Core/ServerUUID.h>
+#include <base/types.h>
 #include <Common/ErrorCodes.h>
 #include <Common/logger_useful.h>
-#include <base/types.h>
+#include <Core/ServerUUID.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <Functions/FunctionFactory.h>
+#include <Functions/FunctionHelpers.h>
+#include <Functions/FunctionsRandom.h>
+#include <Functions/generateSnowflakeID.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace
-{
+namespace {
 
 /* Snowflake ID
   https://en.wikipedia.org/wiki/Snowflake_ID
@@ -42,205 +40,180 @@ constexpr uint64_t machine_seq_num_mask = (1ull << machine_seq_num_bits_count) -
 /// max values
 constexpr uint64_t max_machine_seq_num = machine_seq_num_mask;
 
-uint64_t getTimestamp()
-{
-    auto now = std::chrono::system_clock::now();
-    auto ticks_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-    return static_cast<uint64_t>(ticks_since_epoch) & ((1ull << timestamp_bits_count) - 1);
+uint64_t getTimestamp() {
+  auto now = std::chrono::system_clock::now();
+  auto ticks_since_epoch = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+  return static_cast<uint64_t>(ticks_since_epoch) & ((1ull << timestamp_bits_count) - 1);
 }
 
-uint64_t getMachineIdImpl()
-{
-    UUID server_uuid = ServerUUID::get();
-    /// hash into 64 bits
-    uint64_t hi = UUIDHelpers::getHighBytes(server_uuid);
-    uint64_t lo = UUIDHelpers::getLowBytes(server_uuid);
-    /// return only 10 bits
-    return (((hi * 11) ^ (lo * 17)) & machine_id_mask) >> machine_seq_num_bits_count;
+uint64_t getMachineIdImpl() {
+  UUID server_uuid = ServerUUID::get();
+  /// hash into 64 bits
+  uint64_t hi = UUIDHelpers::getHighBytes(server_uuid);
+  uint64_t lo = UUIDHelpers::getLowBytes(server_uuid);
+  /// return only 10 bits
+  return (((hi * 11) ^ (lo * 17)) & machine_id_mask) >> machine_seq_num_bits_count;
 }
 
-uint64_t getMachineId()
-{
-    static uint64_t machine_id = getMachineIdImpl();
-    return machine_id;
+uint64_t getMachineId() {
+  static uint64_t machine_id = getMachineIdImpl();
+  return machine_id;
 }
 
-struct SnowflakeId
-{
-    uint64_t timestamp;
-    uint64_t machine_id;
-    uint64_t machine_seq_num;
+struct SnowflakeId {
+  uint64_t timestamp;
+  uint64_t machine_id;
+  uint64_t machine_seq_num;
 };
 
-SnowflakeId toSnowflakeId(uint64_t snowflake)
-{
-    return {.timestamp = (snowflake >> (machine_id_bits_count + machine_seq_num_bits_count)),
-            .machine_id = ((snowflake & machine_id_mask) >> machine_seq_num_bits_count),
-            .machine_seq_num = (snowflake & machine_seq_num_mask)};
+SnowflakeId toSnowflakeId(uint64_t snowflake) {
+  return {.timestamp = (snowflake >> (machine_id_bits_count + machine_seq_num_bits_count)),
+          .machine_id = ((snowflake & machine_id_mask) >> machine_seq_num_bits_count),
+          .machine_seq_num = (snowflake & machine_seq_num_mask)};
 }
 
-uint64_t fromSnowflakeId(SnowflakeId components)
-{
-    return (components.timestamp << (machine_id_bits_count + machine_seq_num_bits_count) |
-            components.machine_id << (machine_seq_num_bits_count) |
-            components.machine_seq_num);
+uint64_t fromSnowflakeId(SnowflakeId components) {
+  return (components.timestamp << (machine_id_bits_count + machine_seq_num_bits_count) |
+          components.machine_id << (machine_seq_num_bits_count) | components.machine_seq_num);
 }
 
-struct SnowflakeIdRange
-{
-    SnowflakeId begin; /// inclusive
-    SnowflakeId end;   /// exclusive
+struct SnowflakeIdRange {
+  SnowflakeId begin;  /// inclusive
+  SnowflakeId end;    /// exclusive
 };
 
 /// To get the range of `input_rows_count` Snowflake IDs from `max(available, now)`:
 /// 1. calculate Snowflake ID by current timestamp (`now`)
 /// 2. `begin = max(available, now)`
 /// 3. Calculate `end = begin + input_rows_count` handling `machine_seq_num` overflow
-SnowflakeIdRange getRangeOfAvailableIds(const SnowflakeId & available, uint64_t machine_id, size_t input_rows_count)
+SnowflakeIdRange getRangeOfAvailableIds(const SnowflakeId &available, uint64_t machine_id, size_t input_rows_count)
 
 {
-    /// 1. `now`
-    SnowflakeId begin = {.timestamp = getTimestamp(), .machine_id = machine_id, .machine_seq_num = 0};
+  /// 1. `now`
+  SnowflakeId begin = {.timestamp = getTimestamp(), .machine_id = machine_id, .machine_seq_num = 0};
 
-    /// 2. `begin`
-    if (begin.timestamp <= available.timestamp)
-    {
-        begin.timestamp = available.timestamp;
-        begin.machine_seq_num = available.machine_seq_num;
-    }
+  /// 2. `begin`
+  if (begin.timestamp <= available.timestamp) {
+    begin.timestamp = available.timestamp;
+    begin.machine_seq_num = available.machine_seq_num;
+  }
 
-    /// 3. `end = begin + input_rows_count`
-    SnowflakeId end;
-    const uint64_t seq_nums_in_current_timestamp_left = (max_machine_seq_num - begin.machine_seq_num + 1);
-    if (input_rows_count >= seq_nums_in_current_timestamp_left)
-        /// if sequence numbers in current timestamp is not enough for rows --> depending on how many elements input_rows_count overflows, forward timestamp by at least 1 tick
-        end.timestamp = begin.timestamp + 1 + (input_rows_count - seq_nums_in_current_timestamp_left) / (max_machine_seq_num + 1);
-    else
-        end.timestamp = begin.timestamp;
+  /// 3. `end = begin + input_rows_count`
+  SnowflakeId end;
+  const uint64_t seq_nums_in_current_timestamp_left = (max_machine_seq_num - begin.machine_seq_num + 1);
+  if (input_rows_count >= seq_nums_in_current_timestamp_left)
+    /// if sequence numbers in current timestamp is not enough for rows --> depending on how many elements input_rows_count overflows,
+    /// forward timestamp by at least 1 tick
+    end.timestamp = begin.timestamp + 1 + (input_rows_count - seq_nums_in_current_timestamp_left) / (max_machine_seq_num + 1);
+  else
+    end.timestamp = begin.timestamp;
 
-    end.machine_id = begin.machine_id;
-    end.machine_seq_num = (begin.machine_seq_num + input_rows_count) & machine_seq_num_mask;
+  end.machine_id = begin.machine_id;
+  end.machine_seq_num = (begin.machine_seq_num + input_rows_count) & machine_seq_num_mask;
 
-    return {begin, end};
+  return {begin, end};
 }
 
-struct Data
-{
-    /// Guarantee counter monotonicity within one timestamp across all threads generating Snowflake IDs simultaneously.
-    static inline std::atomic<uint64_t> lowest_available_snowflake_id = 0;
+struct Data {
+  /// Guarantee counter monotonicity within one timestamp across all threads generating Snowflake IDs simultaneously.
+  static inline std::atomic<uint64_t> lowest_available_snowflake_id = 0;
 
-    SnowflakeId reserveRange(uint64_t machine_id, size_t input_rows_count)
-    {
-        uint64_t available_snowflake_id = lowest_available_snowflake_id.load();
-        SnowflakeIdRange range;
-        do
-        {
-            range = getRangeOfAvailableIds(toSnowflakeId(available_snowflake_id), machine_id, input_rows_count);
-        }
-        while (!lowest_available_snowflake_id.compare_exchange_weak(available_snowflake_id, fromSnowflakeId(range.end)));
-        /// CAS failed --> another thread updated `lowest_available_snowflake_id` and we re-try
-        ///     else --> our thread reserved ID range [begin, end) and return the beginning of the range
+  SnowflakeId reserveRange(uint64_t machine_id, size_t input_rows_count) {
+    uint64_t available_snowflake_id = lowest_available_snowflake_id.load();
+    SnowflakeIdRange range;
+    do {
+      range = getRangeOfAvailableIds(toSnowflakeId(available_snowflake_id), machine_id, input_rows_count);
+    } while (!lowest_available_snowflake_id.compare_exchange_weak(available_snowflake_id, fromSnowflakeId(range.end)));
+    /// CAS failed --> another thread updated `lowest_available_snowflake_id` and we re-try
+    ///     else --> our thread reserved ID range [begin, end) and return the beginning of the range
 
-        return range.begin;
-    }
+    return range.begin;
+  }
 };
 
+}  // namespace
+
+uint64_t generateSnowflakeID() {
+  Data data;
+  SnowflakeId snowflake_id = data.reserveRange(getMachineId(), 1);
+  return fromSnowflakeId(snowflake_id);
 }
 
-uint64_t generateSnowflakeID()
-{
-    Data data;
-    SnowflakeId snowflake_id = data.reserveRange(getMachineId(), 1);
-    return fromSnowflakeId(snowflake_id);
-}
+class FunctionGenerateSnowflakeID : public IFunction {
+ public:
+  static constexpr auto name = "generateSnowflakeID";
 
-class FunctionGenerateSnowflakeID : public IFunction
-{
-public:
-    static constexpr auto name = "generateSnowflakeID";
+  static FunctionPtr create(ContextPtr /*context*/) { return std::make_shared<FunctionGenerateSnowflakeID>(); }
 
-    static FunctionPtr create(ContextPtr /*context*/) { return std::make_shared<FunctionGenerateSnowflakeID>(); }
+  String getName() const override { return name; }
+  size_t getNumberOfArguments() const override { return 0; }
+  bool isDeterministic() const override { return false; }
+  bool isDeterministicInScopeOfQuery() const override { return false; }
+  bool useDefaultImplementationForNulls() const override { return false; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+  bool isVariadic() const override { return true; }
 
-    String getName() const override { return name; }
-    size_t getNumberOfArguments() const override { return 0; }
-    bool isDeterministic() const override { return false; }
-    bool isDeterministicInScopeOfQuery() const override { return false; }
-    bool useDefaultImplementationForNulls() const override { return false; }
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
-    bool isVariadic() const override { return true; }
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName &arguments) const override {
+    FunctionArgumentDescriptors mandatory_args;
+    FunctionArgumentDescriptors optional_args{{"expr", nullptr, nullptr, "Arbitrary expression"},
+                                              {"machine_id", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isNativeUInt),
+                                               static_cast<FunctionArgumentDescriptor::ColumnValidator>(&isColumnConst), "const UInt*"}};
+    validateFunctionArguments(*this, arguments, mandatory_args, optional_args);
 
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
-    {
-        FunctionArgumentDescriptors mandatory_args;
-        FunctionArgumentDescriptors optional_args{
-            {"expr", nullptr, nullptr, "Arbitrary expression"},
-            {"machine_id", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isNativeUInt), static_cast<FunctionArgumentDescriptor::ColumnValidator>(&isColumnConst), "const UInt*"}
-        };
-        validateFunctionArguments(*this, arguments, mandatory_args, optional_args);
+    return std::make_shared<DataTypeUInt64>();
+  }
 
-        return std::make_shared<DataTypeUInt64>();
-    }
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t input_rows_count) const override {
+    auto col_res = ColumnVector<UInt64>::create();
+    typename ColumnVector<UInt64>::Container &vec_to = col_res->getData();
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
-    {
-        auto col_res = ColumnVector<UInt64>::create();
-        typename ColumnVector<UInt64>::Container & vec_to = col_res->getData();
+    if (input_rows_count > 0) {
+      vec_to.resize(input_rows_count);
 
-        if (input_rows_count > 0)
-        {
-            vec_to.resize(input_rows_count);
+      uint64_t machine_id = getMachineId();
+      if (arguments.size() == 2) {
+        machine_id = arguments[1].column->getUInt(0);
+        machine_id &= (1ull << machine_id_bits_count) - 1;
+      }
 
-            uint64_t machine_id = getMachineId();
-            if (arguments.size() == 2)
-            {
-                machine_id = arguments[1].column->getUInt(0);
-                machine_id &= (1ull << machine_id_bits_count) - 1;
-            }
+      Data data;
+      SnowflakeId snowflake_id = data.reserveRange(machine_id, input_rows_count);
 
-            Data data;
-            SnowflakeId snowflake_id = data.reserveRange(machine_id, input_rows_count);
-
-            for (UInt64 & to_row : vec_to)
-            {
-                to_row = fromSnowflakeId(snowflake_id);
-                if (snowflake_id.machine_seq_num == max_machine_seq_num)
-                {
-                    /// handle overflow
-                    snowflake_id.machine_seq_num = 0;
-                    ++snowflake_id.timestamp;
-                }
-                else
-                {
-                    ++snowflake_id.machine_seq_num;
-                }
-            }
+      for (UInt64 &to_row : vec_to) {
+        to_row = fromSnowflakeId(snowflake_id);
+        if (snowflake_id.machine_seq_num == max_machine_seq_num) {
+          /// handle overflow
+          snowflake_id.machine_seq_num = 0;
+          ++snowflake_id.timestamp;
+        } else {
+          ++snowflake_id.machine_seq_num;
         }
-
-        return col_res;
+      }
     }
 
+    return col_res;
+  }
 };
 
-REGISTER_FUNCTION(GenerateSnowflakeID)
-{
-    /// generateSnowflakeID documentation
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(GenerateSnowflakeID) {
+  /// generateSnowflakeID documentation
+  FunctionDocumentation::Description description = R"(
 Generates a [Snowflake ID](https://en.wikipedia.org/wiki/Snowflake_ID).
 
 Function `generateSnowflakeID` guarantees that the counter field within a timestamp increments monotonically across all function invocations in concurrently running threads and queries.
 
 See section ["Snowflake ID generation"](#snowflake-id-generation) for implementation details.
     )";
-    FunctionDocumentation::Syntax syntax = "generateSnowflakeID([expr, [machine_id]])";
-    FunctionDocumentation::Arguments arguments = {
-        {"expr", "An arbitrary [expression](/sql-reference/syntax#expressions) used to bypass [common subexpression elimination](/sql-reference/functions/overview#common-subexpression-elimination) if the function is called multiple times in a query. The value of the expression has no effect on the returned Snowflake ID. Optional."},
-        {"machine_id", "A machine ID, the lowest 10 bits are used. [Int64](../data-types/int-uint.md). Optional."}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns the Snowflake ID.", {"UInt64"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "generateSnowflakeID([expr, [machine_id]])";
+  FunctionDocumentation::Arguments arguments = {
+      {"expr",
+       "An arbitrary [expression](/sql-reference/syntax#expressions) used to bypass [common subexpression "
+       "elimination](/sql-reference/functions/overview#common-subexpression-elimination) if the function is called multiple times in a "
+       "query. The value of the expression has no effect on the returned Snowflake ID. Optional."},
+      {"machine_id", "A machine ID, the lowest 10 bits are used. [Int64](../data-types/int-uint.md). Optional."}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns the Snowflake ID.", {"UInt64"}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 CREATE TABLE tab (id UInt64)
 ENGINE = MergeTree()
 ORDER BY tuple();
@@ -249,41 +222,34 @@ INSERT INTO tab SELECT generateSnowflakeID();
 
 SELECT * FROM tab;
         )",
-        R"(
+                                               R"(
 ┌──────────────────id─┐
 │ 7199081390080409600 │
 └─────────────────────┘
-        )"
-    },
-    {
-        "Multiple Snowflake IDs generated per row",
-        R"(
+        )"},
+                                              {"Multiple Snowflake IDs generated per row",
+                                               R"(
 SELECT generateSnowflakeID(1), generateSnowflakeID(2);
         )",
-        R"(
+                                               R"(
 ┌─generateSnowflakeID(1)─┬─generateSnowflakeID(2)─┐
 │    7199081609652224000 │    7199081609652224001 │
 └────────────────────────┴────────────────────────┘
-        )"
-    },
-    {
-        "With expression and a machine ID",
-        R"(
+        )"},
+                                              {"With expression and a machine ID",
+                                               R"(
 SELECT generateSnowflakeID('expr', 1);
         )",
-        R"(
+                                               R"(
 ┌─generateSnowflakeID('expr', 1)─┐
 │            7201148511606784002 │
 └────────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {24, 6};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::UUID;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {24, 6};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::UUID;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionGenerateSnowflakeID>(documentation);
-
+  factory.registerFunction<FunctionGenerateSnowflakeID>(documentation);
 }
 
-}
+}  // namespace DB

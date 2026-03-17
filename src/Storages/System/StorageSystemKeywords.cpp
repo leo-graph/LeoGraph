@@ -1,30 +1,24 @@
 #include <Columns/IColumn.h>
-#include <Interpreters/Context.h>
 #include <Interpreters/ActionsDAG.h>
+#include <Interpreters/Context.h>
 #include <Storages/System/StorageSystemKeywords.h>
 
 #include <Parsers/CommonParsers.h>
 
+namespace DB {
 
-namespace DB
-{
-
-ColumnsDescription StorageSystemKeywords::getColumnsDescription()
-{
-    return ColumnsDescription
-    {
-        {"keyword", std::make_shared<DataTypeString>(), "The keyword used in ClickHouse parser."},
-    };
+ColumnsDescription StorageSystemKeywords::getColumnsDescription() {
+  return ColumnsDescription{
+      {"keyword", std::make_shared<DataTypeString>(), "The keyword used in ClickHouse parser."},
+  };
 }
 
-void StorageSystemKeywords::fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const
-{
-    auto macros = context->getMacros();
+void StorageSystemKeywords::fillData(MutableColumns &res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const {
+  auto macros = context->getMacros();
 
-    for (const auto & keyword : getAllKeyWords())
-    {
-        res_columns[0]->insert(keyword);
-    }
+  for (const auto &keyword : getAllKeyWords()) {
+    res_columns[0]->insert(keyword);
+  }
 }
 
-}
+}  // namespace DB

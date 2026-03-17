@@ -1,43 +1,37 @@
 #pragma once
 
 #include <Common/UnorderedMapWithMemoryTracking.h>
-#include <Poco/Exception.h>
 #include <Dictionaries/Embedded/GeodataProviders/IHierarchiesProvider.h>
 #include <Dictionaries/Embedded/RegionsHierarchy.h>
+#include <Poco/Exception.h>
 
-namespace DB
-{
+namespace DB {
 
 /** Contains several hierarchies of regions.
-  * Used to support several different perspectives on the ownership of regions by countries.
-  * First of all, for the Falklands/Malvinas (UK and Argentina points of view).
-  */
-class RegionsHierarchies
-{
-private:
-    using Container = UnorderedMapWithMemoryTracking<std::string, RegionsHierarchy>;
-    Container data;
+ * Used to support several different perspectives on the ownership of regions by countries.
+ * First of all, for the Falklands/Malvinas (UK and Argentina points of view).
+ */
+class RegionsHierarchies {
+ private:
+  using Container = UnorderedMapWithMemoryTracking<std::string, RegionsHierarchy>;
+  Container data;
 
-public:
-    explicit RegionsHierarchies(IRegionsHierarchiesDataProviderPtr data_provider);
+ public:
+  explicit RegionsHierarchies(IRegionsHierarchiesDataProviderPtr data_provider);
 
-    /** Reloads, if necessary, all hierarchies of regions.
-      */
-    void reload()
-    {
-        for (auto & elem : data)
-            elem.second.reload();
-    }
+  /** Reloads, if necessary, all hierarchies of regions.
+   */
+  void reload() {
+    for (auto& elem : data) elem.second.reload();
+  }
 
-    const RegionsHierarchy & get(const std::string & key) const
-    {
-        auto it = data.find(key);
+  const RegionsHierarchy& get(const std::string& key) const {
+    auto it = data.find(key);
 
-        if (data.end() == it)
-            throw Poco::Exception("There is no regions hierarchy for key " + key);
+    if (data.end() == it) throw Poco::Exception("There is no regions hierarchy for key " + key);
 
-        return it->second;
-    }
+    return it->second;
+  }
 };
 
-}
+}  // namespace DB

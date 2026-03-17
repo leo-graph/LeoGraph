@@ -11,49 +11,25 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/MemoryStream.h"
-
 
 namespace Poco {
 
+MemoryIOS::MemoryIOS(char* pBuffer, std::streamsize bufferSize) : _buf(pBuffer, bufferSize) { poco_ios_init(&_buf); }
 
-MemoryIOS::MemoryIOS(char* pBuffer, std::streamsize bufferSize):
-	_buf(pBuffer, bufferSize)
-{
-	poco_ios_init(&_buf);
+MemoryIOS::~MemoryIOS() {}
+
+MemoryInputStream::MemoryInputStream(const char* pBuffer, std::streamsize bufferSize)
+    : MemoryIOS(const_cast<char*>(pBuffer), bufferSize), std::istream(&_buf) {
+  poco_ios_init(&_buf);
 }
 
+MemoryInputStream::~MemoryInputStream() {}
 
-MemoryIOS::~MemoryIOS()
-{
+MemoryOutputStream::MemoryOutputStream(char* pBuffer, std::streamsize bufferSize) : MemoryIOS(pBuffer, bufferSize), std::ostream(&_buf) {
+  poco_ios_init(&_buf);
 }
 
+MemoryOutputStream::~MemoryOutputStream() {}
 
-MemoryInputStream::MemoryInputStream(const char* pBuffer, std::streamsize bufferSize):
-	MemoryIOS(const_cast<char*>(pBuffer), bufferSize),
-	std::istream(&_buf)
-{
-	poco_ios_init(&_buf);
-}
-
-
-MemoryInputStream::~MemoryInputStream()
-{
-}
-
-
-MemoryOutputStream::MemoryOutputStream(char* pBuffer, std::streamsize bufferSize):
-	MemoryIOS(pBuffer, bufferSize),
-	std::ostream(&_buf)
-{
-	poco_ios_init(&_buf);
-}
-
-
-MemoryOutputStream::~MemoryOutputStream()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -13,26 +13,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef XML_XMLStream_INCLUDED
 #define XML_XMLStream_INCLUDED
-
 
 #include <istream>
 #include <ostream>
 #include "Poco/XML/XML.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
-{
-namespace XML
-{
-
-
-    // The byte input stream is always a narrow stream.
-    using XMLByteInputStream = std::istream;
-    using XMLByteOutputStream = std::ostream;
-
+// The byte input stream is always a narrow stream.
+using XMLByteInputStream = std::istream;
+using XMLByteOutputStream = std::ostream;
 
 //
 // The XML parser uses the stream classes provided by the C++
@@ -50,25 +43,23 @@ namespace XML
 //
 #if defined(XML_UNICODE_WCHAR_T)
 
-    // Unicode - use wide streams
-    using XMLCharInputStream = std::wistream;
-    using XMLCharOutputStream = std::wostream;
+// Unicode - use wide streams
+using XMLCharInputStream = std::wistream;
+using XMLCharOutputStream = std::wostream;
 
 #elif defined(XML_UNICODE)
 
-    // not supported - leave XMLString undefined
+// not supported - leave XMLString undefined
 
 #else
 
-    // Characters are UTF-8 encoded
-    using XMLCharInputStream = std::istream;
-    using XMLCharOutputStream = std::ostream;
+// Characters are UTF-8 encoded
+using XMLCharInputStream = std::istream;
+using XMLCharOutputStream = std::ostream;
 
 #endif
 
+}  // namespace XML
+}  // namespace Poco
 
-}
-} // namespace Poco::XML
-
-
-#endif // XML_XMLStream_INCLUDED
+#endif  // XML_XMLStream_INCLUDED

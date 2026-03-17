@@ -2,29 +2,22 @@
 
 #include <iosfwd>
 
-
-namespace DB
-{
+namespace DB {
 /**
  * Wrapper of IOStream to store response stream and corresponding HTTP session.
  */
 template <typename Session>
-class SessionAwareIOStream : public std::iostream
-{
-public:
-    SessionAwareIOStream(Session session_, std::streambuf * sb)
-        : std::iostream(sb)
-        , session(std::move(session_))
-    {
-    }
+class SessionAwareIOStream : public std::iostream {
+ public:
+  SessionAwareIOStream(Session session_, std::streambuf* sb) : std::iostream(sb), session(std::move(session_)) {}
 
-    Session & getSession() { return session; }
+  Session& getSession() { return session; }
 
-    const Session & getSession() const { return session; }
+  const Session& getSession() const { return session; }
 
-private:
-    /// Poco HTTP session is holder of response stream.
-    Session session;
+ private:
+  /// Poco HTTP session is holder of response stream.
+  Session session;
 };
 
-}
+}  // namespace DB

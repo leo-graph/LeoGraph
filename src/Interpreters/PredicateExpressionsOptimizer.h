@@ -3,8 +3,7 @@
 #include <Interpreters/Context_fwd.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTSelectQuery;
 struct Settings;
@@ -15,27 +14,26 @@ struct Settings;
  *      - Move predicates from having to where
  *      - Push the predicate down from the current query to the having of the subquery
  */
-class PredicateExpressionsOptimizer : WithContext
-{
-public:
-    PredicateExpressionsOptimizer(ContextPtr context_, const TablesWithColumns & tables_with_columns_, const Settings & settings_);
+class PredicateExpressionsOptimizer : WithContext {
+ public:
+  PredicateExpressionsOptimizer(ContextPtr context_, const TablesWithColumns& tables_with_columns_, const Settings& settings_);
 
-    bool optimize(ASTSelectQuery & select_query);
+  bool optimize(ASTSelectQuery& select_query);
 
-private:
-    const bool enable_optimize_predicate_expression;
-    const bool enable_optimize_predicate_expression_to_final_subquery;
-    const bool allow_push_predicate_when_subquery_contains_with;
-    const TablesWithColumns & tables_with_columns;
+ private:
+  const bool enable_optimize_predicate_expression;
+  const bool enable_optimize_predicate_expression_to_final_subquery;
+  const bool allow_push_predicate_when_subquery_contains_with;
+  const TablesWithColumns& tables_with_columns;
 
-    std::vector<ASTs> extractTablesPredicates(const ASTPtr & where, const ASTPtr & prewhere);
+  std::vector<ASTs> extractTablesPredicates(const ASTPtr& where, const ASTPtr& prewhere);
 
-    bool tryRewritePredicatesToTables(ASTs & tables_element, const std::vector<ASTs> & tables_predicates);
+  bool tryRewritePredicatesToTables(ASTs& tables_element, const std::vector<ASTs>& tables_predicates);
 
-    bool tryRewritePredicatesToTable(
-        ASTPtr & table_element, const ASTs & table_predicates, const TableWithColumnNamesAndTypes & table_columns) const;
+  bool tryRewritePredicatesToTable(ASTPtr& table_element, const ASTs& table_predicates,
+                                   const TableWithColumnNamesAndTypes& table_columns) const;
 
-    bool tryMovePredicatesFromHavingToWhere(ASTSelectQuery & select_query);
+  bool tryMovePredicatesFromHavingToWhere(ASTSelectQuery& select_query);
 };
 
-}
+}  // namespace DB

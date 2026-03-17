@@ -1,19 +1,17 @@
 #pragma once
 
 #include <base/types.h>
-#include <Storages/RenamingRestrictions.h>
 #include <Databases/LoadingStrictnessLevel.h>
+#include <Storages/RenamingRestrictions.h>
 
 #include <memory>
 
-namespace zkutil
-{
+namespace zkutil {
 class ZooKeeper;
 using ZooKeeperPtr = std::shared_ptr<ZooKeeper>;
-}
+}  // namespace zkutil
 
-namespace DB
-{
+namespace DB {
 
 struct StorageID;
 class ASTCreateQuery;
@@ -32,35 +30,32 @@ using DatabasePtr = std::shared_ptr<IDatabase>;
 ///    the znode at this path but also the parent znode "/clickhouse/tables/{uuid}" if it became empty.
 ///    Otherwise each created+dropped table would leave behind an empty znode.
 
-struct TableZnodeInfo
-{
-    String path;
-    String replica_name;
-    /// Which zookeeper cluster to use ("default" or one of auxiliary zookeepers listed in config).
-    String zookeeper_name = "default";
+struct TableZnodeInfo {
+  String path;
+  String replica_name;
+  /// Which zookeeper cluster to use ("default" or one of auxiliary zookeepers listed in config).
+  String zookeeper_name = "default";
 
-    /// Path with optional zookeeper_name prefix: "<auxiliary_zookeeper_name>:<path>".
-    String full_path;
+  /// Path with optional zookeeper_name prefix: "<auxiliary_zookeeper_name>:<path>".
+  String full_path;
 
-    /// Do not allow RENAME TABLE if zookeeper_path contains {database} or {table} macro.
-    RenamingRestrictions renaming_restrictions = RenamingRestrictions::ALLOW_ANY;
+  /// Do not allow RENAME TABLE if zookeeper_path contains {database} or {table} macro.
+  RenamingRestrictions renaming_restrictions = RenamingRestrictions::ALLOW_ANY;
 
-    /// Information to save in table metadata and send to replicas (if ON CLUSTER or DatabaseReplicated).
-    /// Has some macros expanded (e.g. {table}), others left unexpanded (e.g. {replica}).
-    String full_path_for_metadata;
-    String replica_name_for_metadata;
+  /// Information to save in table metadata and send to replicas (if ON CLUSTER or DatabaseReplicated).
+  /// Has some macros expanded (e.g. {table}), others left unexpanded (e.g. {replica}).
+  String full_path_for_metadata;
+  String replica_name_for_metadata;
 
-    /// Path to an ancestor of `path` that should be considered "owned" by this table (shared among
-    /// replicas of the table). When table is dropped, this znode will be removed if it became empty.
-    /// E.g. path = "/clickhouse/tables/{uuid}/{shard}", path_prefix_to_drop = "/clickhouse/tables/{uuid}".
-    String path_prefix_for_drop;
+  /// Path to an ancestor of `path` that should be considered "owned" by this table (shared among
+  /// replicas of the table). When table is dropped, this znode will be removed if it became empty.
+  /// E.g. path = "/clickhouse/tables/{uuid}/{shard}", path_prefix_to_drop = "/clickhouse/tables/{uuid}".
+  String path_prefix_for_drop;
 
-    static TableZnodeInfo resolve(
-        const String & requested_path, const String & requested_replica_name,
-        const StorageID & table_id, const ASTCreateQuery & query, LoadingStrictnessLevel mode,
-        const ContextPtr & context);
+  static TableZnodeInfo resolve(const String& requested_path, const String& requested_replica_name, const StorageID& table_id,
+                                const ASTCreateQuery& query, LoadingStrictnessLevel mode, const ContextPtr& context);
 
-    void dropAncestorZnodesIfNeeded(const zkutil::ZooKeeperPtr & zookeeper) const;
+  void dropAncestorZnodesIfNeeded(const zkutil::ZooKeeperPtr& zookeeper) const;
 };
 
-}
+}  // namespace DB

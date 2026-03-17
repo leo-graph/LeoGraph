@@ -1,94 +1,88 @@
 #pragma once
 
 #include <base/types.h>
-#include <Common/ThreadPool_fwd.h>
 #include <Common/CurrentMetrics.h>
+#include <Common/ThreadPool_fwd.h>
 
 #include <cstdlib>
 #include <memory>
 #include <mutex>
 
+namespace DB {
 
-namespace DB
-{
+class StaticThreadPool {
+ public:
+  StaticThreadPool(const String& name_, CurrentMetrics::Metric threads_metric_, CurrentMetrics::Metric threads_active_metric_,
+                   CurrentMetrics::Metric threads_scheduled_metric_);
 
-class StaticThreadPool
-{
-public:
-    StaticThreadPool(
-        const String & name_,
-        CurrentMetrics::Metric threads_metric_,
-        CurrentMetrics::Metric threads_active_metric_,
-        CurrentMetrics::Metric threads_scheduled_metric_);
+  ThreadPool& get();
 
-    ThreadPool & get();
+  void initialize(size_t max_threads, size_t max_free_threads, size_t queue_size);
+  bool isInitialized() const;
+  void reloadConfiguration(size_t max_threads, size_t max_free_threads, size_t queue_size);
 
-    void initialize(size_t max_threads, size_t max_free_threads, size_t queue_size);
-    bool isInitialized() const;
-    void reloadConfiguration(size_t max_threads, size_t max_free_threads, size_t queue_size);
+  /// Server and clickhouse-local initialize all thread pools on startup, with settings from config.
+  /// Client and misc tools may initialize the pools they use lazily using this method instead.
+  void initializeWithDefaultSettingsIfNotInitialized();
 
-    /// Server and clickhouse-local initialize all thread pools on startup, with settings from config.
-    /// Client and misc tools may initialize the pools they use lazily using this method instead.
-    void initializeWithDefaultSettingsIfNotInitialized();
+  /// At runtime we can increase the number of threads up the specified limit
+  /// This is needed to utilize as much a possible resources to accomplish some task.
+  void setMaxTurboThreads(size_t max_threads_turbo_);
+  void enableTurboMode();
+  void disableTurboMode();
 
-    /// At runtime we can increase the number of threads up the specified limit
-    /// This is needed to utilize as much a possible resources to accomplish some task.
-    void setMaxTurboThreads(size_t max_threads_turbo_);
-    void enableTurboMode();
-    void disableTurboMode();
+ private:
+  const String name;
+  const CurrentMetrics::Metric threads_metric;
+  const CurrentMetrics::Metric threads_active_metric;
+  const CurrentMetrics::Metric threads_scheduled_metric;
 
-private:
-    const String name;
-    const CurrentMetrics::Metric threads_metric;
-    const CurrentMetrics::Metric threads_active_metric;
-    const CurrentMetrics::Metric threads_scheduled_metric;
+  std::unique_ptr<ThreadPool> instance;
+  std::once_flag init_flag;
+  std::mutex mutex;
+  size_t max_threads_turbo = 0;
+  size_t max_threads_normal = 0;
+  /// If this counter is > 0 - this specific mode is enabled
+  size_t turbo_mode_enabled = 0;
 
-    std::unique_ptr<ThreadPool> instance;
-    std::once_flag init_flag;
-    std::mutex mutex;
-    size_t max_threads_turbo = 0;
-    size_t max_threads_normal = 0;
-    /// If this counter is > 0 - this specific mode is enabled
-    size_t turbo_mode_enabled = 0;
-
-    void initializeImpl(size_t max_threads, size_t max_free_threads, size_t queue_size);
+  void initializeImpl(size_t max_threads, size_t max_free_threads, size_t queue_size);
 };
 
 /// ThreadPool used for the IO.
-StaticThreadPool & getIOThreadPool();
+StaticThreadPool& getIOThreadPool();
 
 /// ThreadPool used for the Backup IO.
-StaticThreadPool & getBackupsIOThreadPool();
+StaticThreadPool& getBackupsIOThreadPool();
 
 /// ThreadPool used for FETCH PARTITION
-StaticThreadPool & getFetchPartitionThreadPool();
+StaticThreadPool& getFetchPartitionThreadPool();
 
 /// ThreadPool used for the loading of Outdated data parts for MergeTree tables.
-StaticThreadPool & getActivePartsLoadingThreadPool();
+StaticThreadPool& getActivePartsLoadingThreadPool();
 
 /// ThreadPool used for commit snapshot.
-StaticThreadPool & getSnapshotCommitThreadPool();
+StaticThreadPool& getSnapshotCommitThreadPool();
 
 /// ThreadPool used for deleting data parts for MergeTree tables.
-StaticThreadPool & getPartsCleaningThreadPool();
+StaticThreadPool& getPartsCleaningThreadPool();
 
 /// This ThreadPool is used for the loading of Outdated data parts for MergeTree tables.
 /// Normally we will just load Outdated data parts concurrently in background, but in
 /// case when we need to synchronously wait for the loading to be finished, we can increase
 /// the number of threads by calling enableTurboMode() :-)
-StaticThreadPool & getOutdatedPartsLoadingThreadPool();
+StaticThreadPool& getOutdatedPartsLoadingThreadPool();
 
-StaticThreadPool & getUnexpectedPartsLoadingThreadPool();
+StaticThreadPool& getUnexpectedPartsLoadingThreadPool();
 
 /// ThreadPool used for creating tables in DatabaseReplicated.
-StaticThreadPool & getDatabaseReplicatedCreateTablesThreadPool();
+StaticThreadPool& getDatabaseReplicatedCreateTablesThreadPool();
 
 /// ThreadPool used for dropping tables.
-StaticThreadPool & getDatabaseCatalogDropTablesThreadPool();
+StaticThreadPool& getDatabaseCatalogDropTablesThreadPool();
 
 /// ThreadPool used for parallel prefixes deserialization of subcolumns in Wide MergeTree parts.
-StaticThreadPool & getMergeTreePrefixesDeserializationThreadPool();
+StaticThreadPool& getMergeTreePrefixesDeserializationThreadPool();
 
-StaticThreadPool & getFormatParsingThreadPool();
+StaticThreadPool& getFormatParsingThreadPool();
 
-}
+}  // namespace DB

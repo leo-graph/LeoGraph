@@ -2,24 +2,19 @@
 
 #if USE_PARQUET && USE_DELTA_KERNEL_RS
 
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
+#  include <IO/ReadHelpers.h>
+#  include <IO/WriteHelpers.h>
 
-namespace DeltaLake
-{
+namespace DeltaLake {
 
-void TableStateSnapshot::serialize(DB::WriteBuffer & out) const
-{
-    DB::writeVarUInt(version, out);
+void TableStateSnapshot::serialize(DB::WriteBuffer& out) const { DB::writeVarUInt(version, out); }
+
+TableStateSnapshot TableStateSnapshot::deserialize(DB::ReadBuffer& in, int /*datalake_state_protocol_version*/) {
+  TableStateSnapshot result;
+  DB::readVarUInt(result.version, in);
+  return result;
 }
 
-TableStateSnapshot TableStateSnapshot::deserialize(DB::ReadBuffer & in, int /*datalake_state_protocol_version*/)
-{
-    TableStateSnapshot result;
-    DB::readVarUInt(result.version, in);
-    return result;
-}
-
-}
+}  // namespace DeltaLake
 
 #endif

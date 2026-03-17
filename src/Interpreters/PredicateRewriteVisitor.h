@@ -5,51 +5,42 @@
 #include <Interpreters/InDepthNodeVisitor.h>
 #include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTSelectIntersectExceptQuery;
 class ASTSelectQuery;
 class ASTSelectWithUnionQuery;
 
-class PredicateRewriteVisitorData : WithContext
-{
-public:
-    bool is_rewrite = false;
-    using TypeToVisit = ASTSelectWithUnionQuery;
+class PredicateRewriteVisitorData : WithContext {
+ public:
+  bool is_rewrite = false;
+  using TypeToVisit = ASTSelectWithUnionQuery;
 
-    void visit(ASTSelectWithUnionQuery & union_select_query, ASTPtr &);
+  void visit(ASTSelectWithUnionQuery &union_select_query, ASTPtr &);
 
-    static bool needChild(const ASTPtr & node, const ASTPtr &)
-    {
-        return !(node && node->as<TypeToVisit>());
-    }
+  static bool needChild(const ASTPtr &node, const ASTPtr &) { return !(node && node->as<TypeToVisit>()); }
 
-    PredicateRewriteVisitorData(
-        ContextPtr context_,
-        const ASTs & predicates_,
-        const TableWithColumnNamesAndTypes & table_columns_,
-        bool optimize_final_,
-        bool optimize_with_);
+  PredicateRewriteVisitorData(ContextPtr context_, const ASTs &predicates_, const TableWithColumnNamesAndTypes &table_columns_,
+                              bool optimize_final_, bool optimize_with_);
 
-    bool rewriteSubquery(ASTSelectQuery & subquery, const Names & inner_columns);
+  bool rewriteSubquery(ASTSelectQuery &subquery, const Names &inner_columns);
 
-private:
-    const ASTs & predicates;
-    const TableWithColumnNamesAndTypes & table_columns;
-    bool optimize_final;
-    bool optimize_with;
+ private:
+  const ASTs &predicates;
+  const TableWithColumnNamesAndTypes &table_columns;
+  bool optimize_final;
+  bool optimize_with;
 
-    void visitFirstInternalSelect(ASTSelectQuery & select_query, ASTPtr &);
+  void visitFirstInternalSelect(ASTSelectQuery &select_query, ASTPtr &);
 
-    void visitOtherInternalSelect(ASTSelectQuery & select_query, ASTPtr &);
+  void visitOtherInternalSelect(ASTSelectQuery &select_query, ASTPtr &);
 
-    void visit(ASTSelectIntersectExceptQuery & intersect_except_query, ASTPtr &);
+  void visit(ASTSelectIntersectExceptQuery &intersect_except_query, ASTPtr &);
 
-    void visitInternalSelect(size_t index, ASTSelectQuery & select_node, ASTPtr & node);
+  void visitInternalSelect(size_t index, ASTSelectQuery &select_node, ASTPtr &node);
 };
 
 using PredicateRewriteMatcher = OneTypeMatcher<PredicateRewriteVisitorData, PredicateRewriteVisitorData::needChild>;
 using PredicateRewriteVisitor = InDepthNodeVisitor<PredicateRewriteMatcher, true>;
 
-}
+}  // namespace DB

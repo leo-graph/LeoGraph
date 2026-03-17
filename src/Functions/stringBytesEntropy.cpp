@@ -3,73 +3,57 @@
 
 #include <cmath>
 
-namespace DB
-{
+namespace DB {
 
-struct StringBytesEntropyImpl
-{
-    using ResultType = Float64;
+struct StringBytesEntropyImpl {
+  using ResultType = Float64;
 
-    static ResultType process(const UInt8 * data, size_t size)
-    {
-        if (size == 0)
-            return 0;
+  static ResultType process(const UInt8* data, size_t size) {
+    if (size == 0) return 0;
 
-        std::array<UInt32, 256> counters{};
-        const UInt8 * end = data + size;
+    std::array<UInt32, 256> counters{};
+    const UInt8* end = data + size;
 
-        for (; data < end; ++data)
-            counters[*data]++;
+    for (; data < end; ++data) counters[*data]++;
 
-        Float64 entropy = 0.0;
+    Float64 entropy = 0.0;
 
-        for (size_t byte = 0; byte < 256; ++byte)
-        {
-            UInt32 count = counters[byte];
-            if (count > 0)
-            {
-                Float64 p = static_cast<Float64>(count) / static_cast<Float64>(size);
-                entropy -= p * std::log2(p);
-            }
-        }
-
-        return entropy;
+    for (size_t byte = 0; byte < 256; ++byte) {
+      UInt32 count = counters[byte];
+      if (count > 0) {
+        Float64 p = static_cast<Float64>(count) / static_cast<Float64>(size);
+        entropy -= p * std::log2(p);
+      }
     }
+
+    return entropy;
+  }
 };
 
-struct NameStringBytesEntropy
-{
-    static constexpr auto name = "stringBytesEntropy";
+struct NameStringBytesEntropy {
+  static constexpr auto name = "stringBytesEntropy";
 };
 
 using FunctionStringBytesEntropy = FunctionStringBytes<StringBytesEntropyImpl, NameStringBytesEntropy>;
 
-REGISTER_FUNCTION(StringBytesEntropy)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(StringBytesEntropy) {
+  FunctionDocumentation::Description description = R"(
 Calculates Shannon's entropy of byte distribution in a string.
 )";
-    FunctionDocumentation::Syntax syntax = "stringBytesEntropy(s)";
-    FunctionDocumentation::Arguments arguments = {
-        {"s", "The string to analyze.", {"String"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns Shannon's entropy of byte distribution in the string.", {"Float64"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        "SELECT stringBytesEntropy('Hello, world!')",
-        R"(
+  FunctionDocumentation::Syntax syntax = "stringBytesEntropy(s)";
+  FunctionDocumentation::Arguments arguments = {{"s", "The string to analyze.", {"String"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns Shannon's entropy of byte distribution in the string.", {"Float64"}};
+  FunctionDocumentation::Examples examples = {{"Usage example", "SELECT stringBytesEntropy('Hello, world!')",
+                                               R"(
 ┌─stringBytesEntropy('Hello, world!')─┐
 │                         3.07049960  │
 └─────────────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {25, 6};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::String;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {25, 6};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::String;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionStringBytesEntropy>(documentation);
+  factory.registerFunction<FunctionStringBytesEntropy>(documentation);
 }
 
-}
+}  // namespace DB

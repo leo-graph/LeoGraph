@@ -1,48 +1,35 @@
 #include <Dictionaries/DictionaryHelpers.h>
 
-namespace DB
-{
+namespace DB {
 
-MutableColumns deserializeColumnsFromKeys(
-    const DictionaryStructure & dictionary_structure,
-    const PaddedPODArray<std::string_view> & keys,
-    size_t start,
-    size_t end)
-{
-    MutableColumns result_columns;
-    result_columns.reserve(dictionary_structure.key->size());
+MutableColumns deserializeColumnsFromKeys(const DictionaryStructure& dictionary_structure, const PaddedPODArray<std::string_view>& keys,
+                                          size_t start, size_t end) {
+  MutableColumns result_columns;
+  result_columns.reserve(dictionary_structure.key->size());
 
-    for (const DictionaryAttribute & attribute : *dictionary_structure.key)
-        result_columns.emplace_back(attribute.type->createColumn());
+  for (const DictionaryAttribute& attribute : *dictionary_structure.key) result_columns.emplace_back(attribute.type->createColumn());
 
-    for (size_t index = start; index < end; ++index)
-    {
-        const auto & key = keys[index];
-        ReadBufferFromString in(key);
+  for (size_t index = start; index < end; ++index) {
+    const auto& key = keys[index];
+    ReadBufferFromString in(key);
 
-        for (auto & result_column : result_columns)
-            result_column->deserializeAndInsertFromArena(in, nullptr);
-    }
+    for (auto& result_column : result_columns) result_column->deserializeAndInsertFromArena(in, nullptr);
+  }
 
-    return result_columns;
+  return result_columns;
 }
 
-ColumnsWithTypeAndName deserializeColumnsWithTypeAndNameFromKeys(
-    const DictionaryStructure & dictionary_structure,
-    const PaddedPODArray<std::string_view> & keys,
-    size_t start,
-    size_t end)
-{
-    ColumnsWithTypeAndName result;
-    MutableColumns columns = deserializeColumnsFromKeys(dictionary_structure, keys, start, end);
+ColumnsWithTypeAndName deserializeColumnsWithTypeAndNameFromKeys(const DictionaryStructure& dictionary_structure,
+                                                                 const PaddedPODArray<std::string_view>& keys, size_t start, size_t end) {
+  ColumnsWithTypeAndName result;
+  MutableColumns columns = deserializeColumnsFromKeys(dictionary_structure, keys, start, end);
 
-    for (size_t i = 0, num_columns = columns.size(); i < num_columns; ++i)
-    {
-        const auto & dictionary_attribute = (*dictionary_structure.key)[i];
-        result.emplace_back(ColumnWithTypeAndName{std::move(columns[i]), dictionary_attribute.type, dictionary_attribute.name});
-    }
+  for (size_t i = 0, num_columns = columns.size(); i < num_columns; ++i) {
+    const auto& dictionary_attribute = (*dictionary_structure.key)[i];
+    result.emplace_back(ColumnWithTypeAndName{std::move(columns[i]), dictionary_attribute.type, dictionary_attribute.name});
+  }
 
-    return result;
+  return result;
 }
 
-}
+}  // namespace DB

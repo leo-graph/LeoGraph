@@ -6,47 +6,44 @@
 #include <Interpreters/InsertDeduplication.h>
 #include <filesystem>
 
-namespace DB
-{
+namespace DB {
 
 template <typename TStorage>
-class AsyncBlockIDsCache
-{
-    struct Cache;
-    using CachePtr = std::shared_ptr<Cache>;
+class AsyncBlockIDsCache {
+  struct Cache;
+  using CachePtr = std::shared_ptr<Cache>;
 
-    void update();
+  void update();
 
-public:
-    explicit AsyncBlockIDsCache(TStorage & storage_, const std::string & dir_name);
+ public:
+  explicit AsyncBlockIDsCache(TStorage& storage_, const std::string& dir_name);
 
-    void start();
+  void start();
 
-    void stop();
+  void stop();
 
-    std::vector<DeduplicationHash> detectConflicts(const std::vector<DeduplicationHash> & deduplication_hashes, UInt64 & last_version);
+  std::vector<DeduplicationHash> detectConflicts(const std::vector<DeduplicationHash>& deduplication_hashes, UInt64& last_version);
 
-    void triggerCacheUpdate();
+  void triggerCacheUpdate();
 
-    void truncate();
+  void truncate();
 
-private:
+ private:
+  TStorage& storage;
 
-    TStorage & storage;
+  const std::chrono::milliseconds update_wait;
 
-    const std::chrono::milliseconds update_wait;
+  std::mutex mu;
+  CachePtr cache_ptr;
+  std::condition_variable cv;
+  UInt64 version = 0;
 
-    std::mutex mu;
-    CachePtr cache_ptr;
-    std::condition_variable cv;
-    UInt64 version = 0;
+  const std::filesystem::path path;
 
-    const std::filesystem::path path;
+  BackgroundSchedulePoolTaskHolder task;
 
-    BackgroundSchedulePoolTaskHolder task;
-
-    const String log_name;
-    LoggerPtr log;
+  const String log_name;
+  LoggerPtr log;
 };
 
-}
+}  // namespace DB

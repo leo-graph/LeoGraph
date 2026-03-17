@@ -11,24 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Event.h"
-
 
 #include "Event_POSIX.cpp"
 
-
 namespace Poco {
 
+Event::Event(bool autoReset) : EventImpl(autoReset) {}
 
-Event::Event(bool autoReset): EventImpl(autoReset)
-{
-}
+Event::~Event() {}
 
-
-Event::~Event()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -2,26 +2,24 @@
 #include <Functions/IFunction.h>
 #include <Interpreters/Context_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
-class FunctionArrayResize : public IFunction
-{
-public:
-    static constexpr auto name = "arrayResize";
-    static FunctionPtr createImpl() { return std::make_shared<FunctionArrayResize>(); }
-    static FunctionPtr create(ContextPtr) { return createImpl(); }
+class FunctionArrayResize : public IFunction {
+ public:
+  static constexpr auto name = "arrayResize";
+  static FunctionPtr createImpl() { return std::make_shared<FunctionArrayResize>(); }
+  static FunctionPtr create(ContextPtr) { return createImpl(); }
 
-    String getName() const override { return name; }
+  String getName() const override { return name; }
 
-    bool isVariadic() const override { return true; }
-    size_t getNumberOfArguments() const override { return 0; }
-    bool useDefaultImplementationForConstants() const override { return true; }
-    bool useDefaultImplementationForNulls() const override { return false; }
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+  bool isVariadic() const override { return true; }
+  size_t getNumberOfArguments() const override { return 0; }
+  bool useDefaultImplementationForConstants() const override { return true; }
+  bool useDefaultImplementationForNulls() const override { return false; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override { return true; }
 
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override;
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & return_type, size_t input_rows_count) const override;
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override;
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& return_type, size_t input_rows_count) const override;
 };
 
-}
+}  // namespace DB

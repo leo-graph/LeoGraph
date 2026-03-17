@@ -2,10 +2,9 @@
 
 #include <memory>
 
-namespace Poco
-{
+namespace Poco {
 class Logger;
 using LoggerPtr = std::shared_ptr<Logger>;
-}
+}  // namespace Poco
 
 using LoggerPtr = std::shared_ptr<Poco::Logger>;

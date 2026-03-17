@@ -2,41 +2,34 @@
 
 #include <optional>
 
-#include <TableFunctions/ITableFunction.h>
 #include <DataTypes/DataTypeString.h>
 #include <Storages/StorageFuzzQuery.h>
+#include <TableFunctions/ITableFunction.h>
 
 #include "config.h"
 
-namespace DB
-{
+namespace DB {
 
-class TableFunctionFuzzQuery : public ITableFunction
-{
-public:
-    static constexpr auto name = "fuzzQuery";
-    std::string getName() const override { return name; }
+class TableFunctionFuzzQuery : public ITableFunction {
+ public:
+  static constexpr auto name = "fuzzQuery";
+  std::string getName() const override { return name; }
 
-    void parseArguments(const ASTPtr & ast_function, ContextPtr context) override;
+  void parseArguments(const ASTPtr& ast_function, ContextPtr context) override;
 
-    ColumnsDescription getActualTableStructure(ContextPtr /* context */, bool /* is_insert_query */) const override
-    {
-        return ColumnsDescription{{"query", std::make_shared<DataTypeString>()}};
-    }
+  ColumnsDescription getActualTableStructure(ContextPtr /* context */, bool /* is_insert_query */) const override {
+    return ColumnsDescription{{"query", std::make_shared<DataTypeString>()}};
+  }
 
-private:
-    StoragePtr executeImpl(
-        const ASTPtr & ast_function,
-        ContextPtr context,
-        const std::string & table_name,
-        ColumnsDescription cached_columns,
-        bool is_insert_query) const override;
+ private:
+  StoragePtr executeImpl(const ASTPtr& ast_function, ContextPtr context, const std::string& table_name, ColumnsDescription cached_columns,
+                         bool is_insert_query) const override;
 
-    const char * getStorageEngineName() const override { return "FuzzQuery"; }
+  const char* getStorageEngineName() const override { return "FuzzQuery"; }
 
-    String source;
-    std::optional<UInt64> random_seed;
-    StorageFuzzQuery::Configuration configuration;
+  String source;
+  std::optional<UInt64> random_seed;
+  StorageFuzzQuery::Configuration configuration;
 };
 
-}
+}  // namespace DB

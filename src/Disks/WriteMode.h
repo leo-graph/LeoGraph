@@ -1,13 +1,8 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
 /// Mode of opening a file for write.
-enum class WriteMode : uint8_t
-{
-    Rewrite,
-    Append
-};
+enum class WriteMode : uint8_t { Rewrite, Append };
 
-}
+}  // namespace DB

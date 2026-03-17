@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/EntityResolver.h"
-
 
 namespace Poco {
 namespace XML {
 
+EntityResolver::~EntityResolver() {}
 
-EntityResolver::~EntityResolver()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

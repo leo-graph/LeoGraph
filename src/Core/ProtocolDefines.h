@@ -1,7 +1,6 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
 /// In the names below, "REVISION" and "PROTOCOL_VERSION" are synonyms.
 
@@ -125,7 +124,6 @@ static constexpr auto DBMS_MIN_REVISION_WITH_REPLICATED_SERIALIZATION = 54482;
 
 static constexpr auto DBMS_MIN_REVISION_WITH_NULLABLE_SPARSE_SERIALIZATION = 54483;
 
-
 /// Version of ClickHouse TCP protocol.
 ///
 /// Should be incremented manually on protocol changes.
@@ -134,4 +132,4 @@ static constexpr auto DBMS_MIN_REVISION_WITH_NULLABLE_SPARSE_SERIALIZATION = 544
 /// later is just a number for server version (one number instead of commit SHA)
 /// for simplicity (sometimes it may be more convenient in some use cases).
 static constexpr auto DBMS_TCP_PROTOCOL_VERSION = 54483;
-}
+}  // namespace DB

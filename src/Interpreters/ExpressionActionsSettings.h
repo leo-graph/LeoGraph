@@ -5,34 +5,31 @@
 
 #include <cstddef>
 
-namespace DB
-{
+namespace DB {
 
 struct Settings;
 
-enum class CompileExpressions: uint8_t
-{
-    no = 0,
-    yes = 1,
+enum class CompileExpressions : uint8_t {
+  no = 0,
+  yes = 1,
 };
 
-struct ExpressionActionsSettings
-{
-    ExpressionActionsSettings() = default;
-    explicit ExpressionActionsSettings(const Settings & from, CompileExpressions compile_expressions_ = CompileExpressions::no);
-    explicit ExpressionActionsSettings(ContextPtr from, CompileExpressions compile_expressions_ = CompileExpressions::no);
+struct ExpressionActionsSettings {
+  ExpressionActionsSettings() = default;
+  explicit ExpressionActionsSettings(const Settings& from, CompileExpressions compile_expressions_ = CompileExpressions::no);
+  explicit ExpressionActionsSettings(ContextPtr from, CompileExpressions compile_expressions_ = CompileExpressions::no);
 
-    bool can_compile_expressions = false;
-    size_t min_count_to_compile_expression = 0;
+  bool can_compile_expressions = false;
+  size_t min_count_to_compile_expression = 0;
 
-    size_t max_temporary_columns = 0;
-    size_t max_temporary_non_const_columns = 0;
+  size_t max_temporary_columns = 0;
+  size_t max_temporary_non_const_columns = 0;
 
-    CompileExpressions compile_expressions = CompileExpressions::no;
+  CompileExpressions compile_expressions = CompileExpressions::no;
 
-    ShortCircuitFunctionEvaluation short_circuit_function_evaluation = ShortCircuitFunctionEvaluation::DISABLE;
+  ShortCircuitFunctionEvaluation short_circuit_function_evaluation = ShortCircuitFunctionEvaluation::DISABLE;
 
-    bool enable_lazy_columns_replication = false;
+  bool enable_lazy_columns_replication = false;
 };
 
-}
+}  // namespace DB

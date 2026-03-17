@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_TemporaryFile_INCLUDED
 #define Foundation_TemporaryFile_INCLUDED
-
 
 #include "Poco/File.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API TemporaryFile : public File
 /// The TemporaryFile class helps with the handling
@@ -42,44 +37,42 @@ class Foundation_API TemporaryFile : public File
 /// file - either in the destructor, or immediately
 /// before the application terminates.
 {
-public:
-    TemporaryFile();
-    /// Creates the TemporaryFile.
+ public:
+  TemporaryFile();
+  /// Creates the TemporaryFile.
 
-    TemporaryFile(const std::string & tempDir);
-    /// Creates the TemporaryFile using the given directory.
+  TemporaryFile(const std::string& tempDir);
+  /// Creates the TemporaryFile using the given directory.
 
-    ~TemporaryFile();
-    /// Destroys the TemporaryFile and
-    /// deletes the corresponding file on
-    /// disk unless keep() or keepUntilExit()
-    /// has been called.
+  ~TemporaryFile();
+  /// Destroys the TemporaryFile and
+  /// deletes the corresponding file on
+  /// disk unless keep() or keepUntilExit()
+  /// has been called.
 
-    void keep();
-    /// Disables automatic deletion of the file in
-    /// the destructor.
+  void keep();
+  /// Disables automatic deletion of the file in
+  /// the destructor.
 
-    void keepUntilExit();
-    /// Disables automatic deletion of the file in
-    /// the destructor, but registers the file
-    /// for deletion at process termination.
+  void keepUntilExit();
+  /// Disables automatic deletion of the file in
+  /// the destructor, but registers the file
+  /// for deletion at process termination.
 
-    static void registerForDeletion(const std::string & path);
-    /// Registers the given file for deletion
-    /// at process termination.
+  static void registerForDeletion(const std::string& path);
+  /// Registers the given file for deletion
+  /// at process termination.
 
-    static std::string tempName(const std::string & tempDir = "");
-    /// Returns a unique path name for a temporary
-    /// file in the system's scratch directory (see Path::temp())
-    /// if tempDir is empty or in the directory specified in tempDir
-    /// otherwise.
+  static std::string tempName(const std::string& tempDir = "");
+  /// Returns a unique path name for a temporary
+  /// file in the system's scratch directory (see Path::temp())
+  /// if tempDir is empty or in the directory specified in tempDir
+  /// otherwise.
 
-private:
-    bool _keep;
+ private:
+  bool _keep;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_TemporaryFile_INCLUDED
+#endif  // Foundation_TemporaryFile_INCLUDED

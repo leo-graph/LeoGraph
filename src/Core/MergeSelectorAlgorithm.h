@@ -1,14 +1,12 @@
 #pragma once
 
 #include <cstdint>
-namespace DB
-{
+namespace DB {
 
-enum class MergeSelectorAlgorithm : uint8_t
-{
-    SIMPLE,
-    STOCHASTIC_SIMPLE,
-    TRIVIAL,
+enum class MergeSelectorAlgorithm : uint8_t {
+  SIMPLE,
+  STOCHASTIC_SIMPLE,
+  TRIVIAL,
 };
 
 }

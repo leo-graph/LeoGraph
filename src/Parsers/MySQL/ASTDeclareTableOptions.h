@@ -2,20 +2,17 @@
 
 #include <Parsers/IParserBase.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace MySQLParser
-{
+namespace MySQLParser {
 
-class ParserDeclareTableOptions : public IParserBase
-{
-protected:
-    const char * getName() const override { return "table options declaration"; }
+class ParserDeclareTableOptions : public IParserBase {
+ protected:
+  const char* getName() const override { return "table options declaration"; }
 
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace MySQLParser
 
-}
+}  // namespace DB

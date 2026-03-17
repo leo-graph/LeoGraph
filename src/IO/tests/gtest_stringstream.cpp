@@ -12,26 +12,24 @@
 // Since that places in Clickhouse can operate on buffers > INT_MAX (i.e.
 // WriteBufferFromS3), so it is better to have a test for this in ClickHouse
 // too.
-TEST(stringstream, INTMAX)
-{
-    std::stringstream ss;
-    ss.exceptions(std::ios::badbit);
+TEST(stringstream, INTMAX) {
+  std::stringstream ss;
+  ss.exceptions(std::ios::badbit);
 
-    std::string payload(1<<20, 'A');
+  std::string payload(1 << 20, 'A');
 
-    // write up to INT_MAX-1MiB
-    for (size_t i = 0; i < (2ULL<<30) - payload.size(); i += payload.size())
-    {
-        ASSERT_NE(ss.tellp(), -1);
-        ss.write(payload.data(), payload.size());
-        // std::cerr << "i: " << ss.tellp()/1024/1024 << " MB\n";
-    }
-
+  // write up to INT_MAX-1MiB
+  for (size_t i = 0; i < (2ULL << 30) - payload.size(); i += payload.size()) {
     ASSERT_NE(ss.tellp(), -1);
-    // write up to INT_MAX
     ss.write(payload.data(), payload.size());
+    // std::cerr << "i: " << ss.tellp()/1024/1024 << " MB\n";
+  }
 
-    ASSERT_NE(ss.tellp(), -1);
-    // write one more 1MiB chunk
-    ss.write(payload.data(), payload.size());
+  ASSERT_NE(ss.tellp(), -1);
+  // write up to INT_MAX
+  ss.write(payload.data(), payload.size());
+
+  ASSERT_NE(ss.tellp(), -1);
+  // write one more 1MiB chunk
+  ss.write(payload.data(), payload.size());
 }

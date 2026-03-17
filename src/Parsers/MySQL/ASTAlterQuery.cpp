@@ -1,61 +1,54 @@
 #include <Parsers/MySQL/ASTAlterQuery.h>
 
-#include <Interpreters/StorageID.h>
 #include <Common/quoteString.h>
+#include <Interpreters/StorageID.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/CommonParsers.h>
 #include <Parsers/ExpressionElementParsers.h>
 #include <Parsers/ExpressionListParsers.h>
 #include <Parsers/MySQL/ASTAlterCommand.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace MySQLParser
-{
+namespace MySQLParser {
 
-ASTPtr ASTAlterQuery::clone() const
-{
-    auto res = make_intrusive<ASTAlterQuery>(*this);
-    res->children.clear();
+ASTPtr ASTAlterQuery::clone() const {
+  auto res = make_intrusive<ASTAlterQuery>(*this);
+  res->children.clear();
 
-    if (command_list)
-    {
-        res->command_list = command_list->clone();
-        res->children.emplace_back(res->command_list);
-    }
+  if (command_list) {
+    res->command_list = command_list->clone();
+    res->children.emplace_back(res->command_list);
+  }
 
-    return res;
+  return res;
 }
 
-bool ParserAlterQuery::parseImpl(IParser::Pos & pos, ASTPtr & node, Expected & expected)
-{
-    ASTPtr table;
-    ASTPtr command_list;
+bool ParserAlterQuery::parseImpl(IParser::Pos& pos, ASTPtr& node, Expected& expected) {
+  ASTPtr table;
+  ASTPtr command_list;
 
-    if (!ParserKeyword(Keyword::ALTER_TABLE).ignore(pos, expected))
-        return false;
+  if (!ParserKeyword(Keyword::ALTER_TABLE).ignore(pos, expected)) return false;
 
-    if (!ParserCompoundIdentifier(true).parse(pos, table, expected))
-        return false;
+  if (!ParserCompoundIdentifier(true).parse(pos, table, expected)) return false;
 
-    if (!ParserList(std::make_unique<ParserAlterCommand>(), std::make_unique<ParserToken>(TokenType::Comma)).parse(pos, command_list, expected))
-        return false;
+  if (!ParserList(std::make_unique<ParserAlterCommand>(), std::make_unique<ParserToken>(TokenType::Comma))
+           .parse(pos, command_list, expected))
+    return false;
 
-    auto alter_query = make_intrusive<ASTAlterQuery>();
+  auto alter_query = make_intrusive<ASTAlterQuery>();
 
-    node = alter_query;
-    alter_query->command_list = command_list;
-    auto table_id = table->as<ASTTableIdentifier>()->getTableId();
-    alter_query->table = table_id.table_name;
-    alter_query->database = table_id.database_name;
+  node = alter_query;
+  alter_query->command_list = command_list;
+  auto table_id = table->as<ASTTableIdentifier>()->getTableId();
+  alter_query->table = table_id.table_name;
+  alter_query->database = table_id.database_name;
 
-    if (alter_query->command_list)
-        alter_query->children.emplace_back(alter_query->command_list);
+  if (alter_query->command_list) alter_query->children.emplace_back(alter_query->command_list);
 
-    return true;
+  return true;
 }
 
-}
+}  // namespace MySQLParser
 
-}
+}  // namespace DB

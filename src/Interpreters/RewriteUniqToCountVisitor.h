@@ -1,10 +1,9 @@
 #pragma once
 
-#include <Parsers/IAST_fwd.h>
 #include <Interpreters/InDepthNodeVisitor.h>
+#include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTFunction;
 
@@ -17,13 +16,12 @@ class ASTFunction;
  *
  *     Note that we can rewrite all uniq variants except uniqUpTo.
  */
-class RewriteUniqToCountMatcher
-{
-public:
-    struct Data {};
-    static void visit(ASTPtr & ast, Data &);
-    static bool needChildVisit(const ASTPtr &, const ASTPtr &) { return true; }
+class RewriteUniqToCountMatcher {
+ public:
+  struct Data {};
+  static void visit(ASTPtr &ast, Data &);
+  static bool needChildVisit(const ASTPtr &, const ASTPtr &) { return true; }
 };
 
 using RewriteUniqToCountVisitor = InDepthNodeVisitor<RewriteUniqToCountMatcher, true>;
-}
+}  // namespace DB

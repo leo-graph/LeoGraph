@@ -5,43 +5,28 @@
 
 #include <Storages/MergeTree/MergeTreeDataPartType.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
+namespace ErrorCodes {
 extern const int BAD_ARGUMENTS;
 }
 
 template <typename E>
-requires std::is_enum_v<E>
-static E parseEnum(const String & str)
-{
-    auto value = magic_enum::enum_cast<E>(str);
-    if (!value || *value == E::Unknown)
-        throw DB::Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected string {} for enum {}", str, magic_enum::enum_type_name<E>());
+  requires std::is_enum_v<E>
+static E parseEnum(const String& str) {
+  auto value = magic_enum::enum_cast<E>(str);
+  if (!value || *value == E::Unknown)
+    throw DB::Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected string {} for enum {}", str, magic_enum::enum_type_name<E>());
 
-    return *value;
+  return *value;
 }
 
-String MergeTreeDataPartType::toString() const
-{
-    return String(magic_enum::enum_name(value));
-}
+String MergeTreeDataPartType::toString() const { return String(magic_enum::enum_name(value)); }
 
-void MergeTreeDataPartType::fromString(const String & str)
-{
-    value = parseEnum<Value>(str);
-}
+void MergeTreeDataPartType::fromString(const String& str) { value = parseEnum<Value>(str); }
 
-String MergeTreeDataPartStorageType::toString() const
-{
-    return String(magic_enum::enum_name(value));
-}
+String MergeTreeDataPartStorageType::toString() const { return String(magic_enum::enum_name(value)); }
 
-void MergeTreeDataPartStorageType::fromString(const String & str)
-{
-    value = parseEnum<Value>(str);
-}
+void MergeTreeDataPartStorageType::fromString(const String& str) { value = parseEnum<Value>(str); }
 
-}
+}  // namespace DB

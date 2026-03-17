@@ -11,19 +11,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/XML/XMLException.h"
 #include <typeinfo>
 
-
 using Poco::RuntimeException;
-
 
 namespace Poco {
 namespace XML {
 
-
 POCO_IMPLEMENT_EXCEPTION(XMLException, RuntimeException, "XML Exception")
 
-
-} } // namespace Poco::XML
+}
+}  // namespace Poco

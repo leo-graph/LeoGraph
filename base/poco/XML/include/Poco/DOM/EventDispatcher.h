@@ -13,88 +13,78 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef DOM_EventDispatcher_INCLUDED
 #define DOM_EventDispatcher_INCLUDED
-
 
 #include <list>
 #include "Poco/XML/XML.h"
 #include "Poco/XML/XMLString.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class Event;
+class EventListener;
+
+class XML_API EventDispatcher
+/// This helper class manages event listener subscriptions
+/// and event dispatching for AbstractNode.
+///
+/// The EventListener list is managed in such a way that
+/// event listeners can be added and removed even
+/// from within an EventListener, while events are being
+/// dispatched.
 {
-namespace XML
-{
+ public:
+  EventDispatcher();
+  /// Creates the EventDispatcher.
 
+  ~EventDispatcher();
+  /// Destroys the EventDispatcher.
 
-    class Event;
-    class EventListener;
+  void addEventListener(const XMLString& type, EventListener* listener, bool useCapture);
+  /// Adds an EventListener to the internal list.
 
+  void removeEventListener(const XMLString& type, EventListener* listener, bool useCapture);
+  /// Removes an EventListener from the internal list.
+  ///
+  /// If a dispatch is currently in progress, the list
+  /// entry is only marked for deletion.
+  /// If no dispatch is currently in progress, all EventListeners
+  /// marked for deletion are removed from the list.
 
-    class XML_API EventDispatcher
-    /// This helper class manages event listener subscriptions
-    /// and event dispatching for AbstractNode.
-    ///
-    /// The EventListener list is managed in such a way that
-    /// event listeners can be added and removed even
-    /// from within an EventListener, while events are being
-    /// dispatched.
-    {
-    public:
-        EventDispatcher();
-        /// Creates the EventDispatcher.
+  void dispatchEvent(Event* evt);
+  /// Dispatches the event.
+  ///
+  /// Also removes all EventListeners marked for deletion from the
+  /// event dispatcher list.
 
-        ~EventDispatcher();
-        /// Destroys the EventDispatcher.
+  void captureEvent(Event* evt);
+  /// Dispatches the event in its capturing phase.
+  ///
+  /// Also removes all EventListeners marked for deletion from the
+  /// event dispatcher list.
 
-        void addEventListener(const XMLString & type, EventListener * listener, bool useCapture);
-        /// Adds an EventListener to the internal list.
+  void bubbleEvent(Event* evt);
+  /// Dispatches the event in its bubbling phase.
+  ///
+  /// Also removes all EventListeners marked for deletion from the
+  /// event dispatcher list.
 
-        void removeEventListener(const XMLString & type, EventListener * listener, bool useCapture);
-        /// Removes an EventListener from the internal list.
-        ///
-        /// If a dispatch is currently in progress, the list
-        /// entry is only marked for deletion.
-        /// If no dispatch is currently in progress, all EventListeners
-        /// marked for deletion are removed from the list.
+ private:
+  struct EventListenerItem {
+    XMLString type;
+    EventListener* pListener;
+    bool useCapture;
+  };
 
-        void dispatchEvent(Event * evt);
-        /// Dispatches the event.
-        ///
-        /// Also removes all EventListeners marked for deletion from the
-        /// event dispatcher list.
+  typedef std::list<EventListenerItem> EventListenerList;
 
-        void captureEvent(Event * evt);
-        /// Dispatches the event in its capturing phase.
-        ///
-        /// Also removes all EventListeners marked for deletion from the
-        /// event dispatcher list.
+  int _inDispatch;
+  EventListenerList _listeners;
+};
 
-        void bubbleEvent(Event * evt);
-        /// Dispatches the event in its bubbling phase.
-        ///
-        /// Also removes all EventListeners marked for deletion from the
-        /// event dispatcher list.
+}  // namespace XML
+}  // namespace Poco
 
-    private:
-        struct EventListenerItem
-        {
-            XMLString type;
-            EventListener * pListener;
-            bool useCapture;
-        };
-
-        typedef std::list<EventListenerItem> EventListenerList;
-
-        int _inDispatch;
-        EventListenerList _listeners;
-    };
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // DOM_EventDispatcher_INCLUDED
+#endif  // DOM_EventDispatcher_INCLUDED

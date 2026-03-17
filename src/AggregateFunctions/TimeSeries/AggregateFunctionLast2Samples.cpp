@@ -1,121 +1,89 @@
 #include <AggregateFunctions/TimeSeries/AggregateFunctionLast2Samples.h>
 
 #include <AggregateFunctions/AggregateFunctionFactory.h>
-#include <AggregateFunctions/Helpers.h>
 #include <AggregateFunctions/FactoryHelpers.h>
-#include <DataTypes/IDataType.h>
+#include <AggregateFunctions/Helpers.h>
 #include <Core/Settings.h>
+#include <DataTypes/IDataType.h>
 
-
-namespace DB
-{
+namespace DB {
 struct Settings;
-namespace ErrorCodes
-{
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int UNKNOWN_AGGREGATE_FUNCTION;
+namespace ErrorCodes {
+extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int UNKNOWN_AGGREGATE_FUNCTION;
+}  // namespace ErrorCodes
+namespace Setting {
+extern const SettingsBool allow_experimental_time_series_aggregate_functions;
 }
-namespace Setting
-{
-    extern const SettingsBool allow_experimental_time_series_aggregate_functions;
-}
-namespace
-{
+namespace {
 
 template <typename ValueType>
-AggregateFunctionPtr createWithValueType(const std::string & name, const DataTypes & argument_types, const Array & parameters)
-{
-    const auto & timestamp_type = argument_types[0];
+AggregateFunctionPtr createWithValueType(const std::string& name, const DataTypes& argument_types, const Array& parameters) {
+  const auto& timestamp_type = argument_types[0];
 
-    if (!parameters.empty())
-        throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-        "Aggregate function {} does not accept parameters", name);
+  if (!parameters.empty())
+    throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH, "Aggregate function {} does not accept parameters", name);
 
-    AggregateFunctionPtr res;
-    if (isDateTime64(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<DateTime64, ValueType>>(argument_types);
-    }
-    if (isUInt64(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<UInt64, ValueType>>(argument_types);
-    }
-    if (isInt64(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<Int64, ValueType>>(argument_types);
-    }
-    else if (isDateTime(timestamp_type) || isUInt32(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<UInt32, ValueType>>(argument_types);
-    }
-    else if (isInt32(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<Int32, ValueType>>(argument_types);
-    }
-    else if (isUInt16(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<UInt16, ValueType>>(argument_types);
-    }
-    else if (isInt16(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<Int16, ValueType>>(argument_types);
-    }
-    else if (isUInt8(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<UInt8, ValueType>>(argument_types);
-    }
-    else if (isInt8(timestamp_type))
-    {
-        res = std::make_shared<AggregateFunctionLast2Samples<Int8, ValueType>>(argument_types);
-    }
+  AggregateFunctionPtr res;
+  if (isDateTime64(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<DateTime64, ValueType>>(argument_types);
+  }
+  if (isUInt64(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<UInt64, ValueType>>(argument_types);
+  }
+  if (isInt64(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<Int64, ValueType>>(argument_types);
+  } else if (isDateTime(timestamp_type) || isUInt32(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<UInt32, ValueType>>(argument_types);
+  } else if (isInt32(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<Int32, ValueType>>(argument_types);
+  } else if (isUInt16(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<UInt16, ValueType>>(argument_types);
+  } else if (isInt16(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<Int16, ValueType>>(argument_types);
+  } else if (isUInt8(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<UInt8, ValueType>>(argument_types);
+  } else if (isInt8(timestamp_type)) {
+    res = std::make_shared<AggregateFunctionLast2Samples<Int8, ValueType>>(argument_types);
+  }
 
-    if (!res)
-        throw Exception(
-            ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "Illegal type {} of 1st argument (timestamp) for aggregate function {}",
-            timestamp_type->getName(), name);
+  if (!res)
+    throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal type {} of 1st argument (timestamp) for aggregate function {}",
+                    timestamp_type->getName(), name);
 
-    return res;
+  return res;
 }
 
-AggregateFunctionPtr createAggregateFunctionLast2Samples(const std::string & name, const DataTypes & argument_types, const Array & parameters, const Settings * settings)
-{
-    if (settings && (*settings)[Setting::allow_experimental_time_series_aggregate_functions] == 0)
-        throw Exception(
-            ErrorCodes::UNKNOWN_AGGREGATE_FUNCTION,
-            "Aggregate function {} is experimental and disabled by default. Enable it with setting allow_experimental_time_series_aggregate_functions",
-            name);
+AggregateFunctionPtr createAggregateFunctionLast2Samples(const std::string& name, const DataTypes& argument_types, const Array& parameters,
+                                                         const Settings* settings) {
+  if (settings && (*settings)[Setting::allow_experimental_time_series_aggregate_functions] == 0)
+    throw Exception(ErrorCodes::UNKNOWN_AGGREGATE_FUNCTION,
+                    "Aggregate function {} is experimental and disabled by default. Enable it with setting "
+                    "allow_experimental_time_series_aggregate_functions",
+                    name);
 
-    assertBinary(name, argument_types);
-    const auto & value_type = argument_types[1];
+  assertBinary(name, argument_types);
+  const auto& value_type = argument_types[1];
 
-    AggregateFunctionPtr res;
-    if (value_type->getTypeId() == TypeIndex::Float64)
-    {
-        res = createWithValueType<Float64>(name, argument_types, parameters);
-    }
-    else if (value_type->getTypeId() == TypeIndex::Float32)
-    {
-        res = createWithValueType<Float32>(name, argument_types, parameters);
-    }
-    else
-    {
-        throw Exception(
-            ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "Illegal type {} of 2nd argument (value) for aggregate function {}",
-            value_type->getName(), name);
-    }
+  AggregateFunctionPtr res;
+  if (value_type->getTypeId() == TypeIndex::Float64) {
+    res = createWithValueType<Float64>(name, argument_types, parameters);
+  } else if (value_type->getTypeId() == TypeIndex::Float32) {
+    res = createWithValueType<Float32>(name, argument_types, parameters);
+  } else {
+    throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal type {} of 2nd argument (value) for aggregate function {}",
+                    value_type->getName(), name);
+  }
 
-    return res;
+  return res;
 }
 
-}
+}  // namespace
 
-void registerAggregateFunctionLast2Samples(AggregateFunctionFactory & factory)
-{
-    /// timeSeriesLastTwoSamples documentation
-    FunctionDocumentation::Description description_timeSeriesLastTwoSamples = R"(
+void registerAggregateFunctionLast2Samples(AggregateFunctionFactory& factory) {
+  /// timeSeriesLastTwoSamples documentation
+  FunctionDocumentation::Description description_timeSeriesLastTwoSamples = R"(
 Aggregate function for re-sampling time series data for PromQL-like irate and idelta calculation.
 
 Aggregate function that takes time series data as pairs of timestamps and values and stores only at most 2 recent samples. This aggregate function is intended to be used with a Materialized View and Aggregated table that stores re-sampled time series data for grid-aligned timestamps.
@@ -126,18 +94,19 @@ The aggregated table stores only last 2 values for each aligned timestamp. This 
 This function is experimental, enable it by setting `allow_experimental_ts_to_grid_aggregate_function=true`.
 :::
     )";
-    FunctionDocumentation::Syntax syntax_timeSeriesLastTwoSamples = R"(
+  FunctionDocumentation::Syntax syntax_timeSeriesLastTwoSamples = R"(
 timeSeriesLastTwoSamples(timestamp, value)
     )";
-    FunctionDocumentation::Arguments arguments_timeSeriesLastTwoSamples = {
-        {"timestamp", "Timestamp of the sample.", {"DateTime", "DateTime64", "(U)Int*", "Int*"}},
-        {"value", "Value of the time series corresponding to the timestamp.", {"Float32", "Float64"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value_timeSeriesLastTwoSamples = {"Returns a pair of arrays of equal length from 0 to 2. The first array contains the timestamps of sampled time series, the second array contains the corresponding values of the time series.", {"Tuple(Array(DateTime), Array(Float64))"}};
-    FunctionDocumentation::Examples examples_timeSeriesLastTwoSamples = {
-    {
-        "Example table for raw data, and a table for storing re-sampled data",
-        R"(
+  FunctionDocumentation::Arguments arguments_timeSeriesLastTwoSamples = {
+      {"timestamp", "Timestamp of the sample.", {"DateTime", "DateTime64", "(U)Int*", "Int*"}},
+      {"value", "Value of the time series corresponding to the timestamp.", {"Float32", "Float64"}}};
+  FunctionDocumentation::ReturnedValue returned_value_timeSeriesLastTwoSamples = {
+      "Returns a pair of arrays of equal length from 0 to 2. The first array contains the timestamps of sampled time series, the second "
+      "array contains the corresponding values of the time series.",
+      {"Tuple(Array(DateTime), Array(Float64))"}};
+  FunctionDocumentation::Examples examples_timeSeriesLastTwoSamples = {
+      {"Example table for raw data, and a table for storing re-sampled data",
+       R"(
 -- Table for raw data
 CREATE TABLE t_raw_timeseries
 (
@@ -181,7 +150,7 @@ FROM t_raw_timeseries
 WHERE metric_id = 3 AND timestamp BETWEEN '2024-12-12 12:00:12' AND '2024-12-12 12:00:31'
 ORDER BY metric_id, timestamp;
         )",
-        R"(
+       R"(
 3    2024-12-12 12:00:12.870    29
 3    2024-12-12 12:00:13.770    8
 3    2024-12-12 12:00:14.670    19
@@ -203,25 +172,21 @@ ORDER BY metric_id, timestamp;
 3    2024-12-12 12:00:29.069    6
 3    2024-12-12 12:00:29.969    14
 3    2024-12-12 12:00:30.869    25
-        )"
-    },
-    {
-        "Query the last 2 sample for timestamps '2024-12-12 12:00:15' and '2024-12-12 12:00:30'",
-        R"(
+        )"},
+      {"Query the last 2 sample for timestamps '2024-12-12 12:00:15' and '2024-12-12 12:00:30'",
+       R"(
 -- Check re-sampled data
 SELECT metric_id, grid_timestamp, (finalizeAggregation(samples).1 as timestamp, finalizeAggregation(samples).2 as value)
 FROM t_resampled_timeseries_15_sec
 WHERE metric_id = 3 AND grid_timestamp BETWEEN '2024-12-12 12:00:15' AND '2024-12-12 12:00:30'
 ORDER BY metric_id, grid_timestamp;
         )",
-        R"(
+       R"(
 3    2024-12-12 12:00:15    (['2024-12-12 12:00:14.670','2024-12-12 12:00:13.770'],[19,8])
 3    2024-12-12 12:00:30    (['2024-12-12 12:00:29.969','2024-12-12 12:00:29.069'],[14,6])
-        )"
-    },
-    {
-        "Calculate idelta and irate from the raw data",
-        R"(
+        )"},
+      {"Calculate idelta and irate from the raw data",
+       R"(
 -- The aggregated table stores only last 2 values for each 15-second aligned timestamp.
 -- This allows to calculate PromQL-like irate and idelta by reading much less data then is stored in the raw table.
 
@@ -238,13 +203,11 @@ FROM t_raw_timeseries
 WHERE metric_id = 3 AND timestamp BETWEEN start_ts - interval window_seconds seconds AND end_ts
 GROUP BY metric_id;
         )",
-        R"(
+       R"(
 3    [11,8,-18,8,11]    [12.222222222222221,8.88888888888889,1.1111111111111112,8.88888888888889,12.222222222222221]
-        )"
-    },
-    {
-        "Calculate idelta and irate from the re-sampled data",
-        R"(
+        )"},
+      {"Calculate idelta and irate from the re-sampled data",
+       R"(
 WITH
     '2024-12-12 12:00:15'::DateTime64(3,'UTC') AS start_ts,       -- start of timestamp grid
     start_ts + INTERVAL 60 SECOND AS end_ts,   -- end of timestamp grid
@@ -264,16 +227,18 @@ FROM (
 )
 GROUP BY metric_id;
         )",
-        R"(
+       R"(
 3    [11,8,-18,8,11]    [12.222222222222221,8.88888888888889,1.1111111111111112,8.88888888888889,12.222222222222221]
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in_timeSeriesLastTwoSamples = {25, 6};
-    FunctionDocumentation::Category category_timeSeriesLastTwoSamples = FunctionDocumentation::Category::AggregateFunction;
-    FunctionDocumentation documentation_timeSeriesLastTwoSamples = {description_timeSeriesLastTwoSamples, syntax_timeSeriesLastTwoSamples, arguments_timeSeriesLastTwoSamples, {}, returned_value_timeSeriesLastTwoSamples, examples_timeSeriesLastTwoSamples, introduced_in_timeSeriesLastTwoSamples, category_timeSeriesLastTwoSamples};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in_timeSeriesLastTwoSamples = {25, 6};
+  FunctionDocumentation::Category category_timeSeriesLastTwoSamples = FunctionDocumentation::Category::AggregateFunction;
+  FunctionDocumentation documentation_timeSeriesLastTwoSamples = {
+      description_timeSeriesLastTwoSamples,    syntax_timeSeriesLastTwoSamples,
+      arguments_timeSeriesLastTwoSamples,      {},
+      returned_value_timeSeriesLastTwoSamples, examples_timeSeriesLastTwoSamples,
+      introduced_in_timeSeriesLastTwoSamples,  category_timeSeriesLastTwoSamples};
 
-    factory.registerFunction("timeSeriesLastTwoSamples", {createAggregateFunctionLast2Samples, documentation_timeSeriesLastTwoSamples});
+  factory.registerFunction("timeSeriesLastTwoSamples", {createAggregateFunctionLast2Samples, documentation_timeSeriesLastTwoSamples});
 }
 
-}
+}  // namespace DB

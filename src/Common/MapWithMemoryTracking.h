@@ -4,8 +4,7 @@
 
 #include <map>
 
-namespace DB
-{
+namespace DB {
 
 /// We do track memory allocations from standard containers by default, but we do it through
 /// non-throwing methods of the `MemoryTracker` (see `trackMemory` in src/Common/memory.h).
@@ -24,4 +23,4 @@ using MapWithMemoryTracking = std::map<K, V, std::less<K>, AllocatorWithMemoryTr
 template <typename K, typename V>
 using MultiMapWithMemoryTracking = std::multimap<K, V, std::less<K>, AllocatorWithMemoryTracking<std::pair<const K, V>>>;
 
-}
+}  // namespace DB

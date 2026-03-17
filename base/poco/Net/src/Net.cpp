@@ -11,28 +11,17 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/Net.h"
 
-
-#include "Poco/Net/SocketDefs.h"
 #include "Poco/Net/NetException.h"
-
+#include "Poco/Net/SocketDefs.h"
 
 namespace Poco {
 namespace Net {
 
+void Net_API initializeNetwork() {}
 
-void Net_API initializeNetwork()
-{
-}
+void Net_API uninitializeNetwork() {}
 
-
-void Net_API uninitializeNetwork()
-{
-}
-
-
-} } // namespace Poco::Net
-
-
+}  // namespace Net
+}  // namespace Poco

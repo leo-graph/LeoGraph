@@ -1,11 +1,9 @@
 #pragma once
 
-#include <Parsers/IParser.h>
 #include <Common/IntervalKind.h>
+#include <Parsers/IParser.h>
 
-
-namespace DB
-{
+namespace DB {
 /// Parses an interval kind.
-bool parseIntervalKind(IParser::Pos & pos, Expected & expected, IntervalKind & result);
-}
+bool parseIntervalKind(IParser::Pos& pos, Expected& expected, IntervalKind& result);
+}  // namespace DB

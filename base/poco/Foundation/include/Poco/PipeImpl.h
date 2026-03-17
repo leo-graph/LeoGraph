@@ -13,19 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_PipeImpl_INCLUDED
 #define Foundation_PipeImpl_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-#if   defined(POCO_OS_FAMILY_UNIX)
-#    include "Poco/PipeImpl_POSIX.h"
+#if defined(POCO_OS_FAMILY_UNIX)
+#  include "Poco/PipeImpl_POSIX.h"
 #else
-#    include "Poco/PipeImpl_DUMMY.h"
+#  include "Poco/PipeImpl_DUMMY.h"
 #endif
 
-
-#endif // Foundation_PipeImpl_INCLUDED
+#endif  // Foundation_PipeImpl_INCLUDED

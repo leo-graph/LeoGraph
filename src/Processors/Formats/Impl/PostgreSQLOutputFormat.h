@@ -5,26 +5,24 @@
 #include <Core/PostgreSQLProtocol.h>
 #include <Formats/FormatSettings.h>
 
-namespace DB
-{
+namespace DB {
 
 //// https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.4
-class PostgreSQLOutputFormat final : public IOutputFormat
-{
-public:
-    PostgreSQLOutputFormat(WriteBuffer & out_, SharedHeader header_, const FormatSettings & settings_);
+class PostgreSQLOutputFormat final : public IOutputFormat {
+ public:
+  PostgreSQLOutputFormat(WriteBuffer& out_, SharedHeader header_, const FormatSettings& settings_);
 
-    String getName() const override {return "PostgreSQLOutputFormat";}
+  String getName() const override { return "PostgreSQLOutputFormat"; }
 
-    void flushImpl() override;
+  void flushImpl() override;
 
-private:
-    void writePrefix() override;
-    void consume(Chunk) override;
+ private:
+  void writePrefix() override;
+  void consume(Chunk) override;
 
-    FormatSettings format_settings;
-    PostgreSQLProtocol::Messaging::MessageTransport message_transport;
-    Serializations serializations;
+  FormatSettings format_settings;
+  PostgreSQLProtocol::Messaging::MessageTransport message_transport;
+  Serializations serializations;
 };
 
-}
+}  // namespace DB

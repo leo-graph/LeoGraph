@@ -2,8 +2,7 @@
 
 #include <Common/Priority.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Indices and priorities of `AsyncLoader` pools.
 
@@ -29,4 +28,4 @@ constexpr Priority TablesLoaderBackgroundLoadPriority{1};
 constexpr size_t TablesLoaderBackgroundStartupPoolId = 2;
 constexpr Priority TablesLoaderBackgroundStartupPriority{2};
 
-}
+}  // namespace DB

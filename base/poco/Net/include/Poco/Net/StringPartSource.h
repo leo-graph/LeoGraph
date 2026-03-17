@@ -13,62 +13,54 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_StringPartSource_INCLUDED
 #define Net_StringPartSource_INCLUDED
-
 
 #include <sstream>
 #include "Poco/Net/Net.h"
 #include "Poco/Net/PartSource.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API StringPartSource : public PartSource
+/// An implementation of PartSource for strings.
 {
-namespace Net
-{
+ public:
+  StringPartSource(const std::string &str);
+  /// Creates the StringPartSource for the given string.
+  ///
+  /// The MIME type is set to text/plain.
 
+  StringPartSource(const std::string &str, const std::string &mediaType);
+  /// Creates the StringPartSource for the given
+  /// string and MIME type.
 
-    class Net_API StringPartSource : public PartSource
-    /// An implementation of PartSource for strings.
-    {
-    public:
-        StringPartSource(const std::string & str);
-        /// Creates the StringPartSource for the given string.
-        ///
-        /// The MIME type is set to text/plain.
+  StringPartSource(const std::string &str, const std::string &mediaType, const std::string &filename);
+  /// Creates the StringPartSource for the given
+  /// string, MIME type and filename.
 
-        StringPartSource(const std::string & str, const std::string & mediaType);
-        /// Creates the StringPartSource for the given
-        /// string and MIME type.
+  ~StringPartSource();
+  /// Destroys the StringPartSource.
 
-        StringPartSource(const std::string & str, const std::string & mediaType, const std::string & filename);
-        /// Creates the StringPartSource for the given
-        /// string, MIME type and filename.
+  std::istream &stream();
+  /// Returns a string input stream for the string.
 
-        ~StringPartSource();
-        /// Destroys the StringPartSource.
+  const std::string &filename() const;
+  /// Returns the filename portion of the path.
 
-        std::istream & stream();
-        /// Returns a string input stream for the string.
+  std::streamsize getContentLength() const;
+  /// Returns the string size.
 
-        const std::string & filename() const;
-        /// Returns the filename portion of the path.
+ private:
+  std::istringstream _istr;
+  std::string _filename;
 
-        std::streamsize getContentLength() const;
-        /// Returns the string size.
+  StringPartSource(const StringPartSource &);
+  StringPartSource &operator=(const StringPartSource &);
+};
 
-    private:
-        std::istringstream _istr;
-        std::string _filename;
+}  // namespace Net
+}  // namespace Poco
 
-        StringPartSource(const StringPartSource &);
-        StringPartSource & operator=(const StringPartSource &);
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_StringPartSource_INCLUDED
+#endif  // Net_StringPartSource_INCLUDED

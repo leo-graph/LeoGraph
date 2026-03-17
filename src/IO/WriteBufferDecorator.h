@@ -1,12 +1,11 @@
 #pragma once
 
-#include <IO/WriteBuffer.h>
 #include <IO/BufferWithOwnMemory.h>
-#include <utility>
+#include <IO/WriteBuffer.h>
 #include <memory>
+#include <utility>
 
-namespace DB
-{
+namespace DB {
 
 class WriteBuffer;
 
@@ -15,83 +14,65 @@ class WriteBuffer;
 /// This class can own or not own underlying buffer - constructor will differentiate
 /// std::unique_ptr<WriteBuffer> for owning and WriteBuffer* for not owning.
 template <typename Base>
-class WriteBufferDecorator : public Base
-{
-public:
-    template <class ... BaseArgs>
-    explicit WriteBufferDecorator(std::unique_ptr<WriteBuffer> out_, BaseArgs && ... args)
-        : Base(std::forward<BaseArgs>(args)...), owning_holder(std::move(out_)), out(owning_holder.get())
-    {
+class WriteBufferDecorator : public Base {
+ public:
+  template <class... BaseArgs>
+  explicit WriteBufferDecorator(std::unique_ptr<WriteBuffer> out_, BaseArgs&&... args)
+      : Base(std::forward<BaseArgs>(args)...), owning_holder(std::move(out_)), out(owning_holder.get()) {}
+
+  template <class... BaseArgs>
+  explicit WriteBufferDecorator(WriteBuffer* out_, BaseArgs&&... args) : Base(std::forward<BaseArgs>(args)...), out(out_) {}
+
+  void finalizeImpl() override {
+    Base::finalizeImpl();
+    try {
+      finalFlushBefore();
+      out->finalize();
+      finalFlushAfter();
+    } catch (...) {
+      /// Do not try to flush next time after exception.
+      out->position() = out->buffer().begin();
+      throw;
     }
+  }
 
-    template <class ... BaseArgs>
-    explicit WriteBufferDecorator(WriteBuffer * out_, BaseArgs && ... args)
-        : Base(std::forward<BaseArgs>(args)...), out(out_)
-    {
+  void cancelImpl() noexcept override {
+    try {
+      /// Try to flush compression buffers before cancelling.
+      /// Such buffers don't guarantee that they are flushed on next(), although callers may expect so
+      /// But if the out buffer is cancelled or finalized - it will get stuck
+      bool out_buffer_still_valid = !out->isCanceled() && !out->isFinalized();
+      if (out_buffer_still_valid) {
+        finalFlushBefore();
+        this->next();
+      }
+      Base::cancelImpl();
+      if (out_buffer_still_valid) {
+        out->next();
+        out->cancel();
+        finalFlushAfter();
+      } else {
+        out->cancel();
+      }
+    } catch (...) {
+      tryLogCurrentException("WriteBufferDecorator");
+      out->cancel();
     }
+  }
 
-    void finalizeImpl() override
-    {
-        Base::finalizeImpl();
-        try
-        {
-            finalFlushBefore();
-            out->finalize();
-            finalFlushAfter();
-        }
-        catch (...)
-        {
-            /// Do not try to flush next time after exception.
-            out->position() = out->buffer().begin();
-            throw;
-        }
-    }
+  WriteBuffer* getNestedBuffer() { return out; }
 
-    void cancelImpl() noexcept override
-    {
-        try
-        {
-            /// Try to flush compression buffers before cancelling.
-            /// Such buffers don't guarantee that they are flushed on next(), although callers may expect so
-            /// But if the out buffer is cancelled or finalized - it will get stuck
-            bool out_buffer_still_valid = !out->isCanceled() && !out->isFinalized();
-            if (out_buffer_still_valid)
-            {
-                finalFlushBefore();
-                this->next();
-            }
-            Base::cancelImpl();
-            if (out_buffer_still_valid)
-            {
-                out->next();
-                out->cancel();
-                finalFlushAfter();
-            }
-            else
-            {
-                out->cancel();
-            }
-        }
-        catch (...)
-        {
-            tryLogCurrentException("WriteBufferDecorator");
-            out->cancel();
-        }
-    }
+ protected:
+  /// Do some finalization before finalization/cancellation of underlying buffer.
+  virtual void finalFlushBefore() {}
 
-    WriteBuffer * getNestedBuffer() { return out; }
+  /// Do some finalization after finalization/cancellation of underlying buffer.
+  virtual void finalFlushAfter() {}
 
-protected:
-    /// Do some finalization before finalization/cancellation of underlying buffer.
-    virtual void finalFlushBefore() {}
-
-    /// Do some finalization after finalization/cancellation of underlying buffer.
-    virtual void finalFlushAfter() {}
-
-    std::unique_ptr<WriteBuffer> owning_holder;
-    WriteBuffer * out;
+  std::unique_ptr<WriteBuffer> owning_holder;
+  WriteBuffer* out;
 };
 
 using WriteBufferWithOwnMemoryDecorator = WriteBufferDecorator<BufferWithOwnMemory<WriteBuffer>>;
 
-}
+}  // namespace DB

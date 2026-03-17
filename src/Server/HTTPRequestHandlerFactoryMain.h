@@ -5,27 +5,25 @@
 
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
 /// Handle request using child handlers
-class HTTPRequestHandlerFactoryMain : public HTTPRequestHandlerFactory
-{
-public:
-    explicit HTTPRequestHandlerFactoryMain(const std::string & name_);
+class HTTPRequestHandlerFactoryMain : public HTTPRequestHandlerFactory {
+ public:
+  explicit HTTPRequestHandlerFactoryMain(const std::string& name_);
 
-    void addHandler(HTTPRequestHandlerFactoryPtr child_factory) { child_factories.emplace_back(child_factory); }
+  void addHandler(HTTPRequestHandlerFactoryPtr child_factory) { child_factories.emplace_back(child_factory); }
 
-    void addPathToHints(const std::string & http_path) { hints.add(http_path); }
+  void addPathToHints(const std::string& http_path) { hints.add(http_path); }
 
-    std::unique_ptr<HTTPRequestHandler> createRequestHandler(const HTTPServerRequest & request) override;
+  std::unique_ptr<HTTPRequestHandler> createRequestHandler(const HTTPServerRequest& request) override;
 
-private:
-    LoggerPtr log;
-    std::string name;
-    HTTPPathHints hints;
+ private:
+  LoggerPtr log;
+  std::string name;
+  HTTPPathHints hints;
 
-    std::vector<HTTPRequestHandlerFactoryPtr> child_factories;
+  std::vector<HTTPRequestHandlerFactoryPtr> child_factories;
 };
 
-}
+}  // namespace DB

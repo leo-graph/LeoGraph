@@ -4,11 +4,9 @@
 
 #include <Planner/PlannerContext.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Extract sort description from order by node
-SortDescription extractSortDescription(const QueryTreeNodePtr & order_by_node, const PlannerContext & planner_context);
+SortDescription extractSortDescription(const QueryTreeNodePtr& order_by_node, const PlannerContext& planner_context);
 
-}
-
+}  // namespace DB

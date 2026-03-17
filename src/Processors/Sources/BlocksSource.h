@@ -14,46 +14,40 @@ limitations under the License. */
 #include <Processors/ISource.h>
 #include <Processors/Transforms/AggregatingTransform.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** A stream of blocks from a shared vector of blocks
-  */
-class BlocksSource : public ISource
-{
-public:
-    /// Acquires shared ownership of the blocks vector
-    BlocksSource(BlocksPtr blocks_ptr_, SharedHeader header)
-        : ISource(std::move(header))
-        , blocks(blocks_ptr_), it(blocks_ptr_->begin()), end(blocks_ptr_->end()) {}
+ */
+class BlocksSource : public ISource {
+ public:
+  /// Acquires shared ownership of the blocks vector
+  BlocksSource(BlocksPtr blocks_ptr_, SharedHeader header)
+      : ISource(std::move(header)), blocks(blocks_ptr_), it(blocks_ptr_->begin()), end(blocks_ptr_->end()) {}
 
-    String getName() const override { return "Blocks"; }
+  String getName() const override { return "Blocks"; }
 
-protected:
-    Chunk generate() override
-    {
-        if (it == end)
-            return {};
+ protected:
+  Chunk generate() override {
+    if (it == end) return {};
 
-        Block res = *it;
-        ++it;
+    Block res = *it;
+    ++it;
 
-        auto info = std::make_shared<AggregatedChunkInfo>();
-        info->bucket_num = res.info.bucket_num;
-        info->is_overflows = res.info.is_overflows;
-        info->out_of_order_buckets = res.info.out_of_order_buckets;
+    auto info = std::make_shared<AggregatedChunkInfo>();
+    info->bucket_num = res.info.bucket_num;
+    info->is_overflows = res.info.is_overflows;
+    info->out_of_order_buckets = res.info.out_of_order_buckets;
 
-        auto chunk = Chunk(res.getColumns(), res.rows());
-        chunk.getChunkInfos().add(std::move(info));
+    auto chunk = Chunk(res.getColumns(), res.rows());
+    chunk.getChunkInfos().add(std::move(info));
 
-        return chunk;
-    }
+    return chunk;
+  }
 
-private:
-    BlocksPtr blocks;
-    Blocks::iterator it;
-    const Blocks::iterator end;
+ private:
+  BlocksPtr blocks;
+  Blocks::iterator it;
+  const Blocks::iterator end;
 };
 
-}
+}  // namespace DB

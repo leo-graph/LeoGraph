@@ -19,9 +19,9 @@
     <https://www.gnu.org/licenses/>.  */
 
 #ifndef _X86_SYSDEP_H
-#define _X86_SYSDEP_H 1
+#  define _X86_SYSDEP_H 1
 
-#include "sysdep_generic.h"
+#  include "sysdep_generic.h"
 
 /* __CET__ is defined by GCC with Control-Flow Protection values:
 
@@ -36,80 +36,78 @@ enum cf_protection_level
 */
 
 /* Set if CF_BRANCH (IBT) is enabled.  */
-#define X86_FEATURE_1_IBT    (1U << 0)
+#  define X86_FEATURE_1_IBT (1U << 0)
 /* Set if CF_RETURN (SHSTK) is enabled.  */
-#define X86_FEATURE_1_SHSTK    (1U << 1)
+#  define X86_FEATURE_1_SHSTK (1U << 1)
 
-#ifdef __CET__
-# define CET_ENABLED    1
-# define IBT_ENABLED    (__CET__ & X86_FEATURE_1_IBT)
-# define SHSTK_ENABLED    (__CET__ & X86_FEATURE_1_SHSTK)
-#else
-# define CET_ENABLED    0
-# define IBT_ENABLED    0
-# define SHSTK_ENABLED    0
-#endif
+#  ifdef __CET__
+#    define CET_ENABLED 1
+#    define IBT_ENABLED (__CET__ & X86_FEATURE_1_IBT)
+#    define SHSTK_ENABLED (__CET__ & X86_FEATURE_1_SHSTK)
+#  else
+#    define CET_ENABLED 0
+#    define IBT_ENABLED 0
+#    define SHSTK_ENABLED 0
+#  endif
 
 /* Offset for fxsave/xsave area used by _dl_runtime_resolve.  Also need
     space to preserve RCX, RDX, RSI, RDI, R8, R9 and RAX.  It must be
     aligned to 16 bytes for fxsave and 64 bytes for xsave.  */
-#define STATE_SAVE_OFFSET (8 * 7 + 8)
+#  define STATE_SAVE_OFFSET (8 * 7 + 8)
 
 /* Save SSE, AVX, AVX512, mask and bound registers.  */
-#define STATE_SAVE_MASK \
-    ((1 << 1) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 7))
+#  define STATE_SAVE_MASK ((1 << 1) | (1 << 2) | (1 << 3) | (1 << 5) | (1 << 6) | (1 << 7))
 
-#ifdef    __ASSEMBLER__
+#  ifdef __ASSEMBLER__
 
 /* Syntactic details of assembler.  */
 
-#ifdef _CET_ENDBR
-# define _CET_NOTRACK notrack
-#else
-# define _CET_ENDBR
-# define _CET_NOTRACK
-#endif
+#    ifdef _CET_ENDBR
+#      define _CET_NOTRACK notrack
+#    else
+#      define _CET_ENDBR
+#      define _CET_NOTRACK
+#    endif
 
 /* ELF uses byte-counts for .align, most others use log2 of count of bytes.  */
-#define ALIGNARG(log2) 1<<log2
-#define ASM_SIZE_DIRECTIVE(name) .size name,.-name;
+#    define ALIGNARG(log2) 1 << log2
+#    define ASM_SIZE_DIRECTIVE(name) .size name, .- name;
 
 /* Define an entry point visible from C.  */
-#define    ENTRY(name)                                  \
-    .globl C_SYMBOL_NAME(name);                              \
-    .type C_SYMBOL_NAME(name),@function;                          \
-    .align ALIGNARG(4);                                  \
-    C_LABEL(name)                                      \
-    cfi_startproc;                                  \
-    _CET_ENDBR;                                      \
-    CALL_MCOUNT
+#    define ENTRY(name)                     \
+      .globl C_SYMBOL_NAME(name);           \
+      .type C_SYMBOL_NAME(name), @function; \
+      .align ALIGNARG(4);                   \
+      C_LABEL(name)                         \
+      cfi_startproc;                        \
+      _CET_ENDBR;                           \
+      CALL_MCOUNT
 
-#undef    END
-#define END(name)                                  \
-    cfi_endproc;                                      \
-    ASM_SIZE_DIRECTIVE(name)
+#    undef END
+#    define END(name) \
+      cfi_endproc;    \
+      ASM_SIZE_DIRECTIVE(name)
 
-#define ENTRY_CHK(name) ENTRY (name)
-#define END_CHK(name) END (name)
+#    define ENTRY_CHK(name) ENTRY(name)
+#    define END_CHK(name) END(name)
 
 /* Since C identifiers are not normally prefixed with an underscore
     on this system, the asm identifier `syscall_error' intrudes on the
     C name space.  Make sure we use an innocuous name.  */
-#define    syscall_error    __syscall_error
-#define mcount        _mcount
+#    define syscall_error __syscall_error
+#    define mcount _mcount
 
-#undef    PSEUDO_END
-#define    PSEUDO_END(name)                              \
-    END (name)
+#    undef PSEUDO_END
+#    define PSEUDO_END(name) END(name)
 
 /* Local label name for asm code. */
-#ifndef L
+#    ifndef L
 /* ELF-like local names start with `.L'.  */
-# define L(name)    .L##name
-#endif
+#      define L(name) .L##name
+#    endif
 
-#define atom_text_section .section ".text.atom", "ax"
+#    define atom_text_section .section ".text.atom", "ax"
 
-#endif    /* __ASSEMBLER__ */
+#  endif /* __ASSEMBLER__ */
 
-#endif    /* _X86_SYSDEP_H */
+#endif /* _X86_SYSDEP_H */

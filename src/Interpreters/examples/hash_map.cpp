@@ -1,5 +1,5 @@
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <vector>
 
 #include <unordered_map>
@@ -11,273 +11,235 @@
 /*
 #define DBMS_HASH_MAP_COUNT_COLLISIONS
 */
-#include <base/types.h>
-#include <IO/ReadBufferFromFile.h>
-#include <Compression/CompressedReadBuffer.h>
-#include <Common/HashTable/HashMap.h>
-#include <AggregateFunctions/IAggregateFunction.h>
 #include <AggregateFunctions/AggregateFunctionFactory.h>
+#include <AggregateFunctions/IAggregateFunction.h>
+#include <base/types.h>
+#include <Common/HashTable/HashMap.h>
+#include <Compression/CompressedReadBuffer.h>
 #include <DataTypes/DataTypesNumber.h>
-
+#include <IO/ReadBufferFromFile.h>
 
 /** The test checks the speed of hash tables, simulating their use for aggregation.
-  * The first argument specifies the number of elements to be inserted.
-  * The second argument can be a number from 1 to 4 - the number of the data structure being tested.
-  * This is important, because if you run all the tests one by one, the results will be incorrect.
-  * (Due to the peculiarities of the work of the allocator, the first test takes advantage.)
-  *
-  * HashMap, unlike google::dense_hash_map, much more depends on the quality of the hash function.
-  *
-  * PS. Measure everything yourself, otherwise I'm almost confused.
-  *
-  * PPS. Now the aggregation does not use an array of aggregate functions as values.
-  * States of aggregate functions were separated from the interface to manipulate them, and put in the pool.
-  * But in this test, there was something similar to the old scenario of using hash tables in the aggregation.
-  */
+ * The first argument specifies the number of elements to be inserted.
+ * The second argument can be a number from 1 to 4 - the number of the data structure being tested.
+ * This is important, because if you run all the tests one by one, the results will be incorrect.
+ * (Due to the peculiarities of the work of the allocator, the first test takes advantage.)
+ *
+ * HashMap, unlike google::dense_hash_map, much more depends on the quality of the hash function.
+ *
+ * PS. Measure everything yourself, otherwise I'm almost confused.
+ *
+ * PPS. Now the aggregation does not use an array of aggregate functions as values.
+ * States of aggregate functions were separated from the interface to manipulate them, and put in the pool.
+ * But in this test, there was something similar to the old scenario of using hash tables in the aggregation.
+ */
 
-struct AlternativeHash
-{
-    size_t operator() (UInt64 x) const
-    {
-        x ^= x >> 23;
-        x *= 0x2127599bf4325c37ULL;
-        x ^= x >> 47;
+struct AlternativeHash {
+  size_t operator()(UInt64 x) const {
+    x ^= x >> 23;
+    x *= 0x2127599bf4325c37ULL;
+    x ^= x >> 47;
 
-        return x;
-    }
+    return x;
+  }
 };
-
 
 #if defined(__x86_64__)
 
-struct CRC32HashTest
-{
-    size_t operator() (UInt64 x) const
-    {
-        UInt64 crc = -1ULL;
-        asm("crc32q %[x], %[crc]\n" : [crc] "+r" (crc) : [x] "rm" (x));
-        return crc;
-    }
+struct CRC32HashTest {
+  size_t operator()(UInt64 x) const {
+    UInt64 crc = -1ULL;
+    asm("crc32q %[x], %[crc]\n" : [crc] "+r"(crc) : [x] "rm"(x));
+    return crc;
+  }
 };
 
 #endif
 
+int main(int argc, char** argv) {
+  using namespace DB;
 
-int main(int argc, char ** argv)
-{
-    using namespace DB;
+  using Key = UInt64;
+  using Value = std::vector<const IAggregateFunction*>;
 
-    using Key = UInt64;
-    using Value = std::vector<const IAggregateFunction*>;
+  size_t n = argc < 2 ? 10000000 : std::stol(argv[1]);
+  // size_t m = std::stol(argv[2]);
 
-    size_t n = argc < 2 ? 10000000 : std::stol(argv[1]);
-    //size_t m = std::stol(argv[2]);
+  AggregateFunctionFactory factory;
+  DataTypes data_types_empty;
+  DataTypes data_types_uint64;
+  data_types_uint64.push_back(std::make_shared<DataTypeUInt64>());
 
-    AggregateFunctionFactory factory;
-    DataTypes data_types_empty;
-    DataTypes data_types_uint64;
-    data_types_uint64.push_back(std::make_shared<DataTypeUInt64>());
+  std::vector<Key> data(n);
+  Value value;
 
-    std::vector<Key> data(n);
-    Value value;
+  NullsAction action = NullsAction::EMPTY;
+  AggregateFunctionProperties properties;
+  AggregateFunctionPtr func_count = factory.get("count", action, data_types_empty, {}, properties);
+  AggregateFunctionPtr func_avg = factory.get("avg", action, data_types_uint64, {}, properties);
+  AggregateFunctionPtr func_uniq = factory.get("uniq", action, data_types_uint64, {}, properties);
 
-    NullsAction action = NullsAction::EMPTY;
-    AggregateFunctionProperties properties;
-    AggregateFunctionPtr func_count = factory.get("count", action, data_types_empty, {}, properties);
-    AggregateFunctionPtr func_avg = factory.get("avg", action, data_types_uint64, {}, properties);
-    AggregateFunctionPtr func_uniq = factory.get("uniq", action, data_types_uint64, {}, properties);
+#define INIT                     \
+  {                              \
+    value.resize(3);             \
+                                 \
+    value[0] = func_count.get(); \
+    value[1] = func_avg.get();   \
+    value[2] = func_uniq.get();  \
+  }
 
-    #define INIT \
-    { \
-        value.resize(3); \
-        \
-        value[0] = func_count.get(); \
-        value[1] = func_avg.get(); \
-        value[2] = func_uniq.get(); \
-    }
+  INIT
 
-    INIT
+#undef INIT
+#define INIT
 
-    #undef INIT
-    #define INIT
+          std::cerr
+      << "sizeof(Key) = " << sizeof(Key) << ", sizeof(Value) = " << sizeof(Value) << std::endl;
 
-    std::cerr << "sizeof(Key) = " << sizeof(Key) << ", sizeof(Value) = " << sizeof(Value) << std::endl;
-
-    {
-        Stopwatch watch;
+  {
+    Stopwatch watch;
     /*    for (size_t i = 0; i < n; ++i)
             data[i] = rand() % m;
 
         for (size_t i = 0; i < n; i += 10)
             data[i] = 0;*/
 
-        ReadBufferFromFile in1("UniqID.bin");
-        CompressedReadBuffer in2(in1);
+    ReadBufferFromFile in1("UniqID.bin");
+    CompressedReadBuffer in2(in1);
 
-        in2.readStrict(reinterpret_cast<char*>(data.data()), sizeof(data[0]) * n);
+    in2.readStrict(reinterpret_cast<char*>(data.data()), sizeof(data[0]) * n);
 
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "Vector. Size: " << n
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
-            << std::endl;
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "Vector. Size: " << n << ", elapsed: " << watch.elapsedSeconds() << " ("
+              << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)" << std::endl;
+  }
+
+  if (argc < 3 || std::stol(argv[2]) == 1) {
+    Stopwatch watch;
+
+    HashMap<Key, Value> map;
+    HashMap<Key, Value>::LookupResult it;
+    bool inserted;
+
+    for (size_t i = 0; i < n; ++i) {
+      map.emplace(data[i], it, inserted);
+      if (inserted) {
+        new (&it->getMapped()) Value;
+        std::swap(it->getMapped(), value);
+        INIT
+      }
     }
 
-    if (argc < 3 || std::stol(argv[2]) == 1)
-    {
-        Stopwatch watch;
-
-        HashMap<Key, Value> map;
-        HashMap<Key, Value>::LookupResult it;
-        bool inserted;
-
-        for (size_t i = 0; i < n; ++i)
-        {
-            map.emplace(data[i], it, inserted);
-            if (inserted)
-            {
-                new (&it->getMapped()) Value;
-                std::swap(it->getMapped(), value);
-                INIT
-            }
-        }
-
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "HashMap. Size: " << map.size()
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "HashMap. Size: " << map.size() << ", elapsed: " << watch.elapsedSeconds() << " ("
+              << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
 #ifdef DBMS_HASH_MAP_COUNT_COLLISIONS
-            << ", collisions: " << map.getCollisions()
+              << ", collisions: " << map.getCollisions()
 #endif
-            << std::endl;
+              << std::endl;
+  }
+
+  if (argc < 3 || std::stol(argv[2]) == 2) {
+    Stopwatch watch;
+
+    using Map = HashMap<Key, Value, AlternativeHash>;
+    Map map;
+    Map::LookupResult it;
+    bool inserted;
+
+    for (size_t i = 0; i < n; ++i) {
+      map.emplace(data[i], it, inserted);
+      if (inserted) {
+        new (&it->getMapped()) Value;
+        std::swap(it->getMapped(), value);
+        INIT
+      }
     }
 
-    if (argc < 3 || std::stol(argv[2]) == 2)
-    {
-        Stopwatch watch;
-
-        using Map = HashMap<Key, Value, AlternativeHash>;
-        Map map;
-        Map::LookupResult it;
-        bool inserted;
-
-        for (size_t i = 0; i < n; ++i)
-        {
-            map.emplace(data[i], it, inserted);
-            if (inserted)
-            {
-                new (&it->getMapped()) Value;
-                std::swap(it->getMapped(), value);
-                INIT
-            }
-        }
-
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "HashMap, AlternativeHash. Size: " << map.size()
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "HashMap, AlternativeHash. Size: " << map.size()
+              << ", elapsed: " << watch.elapsedSeconds() << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
 #ifdef DBMS_HASH_MAP_COUNT_COLLISIONS
-            << ", collisions: " << map.getCollisions()
+              << ", collisions: " << map.getCollisions()
 #endif
-            << std::endl;
-    }
+              << std::endl;
+  }
 
 #if defined(__x86_64__)
-    if (argc < 3 || std::stol(argv[2]) == 3)
-    {
-        Stopwatch watch;
+  if (argc < 3 || std::stol(argv[2]) == 3) {
+    Stopwatch watch;
 
-        using Map = HashMap<Key, Value, CRC32HashTest>;
-        Map map;
-        Map::LookupResult it;
-        bool inserted;
+    using Map = HashMap<Key, Value, CRC32HashTest>;
+    Map map;
+    Map::LookupResult it;
+    bool inserted;
 
-        for (size_t i = 0; i < n; ++i)
-        {
-            map.emplace(data[i], it, inserted);
-            if (inserted)
-            {
-                new (&it->getMapped()) Value;
-                std::swap(it->getMapped(), value);
-                INIT
-            }
-        }
-
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "HashMap, CRC32Hash. Size: " << map.size()
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
-#ifdef DBMS_HASH_MAP_COUNT_COLLISIONS
-            << ", collisions: " << map.getCollisions()
-#endif
-            << std::endl;
+    for (size_t i = 0; i < n; ++i) {
+      map.emplace(data[i], it, inserted);
+      if (inserted) {
+        new (&it->getMapped()) Value;
+        std::swap(it->getMapped(), value);
+        INIT
+      }
     }
+
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "HashMap, CRC32Hash. Size: " << map.size() << ", elapsed: " << watch.elapsedSeconds()
+              << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
+#  ifdef DBMS_HASH_MAP_COUNT_COLLISIONS
+              << ", collisions: " << map.getCollisions()
+#  endif
+              << std::endl;
+  }
 #endif
 
-    if (argc < 3 || std::stol(argv[2]) == 4)
-    {
-        Stopwatch watch;
+  if (argc < 3 || std::stol(argv[2]) == 4) {
+    Stopwatch watch;
 
-        std::unordered_map<Key, Value, DefaultHash<Key>> map;
-        std::unordered_map<Key, Value, DefaultHash<Key>>::iterator it;
-        for (size_t i = 0; i < n; ++i)
-        {
-            it = map.insert(std::make_pair(data[i], value)).first;
-            INIT
-        }
-
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "std::unordered_map. Size: " << map.size()
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
-            << std::endl;
+    std::unordered_map<Key, Value, DefaultHash<Key>> map;
+    std::unordered_map<Key, Value, DefaultHash<Key>>::iterator it;
+    for (size_t i = 0; i < n; ++i) {
+      it = map.insert(std::make_pair(data[i], value)).first;
+      INIT
     }
 
-    if (argc < 3 || std::stol(argv[2]) == 5)
-    {
-        Stopwatch watch;
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "std::unordered_map. Size: " << map.size() << ", elapsed: " << watch.elapsedSeconds()
+              << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)" << std::endl;
+  }
 
-        ::google::dense_hash_map<Key, Value, DefaultHash<Key>> map;
-        ::google::dense_hash_map<Key, Value, DefaultHash<Key>>::iterator it;
-        map.set_empty_key(-1ULL);
-        for (size_t i = 0; i < n; ++i)
-        {
-            it = map.insert(std::make_pair(data[i], value)).first;
-            INIT
-        }
+  if (argc < 3 || std::stol(argv[2]) == 5) {
+    Stopwatch watch;
 
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "google::dense_hash_map. Size: " << map.size()
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
-            << std::endl;
+    ::google::dense_hash_map<Key, Value, DefaultHash<Key>> map;
+    ::google::dense_hash_map<Key, Value, DefaultHash<Key>>::iterator it;
+    map.set_empty_key(-1ULL);
+    for (size_t i = 0; i < n; ++i) {
+      it = map.insert(std::make_pair(data[i], value)).first;
+      INIT
     }
 
-    if (argc < 3 || std::stol(argv[2]) == 6)
-    {
-        Stopwatch watch;
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "google::dense_hash_map. Size: " << map.size()
+              << ", elapsed: " << watch.elapsedSeconds() << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
+              << std::endl;
+  }
 
-        ::google::sparse_hash_map<Key, Value, DefaultHash<Key>> map;
-        ::google::sparse_hash_map<Key, Value, DefaultHash<Key>>::iterator it;
-        for (size_t i = 0; i < n; ++i)
-        {
-            map.insert(std::make_pair(data[i], value));
-            INIT
-        }
+  if (argc < 3 || std::stol(argv[2]) == 6) {
+    Stopwatch watch;
 
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2)
-            << "google::sparse_hash_map. Size: " << map.size()
-            << ", elapsed: " << watch.elapsedSeconds()
-            << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
-            << std::endl;
+    ::google::sparse_hash_map<Key, Value, DefaultHash<Key>> map;
+    ::google::sparse_hash_map<Key, Value, DefaultHash<Key>>::iterator it;
+    for (size_t i = 0; i < n; ++i) {
+      map.insert(std::make_pair(data[i], value));
+      INIT
     }
 
-    return 0;
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "google::sparse_hash_map. Size: " << map.size()
+              << ", elapsed: " << watch.elapsedSeconds() << " (" << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)"
+              << std::endl;
+  }
+
+  return 0;
 }

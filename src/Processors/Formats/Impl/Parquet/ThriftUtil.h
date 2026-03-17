@@ -1,14 +1,12 @@
 #pragma once
 
-#include <generated/parquet_types.h> // in contrib/arrow/cpp/src/ , generated from parquet.thrift
+#include <generated/parquet_types.h>  // in contrib/arrow/cpp/src/ , generated from parquet.thrift
 
-namespace DB
-{
-    class WriteBuffer;
+namespace DB {
+class WriteBuffer;
 }
 
-namespace DB::Parquet
-{
+namespace DB::Parquet {
 
 /// Namespace with structs generated from parquet.thrift
 namespace parq = parquet::format;
@@ -17,24 +15,23 @@ namespace parq = parquet::format;
 
 /// Returns number of bytes written.
 template <typename T>
-size_t serializeThriftStruct(const T & obj, WriteBuffer & out);
+size_t serializeThriftStruct(const T &obj, WriteBuffer &out);
 
 /// Returns number of bytes read (<= limit).
 /// The struct is not necessarily fully overwritten, the caller must ensure that `out` is
 /// default-initialized or cleared before the call.
 template <typename T>
-size_t deserializeThriftStruct(T & out, const char * buf, size_t limit);
+size_t deserializeThriftStruct(T &out, const char *buf, size_t limit);
 
 template <typename T>
 std::string thriftToString(const T &obj);
 
-
-extern template size_t serializeThriftStruct<parq::PageHeader>(const parq::PageHeader &, WriteBuffer & out);
-extern template size_t serializeThriftStruct<parq::ColumnChunk>(const parq::ColumnChunk &, WriteBuffer & out);
-extern template size_t serializeThriftStruct<parq::FileMetaData>(const parq::FileMetaData &, WriteBuffer & out);
-extern template size_t serializeThriftStruct<parq::ColumnIndex>(const parq::ColumnIndex &, WriteBuffer & out);
-extern template size_t serializeThriftStruct<parq::OffsetIndex>(const parq::OffsetIndex &, WriteBuffer & out);
-extern template size_t serializeThriftStruct<parq::BloomFilterHeader>(const parq::BloomFilterHeader &, WriteBuffer & out);
+extern template size_t serializeThriftStruct<parq::PageHeader>(const parq::PageHeader &, WriteBuffer &out);
+extern template size_t serializeThriftStruct<parq::ColumnChunk>(const parq::ColumnChunk &, WriteBuffer &out);
+extern template size_t serializeThriftStruct<parq::FileMetaData>(const parq::FileMetaData &, WriteBuffer &out);
+extern template size_t serializeThriftStruct<parq::ColumnIndex>(const parq::ColumnIndex &, WriteBuffer &out);
+extern template size_t serializeThriftStruct<parq::OffsetIndex>(const parq::OffsetIndex &, WriteBuffer &out);
+extern template size_t serializeThriftStruct<parq::BloomFilterHeader>(const parq::BloomFilterHeader &, WriteBuffer &out);
 
 extern template size_t deserializeThriftStruct<parq::FileMetaData>(parq::FileMetaData &, const char *, size_t);
 extern template size_t deserializeThriftStruct<parq::PageHeader>(parq::PageHeader &, const char *, size_t);
@@ -50,4 +47,4 @@ extern template std::string thriftToString<parq::PageType::type>(const parq::Pag
 extern template std::string thriftToString<parq::PageLocation>(const parq::PageLocation &);
 extern template std::string thriftToString<parq::Type::type>(const parq::Type::type &);
 
-}
+}  // namespace DB::Parquet

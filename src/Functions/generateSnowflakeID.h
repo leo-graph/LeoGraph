@@ -2,8 +2,7 @@
 
 #include <Core/Types.h>
 
-namespace DB
-{
+namespace DB {
 
 uint64_t generateSnowflakeID();
 

@@ -11,40 +11,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/NamedMutex_Android.h"
 #include "Poco/Exception.h"
 
-
 namespace Poco {
 
+NamedMutexImpl::NamedMutexImpl(const std::string&) {}
 
-NamedMutexImpl::NamedMutexImpl(const std::string&)
-{
-}
+NamedMutexImpl::~NamedMutexImpl() {}
 
+void NamedMutexImpl::lockImpl() { throw NotImplementedException("NamedMutex::lock() is not supported on Android"); }
 
-NamedMutexImpl::~NamedMutexImpl()
-{
-}
+bool NamedMutexImpl::tryLockImpl() { throw NotImplementedException("NamedMutex::tryLock() is not supported on Android"); }
 
+void NamedMutexImpl::unlockImpl() { throw NotImplementedException("NamedMutex::unlock() is not supported on Android"); }
 
-void NamedMutexImpl::lockImpl()
-{
-	throw NotImplementedException("NamedMutex::lock() is not supported on Android");
-}
-
-
-bool NamedMutexImpl::tryLockImpl()
-{
-	throw NotImplementedException("NamedMutex::tryLock() is not supported on Android");
-}
-
-
-void NamedMutexImpl::unlockImpl()
-{
-	throw NotImplementedException("NamedMutex::unlock() is not supported on Android");
-}
-
-
-} // namespace Poco
+}  // namespace Poco

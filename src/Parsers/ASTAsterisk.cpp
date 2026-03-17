@@ -1,46 +1,45 @@
-#include <Parsers/ASTAsterisk.h>
-#include <IO/WriteBuffer.h>
 #include <IO/Operators.h>
+#include <IO/WriteBuffer.h>
+#include <Parsers/ASTAsterisk.h>
 
-namespace DB
-{
+namespace DB {
 
-ASTPtr ASTAsterisk::clone() const
-{
-    auto clone = make_intrusive<ASTAsterisk>(*this);
-    clone->children.clear();
+ASTPtr ASTAsterisk::clone() const {
+  auto clone = make_intrusive<ASTAsterisk>(*this);
+  clone->children.clear();
 
-    if (expression) { clone->expression = expression->clone(); clone->children.push_back(clone->expression); }
-    if (transformers) { clone->transformers = transformers->clone(); clone->children.push_back(clone->transformers); }
+  if (expression) {
+    clone->expression = expression->clone();
+    clone->children.push_back(clone->expression);
+  }
+  if (transformers) {
+    clone->transformers = transformers->clone();
+    clone->children.push_back(clone->transformers);
+  }
 
-    return clone;
+  return clone;
 }
 
-void ASTAsterisk::appendColumnName(WriteBuffer & ostr) const
-{
-    if (expression)
-    {
-        expression->appendColumnName(ostr);
-        writeCString(".", ostr);
-    }
+void ASTAsterisk::appendColumnName(WriteBuffer& ostr) const {
+  if (expression) {
+    expression->appendColumnName(ostr);
+    writeCString(".", ostr);
+  }
 
-    ostr.write('*');
+  ostr.write('*');
 }
 
-void ASTAsterisk::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    if (expression)
-    {
-        expression->format(ostr, settings, state, frame);
-        ostr << ".";
-    }
+void ASTAsterisk::formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const {
+  if (expression) {
+    expression->format(ostr, settings, state, frame);
+    ostr << ".";
+  }
 
-    ostr << "*";
+  ostr << "*";
 
-    if (transformers)
-    {
-        transformers->format(ostr, settings, state, frame);
-    }
+  if (transformers) {
+    transformers->format(ostr, settings, state, frame);
+  }
 }
 
-}
+}  // namespace DB

@@ -1,8 +1,7 @@
 #pragma once
 #include <Core/Types.h>
 
-namespace DB::S3
-{
+namespace DB::S3 {
 
 /// Client settings.
 inline static constexpr uint64_t DEFAULT_EXPIRATION_WINDOW_SECONDS = 120;
@@ -43,4 +42,4 @@ inline static constexpr uint64_t DEFAULT_OBJECTS_CHUNK_SIZE_TO_DELETE = 1000;
 inline static constexpr bool DEFAULT_ALLOW_NATIVE_COPY = true;
 inline static constexpr bool DEFAULT_CHECK_OBJECTS_AFTER_UPLOAD = false;
 
-}
+}  // namespace DB::S3

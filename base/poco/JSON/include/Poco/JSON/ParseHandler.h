@@ -13,156 +13,114 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef JSON_ParseHandler_INCLUDED
 #define JSON_ParseHandler_INCLUDED
-
 
 #include <stack>
 #include "Poco/JSON/Handler.h"
 
+namespace Poco {
+namespace JSON {
 
-namespace Poco
+class JSON_API ParseHandler : public Handler
+/// ParseHandler is the default handler for the JSON Parser.
+///
+/// This handler will construct an Object or Array based
+/// on the handlers called by the Parser.
 {
-namespace JSON
-{
+ public:
+  ParseHandler(bool preserveObjectOrder = false);
+  /// Creates the ParseHandler.
+  ///
+  /// If preserveObjectOrder is true, the order of properties
+  /// inside objects is preserved. Otherwise, items
+  /// will be sorted by keys.
 
+  virtual ~ParseHandler();
+  /// Destroys the ParseHandler.
 
-    class JSON_API ParseHandler : public Handler
-    /// ParseHandler is the default handler for the JSON Parser.
-    ///
-    /// This handler will construct an Object or Array based
-    /// on the handlers called by the Parser.
-    {
-    public:
-        ParseHandler(bool preserveObjectOrder = false);
-        /// Creates the ParseHandler.
-        ///
-        /// If preserveObjectOrder is true, the order of properties
-        /// inside objects is preserved. Otherwise, items
-        /// will be sorted by keys.
+  virtual void reset();
+  /// Resets the handler state.
 
-        virtual ~ParseHandler();
-        /// Destroys the ParseHandler.
+  void startObject();
+  /// Handles a '{'; a new object is started.
 
-        virtual void reset();
-        /// Resets the handler state.
+  void endObject();
+  /// Handles a '}'; the object is closed.
 
-        void startObject();
-        /// Handles a '{'; a new object is started.
+  void startArray();
+  /// Handles a '['; a new array is started.
 
-        void endObject();
-        /// Handles a '}'; the object is closed.
+  void endArray();
+  /// Handles a ']'; the array is closed.
 
-        void startArray();
-        /// Handles a '['; a new array is started.
+  void key(const std::string& k);
+  /// A key is read
 
-        void endArray();
-        /// Handles a ']'; the array is closed.
+  Dynamic::Var asVar() const;
+  /// Returns the result of the parser (an object or an array).
 
-        void key(const std::string & k);
-        /// A key is read
+  virtual void value(int v);
+  /// An integer value is read
 
-        Dynamic::Var asVar() const;
-        /// Returns the result of the parser (an object or an array).
+  virtual void value(unsigned v);
+  /// An unsigned value is read. This will only be triggered if the
+  /// value cannot fit into a signed int.
 
-        virtual void value(int v);
-        /// An integer value is read
+  virtual void value(Int64 v);
+  /// A 64-bit integer value is read
 
-        virtual void value(unsigned v);
-        /// An unsigned value is read. This will only be triggered if the
-        /// value cannot fit into a signed int.
+  virtual void value(UInt64 v);
+  /// An unsigned 64-bit integer value is read. This will only be
+  /// triggered if the value cannot fit into a signed 64-bit integer.
 
-        virtual void value(Int64 v);
-        /// A 64-bit integer value is read
+  virtual void value(const std::string& s);
+  /// A string value is read.
 
-        virtual void value(UInt64 v);
-        /// An unsigned 64-bit integer value is read. This will only be
-        /// triggered if the value cannot fit into a signed 64-bit integer.
+  virtual void value(double d);
+  /// A double value is read.
 
-        virtual void value(const std::string & s);
-        /// A string value is read.
+  virtual void value(bool b);
+  /// A boolean value is read.
 
-        virtual void value(double d);
-        /// A double value is read.
+  virtual void null();
+  /// A null value is read.
 
-        virtual void value(bool b);
-        /// A boolean value is read.
+ private:
+  void setValue(const Poco::Dynamic::Var& value);
+  typedef std::stack<Dynamic::Var> Stack;
 
-        virtual void null();
-        /// A null value is read.
+  Stack _stack;
+  std::string _key;
+  Dynamic::Var _result;
+  bool _preserveObjectOrder;
+};
 
-    private:
-        void setValue(const Poco::Dynamic::Var & value);
-        typedef std::stack<Dynamic::Var> Stack;
+//
+// inlines
+//
+inline Dynamic::Var ParseHandler::asVar() const { return _result; }
 
-        Stack _stack;
-        std::string _key;
-        Dynamic::Var _result;
-        bool _preserveObjectOrder;
-    };
+inline void ParseHandler::value(int v) { setValue(v); }
 
+inline void ParseHandler::value(unsigned v) { setValue(v); }
 
-    //
-    // inlines
-    //
-    inline Dynamic::Var ParseHandler::asVar() const
-    {
-        return _result;
-    }
+inline void ParseHandler::value(Int64 v) { setValue(v); }
 
+inline void ParseHandler::value(UInt64 v) { setValue(v); }
 
-    inline void ParseHandler::value(int v)
-    {
-        setValue(v);
-    }
+inline void ParseHandler::value(const std::string& s) { setValue(s); }
 
+inline void ParseHandler::value(double d) { setValue(d); }
 
-    inline void ParseHandler::value(unsigned v)
-    {
-        setValue(v);
-    }
+inline void ParseHandler::value(bool b) { setValue(b); }
 
-
-    inline void ParseHandler::value(Int64 v)
-    {
-        setValue(v);
-    }
-
-
-    inline void ParseHandler::value(UInt64 v)
-    {
-        setValue(v);
-    }
-
-
-    inline void ParseHandler::value(const std::string & s)
-    {
-        setValue(s);
-    }
-
-
-    inline void ParseHandler::value(double d)
-    {
-        setValue(d);
-    }
-
-
-    inline void ParseHandler::value(bool b)
-    {
-        setValue(b);
-    }
-
-
-    inline void ParseHandler::null()
-    {
-        Poco::Dynamic::Var empty;
-        setValue(empty);
-    }
-
-
+inline void ParseHandler::null() {
+  Poco::Dynamic::Var empty;
+  setValue(empty);
 }
-} // namespace Poco::JSON
 
+}  // namespace JSON
+}  // namespace Poco
 
-#endif // JSON_ParseHandler_INCLUDED
+#endif  // JSON_ParseHandler_INCLUDED

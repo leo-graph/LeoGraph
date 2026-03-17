@@ -11,106 +11,68 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/ActiveDispatcher.h"
-#include "Poco/Notification.h"
 #include "Poco/AutoPtr.h"
-
+#include "Poco/Notification.h"
 
 namespace Poco {
 
+namespace {
+class MethodNotification : public Notification {
+ public:
+  MethodNotification(ActiveRunnableBase::Ptr pRunnable) : _pRunnable(pRunnable) {}
 
-namespace
-{
-	class MethodNotification: public Notification
-	{
-	public:
-		MethodNotification(ActiveRunnableBase::Ptr pRunnable):
-			_pRunnable(pRunnable)
-		{
-		}
-		
-		ActiveRunnableBase::Ptr runnable() const
-		{
-			return _pRunnable;
-		}
-		
-	private:
-		ActiveRunnableBase::Ptr _pRunnable;
-	};
-	
-	class StopNotification: public Notification
-	{
-	};
+  ActiveRunnableBase::Ptr runnable() const { return _pRunnable; }
+
+ private:
+  ActiveRunnableBase::Ptr _pRunnable;
+};
+
+class StopNotification : public Notification {};
+}  // namespace
+
+ActiveDispatcher::ActiveDispatcher() {}
+
+ActiveDispatcher::ActiveDispatcher(Thread::Priority prio) { _thread.setPriority(prio); }
+
+ActiveDispatcher::~ActiveDispatcher() {
+  try {
+    stop();
+  } catch (...) {
+  }
 }
 
+void ActiveDispatcher::start(ActiveRunnableBase::Ptr pRunnable) {
+  poco_check_ptr(pRunnable);
 
-ActiveDispatcher::ActiveDispatcher()
-{
+  if (!_thread.isRunning()) {
+    _thread.start(*this);
+  }
+
+  _queue.enqueueNotification(new MethodNotification(pRunnable));
 }
 
+void ActiveDispatcher::cancel() { _queue.clear(); }
 
-ActiveDispatcher::ActiveDispatcher(Thread::Priority prio)
-{
-	_thread.setPriority(prio);
+void ActiveDispatcher::run() {
+  AutoPtr<Notification> pNf = _queue.waitDequeueNotification();
+  while (pNf && !dynamic_cast<StopNotification*>(pNf.get())) {
+    MethodNotification* pMethodNf = dynamic_cast<MethodNotification*>(pNf.get());
+    poco_check_ptr(pMethodNf);
+    ActiveRunnableBase::Ptr pRunnable = pMethodNf->runnable();
+    pRunnable->duplicate();  // run will release
+    pRunnable->run();
+    pRunnable = 0;
+    pNf = 0;
+    pNf = _queue.waitDequeueNotification();
+  }
 }
 
-
-ActiveDispatcher::~ActiveDispatcher()
-{
-	try
-	{
-		stop();
-	}
-	catch (...)
-	{
-	}
+void ActiveDispatcher::stop() {
+  _queue.clear();
+  _queue.wakeUpAll();
+  _queue.enqueueNotification(new StopNotification);
+  _thread.join();
 }
 
-
-void ActiveDispatcher::start(ActiveRunnableBase::Ptr pRunnable)
-{
-	poco_check_ptr (pRunnable);
-
-    if (!_thread.isRunning())
-    {
-        _thread.start(*this);
-    }
-
-    _queue.enqueueNotification(new MethodNotification(pRunnable));
-}
-
-
-void ActiveDispatcher::cancel()
-{
-	_queue.clear();
-}
-
-
-void ActiveDispatcher::run()
-{
-	AutoPtr<Notification> pNf = _queue.waitDequeueNotification();
-	while (pNf && !dynamic_cast<StopNotification*>(pNf.get()))
-	{
-		MethodNotification* pMethodNf = dynamic_cast<MethodNotification*>(pNf.get());
-		poco_check_ptr (pMethodNf);
-		ActiveRunnableBase::Ptr pRunnable = pMethodNf->runnable();
-		pRunnable->duplicate(); // run will release
-		pRunnable->run();
-		pRunnable = 0;
-		pNf = 0;
-		pNf = _queue.waitDequeueNotification();
-	}
-}
-
-
-void ActiveDispatcher::stop()
-{
-	_queue.clear();
-	_queue.wakeUpAll();
-	_queue.enqueueNotification(new StopNotification);
-	_thread.join();
-}
-
-
-} // namespace Poco
+}  // namespace Poco

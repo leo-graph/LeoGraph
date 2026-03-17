@@ -14,7 +14,7 @@
 //
 //
 // Based on the FreeBSD random number generator.
-// src/lib/libc/stdlib/random.c,v 1.25 
+// src/lib/libc/stdlib/random.c,v 1.25
 //
 // Copyright (c) 1983, 1993
 // The Regents of the University of California.  All rights reserved.
@@ -43,11 +43,9 @@
 // SUCH DAMAGE.
 //
 
-
 #include "Poco/Random.h"
-#include "Poco/RandomStream.h"
 #include <ctime>
-
+#include "Poco/RandomStream.h"
 
 /*
  * random.c:
@@ -108,7 +106,6 @@
  * byte buffer it is about 5 percent faster.
  */
 
-
 /*
  * For each of the currently supported random number generators, we have a
  * break value on the amount of state information (you need at least this
@@ -116,49 +113,41 @@
  * for the polynomial (actually a trinomial) that the R.N.G. is based on, and
  * the separation between the two lower order coefficients of the trinomial.
  */
-#define	TYPE_0		0		/* linear congruential */
-#define	BREAK_0		8
-#define	DEG_0		0
-#define	SEP_0		0
+#define TYPE_0 0 /* linear congruential */
+#define BREAK_0 8
+#define DEG_0 0
+#define SEP_0 0
 
-#define	TYPE_1		1		/* x**7 + x**3 + 1 */
-#define	BREAK_1		32
-#define	DEG_1		7
-#define	SEP_1		3
+#define TYPE_1 1 /* x**7 + x**3 + 1 */
+#define BREAK_1 32
+#define DEG_1 7
+#define SEP_1 3
 
-#define	TYPE_2		2		/* x**15 + x + 1 */
-#define	BREAK_2		64
-#define	DEG_2		15
-#define	SEP_2		1
+#define TYPE_2 2 /* x**15 + x + 1 */
+#define BREAK_2 64
+#define DEG_2 15
+#define SEP_2 1
 
-#define	TYPE_3		3		/* x**31 + x**3 + 1 */
-#define	BREAK_3		128
-#define	DEG_3		31
-#define	SEP_3		3
+#define TYPE_3 3 /* x**31 + x**3 + 1 */
+#define BREAK_3 128
+#define DEG_3 31
+#define SEP_3 3
 
-#define	TYPE_4		4		/* x**63 + x + 1 */
-#define	BREAK_4		256
-#define	DEG_4		63
-#define	SEP_4		1
-
+#define TYPE_4 4 /* x**63 + x + 1 */
+#define BREAK_4 256
+#define DEG_4 63
+#define SEP_4 1
 
 namespace Poco {
 
+Random::Random(int stateSize) {
+  poco_assert(BREAK_0 <= stateSize && stateSize <= BREAK_4);
 
-Random::Random(int stateSize)
-{
-	poco_assert (BREAK_0 <= stateSize && stateSize <= BREAK_4);
-
-	_pBuffer = new char[stateSize];
-	initState((UInt32) std::time(NULL), _pBuffer, stateSize);
+  _pBuffer = new char[stateSize];
+  initState((UInt32)std::time(NULL), _pBuffer, stateSize);
 }
 
-
-Random::~Random()
-{
-	delete [] _pBuffer;
-}
-
+Random::~Random() { delete[] _pBuffer; }
 
 /*
  * Compute x = (7^5 * x) mod (2^31 - 1)
@@ -168,19 +157,17 @@ Random::~Random()
  * Park and Miller, Communications of the ACM, vol. 31, no. 10,
  * October 1988, p. 1195.
  */
-inline UInt32 Random::goodRand(Int32 x)
-{
-	Int32 hi, lo;
+inline UInt32 Random::goodRand(Int32 x) {
+  Int32 hi, lo;
 
-	if (x == 0) x = 123459876;
-	hi = x / 127773;
-	lo = x % 127773;
-	x = 16807 * lo - 2836 * hi;
-	if (x < 0) x += 0x7FFFFFFF;
+  if (x == 0) x = 123459876;
+  hi = x / 127773;
+  lo = x % 127773;
+  x = 16807 * lo - 2836 * hi;
+  if (x < 0) x += 0x7FFFFFFF;
 
-	return x;
+  return x;
 }
-
 
 /*
  * Initialize the random number generator based on the given seed.  If the
@@ -192,25 +179,20 @@ inline UInt32 Random::goodRand(Int32 x)
  * introduced by the L.C.R.N.G.  Note that the initialization of randtbl[]
  * for default usage relies on values produced by this routine.
  */
-void Random::seed(UInt32 x)
-{
-	int i, lim;
+void Random::seed(UInt32 x) {
+  int i, lim;
 
-	_state[0] = x;
-	if (_randType == TYPE_0)
-		lim = NSHUFF;
-	else 
-	{
-		for (i = 1; i < _randDeg; i++)
-			_state[i] = goodRand(_state[i - 1]);
-		_fptr = &_state[_randSep];
-		_rptr = &_state[0];
-		lim = 10 * _randDeg;
-	}
-	for (i = 0; i < lim; i++)
-		next();
+  _state[0] = x;
+  if (_randType == TYPE_0)
+    lim = NSHUFF;
+  else {
+    for (i = 1; i < _randDeg; i++) _state[i] = goodRand(_state[i - 1]);
+    _fptr = &_state[_randSep];
+    _rptr = &_state[0];
+    lim = 10 * _randDeg;
+  }
+  for (i = 0; i < lim; i++) next();
 }
-
 
 /*
  * Many programs choose the seed value in a totally predictable manner.
@@ -221,19 +203,17 @@ void Random::seed(UInt32 x)
  * state buffer are no longer derived from the LC algorithm applied to
  * a fixed seed.
  */
-void Random::seed()
-{
-	std::streamsize len;
+void Random::seed() {
+  std::streamsize len;
 
-	if (_randType == TYPE_0)
-		len = sizeof _state[0];
-	else
-		len = _randDeg * sizeof _state[0];
+  if (_randType == TYPE_0)
+    len = sizeof _state[0];
+  else
+    len = _randDeg * sizeof _state[0];
 
-	RandomInputStream rstr;
-	rstr.read((char*) _state, len);
+  RandomInputStream rstr;
+  rstr.read((char*)_state, len);
 }
-
 
 /*
  * Initialize the state information in the given array of n bytes for future
@@ -256,54 +236,42 @@ void Random::seed()
  * word boundary; otherwise a bus error will occur. Even so, lint will
  * complain about misalignment, but you should disregard these messages.
  */
-void Random::initState(UInt32 s, char* argState, Int32 n)
-{
-	UInt32* intArgState = (UInt32*) argState;
+void Random::initState(UInt32 s, char* argState, Int32 n) {
+  UInt32* intArgState = (UInt32*)argState;
 
-	if (n < BREAK_0) 
-	{
-		poco_bugcheck_msg("not enough state");
-		return;
-	}
-	if (n < BREAK_1) 
-	{
-		_randType = TYPE_0;
-		_randDeg  = DEG_0;
-		_randSep  = SEP_0;
-	} 
-	else if (n < BREAK_2) 
-	{
-		_randType = TYPE_1;
-		_randDeg  = DEG_1;
-		_randSep  = SEP_1;
-	} 
-	else if (n < BREAK_3) 
-	{
-		_randType = TYPE_2;
-		_randDeg  = DEG_2;
-		_randSep  = SEP_2;
-	} 
-	else if (n < BREAK_4) 
-	{
-		_randType = TYPE_3;
-		_randDeg  = DEG_3;
-		_randSep  = SEP_3;
-	} 
-	else 
-	{
-		_randType = TYPE_4;
-		_randDeg = DEG_4;
-		_randSep = SEP_4;
-	}
-	_state  = intArgState + 1; /* first location */
-	_endPtr = &_state[_randDeg];	/* must set end_ptr before seed */
-	seed(s);
-	if (_randType == TYPE_0)
-		intArgState[0] = _randType;
-	else
-		intArgState[0] = MAX_TYPES * (int) (_rptr - _state) + _randType;
+  if (n < BREAK_0) {
+    poco_bugcheck_msg("not enough state");
+    return;
+  }
+  if (n < BREAK_1) {
+    _randType = TYPE_0;
+    _randDeg = DEG_0;
+    _randSep = SEP_0;
+  } else if (n < BREAK_2) {
+    _randType = TYPE_1;
+    _randDeg = DEG_1;
+    _randSep = SEP_1;
+  } else if (n < BREAK_3) {
+    _randType = TYPE_2;
+    _randDeg = DEG_2;
+    _randSep = SEP_2;
+  } else if (n < BREAK_4) {
+    _randType = TYPE_3;
+    _randDeg = DEG_3;
+    _randSep = SEP_3;
+  } else {
+    _randType = TYPE_4;
+    _randDeg = DEG_4;
+    _randSep = SEP_4;
+  }
+  _state = intArgState + 1;    /* first location */
+  _endPtr = &_state[_randDeg]; /* must set end_ptr before seed */
+  seed(s);
+  if (_randType == TYPE_0)
+    intArgState[0] = _randType;
+  else
+    intArgState[0] = MAX_TYPES * (int)(_rptr - _state) + _randType;
 }
-
 
 /*
  * Next:
@@ -322,36 +290,32 @@ void Random::initState(UInt32 s, char* argState, Int32 n)
  *
  * Returns a 31-bit random number.
  */
-UInt32 Random::next()
-{
-	UInt32 i;
-	UInt32 *f, *r;
+UInt32 Random::next() {
+  UInt32 i;
+  UInt32 *f, *r;
 
-	if (_randType == TYPE_0) 
-	{
-		i = _state[0];
-		_state[0] = i = goodRand(i) & 0x7FFFFFFF;
-	} 
-	else 
-	{
-		/*
-		 * Use local variables rather than static variables for speed.
-		 */
-		f = _fptr; r = _rptr;
-		*f += *r;
-		i = (*f >> 1) & 0x7FFFFFFF;	/* chucking least random bit */
-		if (++f >= _endPtr) {
-			f = _state;
-			++r;
-		}
-		else if (++r >= _endPtr) {
-			r = _state;
-		}
+  if (_randType == TYPE_0) {
+    i = _state[0];
+    _state[0] = i = goodRand(i) & 0x7FFFFFFF;
+  } else {
+    /*
+     * Use local variables rather than static variables for speed.
+     */
+    f = _fptr;
+    r = _rptr;
+    *f += *r;
+    i = (*f >> 1) & 0x7FFFFFFF; /* chucking least random bit */
+    if (++f >= _endPtr) {
+      f = _state;
+      ++r;
+    } else if (++r >= _endPtr) {
+      r = _state;
+    }
 
-		_fptr = f; _rptr = r;
-	}
-	return i;
+    _fptr = f;
+    _rptr = r;
+  }
+  return i;
 }
 
-
-} // namespace Poco
+}  // namespace Poco

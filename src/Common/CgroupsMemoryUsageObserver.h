@@ -6,8 +6,7 @@
 #include <chrono>
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 
 ///  Periodically reads the the maximum memory available to the process (which can change due to cgroups settings).
 ///  You can specify a callback to react on changes. The callback typically reloads the configuration, i.e. Server
@@ -17,51 +16,50 @@ namespace DB
 ///  cgroups) is quite implicit, unfortunately there is currently no better way to communicate memory threshold changes
 ///  to the database.
 #if defined(OS_LINUX)
-class CgroupsMemoryUsageObserver
-{
-public:
-    using OnMemoryAmountAvailableChangedFn = std::function<void()>;
+class CgroupsMemoryUsageObserver {
+ public:
+  using OnMemoryAmountAvailableChangedFn = std::function<void()>;
 
-    explicit CgroupsMemoryUsageObserver(std::chrono::seconds wait_time_);
-    ~CgroupsMemoryUsageObserver();
+  explicit CgroupsMemoryUsageObserver(std::chrono::seconds wait_time_);
+  ~CgroupsMemoryUsageObserver();
 
-    void setOnMemoryAmountAvailableChangedFn(OnMemoryAmountAvailableChangedFn on_memory_amount_available_changed_);
+  void setOnMemoryAmountAvailableChangedFn(OnMemoryAmountAvailableChangedFn on_memory_amount_available_changed_);
 
-    void startThread();
+  void startThread();
 
-private:
-    LoggerPtr log;
+ private:
+  LoggerPtr log;
 
-    const std::chrono::seconds wait_time;
+  const std::chrono::seconds wait_time;
 
-    std::mutex limit_mutex;
+  std::mutex limit_mutex;
 
-    std::mutex memory_amount_available_changed_mutex;
-    OnMemoryAmountAvailableChangedFn on_memory_amount_available_changed TSA_GUARDED_BY(memory_amount_available_changed_mutex);
+  std::mutex memory_amount_available_changed_mutex;
+  OnMemoryAmountAvailableChangedFn on_memory_amount_available_changed TSA_GUARDED_BY(memory_amount_available_changed_mutex);
 
-    uint64_t last_available_memory_amount; /// how much memory can the process use
+  uint64_t last_available_memory_amount;  /// how much memory can the process use
 
-    void stopThread();
+  void stopThread();
 
-    void runThread();
+  void runThread();
 
-    std::mutex thread_mutex;
-    std::condition_variable cond;
-    ThreadFromGlobalPool thread;
-    bool quit = false;
+  std::mutex thread_mutex;
+  std::condition_variable cond;
+  ThreadFromGlobalPool thread;
+  bool quit = false;
 };
 
 #else
-class CgroupsMemoryUsageObserver
-{
-    using OnMemoryAmountAvailableChangedFn = std::function<void()>;
-public:
-    explicit CgroupsMemoryUsageObserver(std::chrono::seconds) {}
+class CgroupsMemoryUsageObserver {
+  using OnMemoryAmountAvailableChangedFn = std::function<void()>;
 
-    void setMemoryUsageLimits(uint64_t, uint64_t) {}
-    void setOnMemoryAmountAvailableChangedFn(OnMemoryAmountAvailableChangedFn) {}
-    void startThread() {}
+ public:
+  explicit CgroupsMemoryUsageObserver(std::chrono::seconds) {}
+
+  void setMemoryUsageLimits(uint64_t, uint64_t) {}
+  void setOnMemoryAmountAvailableChangedFn(OnMemoryAmountAvailableChangedFn) {}
+  void startThread() {}
 };
 #endif
 
-}
+}  // namespace DB

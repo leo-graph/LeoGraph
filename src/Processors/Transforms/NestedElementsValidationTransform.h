@@ -2,19 +2,16 @@
 
 #include <Processors/ISimpleTransform.h>
 
-namespace DB
-{
+namespace DB {
 
-class NestedElementsValidationTransform : public ISimpleTransform
-{
-public:
-    explicit NestedElementsValidationTransform(SharedHeader header);
+class NestedElementsValidationTransform : public ISimpleTransform {
+ public:
+  explicit NestedElementsValidationTransform(SharedHeader header);
 
-    String getName() const override { return "NestedElementsValidationTransform"; }
+  String getName() const override { return "NestedElementsValidationTransform"; }
 
-protected:
-    void transform(Chunk & chunk) override;
+ protected:
+  void transform(Chunk& chunk) override;
 };
 
-}
-
+}  // namespace DB

@@ -1,14 +1,13 @@
 #pragma once
 
-#include <memory>
 #include <Interpreters/Context_fwd.h>
+#include <memory>
 
 class IQueryTreeNode;
 using QueryTreeNodePtr = std::shared_ptr<IQueryTreeNode>;
 
-namespace DB
-{
+namespace DB {
 
-void createUniqueAliasesIfNecessary(QueryTreeNodePtr & node, const ContextPtr & context);
+void createUniqueAliasesIfNecessary(QueryTreeNodePtr& node, const ContextPtr& context);
 
 }

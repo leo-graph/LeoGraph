@@ -1,40 +1,21 @@
 #include <IO/NullWriteBuffer.h>
 
-namespace DB
-{
+namespace DB {
 
-NullWriteBuffer::NullWriteBuffer()
-    : WriteBufferFromPointer(data, sizeof(data))
-    , write_event(ProfileEvents::end())
-{
+NullWriteBuffer::NullWriteBuffer() : WriteBufferFromPointer(data, sizeof(data)), write_event(ProfileEvents::end()) {}
+
+NullWriteBuffer::NullWriteBuffer(const ProfileEvents::Event& write_event_)
+    : WriteBufferFromPointer(data, sizeof(data)), write_event(write_event_) {}
+
+NullWriteBuffer::~NullWriteBuffer() { cancel(); }
+
+void NullWriteBuffer::nextImpl() {
+  // no op, only update counters
+  if (write_event != ProfileEvents::end()) ProfileEvents::increment(write_event, offset());
 }
 
-NullWriteBuffer::NullWriteBuffer(const ProfileEvents::Event & write_event_)
-    : WriteBufferFromPointer(data, sizeof(data))
-    , write_event(write_event_)
-{
-}
+NullWriteBufferWithMemory::NullWriteBufferWithMemory(size_t size) : BufferWithOwnMemory(size) {}
 
-NullWriteBuffer::~NullWriteBuffer()
-{
-    cancel();
-}
+NullWriteBufferWithMemory::~NullWriteBufferWithMemory() { cancel(); }
 
-void NullWriteBuffer::nextImpl()
-{
-    // no op, only update counters
-    if (write_event != ProfileEvents::end())
-        ProfileEvents::increment(write_event, offset());
-}
-
-NullWriteBufferWithMemory::NullWriteBufferWithMemory(size_t size)
-    : BufferWithOwnMemory(size)
-{
-}
-
-NullWriteBufferWithMemory::~NullWriteBufferWithMemory()
-{
-    cancel();
-}
-
-}
+}  // namespace DB

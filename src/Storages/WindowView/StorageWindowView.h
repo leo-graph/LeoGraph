@@ -1,18 +1,17 @@
 #pragma once
 
 #include <Common/DateLUT.h>
+#include <Common/SharedMutex.h>
 #include <Core/BackgroundSchedulePoolTaskHolder.h>
 #include <Core/Block_fwd.h>
 #include <DataTypes/DataTypeInterval.h>
 #include <Parsers/ASTSelectQuery.h>
-#include <Storages/IStorage.h>
 #include <Poco/Logger.h>
-#include <Common/SharedMutex.h>
+#include <Storages/IStorage.h>
 
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 class WindowViewSource;
 
 /**
@@ -100,181 +99,157 @@ class WindowViewSource;
  *     Users need to take these duplicated results into account.
  */
 
-class StorageWindowView final : public IStorage, WithContext
-{
-    friend class WindowViewSource;
-    friend class WatermarkTransform;
+class StorageWindowView final : public IStorage, WithContext {
+  friend class WindowViewSource;
+  friend class WatermarkTransform;
 
-public:
-    StorageWindowView(
-        const StorageID & table_id_,
-        ContextPtr context_,
-        const ASTCreateQuery & query,
-        const ColumnsDescription & columns_,
-        const String & comment,
-        LoadingStrictnessLevel mode);
+ public:
+  StorageWindowView(const StorageID &table_id_, ContextPtr context_, const ASTCreateQuery &query, const ColumnsDescription &columns_,
+                    const String &comment, LoadingStrictnessLevel mode);
 
-    String getName() const override { return "WindowView"; }
+  String getName() const override { return "WindowView"; }
 
-    bool isView() const override { return true; }
-    bool supportsSampling() const override { return true; }
-    bool supportsFinal() const override { return true; }
+  bool isView() const override { return true; }
+  bool supportsSampling() const override { return true; }
+  bool supportsFinal() const override { return true; }
 
-    void checkTableCanBeDropped([[ maybe_unused ]] ContextPtr query_context) const override;
+  void checkTableCanBeDropped([[maybe_unused]] ContextPtr query_context) const override;
 
-    void dropInnerTableIfAny(bool sync, ContextPtr context) override;
+  void dropInnerTableIfAny(bool sync, ContextPtr context) override;
 
-    void drop() override;
+  void drop() override;
 
-    void truncate(const ASTPtr &, const StorageMetadataPtr &, ContextPtr, TableExclusiveLockHolder &) override;
+  void truncate(const ASTPtr &, const StorageMetadataPtr &, ContextPtr, TableExclusiveLockHolder &) override;
 
-    bool optimize(
-        const ASTPtr & query,
-        const StorageMetadataPtr & metadata_snapshot,
-        const ASTPtr & partition,
-        bool final,
-        bool deduplicate,
-        const Names & deduplicate_by_columns,
-        bool cleanup,
-        ContextPtr context) override;
+  bool optimize(const ASTPtr &query, const StorageMetadataPtr &metadata_snapshot, const ASTPtr &partition, bool final, bool deduplicate,
+                const Names &deduplicate_by_columns, bool cleanup, ContextPtr context) override;
 
-    void alter(const AlterCommands & params, ContextPtr context, AlterLockHolder & table_lock_holder) override;
+  void alter(const AlterCommands &params, ContextPtr context, AlterLockHolder &table_lock_holder) override;
 
-    void checkAlterIsPossible(const AlterCommands & commands, ContextPtr context) const override;
+  void checkAlterIsPossible(const AlterCommands &commands, ContextPtr context) const override;
 
-    void startup() override;
-    void shutdown(bool is_drop) override;
+  void startup() override;
+  void shutdown(bool is_drop) override;
 
-    void read(
-        QueryPlan & query_plan,
-        const Names & column_names,
-        const StorageSnapshotPtr & storage_snapshot,
-        SelectQueryInfo & query_info,
-        ContextPtr context,
-        QueryProcessingStage::Enum processed_stage,
-        size_t max_block_size,
-        size_t num_streams) override;
+  void read(QueryPlan &query_plan, const Names &column_names, const StorageSnapshotPtr &storage_snapshot, SelectQueryInfo &query_info,
+            ContextPtr context, QueryProcessingStage::Enum processed_stage, size_t max_block_size, size_t num_streams) override;
 
-    Pipe watch(
-        const Names & column_names,
-        const SelectQueryInfo & query_info,
-        ContextPtr context,
-        QueryProcessingStage::Enum & processed_stage,
-        size_t max_block_size,
-        size_t num_streams) override;
+  Pipe watch(const Names &column_names, const SelectQueryInfo &query_info, ContextPtr context, QueryProcessingStage::Enum &processed_stage,
+             size_t max_block_size, size_t num_streams) override;
 
-    std::pair<BlocksPtr, Block> getNewBlocks(UInt32 watermark);
+  std::pair<BlocksPtr, Block> getNewBlocks(UInt32 watermark);
 
-    BlockIO populate();
+  BlockIO populate();
 
-    static void writeIntoWindowView(StorageWindowView & window_view, Block && block, Chunk::ChunkInfoCollection && chunk_infos, ContextPtr context);
+  static void writeIntoWindowView(StorageWindowView &window_view, Block &&block, Chunk::ChunkInfoCollection &&chunk_infos,
+                                  ContextPtr context);
 
-    ASTPtr getMergeableQuery() const { return mergeable_query->clone(); }
+  ASTPtr getMergeableQuery() const { return mergeable_query->clone(); }
 
-    ASTPtr getSourceTableSelectQuery();
+  ASTPtr getSourceTableSelectQuery();
 
-    Block getInputHeader() const;
+  Block getInputHeader() const;
 
-    SharedHeader getOutputHeader() const;
+  SharedHeader getOutputHeader() const;
 
-private:
-    LoggerPtr log;
+ private:
+  LoggerPtr log;
 
-    /// Stored query, e.g. SELECT * FROM * GROUP BY tumble(now(), *)
-    ASTPtr select_query;
-    /// Used to generate the mergeable state of select_query, e.g. SELECT * FROM * GROUP BY windowID(____timestamp, *)
-    ASTPtr mergeable_query;
-    /// Used to fetch the mergeable state and generate the final result. e.g. SELECT * FROM * GROUP BY tumble(____timestamp, *)
-    ASTPtr final_query;
-    /// Used to fetch the data from inner storage.
-    ASTPtr inner_fetch_query;
+  /// Stored query, e.g. SELECT * FROM * GROUP BY tumble(now(), *)
+  ASTPtr select_query;
+  /// Used to generate the mergeable state of select_query, e.g. SELECT * FROM * GROUP BY windowID(____timestamp, *)
+  ASTPtr mergeable_query;
+  /// Used to fetch the mergeable state and generate the final result. e.g. SELECT * FROM * GROUP BY tumble(____timestamp, *)
+  ASTPtr final_query;
+  /// Used to fetch the data from inner storage.
+  ASTPtr inner_fetch_query;
 
-    bool is_proctime;
-    bool is_time_column_func_now;
-    bool is_tumble; // false if is hop
-    std::atomic<bool> shutdown_called{false};
-    std::atomic<bool> modifying_query{false};
-    bool has_inner_table{true};
-    bool has_inner_target_table{false};
-    mutable Block output_header;
-    UInt64 fire_signal_timeout_s;
-    UInt64 clean_interval_usec;
-    UInt64 last_clean_timestamp_usec = 0;
-    const DateLUTImpl * time_zone = nullptr;
-    UInt32 max_timestamp = 0;
-    UInt32 max_watermark = 0; // next watermark to fire
-    UInt32 max_fired_watermark = 0;
-    bool is_watermark_strictly_ascending;
-    bool is_watermark_ascending;
-    bool is_watermark_bounded;
-    bool allowed_lateness;
-    UInt32 next_fire_signal;
-    std::deque<UInt32> fire_signal;
-    std::list<std::weak_ptr<WindowViewSource>> watch_streams;
-    std::condition_variable_any fire_signal_condition;
-    std::condition_variable fire_condition;
+  bool is_proctime;
+  bool is_time_column_func_now;
+  bool is_tumble;  // false if is hop
+  std::atomic<bool> shutdown_called{false};
+  std::atomic<bool> modifying_query{false};
+  bool has_inner_table{true};
+  bool has_inner_target_table{false};
+  mutable Block output_header;
+  UInt64 fire_signal_timeout_s;
+  UInt64 clean_interval_usec;
+  UInt64 last_clean_timestamp_usec = 0;
+  const DateLUTImpl *time_zone = nullptr;
+  UInt32 max_timestamp = 0;
+  UInt32 max_watermark = 0;  // next watermark to fire
+  UInt32 max_fired_watermark = 0;
+  bool is_watermark_strictly_ascending;
+  bool is_watermark_ascending;
+  bool is_watermark_bounded;
+  bool allowed_lateness;
+  UInt32 next_fire_signal;
+  std::deque<UInt32> fire_signal;
+  std::list<std::weak_ptr<WindowViewSource>> watch_streams;
+  std::condition_variable_any fire_signal_condition;
+  std::condition_variable fire_condition;
 
-    /// Mutex for the blocks and ready condition
-    std::mutex mutex;
-    SharedMutex fire_signal_mutex;
-    mutable std::mutex sample_block_lock; /// Mutex to protect access to sample block
+  /// Mutex for the blocks and ready condition
+  std::mutex mutex;
+  SharedMutex fire_signal_mutex;
+  mutable std::mutex sample_block_lock;  /// Mutex to protect access to sample block
 
-    IntervalKind::Kind window_kind;
-    IntervalKind::Kind hop_kind;
-    IntervalKind::Kind watermark_kind;
-    IntervalKind::Kind lateness_kind;
-    IntervalKind::Kind slide_kind;
-    Int64 window_num_units;
-    Int64 hop_num_units;
-    Int64 slice_num_units;
-    Int64 watermark_num_units;
-    Int64 lateness_num_units;
-    Int64 slide_num_units;
-    String window_id_name;
-    String window_id_alias;
-    String window_column_name;
-    String timestamp_column_name;
+  IntervalKind::Kind window_kind;
+  IntervalKind::Kind hop_kind;
+  IntervalKind::Kind watermark_kind;
+  IntervalKind::Kind lateness_kind;
+  IntervalKind::Kind slide_kind;
+  Int64 window_num_units;
+  Int64 hop_num_units;
+  Int64 slice_num_units;
+  Int64 watermark_num_units;
+  Int64 lateness_num_units;
+  Int64 slide_num_units;
+  String window_id_name;
+  String window_id_alias;
+  String window_column_name;
+  String timestamp_column_name;
 
-    StorageID select_table_id = StorageID::createEmpty();
-    StorageID target_table_id = StorageID::createEmpty();
-    StorageID inner_table_id = StorageID::createEmpty();
+  StorageID select_table_id = StorageID::createEmpty();
+  StorageID target_table_id = StorageID::createEmpty();
+  StorageID inner_table_id = StorageID::createEmpty();
 
-    ASTPtr inner_table_engine;
+  ASTPtr inner_table_engine;
 
-    BackgroundSchedulePoolTaskHolder clean_cache_task;
-    BackgroundSchedulePoolTaskHolder fire_task;
+  BackgroundSchedulePoolTaskHolder clean_cache_task;
+  BackgroundSchedulePoolTaskHolder fire_task;
 
-    String window_view_timezone;
-    String function_now_timezone;
+  String window_view_timezone;
+  String function_now_timezone;
 
-    ASTPtr innerQueryParser(const ASTSelectQuery & query);
-    void eventTimeParser(const ASTCreateQuery & query);
-    ASTPtr initInnerQuery(ASTSelectQuery query, ContextPtr context);
+  ASTPtr innerQueryParser(const ASTSelectQuery &query);
+  void eventTimeParser(const ASTCreateQuery &query);
+  ASTPtr initInnerQuery(ASTSelectQuery query, ContextPtr context);
 
-    UInt32 getCleanupBound();
-    ASTPtr getCleanupQuery();
+  UInt32 getCleanupBound();
+  ASTPtr getCleanupQuery();
 
-    UInt32 getWindowLowerBound(UInt32 time_sec);
-    UInt32 getWindowUpperBound(UInt32 time_sec);
+  UInt32 getWindowLowerBound(UInt32 time_sec);
+  UInt32 getWindowUpperBound(UInt32 time_sec);
 
-    void fire(UInt32 watermark);
-    void cleanup();
-    void threadFuncCleanup();
-    void threadFuncFireProc();
-    void threadFuncFireEvent();
-    void addFireSignal(std::set<UInt32> & signals);
-    void updateMaxWatermark(UInt32 watermark);
-    void updateMaxTimestamp(UInt32 timestamp);
+  void fire(UInt32 watermark);
+  void cleanup();
+  void threadFuncCleanup();
+  void threadFuncFireProc();
+  void threadFuncFireEvent();
+  void addFireSignal(std::set<UInt32> &signals);
+  void updateMaxWatermark(UInt32 watermark);
+  void updateMaxTimestamp(UInt32 timestamp);
 
-    ASTPtr getFinalQuery() const { return final_query->clone(); }
-    ASTPtr getInnerTableCreateQuery(const ASTPtr & inner_query, const StorageID & inner_table_id);
+  ASTPtr getFinalQuery() const { return final_query->clone(); }
+  ASTPtr getInnerTableCreateQuery(const ASTPtr &inner_query, const StorageID &inner_table_id);
 
-    StoragePtr getSourceTable() const;
-    StoragePtr getInnerTable() const;
-    StoragePtr getTargetTable() const;
+  StoragePtr getSourceTable() const;
+  StoragePtr getInnerTable() const;
+  StoragePtr getTargetTable() const;
 
-    bool disabled_due_to_analyzer = false;
+  bool disabled_due_to_analyzer = false;
 
-    void throwIfWindowViewIsDisabled(ContextPtr local_context = nullptr) const;
+  void throwIfWindowViewIsDisabled(ContextPtr local_context = nullptr) const;
 };
-}
+}  // namespace DB

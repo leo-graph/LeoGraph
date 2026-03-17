@@ -2,20 +2,18 @@
 
 #include <Storages/System/IStorageSystemOneBlock.h>
 
-namespace DB
-{
+namespace DB {
 
-class StorageSystemQueryConditionCache final : public IStorageSystemOneBlock
-{
-public:
-    explicit StorageSystemQueryConditionCache(const StorageID & table_id_);
+class StorageSystemQueryConditionCache final : public IStorageSystemOneBlock {
+ public:
+  explicit StorageSystemQueryConditionCache(const StorageID &table_id_);
 
-    std::string getName() const override { return "SystemQueryConditionCache"; }
+  std::string getName() const override { return "SystemQueryConditionCache"; }
 
-    static ColumnsDescription getColumnsDescription();
+  static ColumnsDescription getColumnsDescription();
 
-protected:
-    void fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
+ protected:
+  void fillData(MutableColumns &res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
 };
 
-}
+}  // namespace DB

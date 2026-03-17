@@ -15,13 +15,10 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_Net_INCLUDED
 #define Net_Net_INCLUDED
 
-
 #include "Poco/Foundation.h"
-
 
 //
 // The following block is the standard way of creating macros which make exporting
@@ -32,62 +29,49 @@
 // defined with this macro as being exported.
 //
 
-
 #if !defined(Net_API)
-#    if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
-#        define Net_API __attribute__((visibility("default")))
-#    else
-#        define Net_API
-#    endif
+#  if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
+#    define Net_API __attribute__((visibility("default")))
+#  else
+#    define Net_API
+#  endif
 #endif
-
 
 //
 // Automatically link Net library.
 //
 
-
 // Default to enabled IPv6 support if not explicitly disabled
 #if !defined(POCO_NET_NO_IPv6) && !defined(POCO_HAVE_IPv6)
-#    define POCO_HAVE_IPv6
+#  define POCO_HAVE_IPv6
 #elif defined(POCO_NET_NO_IPv6) && defined(POCO_HAVE_IPv6)
-#    undef POCO_HAVE_IPv6
-#endif // POCO_NET_NO_IPv6, POCO_HAVE_IPv6
+#  undef POCO_HAVE_IPv6
+#endif  // POCO_NET_NO_IPv6, POCO_HAVE_IPv6
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
-{
-namespace Net
-{
+void Net_API initializeNetwork();
+/// Initialize the network subsystem.
+/// (Windows only, no-op elsewhere)
 
+void Net_API uninitializeNetwork();
+/// Uninitialize the network subsystem.
+/// (Windows only, no-op elsewhere)
 
-    void Net_API initializeNetwork();
-    /// Initialize the network subsystem.
-    /// (Windows only, no-op elsewhere)
-
-
-    void Net_API uninitializeNetwork();
-    /// Uninitialize the network subsystem.
-    /// (Windows only, no-op elsewhere)
-
-
-}
-} // namespace Poco::Net
-
+}  // namespace Net
+}  // namespace Poco
 
 //
 // Automate network initialization (only relevant on Windows).
 //
 
-
-
 //
 // Define POCO_NET_HAS_INTERFACE for platforms that have network interface detection implemented.
 //
-#if defined(POCO_OS_FAMILY_WINDOWS) || (POCO_OS == POCO_OS_LINUX) || (POCO_OS == POCO_OS_ANDROID) || defined(POCO_OS_FAMILY_BSD) \
-    || (POCO_OS == POCO_OS_SOLARIS) || (POCO_OS == POCO_OS_QNX)
-#    define POCO_NET_HAS_INTERFACE
+#if defined(POCO_OS_FAMILY_WINDOWS) || (POCO_OS == POCO_OS_LINUX) || (POCO_OS == POCO_OS_ANDROID) || defined(POCO_OS_FAMILY_BSD) || \
+    (POCO_OS == POCO_OS_SOLARIS) || (POCO_OS == POCO_OS_QNX)
+#  define POCO_NET_HAS_INTERFACE
 #endif
 
-
-#endif // Net_Net_INCLUDED
+#endif  // Net_Net_INCLUDED

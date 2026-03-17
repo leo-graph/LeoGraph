@@ -2,14 +2,12 @@
 
 #include <Parsers/IAST.h>
 
-namespace DB
-{
-class ASTJSONPathRoot : public IAST
-{
-public:
-    String getID(char) const override { return "ASTJSONPathRoot"; }
+namespace DB {
+class ASTJSONPathRoot : public IAST {
+ public:
+  String getID(char) const override { return "ASTJSONPathRoot"; }
 
-    ASTPtr clone() const override { return make_intrusive<ASTJSONPathRoot>(*this); }
+  ASTPtr clone() const override { return make_intrusive<ASTJSONPathRoot>(*this); }
 };
 
-}
+}  // namespace DB

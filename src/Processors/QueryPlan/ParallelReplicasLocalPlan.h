@@ -5,21 +5,13 @@
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Storages/MergeTree/ParallelReplicasReadingCoordinator.h>
 
-namespace DB
-{
+namespace DB {
 
-std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(
-    const ASTPtr & query_ast,
-    const Block & header,
-    ContextPtr context,
-    QueryProcessingStage::Enum processed_stage);
+std::shared_ptr<const QueryPlan> createRemotePlanForParallelReplicas(const ASTPtr& query_ast, const Block& header, ContextPtr context,
+                                                                     QueryProcessingStage::Enum processed_stage);
 
-std::pair<QueryPlanPtr, bool> createLocalPlanForParallelReplicas(
-    const ASTPtr & query_ast,
-    const Block & header,
-    ContextPtr context,
-    QueryProcessingStage::Enum processed_stage,
-    ParallelReplicasReadingCoordinatorPtr coordinator,
-    QueryPlanStepPtr read_from_merge_tree,
-    size_t replica_number);
-}
+std::pair<QueryPlanPtr, bool> createLocalPlanForParallelReplicas(const ASTPtr& query_ast, const Block& header, ContextPtr context,
+                                                                 QueryProcessingStage::Enum processed_stage,
+                                                                 ParallelReplicasReadingCoordinatorPtr coordinator,
+                                                                 QueryPlanStepPtr read_from_merge_tree, size_t replica_number);
+}  // namespace DB

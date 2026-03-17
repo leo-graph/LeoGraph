@@ -2,52 +2,42 @@
 
 #include <Core/QueryProcessingStage.h>
 #include <Interpreters/IInterpreter.h>
-#include <Interpreters/InterpreterSelectWithUnionQuery.h>
 #include <Interpreters/IInterpreterUnionOrSelectQuery.h>
+#include <Interpreters/InterpreterSelectWithUnionQuery.h>
 #include <Parsers/ASTSelectIntersectExceptQuery.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class Context;
 class InterpreterSelectQuery;
 class QueryPlan;
 
-class InterpreterSelectIntersectExceptQuery : public IInterpreterUnionOrSelectQuery
-{
-using Operator = ASTSelectIntersectExceptQuery::Operator;
+class InterpreterSelectIntersectExceptQuery : public IInterpreterUnionOrSelectQuery {
+  using Operator = ASTSelectIntersectExceptQuery::Operator;
 
-public:
-    InterpreterSelectIntersectExceptQuery(
-        const ASTPtr & query_ptr_,
-        ContextPtr context_,
-        const SelectQueryOptions & options_);
+ public:
+  InterpreterSelectIntersectExceptQuery(const ASTPtr& query_ptr_, ContextPtr context_, const SelectQueryOptions& options_);
 
-    InterpreterSelectIntersectExceptQuery(
-        const ASTPtr & query_ptr_,
-        ContextMutablePtr context_,
-        const SelectQueryOptions & options_);
+  InterpreterSelectIntersectExceptQuery(const ASTPtr& query_ptr_, ContextMutablePtr context_, const SelectQueryOptions& options_);
 
-    BlockIO execute() override;
+  BlockIO execute() override;
 
-    SharedHeader getSampleBlock() { return result_header; }
+  SharedHeader getSampleBlock() { return result_header; }
 
-    void ignoreWithTotals() override;
+  void ignoreWithTotals() override;
 
-    void extendQueryLogElemImpl(QueryLogElement & elem, const ASTPtr & ast, ContextPtr context) const override;
+  void extendQueryLogElemImpl(QueryLogElement& elem, const ASTPtr& ast, ContextPtr context) const override;
 
-private:
-    static String getName() { return "SelectIntersectExceptQuery"; }
+ private:
+  static String getName() { return "SelectIntersectExceptQuery"; }
 
-    std::unique_ptr<IInterpreterUnionOrSelectQuery>
-    buildCurrentChildInterpreter(const ASTPtr & ast_ptr_);
+  std::unique_ptr<IInterpreterUnionOrSelectQuery> buildCurrentChildInterpreter(const ASTPtr& ast_ptr_);
 
-    void buildQueryPlan(QueryPlan & query_plan) override;
+  void buildQueryPlan(QueryPlan& query_plan) override;
 
-    std::vector<std::unique_ptr<IInterpreterUnionOrSelectQuery>> nested_interpreters;
+  std::vector<std::unique_ptr<IInterpreterUnionOrSelectQuery>> nested_interpreters;
 
-    Operator final_operator;
+  Operator final_operator;
 };
 
-}
+}  // namespace DB

@@ -13,70 +13,58 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_Session_INCLUDED
 #define NetSSL_Session_INCLUDED
-
 
 #include <openssl/ssl.h>
 #include "Poco/AutoPtr.h"
 #include "Poco/Net/NetSSL.h"
 #include "Poco/RefCountedObject.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class NetSSL_API Session : public Poco::RefCountedObject
+/// This class encapsulates a SSL session object
+/// used with session caching on the client side.
+///
+/// For session caching to work, a client must
+/// save the session object from an existing connection,
+/// if it wants to reuse it with a future connection.
 {
-namespace Net
-{
+ public:
+  typedef Poco::AutoPtr<Session> Ptr;
 
+  SSL_SESSION* sslSession() const;
+  /// Returns the stored OpenSSL SSL_SESSION object.
 
-    class NetSSL_API Session : public Poco::RefCountedObject
-    /// This class encapsulates a SSL session object
-    /// used with session caching on the client side.
-    ///
-    /// For session caching to work, a client must
-    /// save the session object from an existing connection,
-    /// if it wants to reuse it with a future connection.
-    {
-    public:
-        typedef Poco::AutoPtr<Session> Ptr;
+ protected:
+  Session(SSL_SESSION* pSession);
+  /// Creates a new Session object, using the given
+  /// SSL_SESSION object.
+  ///
+  /// The SSL_SESSION's reference count is not changed.
 
-        SSL_SESSION * sslSession() const;
-        /// Returns the stored OpenSSL SSL_SESSION object.
+  ~Session();
+  /// Destroys the Session.
+  ///
+  /// Calls SSL_SESSION_free() on the stored
+  /// SSL_SESSION object.
 
-    protected:
-        Session(SSL_SESSION * pSession);
-        /// Creates a new Session object, using the given
-        /// SSL_SESSION object.
-        ///
-        /// The SSL_SESSION's reference count is not changed.
+ private:
+  Session();
 
-        ~Session();
-        /// Destroys the Session.
-        ///
-        /// Calls SSL_SESSION_free() on the stored
-        /// SSL_SESSION object.
+  SSL_SESSION* _pSession;
 
-    private:
-        Session();
+  friend class SecureSocketImpl;
+};
 
-        SSL_SESSION * _pSession;
+//
+// inlines
+//
+inline SSL_SESSION* Session::sslSession() const { return _pSession; }
 
-        friend class SecureSocketImpl;
-    };
+}  // namespace Net
+}  // namespace Poco
 
-
-    //
-    // inlines
-    //
-    inline SSL_SESSION * Session::sslSession() const
-    {
-        return _pSession;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // NetSSL_Session_INCLUDED
+#endif  // NetSSL_Session_INCLUDED

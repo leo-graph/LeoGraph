@@ -2,17 +2,12 @@
 
 #include <Columns/IColumn_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
-struct ServerSettingColumnsParams
-{
-    MutableColumns & res_columns;
-    ContextPtr context;
+struct ServerSettingColumnsParams {
+  MutableColumns& res_columns;
+  ContextPtr context;
 
-    ServerSettingColumnsParams(MutableColumns & res_columns_, ContextPtr context_)
-        : res_columns(res_columns_), context(context_)
-    {
-    }
+  ServerSettingColumnsParams(MutableColumns& res_columns_, ContextPtr context_) : res_columns(res_columns_), context(context_) {}
 };
-}
+}  // namespace DB

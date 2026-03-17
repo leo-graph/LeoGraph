@@ -1,11 +1,10 @@
 #pragma once
 
-#include <Interpreters/Context_fwd.h>
 #include <Common/Scheduler/IResourceManager.h>
+#include <Interpreters/Context_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
-ResourceManagerPtr createResourceManager(const ContextMutablePtr & global_context);
+ResourceManagerPtr createResourceManager(const ContextMutablePtr& global_context);
 
 }

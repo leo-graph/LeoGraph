@@ -11,34 +11,17 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/NamedEvent_Android.h"
 #include "Poco/Exception.h"
 
-
 namespace Poco {
 
+NamedEventImpl::NamedEventImpl(const std::string&) {}
 
-NamedEventImpl::NamedEventImpl(const std::string&)
-{
-}
+NamedEventImpl::~NamedEventImpl() {}
 
+void NamedEventImpl::setImpl() { throw NotImplementedException("NamedEvent::set() not available on Android"); }
 
-NamedEventImpl::~NamedEventImpl()
-{
-}
+void NamedEventImpl::waitImpl() { throw NotImplementedException("NamedEvent::wait() not available on Android"); }
 
-
-void NamedEventImpl::setImpl()
-{
-	throw NotImplementedException("NamedEvent::set() not available on Android");
-}
-
-
-void NamedEventImpl::waitImpl()
-{
-	throw NotImplementedException("NamedEvent::wait() not available on Android");
-}
-
-
-} // namespace Poco
+}  // namespace Poco

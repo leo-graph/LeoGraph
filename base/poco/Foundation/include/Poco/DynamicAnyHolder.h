@@ -13,12 +13,10 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_DynamicAnyHolder_INCLUDED
 #define Foundation_DynamicAnyHolder_INCLUDED
 
 //@ deprecated
 #include "Poco/Dynamic/VarHolder.h"
 
-
-#endif // Foundation_DynamicAnyHolder_INCLUDED
+#endif  // Foundation_DynamicAnyHolder_INCLUDED

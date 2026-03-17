@@ -2,71 +2,69 @@
 
 #include "config.h"
 
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Common/MultiVersion.h>
 #include <Common/Macros.h>
+#include <Common/MultiVersion.h>
+#include <Poco/Util/AbstractConfiguration.h>
 
 #include <Coordination/KeeperSnapshotManager.h>
 
 #if USE_AWS_S3
-#include <Common/ConcurrentBoundedQueue.h>
-#include <Common/ThreadPool.h>
+#  include <Common/ConcurrentBoundedQueue.h>
+#  include <Common/ThreadPool.h>
 
 #endif
 
-namespace DB
-{
+namespace DB {
 
 #if USE_AWS_S3
-class KeeperSnapshotManagerS3
-{
-public:
-    KeeperSnapshotManagerS3();
+class KeeperSnapshotManagerS3 {
+ public:
+  KeeperSnapshotManagerS3();
 
-    /// 'macros' are used to substitute macros in endpoint of disks
-    void updateS3Configuration(const Poco::Util::AbstractConfiguration & config, const MultiVersion<Macros>::Version & macros);
-    void uploadSnapshot(const SnapshotFileInfoPtr & file_info, bool async_upload = true);
+  /// 'macros' are used to substitute macros in endpoint of disks
+  void updateS3Configuration(const Poco::Util::AbstractConfiguration& config, const MultiVersion<Macros>::Version& macros);
+  void uploadSnapshot(const SnapshotFileInfoPtr& file_info, bool async_upload = true);
 
-    /// 'macros' are used to substitute macros in endpoint of disks
-    void startup(const Poco::Util::AbstractConfiguration & config, const MultiVersion<Macros>::Version & macros);
-    void shutdown();
-private:
-    using SnapshotS3Queue = ConcurrentBoundedQueue<SnapshotFileInfoPtr>;
-    SnapshotS3Queue snapshots_s3_queue;
+  /// 'macros' are used to substitute macros in endpoint of disks
+  void startup(const Poco::Util::AbstractConfiguration& config, const MultiVersion<Macros>::Version& macros);
+  void shutdown();
 
-    /// Upload new snapshots to S3
-    ThreadFromGlobalPool snapshot_s3_thread;
+ private:
+  using SnapshotS3Queue = ConcurrentBoundedQueue<SnapshotFileInfoPtr>;
+  SnapshotS3Queue snapshots_s3_queue;
 
-    struct S3Configuration;
-    mutable std::mutex snapshot_s3_client_mutex;
-    std::shared_ptr<S3Configuration> snapshot_s3_client;
+  /// Upload new snapshots to S3
+  ThreadFromGlobalPool snapshot_s3_thread;
 
-    std::atomic<bool> shutdown_called{false};
+  struct S3Configuration;
+  mutable std::mutex snapshot_s3_client_mutex;
+  std::shared_ptr<S3Configuration> snapshot_s3_client;
 
-    LoggerPtr log;
+  std::atomic<bool> shutdown_called{false};
 
-    UUID uuid;
+  LoggerPtr log;
 
-    std::shared_ptr<S3Configuration> getSnapshotS3Client() const;
+  UUID uuid;
 
-    void uploadSnapshotImpl(const SnapshotFileInfo & snapshot_file_info);
+  std::shared_ptr<S3Configuration> getSnapshotS3Client() const;
 
-    /// Thread upload snapshots to S3 in the background
-    void snapshotS3Thread();
+  void uploadSnapshotImpl(const SnapshotFileInfo& snapshot_file_info);
+
+  /// Thread upload snapshots to S3 in the background
+  void snapshotS3Thread();
 };
 #else
-class KeeperSnapshotManagerS3
-{
-public:
-    KeeperSnapshotManagerS3() = default;
+class KeeperSnapshotManagerS3 {
+ public:
+  KeeperSnapshotManagerS3() = default;
 
-    void updateS3Configuration(const Poco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
-    void uploadSnapshot(const SnapshotFileInfoPtr &, [[maybe_unused]] bool async_upload = true) {}
+  void updateS3Configuration(const Poco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
+  void uploadSnapshot(const SnapshotFileInfoPtr &, [[maybe_unused]] bool async_upload = true) {}
 
-    void startup(const Poco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
+  void startup(const Poco::Util::AbstractConfiguration &, const MultiVersion<Macros>::Version &) {}
 
-    void shutdown() {}
+  void shutdown() {}
 };
 #endif
 
-}
+}  // namespace DB

@@ -1,57 +1,47 @@
 #include <Interpreters/InterpreterFactory.h>
 #include <Interpreters/InterpreterShowColumnsQuery.h>
 
-#include <Common/quoteString.h>
 #include <Common/escapeString.h>
+#include <Common/quoteString.h>
 #include <Core/Settings.h>
-#include <IO/Operators.h>
-#include <IO/WriteBufferFromString.h>
-#include <Parsers/ASTShowColumnsQuery.h>
 #include <Interpreters/ClientInfo.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/executeQuery.h>
+#include <IO/Operators.h>
+#include <IO/WriteBufferFromString.h>
+#include <Parsers/ASTShowColumnsQuery.h>
 
+namespace DB {
+namespace Setting {
+extern const SettingsBool mysql_map_fixed_string_to_text_in_show_columns;
+extern const SettingsBool mysql_map_string_to_text_in_show_columns;
+}  // namespace Setting
 
-namespace DB
-{
-namespace Setting
-{
-    extern const SettingsBool mysql_map_fixed_string_to_text_in_show_columns;
-    extern const SettingsBool mysql_map_string_to_text_in_show_columns;
-}
+InterpreterShowColumnsQuery::InterpreterShowColumnsQuery(const ASTPtr &query_ptr_, ContextMutablePtr context_)
+    : WithMutableContext(context_), query_ptr(query_ptr_) {}
 
+String InterpreterShowColumnsQuery::getRewrittenQuery() {
+  const auto &query = query_ptr->as<ASTShowColumnsQuery &>();
 
-InterpreterShowColumnsQuery::InterpreterShowColumnsQuery(const ASTPtr & query_ptr_, ContextMutablePtr context_)
-    : WithMutableContext(context_)
-    , query_ptr(query_ptr_)
-{
-}
+  ClientInfo::Interface client_interface = getContext()->getClientInfo().interface;
+  const bool use_mysql_types = (client_interface == ClientInfo::Interface::MYSQL);  // connection made through MySQL wire protocol
 
+  const auto &settings = getContext()->getSettingsRef();
+  const bool remap_string_as_text = settings[Setting::mysql_map_string_to_text_in_show_columns];
+  const bool remap_fixed_string_as_text = settings[Setting::mysql_map_fixed_string_to_text_in_show_columns];
 
-String InterpreterShowColumnsQuery::getRewrittenQuery()
-{
-    const auto & query = query_ptr->as<ASTShowColumnsQuery &>();
+  WriteBufferFromOwnString buf_database;
+  String resolved_database = getContext()->resolveDatabase(query.database);
+  String database = escapeString(resolved_database);
+  String table = escapeString(query.table);
 
-    ClientInfo::Interface client_interface = getContext()->getClientInfo().interface;
-    const bool use_mysql_types = (client_interface == ClientInfo::Interface::MYSQL); // connection made through MySQL wire protocol
-
-    const auto & settings = getContext()->getSettingsRef();
-    const bool remap_string_as_text = settings[Setting::mysql_map_string_to_text_in_show_columns];
-    const bool remap_fixed_string_as_text = settings[Setting::mysql_map_fixed_string_to_text_in_show_columns];
-
-    WriteBufferFromOwnString buf_database;
-    String resolved_database = getContext()->resolveDatabase(query.database);
-    String database = escapeString(resolved_database);
-    String table = escapeString(query.table);
-
-    String rewritten_query;
-    if (use_mysql_types)
-    {
-        /// Cheapskate SQL-based mapping from native types to MySQL types, see https://dev.mysql.com/doc/refman/8.0/en/data-types.html
-        /// Known issues:
-        /// - Enums are translated to TEXT
-        rewritten_query += fmt::format(
-            R"(
+  String rewritten_query;
+  if (use_mysql_types) {
+    /// Cheapskate SQL-based mapping from native types to MySQL types, see https://dev.mysql.com/doc/refman/8.0/en/data-types.html
+    /// Known issues:
+    /// - Enums are translated to TEXT
+    rewritten_query += fmt::format(
+        R"(
 WITH map(
         'Int8',        'TINYINT',
         'Int16',       'SMALLINT',
@@ -76,10 +66,9 @@ WITH map(
         'String',      '{}',
         'FixedString', '{}') AS native_to_mysql_mapping,
         )",
-            remap_string_as_text ? "TEXT" : "BLOB",
-            remap_fixed_string_as_text ? "TEXT" : "BLOB");
+        remap_string_as_text ? "TEXT" : "BLOB", remap_fixed_string_as_text ? "TEXT" : "BLOB");
 
-        rewritten_query += R"(
+    rewritten_query += R"(
         splitByRegexp('\(|\)', type_) AS split,
         multiIf(startsWith(type_, 'LowCardinality(Nullable'), split[3],
                 startsWith(type_, 'LowCardinality'), split[2],
@@ -90,45 +79,44 @@ WITH map(
                 mapContains(native_to_mysql_mapping, inner_type) = true, native_to_mysql_mapping[inner_type],
                 'TEXT') AS mysql_type
             )";
-    }
+  }
 
-    rewritten_query += R"(
+  rewritten_query += R"(
 SELECT
     name_ AS field,
     )";
 
-    if (use_mysql_types)
-        rewritten_query += R"(
+  if (use_mysql_types)
+    rewritten_query += R"(
     mysql_type AS type,
         )";
-    else
-        rewritten_query += R"(
+  else
+    rewritten_query += R"(
     type_ AS type,
         )";
 
-    rewritten_query += R"(
+  rewritten_query += R"(
     multiIf(startsWith(type_, 'Nullable('), 'YES', startsWith(type_, 'LowCardinality(Nullable('), 'YES', 'NO') AS `null`,
     trim(concatWithSeparator(' ', if (is_in_primary_key_, 'PRI', ''), if (is_in_sorting_key_, 'SOR', ''))) AS key,
     if (default_kind_ IN ('ALIAS', 'DEFAULT', 'MATERIALIZED'), default_expression_, NULL) AS default,
     '' AS extra )";
 
-    // TODO Interpret query.extended. It is supposed to show internal/virtual columns. Need to fetch virtual column names, see
-    // IStorage::getVirtualsList(). We can't easily do that via SQL.
+  // TODO Interpret query.extended. It is supposed to show internal/virtual columns. Need to fetch virtual column names, see
+  // IStorage::getVirtualsList(). We can't easily do that via SQL.
 
-    if (query.full)
-    {
-        /// "Full" mode is mostly for MySQL compat
-        /// - collation: no such thing in ClickHouse
-        /// - comment
-        /// - privileges: <not implemented, TODO ask system.grants>
-        rewritten_query += R"(,
+  if (query.full) {
+    /// "Full" mode is mostly for MySQL compat
+    /// - collation: no such thing in ClickHouse
+    /// - comment
+    /// - privileges: <not implemented, TODO ask system.grants>
+    rewritten_query += R"(,
     NULL AS collation,
     comment_ AS comment,
     '' AS privileges )";
-    }
+  }
 
-    rewritten_query += fmt::format(
-        R"(
+  rewritten_query += fmt::format(
+      R"(
 -- need to rename columns of the base table to avoid "CYCLIC_ALIASES" errors
 FROM (SELECT name AS name_,
              database AS database_,
@@ -143,48 +131,39 @@ FROM (SELECT name AS name_,
 WHERE
     database_ = '{}'
     AND table_ = '{}' )",
-        database,
-        table);
+      database, table);
 
-    if (!query.like.empty())
-    {
-        rewritten_query += " AND field ";
-        if (query.not_like)
-            rewritten_query += "NOT ";
-        if (query.case_insensitive_like)
-            rewritten_query += "ILIKE ";
-        else
-            rewritten_query += "LIKE ";
-        rewritten_query += quoteString(query.like);
-    }
-    else if (query.where_expression)
-        rewritten_query += fmt::format(" AND ({})", query.where_expression->formatWithSecretsOneLine());
+  if (!query.like.empty()) {
+    rewritten_query += " AND field ";
+    if (query.not_like) rewritten_query += "NOT ";
+    if (query.case_insensitive_like)
+      rewritten_query += "ILIKE ";
+    else
+      rewritten_query += "LIKE ";
+    rewritten_query += quoteString(query.like);
+  } else if (query.where_expression)
+    rewritten_query += fmt::format(" AND ({})", query.where_expression->formatWithSecretsOneLine());
 
-    rewritten_query += " ORDER BY field, type, null, key, default, extra";
+  rewritten_query += " ORDER BY field, type, null, key, default, extra";
 
-    if (query.limit_length)
-        rewritten_query += fmt::format(" LIMIT {}", query.limit_length->formatWithSecretsOneLine());
+  if (query.limit_length) rewritten_query += fmt::format(" LIMIT {}", query.limit_length->formatWithSecretsOneLine());
 
-    return rewritten_query;
+  return rewritten_query;
 }
 
+BlockIO InterpreterShowColumnsQuery::execute() {
+  auto query_context = Context::createCopy(getContext());
+  query_context->makeQueryContext();
+  query_context->setCurrentQueryId("");
 
-BlockIO InterpreterShowColumnsQuery::execute()
-{
-    auto query_context = Context::createCopy(getContext());
-    query_context->makeQueryContext();
-    query_context->setCurrentQueryId("");
-
-    return executeQuery(getRewrittenQuery(), query_context, QueryFlags{ .internal = true }).second;
+  return executeQuery(getRewrittenQuery(), query_context, QueryFlags{.internal = true}).second;
 }
 
-void registerInterpreterShowColumnsQuery(InterpreterFactory & factory)
-{
-    auto create_fn = [] (const InterpreterFactory::Arguments & args)
-    {
-        return std::make_unique<InterpreterShowColumnsQuery>(args.query, args.context);
-    };
-    factory.registerInterpreter("InterpreterShowColumnsQuery", create_fn);
+void registerInterpreterShowColumnsQuery(InterpreterFactory &factory) {
+  auto create_fn = [](const InterpreterFactory::Arguments &args) {
+    return std::make_unique<InterpreterShowColumnsQuery>(args.query, args.context);
+  };
+  factory.registerInterpreter("InterpreterShowColumnsQuery", create_fn);
 }
 
-}
+}  // namespace DB

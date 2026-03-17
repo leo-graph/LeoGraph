@@ -11,31 +11,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/NullChannel.h"
-
 
 namespace Poco {
 
+NullChannel::NullChannel() {}
 
-NullChannel::NullChannel()
-{
-}
+NullChannel::~NullChannel() {}
 
+void NullChannel::log(const Message&) {}
 
-NullChannel::~NullChannel()
-{
-}
+void NullChannel::setProperty(const std::string&, const std::string&) {}
 
-
-void NullChannel::log(const Message&)
-{
-}
-
-
-void NullChannel::setProperty(const std::string&, const std::string&)
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

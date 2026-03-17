@@ -5,26 +5,21 @@
 #include <Parsers/Access/parseAccessRightsElements.h>
 #include <Parsers/CommonParsers.h>
 
+namespace DB {
 
-namespace DB
-{
+bool ParserCheckGrantQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  if (!ParserKeyword{Keyword::CHECK_GRANT}.ignore(pos, expected)) return false;
 
-bool ParserCheckGrantQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    if (!ParserKeyword{Keyword::CHECK_GRANT}.ignore(pos, expected))
-        return false;
+  AccessRightsElements elements;
+  if (!parseAccessRightsElementsWithoutOptions(pos, expected, elements)) return false;
 
-    AccessRightsElements elements;
-    if (!parseAccessRightsElementsWithoutOptions(pos, expected, elements))
-        return false;
+  elements.throwIfNotGrantable();
 
-    elements.throwIfNotGrantable();
+  auto query = make_intrusive<ASTCheckGrantQuery>();
+  node = query;
 
-    auto query = make_intrusive<ASTCheckGrantQuery>();
-    node = query;
+  query->access_rights_elements = std::move(elements);
 
-    query->access_rights_elements = std::move(elements);
-
-    return true;
+  return true;
 }
-}
+}  // namespace DB

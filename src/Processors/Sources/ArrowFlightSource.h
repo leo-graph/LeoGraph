@@ -3,42 +3,41 @@
 #include "config.h"
 
 #if USE_ARROWFLIGHT
-#include <Processors/ISource.h>
-#include <Interpreters/Context_fwd.h>
-#include <arrow/flight/types.h>
+#  include <arrow/flight/types.h>
+#  include <Interpreters/Context_fwd.h>
+#  include <Processors/ISource.h>
 
-
-namespace DB
-{
+namespace DB {
 class ArrowFlightConnection;
 
-class ArrowFlightSource : public ISource
-{
-public:
-    ArrowFlightSource(std::shared_ptr<ArrowFlightConnection> connection_, const String & dataset_name_, const Block & sample_block_, ContextPtr context_);
-    ArrowFlightSource(std::shared_ptr<ArrowFlightConnection> connection_, std::vector<arrow::flight::FlightEndpoint> endpoints_, const Block & sample_block_);
-    ArrowFlightSource(std::unique_ptr<arrow::flight::MetadataRecordBatchReader> stream_reader_, const Block & sample_block_);
+class ArrowFlightSource : public ISource {
+ public:
+  ArrowFlightSource(std::shared_ptr<ArrowFlightConnection> connection_, const String& dataset_name_, const Block& sample_block_,
+                    ContextPtr context_);
+  ArrowFlightSource(std::shared_ptr<ArrowFlightConnection> connection_, std::vector<arrow::flight::FlightEndpoint> endpoints_,
+                    const Block& sample_block_);
+  ArrowFlightSource(std::unique_ptr<arrow::flight::MetadataRecordBatchReader> stream_reader_, const Block& sample_block_);
 
-    ~ArrowFlightSource() override;
-    String getName() const override { return "ArrowFlightSource"; }
+  ~ArrowFlightSource() override;
+  String getName() const override { return "ArrowFlightSource"; }
 
-protected:
-    Chunk generate() override;
+ protected:
+  Chunk generate() override;
 
-private:
-    void initializeEndpoints(const String & dataset_name_, ContextPtr context);
-    bool nextEndpoint();
-    void initializeSchema();
+ private:
+  void initializeEndpoints(const String& dataset_name_, ContextPtr context);
+  bool nextEndpoint();
+  void initializeSchema();
 
-    std::shared_ptr<ArrowFlightConnection> connection;
+  std::shared_ptr<ArrowFlightConnection> connection;
 
-    Block sample_block;
-    std::vector<arrow::flight::FlightEndpoint> endpoints;
-    size_t current_endpoint = 0;
-    std::unique_ptr<arrow::flight::MetadataRecordBatchReader> stream_reader;
-    std::shared_ptr<arrow::Schema> schema;
+  Block sample_block;
+  std::vector<arrow::flight::FlightEndpoint> endpoints;
+  size_t current_endpoint = 0;
+  std::unique_ptr<arrow::flight::MetadataRecordBatchReader> stream_reader;
+  std::shared_ptr<arrow::Schema> schema;
 };
 
-}
+}  // namespace DB
 
 #endif

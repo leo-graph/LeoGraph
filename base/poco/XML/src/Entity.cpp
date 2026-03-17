@@ -11,58 +11,31 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/Entity.h"
-
 
 namespace Poco {
 namespace XML {
 
-
 const XMLString Entity::NODE_NAME = toXMLString("#entity");
 
+Entity::Entity(Document* pOwnerDocument, const XMLString& name, const XMLString& publicId, const XMLString& systemId,
+               const XMLString& notationName)
+    : AbstractContainerNode(pOwnerDocument), _name(name), _publicId(publicId), _systemId(systemId), _notationName(notationName) {}
 
-Entity::Entity(Document* pOwnerDocument, const XMLString& name, const XMLString& publicId, const XMLString& systemId, const XMLString& notationName): 
-	AbstractContainerNode(pOwnerDocument),
-	_name(name),
-	_publicId(publicId),
-	_systemId(systemId),
-	_notationName(notationName)
-{
-}
+Entity::Entity(Document* pOwnerDocument, const Entity& entity)
+    : AbstractContainerNode(pOwnerDocument, entity),
+      _name(entity._name),
+      _publicId(entity._publicId),
+      _systemId(entity._systemId),
+      _notationName(entity._notationName) {}
 
+Entity::~Entity() {}
 
-Entity::Entity(Document* pOwnerDocument, const Entity& entity): 
-	AbstractContainerNode(pOwnerDocument, entity),
-	_name(entity._name),
-	_publicId(entity._publicId),
-	_systemId(entity._systemId),
-	_notationName(entity._notationName)
-{
-}
+const XMLString& Entity::nodeName() const { return _name; }
 
+unsigned short Entity::nodeType() const { return Node::ENTITY_NODE; }
 
-Entity::~Entity()
-{
-}
+Node* Entity::copyNode(bool deep, Document* pOwnerDocument) const { return new Entity(pOwnerDocument, *this); }
 
-
-const XMLString& Entity::nodeName() const
-{
-	return _name;
-}
-
-
-unsigned short Entity::nodeType() const
-{
-	return Node::ENTITY_NODE;
-}
-
-
-Node* Entity::copyNode(bool deep, Document* pOwnerDocument) const
-{
-	return new Entity(pOwnerDocument, *this);
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

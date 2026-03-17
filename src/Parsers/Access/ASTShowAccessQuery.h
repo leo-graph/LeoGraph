@@ -2,16 +2,13 @@
 
 #include <Parsers/ASTQueryWithOutput.h>
 
+namespace DB {
 
-namespace DB
-{
-
-struct ASTShowAccessQueryNames
-{
-    static constexpr auto ID = "ShowAccessQuery";
-    static constexpr auto Query = "SHOW ACCESS";
+struct ASTShowAccessQueryNames {
+  static constexpr auto ID = "ShowAccessQuery";
+  static constexpr auto Query = "SHOW ACCESS";
 };
 
 using ASTShowAccessQuery = ASTQueryWithOutputImpl<ASTShowAccessQueryNames>;
 
-}
+}  // namespace DB

@@ -1,190 +1,165 @@
-#include <Functions/IFunction.h>
+#include <Columns/ColumnConst.h>
+#include <Columns/ColumnDecimal.h>
+#include <Columns/ColumnsNumber.h>
+#include <Common/intExp.h>
+#include <Core/callOnTypeIndex.h>
+#include <Core/DecimalFunctions.h>
+#include <DataTypes/DataTypesDecimal.h>
+#include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <DataTypes/DataTypesDecimal.h>
-#include <Columns/ColumnsNumber.h>
-#include <Columns/ColumnDecimal.h>
-#include <Columns/ColumnConst.h>
-#include <Common/intExp.h>
-#include <Core/DecimalFunctions.h>
-#include <Core/callOnTypeIndex.h>
+#include <Functions/IFunction.h>
 
+namespace DB {
+namespace ErrorCodes {
+extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int ILLEGAL_COLUMN;
+}  // namespace ErrorCodes
 
-namespace DB
-{
-namespace ErrorCodes
-{
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int ILLEGAL_COLUMN;
-}
-
-namespace
-{
+namespace {
 
 /// Returns 1 if and Decimal value has more digits then it's Precision allow, 0 otherwise.
 /// Precision could be set as second argument or omitted. If omitted function uses Decimal precision of the first argument.
-class FunctionIsDecimalOverflow : public IFunction
-{
-public:
-    static constexpr auto name = "isDecimalOverflow";
+class FunctionIsDecimalOverflow : public IFunction {
+ public:
+  static constexpr auto name = "isDecimalOverflow";
 
-    static FunctionPtr create(ContextPtr)
-    {
-        return std::make_shared<FunctionIsDecimalOverflow>();
+  static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionIsDecimalOverflow>(); }
+
+  String getName() const override { return name; }
+  bool isVariadic() const override { return true; }
+  size_t getNumberOfArguments() const override { return 0; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+
+  DataTypePtr getReturnTypeImpl(const DataTypes &arguments) const override {
+    if (arguments.empty() || arguments.size() > 2)
+      throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+                      "Number of arguments for function {} doesn't match: passed {}, should be 1 or 2.", getName(), arguments.size());
+
+    WhichDataType which_first(arguments[0]->getTypeId());
+
+    if (!which_first.isDecimal())
+      throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal type {} of argument of function {}", arguments[0]->getName(),
+                      getName());
+
+    if (arguments.size() == 2) {
+      WhichDataType which_second(arguments[1]->getTypeId());
+      if (!which_second.isUInt8())
+        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal type {} of argument of function {}", arguments[1]->getName(),
+                        getName());
     }
 
-    String getName() const override { return name; }
-    bool isVariadic() const override { return true; }
-    size_t getNumberOfArguments() const override { return 0; }
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+    return std::make_shared<DataTypeUInt8>();
+  }
 
-    DataTypePtr getReturnTypeImpl(const DataTypes & arguments) const override
-    {
-        if (arguments.empty() || arguments.size() > 2)
-            throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                "Number of arguments for function {} doesn't match: passed {}, should be 1 or 2.",
-                getName(), arguments.size());
+  DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override { return std::make_shared<DataTypeUInt8>(); }
 
-        WhichDataType which_first(arguments[0]->getTypeId());
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t input_rows_count) const override {
+    const auto &src_column = arguments[0];
+    if (!src_column.column) throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal column while execute function {}", getName());
 
-        if (!which_first.isDecimal())
-            throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal type {} of argument of function {}",
-                            arguments[0]->getName(), getName());
+    UInt32 precision = 0;
+    if (arguments.size() == 2) {
+      const auto &precision_column = arguments[1];
+      if (!precision_column.column)
+        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal column while execute function {}", getName());
 
-        if (arguments.size() == 2)
-        {
-            WhichDataType which_second(arguments[1]->getTypeId());
-            if (!which_second.isUInt8())
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal type {} of argument of function {}",
-                            arguments[1]->getName(), getName());
-        }
+      const ColumnConst *const_column = checkAndGetColumnConst<ColumnUInt8>(precision_column.column.get());
+      if (!const_column)
+        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                        "Second argument for function {} must be constant UInt8: "
+                        "precision.",
+                        getName());
 
-        return std::make_shared<DataTypeUInt8>();
-    }
+      precision = const_column->getValue<UInt8>();
+    } else
+      precision = getDecimalPrecision(*src_column.type);
 
-    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
-    {
-        return std::make_shared<DataTypeUInt8>();
-    }
+    auto result_column = ColumnUInt8::create();
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
-    {
-        const auto & src_column = arguments[0];
-        if (!src_column.column)
-            throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal column while execute function {}", getName());
+    auto call = [&](const auto &types) -> bool {
+      using Types = std::decay_t<decltype(types)>;
+      using Type = typename Types::RightType;
+      using ColVecType = ColumnDecimal<Type>;
 
-        UInt32 precision = 0;
-        if (arguments.size() == 2)
-        {
-            const auto & precision_column = arguments[1];
-            if (!precision_column.column)
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal column while execute function {}", getName());
+      if (const ColumnConst *const_column = checkAndGetColumnConst<ColVecType>(src_column.column.get())) {
+        Type const_decimal = checkAndGetColumn<ColVecType>(const_column->getDataColumnPtr().get())->getData()[0];
+        UInt8 res_value = outOfDigits<Type>(const_decimal, precision);
+        result_column->getData().resize_fill(input_rows_count, res_value);
+        return true;
+      }
+      if (const ColVecType *col_vec = checkAndGetColumn<ColVecType>(src_column.column.get())) {
+        execute<Type>(*col_vec, *result_column, input_rows_count, precision);
+        return true;
+      }
 
-            const ColumnConst * const_column = checkAndGetColumnConst<ColumnUInt8>(precision_column.column.get());
-            if (!const_column)
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Second argument for function {} must be constant UInt8: "
-                                "precision.", getName());
+      throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal column while execute function {}", getName());
+    };
 
-            precision = const_column->getValue<UInt8>();
-        }
-        else
-            precision = getDecimalPrecision(*src_column.type);
+    TypeIndex dec_type_idx = src_column.type->getTypeId();
+    if (!callOnBasicType<void, false, false, true, false>(dec_type_idx, call))
+      throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Wrong call for {} with {}", getName(), src_column.type->getName());
 
-        auto result_column = ColumnUInt8::create();
+    return result_column;
+  }
 
-        auto call = [&](const auto & types) -> bool
-        {
-            using Types = std::decay_t<decltype(types)>;
-            using Type = typename Types::RightType;
-            using ColVecType = ColumnDecimal<Type>;
+ private:
+  template <typename T>
+  static void execute(const ColumnDecimal<T> &col, ColumnUInt8 &result_column, size_t rows_count, UInt32 precision) {
+    const auto &src_data = col.getData();
+    auto &dst_data = result_column.getData();
+    dst_data.resize(rows_count);
 
-            if (const ColumnConst * const_column = checkAndGetColumnConst<ColVecType>(src_column.column.get()))
-            {
-                Type const_decimal = checkAndGetColumn<ColVecType>(const_column->getDataColumnPtr().get())->getData()[0];
-                UInt8 res_value = outOfDigits<Type>(const_decimal, precision);
-                result_column->getData().resize_fill(input_rows_count, res_value);
-                return true;
-            }
-            if (const ColVecType * col_vec = checkAndGetColumn<ColVecType>(src_column.column.get()))
-            {
-                execute<Type>(*col_vec, *result_column, input_rows_count, precision);
-                return true;
-            }
+    for (size_t i = 0; i < rows_count; ++i) dst_data[i] = outOfDigits<T>(src_data[i], precision);
+  }
 
-            throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Illegal column while execute function {}", getName());
-        };
+  template <is_decimal T>
+  static bool outOfDigits(T dec, UInt32 precision) {
+    using NativeT = typename T::NativeType;
 
-        TypeIndex dec_type_idx = src_column.type->getTypeId();
-        if (!callOnBasicType<void, false, false, true, false>(dec_type_idx, call))
-            throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Wrong call for {} with {}", getName(), src_column.type->getName());
+    if (precision > DecimalUtils::max_precision<T>) return false;
 
-        return result_column;
-    }
+    NativeT pow10 = intExp10OfSize<NativeT>(precision);
 
-private:
-    template <typename T>
-    static void execute(const ColumnDecimal<T> & col, ColumnUInt8 & result_column, size_t rows_count, UInt32 precision)
-    {
-        const auto & src_data = col.getData();
-        auto & dst_data = result_column.getData();
-        dst_data.resize(rows_count);
-
-        for (size_t i = 0; i < rows_count; ++i)
-            dst_data[i] = outOfDigits<T>(src_data[i], precision);
-    }
-
-    template <is_decimal T>
-    static bool outOfDigits(T dec, UInt32 precision)
-    {
-        using NativeT = typename T::NativeType;
-
-        if (precision > DecimalUtils::max_precision<T>)
-            return false;
-
-        NativeT pow10 = intExp10OfSize<NativeT>(precision);
-
-        if (dec.value < 0)
-            return dec.value <= -pow10;
-        return dec.value >= pow10;
-    }
+    if (dec.value < 0) return dec.value <= -pow10;
+    return dec.value >= pow10;
+  }
 };
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(IsDecimalOverflow)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(IsDecimalOverflow) {
+  FunctionDocumentation::Description description = R"(
 Checks if a decimal number has too many digits to fit properly in a Decimal data type with given precision.
     )";
-    FunctionDocumentation::Syntax syntax = "isDecimalOverflow(value[, precision])";
-    FunctionDocumentation::Arguments arguments = {
-        {"value", "Decimal value to check.", {"Decimal"}},
-        {"precision", "Optional. The precision of the Decimal type. If omitted, the initial precision of the first argument is used.", {"UInt8"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns `1` if the decimal value has more digits than allowed by its precision, `0` if the decimal value satisfies the specified precision.", {"UInt8"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "isDecimalOverflow(value[, precision])";
+  FunctionDocumentation::Arguments arguments = {
+      {"value", "Decimal value to check.", {"Decimal"}},
+      {"precision",
+       "Optional. The precision of the Decimal type. If omitted, the initial precision of the first argument is used.",
+       {"UInt8"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {
+      "Returns `1` if the decimal value has more digits than allowed by its precision, `0` if the decimal value satisfies the specified "
+      "precision.",
+      {"UInt8"}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 SELECT isDecimalOverflow(toDecimal32(1000000000, 0), 9),
        isDecimalOverflow(toDecimal32(1000000000, 0)),
        isDecimalOverflow(toDecimal32(-1000000000, 0), 9),
        isDecimalOverflow(toDecimal32(-1000000000, 0));
         )",
-        R"(
+                                               R"(
 ┌─isDecimalOverflow(toDecimal32(1000000000, 0), 9)─┬─isDecimalOverflow(toDecimal32(1000000000, 0))─┬─isDecimalOverflow(toDecimal32(-1000000000, 0), 9)─┬─isDecimalOverflow(toDecimal32(-1000000000, 0))─┐
 │                                                1 │                                             1 │                                                 1 │                                              1 │
 └──────────────────────────────────────────────────┴───────────────────────────────────────────────┴───────────────────────────────────────────────────┴────────────────────────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {20, 8};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Other;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {20, 8};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Other;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionIsDecimalOverflow>(documentation);
+  factory.registerFunction<FunctionIsDecimalOverflow>(documentation);
 }
 
-}
+}  // namespace DB

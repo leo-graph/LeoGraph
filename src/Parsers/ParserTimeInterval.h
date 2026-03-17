@@ -2,27 +2,24 @@
 
 #include <Parsers/IParserBase.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Parser for ASTTimeInterval
-class ParserTimeInterval : public IParserBase
-{
-public:
-    struct Options
-    {
-        bool allow_mixing_calendar_and_clock_units = true;
-        bool allow_zero = false;
-    };
+class ParserTimeInterval : public IParserBase {
+ public:
+  struct Options {
+    bool allow_mixing_calendar_and_clock_units = true;
+    bool allow_zero = false;
+  };
 
-    ParserTimeInterval();
-    explicit ParserTimeInterval(Options opt);
+  ParserTimeInterval();
+  explicit ParserTimeInterval(Options opt);
 
-protected:
-    Options options;
+ protected:
+  Options options;
 
-    const char * getName() const override { return "time interval"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+  const char* getName() const override { return "time interval"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace DB

@@ -8,8 +8,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
-namespace DB
-{
+namespace DB {
 
 class Exception;
 class Lexer;
@@ -50,79 +49,68 @@ class Lexer;
 /// - "-- { echo }"
 /// - "-- { echoOn }"
 /// - "-- { echoOff }"
-class TestHint
-{
-public:
-    using ErrorVector = std::vector<int>;
-    explicit TestHint(const std::string_view & query);
+class TestHint {
+ public:
+  using ErrorVector = std::vector<int>;
+  explicit TestHint(const std::string_view& query);
 
-    const auto & serverErrors() const { return server_errors; }
-    const auto & clientErrors() const { return client_errors; }
-    std::optional<bool> echoQueries() const { return echo; }
+  const auto& serverErrors() const { return server_errors; }
+  const auto& clientErrors() const { return client_errors; }
+  std::optional<bool> echoQueries() const { return echo; }
 
-    bool hasClientErrors() { return !client_errors.empty(); }
-    bool hasServerErrors() { return !server_errors.empty(); }
+  bool hasClientErrors() { return !client_errors.empty(); }
+  bool hasServerErrors() { return !server_errors.empty(); }
 
-    bool hasExpectedClientError(int error);
-    bool hasExpectedServerError(int error);
+  bool hasExpectedClientError(int error);
+  bool hasExpectedServerError(int error);
 
-    bool needRetry(const std::unique_ptr<Exception> & server_exception, size_t * retries_counter);
+  bool needRetry(const std::unique_ptr<Exception>& server_exception, size_t* retries_counter);
 
-private:
-    ErrorVector server_errors{};
-    ErrorVector client_errors{};
-    std::optional<bool> echo;
+ private:
+  ErrorVector server_errors{};
+  ErrorVector client_errors{};
+  std::optional<bool> echo;
 
-    size_t max_retries = 0;
-    bool retry_until = false;
+  size_t max_retries = 0;
+  bool retry_until = false;
 
-    void parse(Lexer & comment_lexer, bool is_leading_hint);
+  void parse(Lexer& comment_lexer, bool is_leading_hint);
 
-    bool allErrorsExpected(int actual_server_error, int actual_client_error) const
-    {
-        if (actual_server_error && std::find(server_errors.begin(), server_errors.end(), actual_server_error) == server_errors.end())
-            return false;
-        if (!actual_server_error && !server_errors.empty())
-            return false;
+  bool allErrorsExpected(int actual_server_error, int actual_client_error) const {
+    if (actual_server_error && std::find(server_errors.begin(), server_errors.end(), actual_server_error) == server_errors.end())
+      return false;
+    if (!actual_server_error && !server_errors.empty()) return false;
 
-        if (actual_client_error && std::find(client_errors.begin(), client_errors.end(), actual_client_error) == client_errors.end())
-            return false;
-        if (!actual_client_error && !client_errors.empty())
-            return false;
+    if (actual_client_error && std::find(client_errors.begin(), client_errors.end(), actual_client_error) == client_errors.end())
+      return false;
+    if (!actual_client_error && !client_errors.empty()) return false;
 
-        return true;
-    }
+    return true;
+  }
 
-    bool lostExpectedError(int actual_server_error, int actual_client_error) const
-    {
-        return (!server_errors.empty() && !actual_server_error) || (!client_errors.empty() && !actual_client_error);
-    }
+  bool lostExpectedError(int actual_server_error, int actual_client_error) const {
+    return (!server_errors.empty() && !actual_server_error) || (!client_errors.empty() && !actual_client_error);
+  }
 };
 
-}
+}  // namespace DB
 
 template <>
-struct fmt::formatter<DB::TestHint::ErrorVector>
-{
-    static constexpr auto parse(format_parse_context & ctx)
-    {
-        const auto * it = ctx.begin();
-        const auto * end = ctx.end();
+struct fmt::formatter<DB::TestHint::ErrorVector> {
+  static constexpr auto parse(format_parse_context& ctx) {
+    const auto* it = ctx.begin();
+    const auto* end = ctx.end();
 
-        /// Only support {}.
-        if (it != end && *it != '}')
-            throw fmt::format_error("Invalid format");
+    /// Only support {}.
+    if (it != end && *it != '}') throw fmt::format_error("Invalid format");
 
-        return it;
-    }
+    return it;
+  }
 
-    template <typename FormatContext>
-    auto format(const DB::TestHint::ErrorVector & ErrorVector, FormatContext & ctx) const
-    {
-        if (ErrorVector.empty())
-            return fmt::format_to(ctx.out(), "{}", 0);
-        if (ErrorVector.size() == 1)
-            return fmt::format_to(ctx.out(), "{}", ErrorVector[0]);
-        return fmt::format_to(ctx.out(), "[{}]", fmt::join(ErrorVector, ", "));
-    }
+  template <typename FormatContext>
+  auto format(const DB::TestHint::ErrorVector& ErrorVector, FormatContext& ctx) const {
+    if (ErrorVector.empty()) return fmt::format_to(ctx.out(), "{}", 0);
+    if (ErrorVector.size() == 1) return fmt::format_to(ctx.out(), "{}", ErrorVector[0]);
+    return fmt::format_to(ctx.out(), "[{}]", fmt::join(ErrorVector, ", "));
+  }
 };

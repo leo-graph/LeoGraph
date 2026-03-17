@@ -2,13 +2,12 @@
 
 #include "config.h"
 
-namespace DB
-{
+namespace DB {
 
 struct KeeperMemNode;
 struct KeeperRocksNode;
 
-template<typename TContainer>
+template <typename TContainer>
 class KeeperStorage;
 
 template <class V>
@@ -22,4 +21,4 @@ using KeeperMemoryStorage = KeeperStorage<SnapshotableHashTable<KeeperMemNode>>;
 using KeeperRocksStorage = KeeperStorage<RocksDBContainer<KeeperRocksNode>>;
 #endif
 
-}
+}  // namespace DB

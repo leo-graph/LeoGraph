@@ -4,9 +4,7 @@
 #include <Storages/MutationCommands.h>
 #include <map>
 
-
-namespace DB
-{
+namespace DB {
 
 class ReadBuffer;
 class WriteBuffer;
@@ -17,45 +15,44 @@ class IBackupEntry;
 ///
 /// These entries processed separately from main replication /log, and produce other entries
 /// -- MUTATE_PART in main replication log.
-struct ReplicatedMergeTreeMutationEntry
-{
-    void writeText(WriteBuffer & out) const;
-    void readText(ReadBuffer & in);
+struct ReplicatedMergeTreeMutationEntry {
+  void writeText(WriteBuffer& out) const;
+  void readText(ReadBuffer& in);
 
-    String toString() const;
-    static ReplicatedMergeTreeMutationEntry parse(const String & str, String znode_name);
+  String toString() const;
+  static ReplicatedMergeTreeMutationEntry parse(const String& str, String znode_name);
 
-    /// Name of znode (mutation-xxxxxxx)
-    String znode_name;
+  /// Name of znode (mutation-xxxxxxx)
+  String znode_name;
 
-    /// Create time of znode
-    time_t create_time = 0;
+  /// Create time of znode
+  time_t create_time = 0;
 
-    /// Replica which initiated mutation
-    String source_replica;
+  /// Replica which initiated mutation
+  String source_replica;
 
-    /// Acquired block numbers
-    /// partition_id -> block_number
-    using BlockNumbersType = std::map<String, Int64>;
-    BlockNumbersType block_numbers;
+  /// Acquired block numbers
+  /// partition_id -> block_number
+  using BlockNumbersType = std::map<String, Int64>;
+  BlockNumbersType block_numbers;
 
-    /// List of partitions that do not have relevant uncommitted blocks to mutate
-    mutable std::unordered_set<String> checked_partitions_cache;
+  /// List of partitions that do not have relevant uncommitted blocks to mutate
+  mutable std::unordered_set<String> checked_partitions_cache;
 
-    /// Mutation commands which will give to MUTATE_PART entries
-    MutationCommands commands;
+  /// Mutation commands which will give to MUTATE_PART entries
+  MutationCommands commands;
 
-    /// Version of metadata. Not equal to -1 only if this mutation
-    /// was created by ALTER MODIFY/DROP queries.
-    int alter_version = -1;
+  /// Version of metadata. Not equal to -1 only if this mutation
+  /// was created by ALTER MODIFY/DROP queries.
+  int alter_version = -1;
 
-    bool isAlterMutation() const { return alter_version != -1; }
+  bool isAlterMutation() const { return alter_version != -1; }
 
-    std::shared_ptr<const IBackupEntry> backup() const;
+  std::shared_ptr<const IBackupEntry> backup() const;
 
-    String getBlockNumbersForLogs() const;
+  String getBlockNumbersForLogs() const;
 };
 
 using ReplicatedMergeTreeMutationEntryPtr = std::shared_ptr<const ReplicatedMergeTreeMutationEntry>;
 
-}
+}  // namespace DB

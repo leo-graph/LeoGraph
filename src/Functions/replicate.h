@@ -3,42 +3,31 @@
 #include <Functions/IFunction.h>
 #include <Interpreters/Context_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Creates an array, multiplying the column (the first argument) by the number of elements in the array (the second argument).
 /// Function may accept more then two arguments. If so, the first array with non-empty offsets is chosen.
-class FunctionReplicate : public IFunction
-{
-public:
-    static constexpr auto name = "replicate";
+class FunctionReplicate : public IFunction {
+ public:
+  static constexpr auto name = "replicate";
 
-    static FunctionPtr create(ContextPtr)
-    {
-        return std::make_shared<FunctionReplicate>();
-    }
+  static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionReplicate>(); }
 
-    String getName() const override
-    {
-        return name;
-    }
+  String getName() const override { return name; }
 
-    size_t getNumberOfArguments() const override
-    {
-        return 0;
-    }
+  size_t getNumberOfArguments() const override { return 0; }
 
-    bool isVariadic() const override { return true; }
+  bool isVariadic() const override { return true; }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
 
-    bool useDefaultImplementationForNulls() const override { return false; }
+  bool useDefaultImplementationForNulls() const override { return false; }
 
-    bool useDefaultImplementationForLowCardinalityColumns() const override { return false; }
+  bool useDefaultImplementationForLowCardinalityColumns() const override { return false; }
 
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override;
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName &arguments) const override;
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t) const override;
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t) const override;
 };
 
-}
+}  // namespace DB

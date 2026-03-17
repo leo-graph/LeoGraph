@@ -11,138 +11,66 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Environment.h"
-#include "Poco/Version.h"
+#include <cstdio>  // sprintf()
 #include <cstdlib>
-#include <cstdio> // sprintf()
+#include "Poco/Version.h"
 
-
-#if   defined(POCO_OS_FAMILY_UNIX)
-#include "Environment_UNIX.cpp"
+#if defined(POCO_OS_FAMILY_UNIX)
+#  include "Environment_UNIX.cpp"
 #endif
-
 
 namespace Poco {
 
+std::string Environment::get(const std::string& name) { return EnvironmentImpl::getImpl(name); }
 
-std::string Environment::get(const std::string& name)
-{
-	return EnvironmentImpl::getImpl(name);
+std::string Environment::get(const std::string& name, const std::string& defaultValue) {
+  if (has(name))
+    return get(name);
+  else
+    return defaultValue;
 }
 
+bool Environment::has(const std::string& name) { return EnvironmentImpl::hasImpl(name); }
 
-std::string Environment::get(const std::string& name, const std::string& defaultValue)
-{
-	if (has(name))
-		return get(name);
-	else
-		return defaultValue;
+void Environment::set(const std::string& name, const std::string& value) { EnvironmentImpl::setImpl(name, value); }
+
+std::string Environment::osName() { return EnvironmentImpl::osNameImpl(); }
+
+std::string Environment::osDisplayName() { return EnvironmentImpl::osDisplayNameImpl(); }
+
+std::string Environment::osVersion() { return EnvironmentImpl::osVersionImpl(); }
+
+std::string Environment::osArchitecture() { return EnvironmentImpl::osArchitectureImpl(); }
+
+std::string Environment::nodeName() { return EnvironmentImpl::nodeNameImpl(); }
+
+std::string Environment::nodeId() {
+  NodeId id;
+  nodeId(id);
+  char result[18];
+  std::sprintf(result, "%02x:%02x:%02x:%02x:%02x:%02x", id[0], id[1], id[2], id[3], id[4], id[5]);
+  return std::string(result);
 }
 
+void Environment::nodeId(NodeId& id) { return EnvironmentImpl::nodeIdImpl(id); }
 
-bool Environment::has(const std::string& name)
-{
-	return EnvironmentImpl::hasImpl(name);
-}
+unsigned Environment::processorCount() { return EnvironmentImpl::processorCountImpl(); }
 
+Poco::UInt32 Environment::libraryVersion() { return POCO_VERSION; }
 
-void Environment::set(const std::string& name, const std::string& value)
-{
-	EnvironmentImpl::setImpl(name, value);
-}
+Poco::Int32 Environment::os() { return POCO_OS; }
 
+Poco::Int32 Environment::arch() { return POCO_ARCH; }
 
-std::string Environment::osName()
-{
-	return EnvironmentImpl::osNameImpl();
-}
-
-
-std::string Environment::osDisplayName()
-{
-	return EnvironmentImpl::osDisplayNameImpl();
-}
-
-
-std::string Environment::osVersion()
-{
-	return EnvironmentImpl::osVersionImpl();
-}
-
-
-std::string Environment::osArchitecture()
-{
-	return EnvironmentImpl::osArchitectureImpl();
-}
-
-
-std::string Environment::nodeName()
-{
-	return EnvironmentImpl::nodeNameImpl();
-}
-
-
-std::string Environment::nodeId()
-{
-	NodeId id;
-	nodeId(id);
-	char result[18];
-	std::sprintf(result, "%02x:%02x:%02x:%02x:%02x:%02x",
-		id[0],
-		id[1],
-		id[2],
-		id[3],
-		id[4],
-		id[5]);
-	return std::string(result);
-}
-
-
-void Environment::nodeId(NodeId& id)
-{
-	return EnvironmentImpl::nodeIdImpl(id);
-}
-
-
-unsigned Environment::processorCount()
-{
-	return EnvironmentImpl::processorCountImpl();
-}
-
-
-Poco::UInt32 Environment::libraryVersion()
-{
-	return POCO_VERSION;
-}
-
-
-Poco::Int32 Environment::os()
-{
-	return POCO_OS;
-}
-
-
-Poco::Int32 Environment::arch()
-{
-	return POCO_ARCH;
-}
-
-
-bool Environment::isUnix()
-{
+bool Environment::isUnix() {
 #if defined(POCO_OS_FAMILY_UNIX)
-	return true;
+  return true;
 #else
-	return false;
+  return false;
 #endif
 }
 
+bool Environment::isWindows() { return false; }
 
-bool Environment::isWindows()
-{
-	return false;
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -4,45 +4,40 @@
 #include <sstream>
 
 #include <base/types.h>
-#include <IO/WriteHelpers.h>
 #include <IO/WriteBufferFromOStream.h>
+#include <IO/WriteHelpers.h>
 
+int main(int, char **) {
+  try {
+    Int64 a = -123456;
+    Float64 b = 123.456;
+    String c = "вася pe\ttya";
+    String d = "'xyz\\";
 
-int main(int, char **)
-{
-    try
+    std::stringstream s;  // STYLE_CHECK_ALLOW_STD_STRING_STREAM
+    s.exceptions(std::ios::failbit);
+
     {
-        Int64 a = -123456;
-        Float64 b = 123.456;
-        String c = "вася pe\ttya";
-        String d = "'xyz\\";
+      DB::WriteBufferFromOStream out(s);
 
-        std::stringstream s;    // STYLE_CHECK_ALLOW_STD_STRING_STREAM
-        s.exceptions(std::ios::failbit);
+      DB::writeIntText(a, out);
+      DB::writeChar(' ', out);
 
-        {
-            DB::WriteBufferFromOStream out(s);
+      DB::writeFloatText(b, out);
+      DB::writeChar(' ', out);
 
-            DB::writeIntText(a, out);
-            DB::writeChar(' ', out);
+      DB::writeEscapedString(c, out);
+      DB::writeChar('\t', out);
 
-            DB::writeFloatText(b, out);
-            DB::writeChar(' ', out);
-
-            DB::writeEscapedString(c, out);
-            DB::writeChar('\t', out);
-
-            DB::writeQuotedString(d, out);
-            DB::writeChar('\n', out);
-        }
-
-        std::cout << s.str();
-    }
-    catch (const DB::Exception & e)
-    {
-        std::cerr << e.what() << ", " << e.displayText() << std::endl;
-        return 1;
+      DB::writeQuotedString(d, out);
+      DB::writeChar('\n', out);
     }
 
-    return 0;
+    std::cout << s.str();
+  } catch (const DB::Exception &e) {
+    std::cerr << e.what() << ", " << e.displayText() << std::endl;
+    return 1;
+  }
+
+  return 0;
 }

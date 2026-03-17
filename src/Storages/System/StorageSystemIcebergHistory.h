@@ -2,9 +2,7 @@
 
 #include <Storages/System/IStorageSystemOneBlock.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class Context;
 
@@ -19,17 +17,17 @@ class Context;
  *
  */
 
-class StorageSystemIcebergHistory final : public IStorageSystemOneBlock
-{
-public:
-    std::string getName() const override { return "SystemIcebergHistory"; }
+class StorageSystemIcebergHistory final : public IStorageSystemOneBlock {
+ public:
+  std::string getName() const override { return "SystemIcebergHistory"; }
 
-    static ColumnsDescription getColumnsDescription();
+  static ColumnsDescription getColumnsDescription();
 
-protected:
-    using IStorageSystemOneBlock::IStorageSystemOneBlock;
+ protected:
+  using IStorageSystemOneBlock::IStorageSystemOneBlock;
 
-    void fillData([[maybe_unused]] MutableColumns & res_columns, [[maybe_unused]] ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
+  void fillData([[maybe_unused]] MutableColumns &res_columns, [[maybe_unused]] ContextPtr context, const ActionsDAG::Node *,
+                std::vector<UInt8>) const override;
 };
 
-}
+}  // namespace DB

@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_UniqueAccessExpireLRUCache_INCLUDED
 #define Foundation_UniqueAccessExpireLRUCache_INCLUDED
-
 
 #include "Poco/AbstractCache.h"
 #include "Poco/LRUStrategy.h"
 #include "Poco/StrategyCollection.h"
 #include "Poco/UniqueAccessExpireStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TKey, class TValue, class TMutex = FastMutex, class TEventMutex = FastMutex>
 class UniqueAccessExpireLRUCache : public AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>
@@ -43,23 +38,20 @@ class UniqueAccessExpireLRUCache : public AbstractCache<TKey, TValue, StrategyCo
 /// You can use the Poco::AccessExpirationDecorator to add the getExpiration
 /// method to values that do not have a getExpiration function.
 {
-public:
-    UniqueAccessExpireLRUCache(long cacheSize = 1024)
-        : AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>(StrategyCollection<TKey, TValue>())
-    {
-        this->_strategy.pushBack(new LRUStrategy<TKey, TValue>(cacheSize));
-        this->_strategy.pushBack(new UniqueAccessExpireStrategy<TKey, TValue>());
-    }
+ public:
+  UniqueAccessExpireLRUCache(long cacheSize = 1024)
+      : AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>(StrategyCollection<TKey, TValue>()) {
+    this->_strategy.pushBack(new LRUStrategy<TKey, TValue>(cacheSize));
+    this->_strategy.pushBack(new UniqueAccessExpireStrategy<TKey, TValue>());
+  }
 
-    ~UniqueAccessExpireLRUCache() { }
+  ~UniqueAccessExpireLRUCache() {}
 
-private:
-    UniqueAccessExpireLRUCache(const UniqueAccessExpireLRUCache & aCache);
-    UniqueAccessExpireLRUCache & operator=(const UniqueAccessExpireLRUCache & aCache);
+ private:
+  UniqueAccessExpireLRUCache(const UniqueAccessExpireLRUCache& aCache);
+  UniqueAccessExpireLRUCache& operator=(const UniqueAccessExpireLRUCache& aCache);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_UniqueAccessExpireLRUCache_INCLUDED
+#endif  // Foundation_UniqueAccessExpireLRUCache_INCLUDED

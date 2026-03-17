@@ -3,54 +3,50 @@
 #include "config.h"
 
 #if USE_CASSANDRA
-#include <cassandra.h>
-#include <utility>
-#include <memory>
+#  include <cassandra.h>
+#  include <memory>
+#  include <utility>
 
-namespace DB
-{
+namespace DB {
 
-namespace Cassandra
-{
+namespace Cassandra {
 
-template<typename CassT>
-CassT * defaultCtor() { return nullptr; }
+template <typename CassT>
+CassT *defaultCtor() {
+  return nullptr;
+}
 
 /// RAII wrapper for raw pointers to objects from cassandra driver library
-template<typename CassT, auto Dtor, auto Ctor = defaultCtor<CassT>>
-class ObjectHolder
-{
-    CassT * ptr = nullptr;
-public:
-    template<typename... Args>
-    ObjectHolder(Args &&... args) : ptr(Ctor(std::forward<Args>(args)...)) {} /// NOLINT
-    ObjectHolder(CassT * ptr_) : ptr(ptr_) {} /// NOLINT
+template <typename CassT, auto Dtor, auto Ctor = defaultCtor<CassT>>
+class ObjectHolder {
+  CassT *ptr = nullptr;
 
-    ObjectHolder(const ObjectHolder &) = delete;
-    ObjectHolder & operator = (const ObjectHolder &) = delete;
+ public:
+  template <typename... Args>
+  ObjectHolder(Args &&...args) : ptr(Ctor(std::forward<Args>(args)...)) {}  /// NOLINT
+  ObjectHolder(CassT *ptr_) : ptr(ptr_) {}                                  /// NOLINT
 
-    ObjectHolder(ObjectHolder && rhs) noexcept : ptr(rhs.ptr) { rhs.ptr = nullptr; }
-    ObjectHolder & operator = (ObjectHolder && rhs) noexcept
-    {
-        if (ptr)
-            Dtor(ptr);
-        ptr = rhs.ptr;
-        rhs.ptr = nullptr;
-        return *this;
-    }
+  ObjectHolder(const ObjectHolder &) = delete;
+  ObjectHolder &operator=(const ObjectHolder &) = delete;
 
-    ~ObjectHolder()
-    {
-        if (ptr)
-            Dtor(ptr);
-    }
+  ObjectHolder(ObjectHolder &&rhs) noexcept : ptr(rhs.ptr) { rhs.ptr = nullptr; }
+  ObjectHolder &operator=(ObjectHolder &&rhs) noexcept {
+    if (ptr) Dtor(ptr);
+    ptr = rhs.ptr;
+    rhs.ptr = nullptr;
+    return *this;
+  }
 
-    /// For implicit conversion when passing object to driver library functions
-    operator CassT * () { return ptr; } /// NOLINT
-    operator const CassT * () const { return ptr; } /// NOLINT
+  ~ObjectHolder() {
+    if (ptr) Dtor(ptr);
+  }
+
+  /// For implicit conversion when passing object to driver library functions
+  operator CassT *() { return ptr; }              /// NOLINT
+  operator const CassT *() const { return ptr; }  /// NOLINT
 };
 
-}
+}  // namespace Cassandra
 
 /// These object are created on pointer construction
 using CassClusterPtr = Cassandra::ObjectHolder<CassCluster, cass_cluster_free, cass_cluster_new>;
@@ -69,14 +65,14 @@ using CassIteratorPtr = Cassandra::ObjectHolder<CassIterator, cass_iterator_free
 
 /// Checks return code, throws exception on error
 void cassandraCheck(CassError code);
-void cassandraWaitAndCheck(CassFuturePtr & future);
+void cassandraWaitAndCheck(CassFuturePtr &future);
 
 /// By default driver library prints logs to stderr.
 /// It should be redirected (or, at least, disabled) before calling other functions from the library.
 void setupCassandraDriverLibraryLogging(CassLogLevel level);
 
-void cassandraLogCallback(const CassLogMessage * message, void * data);
+void cassandraLogCallback(const CassLogMessage *message, void *data);
 
-}
+}  // namespace DB
 
 #endif

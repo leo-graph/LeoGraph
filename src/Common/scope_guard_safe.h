@@ -10,10 +10,7 @@
 /// max_memory_usage (and related limits).
 ///
 /// NOTE: it should be used with caution.
-#define SCOPE_EXIT_MEMORY(...) SCOPE_EXIT(                    \
-    LockMemoryExceptionInThread lock_memory_tracker(VariableContext::Global); \
-    __VA_ARGS__;                                              \
-)
+#define SCOPE_EXIT_MEMORY(...) SCOPE_EXIT(LockMemoryExceptionInThread lock_memory_tracker(VariableContext::Global); __VA_ARGS__;)
 
 /// Same as SCOPE_EXIT() but try/catch/tryLogCurrentException any exceptions.
 ///
@@ -27,16 +24,7 @@
 /// instead of ignoring write error).
 ///
 /// NOTE: it should be used with double caution.
-#define SCOPE_EXIT_SAFE(...) SCOPE_EXIT(             \
-    try                                              \
-    {                                                \
-        __VA_ARGS__;                                 \
-    }                                                \
-    catch (...)                                      \
-    {                                                \
-        DB::tryLogCurrentException(__PRETTY_FUNCTION__);    \
-    }                                                \
-)
+#define SCOPE_EXIT_SAFE(...) SCOPE_EXIT(try { __VA_ARGS__; } catch (...) { DB::tryLogCurrentException(__PRETTY_FUNCTION__); })
 
 /// Same as SCOPE_EXIT() but:
 /// - block the MEMORY_LIMIT_EXCEEDED errors,
@@ -52,14 +40,9 @@
 /// variable).
 ///
 /// NOTE: it should be used with triple caution.
-#define SCOPE_EXIT_MEMORY_SAFE(...) SCOPE_EXIT(                   \
-    try                                                           \
-    {                                                             \
+#define SCOPE_EXIT_MEMORY_SAFE(...)                                               \
+  SCOPE_EXIT(                                                                     \
+      try {                                                                       \
         LockMemoryExceptionInThread lock_memory_tracker(VariableContext::Global); \
-        __VA_ARGS__;                                              \
-    }                                                             \
-    catch (...)                                                   \
-    {                                                             \
-        DB::tryLogCurrentException(__PRETTY_FUNCTION__);          \
-    }                                                             \
-)
+        __VA_ARGS__;                                                              \
+      } catch (...) { DB::tryLogCurrentException(__PRETTY_FUNCTION__); })

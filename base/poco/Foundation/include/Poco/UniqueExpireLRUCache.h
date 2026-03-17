@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_UniqueExpireLRUCache_INCLUDED
 #define Foundation_UniqueExpireLRUCache_INCLUDED
-
 
 #include "Poco/AbstractCache.h"
 #include "Poco/LRUStrategy.h"
 #include "Poco/StrategyCollection.h"
 #include "Poco/UniqueExpireStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TKey, class TValue, class TMutex = FastMutex, class TEventMutex = FastMutex>
 class UniqueExpireLRUCache : public AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>
@@ -42,23 +37,20 @@ class UniqueExpireLRUCache : public AbstractCache<TKey, TValue, StrategyCollecti
 /// You can use the Poco::ExpirationDecorator to add the getExpiration
 /// method to values that do not have a getExpiration function.
 {
-public:
-    UniqueExpireLRUCache(long cacheSize = 1024)
-        : AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>(StrategyCollection<TKey, TValue>())
-    {
-        this->_strategy.pushBack(new LRUStrategy<TKey, TValue>(cacheSize));
-        this->_strategy.pushBack(new UniqueExpireStrategy<TKey, TValue>());
-    }
+ public:
+  UniqueExpireLRUCache(long cacheSize = 1024)
+      : AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>(StrategyCollection<TKey, TValue>()) {
+    this->_strategy.pushBack(new LRUStrategy<TKey, TValue>(cacheSize));
+    this->_strategy.pushBack(new UniqueExpireStrategy<TKey, TValue>());
+  }
 
-    ~UniqueExpireLRUCache() { }
+  ~UniqueExpireLRUCache() {}
 
-private:
-    UniqueExpireLRUCache(const UniqueExpireLRUCache & aCache);
-    UniqueExpireLRUCache & operator=(const UniqueExpireLRUCache & aCache);
+ private:
+  UniqueExpireLRUCache(const UniqueExpireLRUCache& aCache);
+  UniqueExpireLRUCache& operator=(const UniqueExpireLRUCache& aCache);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_UniqueExpireLRUCache_INCLUDED
+#endif  // Foundation_UniqueExpireLRUCache_INCLUDED

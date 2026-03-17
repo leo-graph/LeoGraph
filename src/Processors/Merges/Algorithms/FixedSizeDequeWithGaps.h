@@ -2,11 +2,9 @@
 
 #include <Common/PODArray.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
+namespace ErrorCodes {
 extern const int LOGICAL_ERROR;
 }
 
@@ -21,144 +19,117 @@ extern const int LOGICAL_ERROR;
  * Note: empty deque may have non-zero front gap.
  */
 template <typename T>
-class FixedSizeDequeWithGaps
-{
-public:
+class FixedSizeDequeWithGaps {
+ public:
+  struct ValueWithGap {
+    /// The number of gaps before current element. The number of gaps after last element stores into end cell.
+    size_t gap;
+    /// Store char[] instead of T in order to make ValueWithGap POD.
+    /// Call placement constructors after push and and destructors after pop.
+    char value[sizeof(T)];
+  };
 
-    struct ValueWithGap
-    {
-        /// The number of gaps before current element. The number of gaps after last element stores into end cell.
-        size_t gap;
-        /// Store char[] instead of T in order to make ValueWithGap POD.
-        /// Call placement constructors after push and and destructors after pop.
-        char value[sizeof(T)];
+  explicit FixedSizeDequeWithGaps(size_t size) { container.resize_fill(size + 1); }
+
+  ~FixedSizeDequeWithGaps() {
+    auto destruct_range = [this](size_t from, size_t to) {
+      for (size_t i = from; i < to; ++i) destructValue(i);
     };
 
-    explicit FixedSizeDequeWithGaps(size_t size)
-    {
-        container.resize_fill(size + 1);
+    if (begin <= end)
+      destruct_range(begin, end);
+    else {
+      destruct_range(0, end);
+      destruct_range(begin, container.size());
     }
+  }
 
-    ~FixedSizeDequeWithGaps()
-    {
-        auto destruct_range = [this](size_t from, size_t to)
-        {
-            for (size_t i = from; i < to; ++i)
-                destructValue(i);
-        };
+  void pushBack(const T &value) {
+    checkEnoughSpaceToInsert();
+    constructValue(end, value);
+    moveRight(end);
+    container[end].gap = 0;
+  }
 
-        if (begin <= end)
-            destruct_range(begin, end);
-        else
-        {
-            destruct_range(0, end);
-            destruct_range(begin, container.size());
-        }
-    }
+  void pushGap(size_t count) { container[end].gap += count; }
 
-    void pushBack(const T & value)
-    {
-        checkEnoughSpaceToInsert();
-        constructValue(end, value);
-        moveRight(end);
-        container[end].gap = 0;
-    }
+  void popBack() {
+    checkHasValuesToRemove();
+    size_t curr_gap = container[end].gap;
+    moveLeft(end);
+    destructValue(end);
+    container[end].gap += curr_gap;
+  }
 
-    void pushGap(size_t count) { container[end].gap += count; }
+  void popFront() {
+    checkHasValuesToRemove();
+    destructValue(begin);
+    moveRight(begin);
+  }
 
-    void popBack()
-    {
-        checkHasValuesToRemove();
-        size_t curr_gap = container[end].gap;
-        moveLeft(end);
-        destructValue(end);
-        container[end].gap += curr_gap;
-    }
+  T &front() {
+    checkHasValuesToGet();
+    return getValue(begin);
+  }
+  const T &front() const {
+    checkHasValuesToGet();
+    return getValue(begin);
+  }
 
-    void popFront()
-    {
-        checkHasValuesToRemove();
-        destructValue(begin);
-        moveRight(begin);
-    }
+  const T &back() const {
+    size_t ps = end;
+    moveLeft(ps);
+    return getValue(ps);
+  }
 
-    T & front()
-    {
-        checkHasValuesToGet();
-        return getValue(begin);
-    }
-    const T & front() const
-    {
-        checkHasValuesToGet();
-        return getValue(begin);
-    }
+  size_t &frontGap() { return container[begin].gap; }
+  const size_t &frontGap() const { return container[begin].gap; }
 
-    const T & back() const
-    {
-        size_t ps = end;
-        moveLeft(ps);
-        return getValue(ps);
-    }
+  size_t size() const {
+    if (begin <= end) return end - begin;
+    return end + (container.size() - begin);
+  }
 
-    size_t & frontGap() { return container[begin].gap; }
-    const size_t & frontGap() const { return container[begin].gap; }
+  bool empty() const { return begin == end; }
 
-    size_t size() const
-    {
-        if (begin <= end)
-            return end - begin;
-        return end + (container.size() - begin);
-    }
+ private:
+  PODArray<ValueWithGap> container;
 
-    bool empty() const { return begin == end; }
+  size_t gap_before_first = 0;
+  size_t begin = 0;
+  size_t end = 0;
 
-private:
-    PODArray<ValueWithGap> container;
+  void constructValue(size_t index, const T &value) { new (container[index].value) T(value); }
+  void destructValue(size_t index) { reinterpret_cast<T *>(container[index].value)->~T(); }
 
-    size_t gap_before_first = 0;
-    size_t begin = 0;
-    size_t end = 0;
+  T &getValue(size_t index) { return *reinterpret_cast<T *>(container[index].value); }
+  const T &getValue(size_t index) const { return *reinterpret_cast<const T *>(container[index].value); }
 
-    void constructValue(size_t index, const T & value) { new (container[index].value) T(value); }
-    void destructValue(size_t index) { reinterpret_cast<T *>(container[index].value)->~T(); }
+  void moveRight(size_t &index) const {
+    ++index;
 
-    T & getValue(size_t index) { return *reinterpret_cast<T *>(container[index].value); }
-    const T & getValue(size_t index) const { return *reinterpret_cast<const T *>(container[index].value); }
+    if (index == container.size()) index = 0;
+  }
 
-    void moveRight(size_t & index) const
-    {
-        ++index;
+  void moveLeft(size_t &index) const {
+    if (index == 0) index = container.size();
 
-        if (index == container.size())
-            index = 0;
-    }
+    --index;
+  }
 
-    void moveLeft(size_t & index) const
-    {
-        if (index == 0)
-            index = container.size();
+  void checkEnoughSpaceToInsert() const {
+    if (size() + 1 == container.size())
+      throw Exception(ErrorCodes::LOGICAL_ERROR, "Not enough space to insert into FixedSizeDequeWithGaps with capacity {}",
+                      container.size() - 1);
+  }
 
-        --index;
-    }
+  void checkHasValuesToRemove() const {
+    if (empty()) throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot remove from empty FixedSizeDequeWithGaps");
+  }
 
-    void checkEnoughSpaceToInsert() const
-    {
-        if (size() + 1 == container.size())
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Not enough space to insert into FixedSizeDequeWithGaps with capacity {}",
-                            container.size() - 1);
-    }
-
-    void checkHasValuesToRemove() const
-    {
-        if (empty())
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot remove from empty FixedSizeDequeWithGaps");
-    }
-
-    void checkHasValuesToGet() const
-    {
-        if (empty())
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot get value from empty FixedSizeDequeWithGaps");
-    }
+  void checkHasValuesToGet() const {
+    if (empty()) throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot get value from empty FixedSizeDequeWithGaps");
+  }
 };
 
-}
+}  // namespace DB

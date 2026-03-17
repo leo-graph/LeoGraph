@@ -5,16 +5,13 @@
 
 #include <Poco/AutoPtr.h>
 
-namespace Poco
-{
-namespace Util
-{
+namespace Poco {
+namespace Util {
 class AbstractConfiguration;
 }
-}
+}  // namespace Poco
 
-namespace DB
-{
+namespace DB {
 
 class ASTCreateQuery;
 using DictionaryConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
@@ -22,17 +19,16 @@ using DictionaryConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfigurati
 /// Convert dictionary AST to Poco::AbstractConfiguration
 /// This function is necessary because all loadable objects configuration are Poco::AbstractConfiguration
 /// Can throw exception if query is ill-formed
-DictionaryConfigurationPtr
-getDictionaryConfigurationFromAST(const ASTCreateQuery & query, ContextPtr context, const std::string & database_ = "");
+DictionaryConfigurationPtr getDictionaryConfigurationFromAST(const ASTCreateQuery& query, ContextPtr context,
+                                                             const std::string& database_ = "");
 
-struct ClickHouseDictionarySourceInfo
-{
-    QualifiedTableName table_name;
-    String query;
-    bool is_local = false;
+struct ClickHouseDictionarySourceInfo {
+  QualifiedTableName table_name;
+  String query;
+  bool is_local = false;
 };
 
-std::optional<ClickHouseDictionarySourceInfo>
-getInfoIfClickHouseDictionarySource(DictionaryConfigurationPtr & config, ContextPtr global_context);
+std::optional<ClickHouseDictionarySourceInfo> getInfoIfClickHouseDictionarySource(DictionaryConfigurationPtr& config,
+                                                                                  ContextPtr global_context);
 
-}
+}  // namespace DB

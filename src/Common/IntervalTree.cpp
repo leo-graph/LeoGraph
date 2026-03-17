@@ -1,111 +1,95 @@
-#include <Common/IntervalTree.h>
-#include <base/types.h>
-#include <base/extended_types.h>
 #include <base/Decimal.h>
+#include <base/extended_types.h>
+#include <base/types.h>
+#include <Common/IntervalTree.h>
 #include <Core/Types_fwd.h>
 
-
-namespace DB
-{
+namespace DB {
 
 template <typename Interval, typename Value>
-void IntervalTree<Interval, Value>::buildTree()
-{
-    std::vector<IntervalStorageType> temporary_points_storage;
-    temporary_points_storage.reserve(sorted_intervals.size() * 2);
+void IntervalTree<Interval, Value>::buildTree() {
+  std::vector<IntervalStorageType> temporary_points_storage;
+  temporary_points_storage.reserve(sorted_intervals.size() * 2);
 
-    std::vector<IntervalWithValue> left_intervals;
-    std::vector<IntervalWithValue> right_intervals;
-    std::vector<IntervalWithValue> intervals_sorted_by_left_asc;
-    std::vector<IntervalWithValue> intervals_sorted_by_right_desc;
+  std::vector<IntervalWithValue> left_intervals;
+  std::vector<IntervalWithValue> right_intervals;
+  std::vector<IntervalWithValue> intervals_sorted_by_left_asc;
+  std::vector<IntervalWithValue> intervals_sorted_by_right_desc;
 
-    struct StackFrame
-    {
-        size_t index;
-        std::vector<IntervalWithValue> intervals;
-    };
+  struct StackFrame {
+    size_t index;
+    std::vector<IntervalWithValue> intervals;
+  };
 
-    std::vector<StackFrame> stack;
-    stack.emplace_back(StackFrame{0, std::move(sorted_intervals)});
-    sorted_intervals.clear();
+  std::vector<StackFrame> stack;
+  stack.emplace_back(StackFrame{0, std::move(sorted_intervals)});
+  sorted_intervals.clear();
 
-    while (!stack.empty())
-    {
-        auto frame = std::move(stack.back());
-        stack.pop_back();
+  while (!stack.empty()) {
+    auto frame = std::move(stack.back());
+    stack.pop_back();
 
-        size_t current_index = frame.index;
-        auto & current_intervals = frame.intervals;
+    size_t current_index = frame.index;
+    auto& current_intervals = frame.intervals;
 
-        if (current_intervals.empty())
-            continue;
+    if (current_intervals.empty()) continue;
 
-        if (current_index >= nodes.size())
-            nodes.resize(current_index + 1);
+    if (current_index >= nodes.size()) nodes.resize(current_index + 1);
 
-        temporary_points_storage.clear();
-        intervalsToPoints(current_intervals, temporary_points_storage);
-        auto median = pointsMedian(temporary_points_storage);
+    temporary_points_storage.clear();
+    intervalsToPoints(current_intervals, temporary_points_storage);
+    auto median = pointsMedian(temporary_points_storage);
 
-        left_intervals.clear();
-        right_intervals.clear();
-        intervals_sorted_by_left_asc.clear();
-        intervals_sorted_by_right_desc.clear();
+    left_intervals.clear();
+    right_intervals.clear();
+    intervals_sorted_by_left_asc.clear();
+    intervals_sorted_by_right_desc.clear();
 
-        for (const auto & interval_with_value : current_intervals)
-        {
-            auto & interval = getInterval(interval_with_value);
+    for (const auto& interval_with_value : current_intervals) {
+      auto& interval = getInterval(interval_with_value);
 
-            if (interval.right < median)
-            {
-                left_intervals.emplace_back(interval_with_value);
-            }
-            else if (interval.left > median)
-            {
-                right_intervals.emplace_back(interval_with_value);
-            }
-            else
-            {
-                intervals_sorted_by_left_asc.emplace_back(interval_with_value);
-                intervals_sorted_by_right_desc.emplace_back(interval_with_value);
-            }
-        }
-
-        ::sort(intervals_sorted_by_left_asc.begin(), intervals_sorted_by_left_asc.end(), [](auto & lhs, auto & rhs)
-        {
-            auto & lhs_interval = getInterval(lhs);
-            auto & rhs_interval = getInterval(rhs);
-            return lhs_interval.left < rhs_interval.left;
-        });
-
-        ::sort(intervals_sorted_by_right_desc.begin(), intervals_sorted_by_right_desc.end(), [](auto & lhs, auto & rhs)
-        {
-            auto & lhs_interval = getInterval(lhs);
-            auto & rhs_interval = getInterval(rhs);
-            return lhs_interval.right > rhs_interval.right;
-        });
-
-        size_t sorted_intervals_range_start_index = sorted_intervals.size();
-
-        for (auto && interval_sorted_by_left_asc : intervals_sorted_by_left_asc)
-            sorted_intervals.emplace_back(std::move(interval_sorted_by_left_asc));
-
-        for (auto && interval_sorted_by_right_desc : intervals_sorted_by_right_desc)
-            sorted_intervals.emplace_back(std::move(interval_sorted_by_right_desc));
-
-        auto & node = nodes[current_index];
-        node.middle_element = median;
-        node.sorted_intervals_range_start_index = sorted_intervals_range_start_index;
-        node.sorted_intervals_range_size = intervals_sorted_by_left_asc.size();
-
-        size_t left_child_index = current_index * 2 + 1;
-        stack.emplace_back(StackFrame{left_child_index, std::move(left_intervals)});
-
-        size_t right_child_index = current_index * 2 + 2;
-        stack.emplace_back(StackFrame{right_child_index, std::move(right_intervals)});
+      if (interval.right < median) {
+        left_intervals.emplace_back(interval_with_value);
+      } else if (interval.left > median) {
+        right_intervals.emplace_back(interval_with_value);
+      } else {
+        intervals_sorted_by_left_asc.emplace_back(interval_with_value);
+        intervals_sorted_by_right_desc.emplace_back(interval_with_value);
+      }
     }
-}
 
+    ::sort(intervals_sorted_by_left_asc.begin(), intervals_sorted_by_left_asc.end(), [](auto& lhs, auto& rhs) {
+      auto& lhs_interval = getInterval(lhs);
+      auto& rhs_interval = getInterval(rhs);
+      return lhs_interval.left < rhs_interval.left;
+    });
+
+    ::sort(intervals_sorted_by_right_desc.begin(), intervals_sorted_by_right_desc.end(), [](auto& lhs, auto& rhs) {
+      auto& lhs_interval = getInterval(lhs);
+      auto& rhs_interval = getInterval(rhs);
+      return lhs_interval.right > rhs_interval.right;
+    });
+
+    size_t sorted_intervals_range_start_index = sorted_intervals.size();
+
+    for (auto&& interval_sorted_by_left_asc : intervals_sorted_by_left_asc)
+      sorted_intervals.emplace_back(std::move(interval_sorted_by_left_asc));
+
+    for (auto&& interval_sorted_by_right_desc : intervals_sorted_by_right_desc)
+      sorted_intervals.emplace_back(std::move(interval_sorted_by_right_desc));
+
+    auto& node = nodes[current_index];
+    node.middle_element = median;
+    node.sorted_intervals_range_start_index = sorted_intervals_range_start_index;
+    node.sorted_intervals_range_size = intervals_sorted_by_left_asc.size();
+
+    size_t left_child_index = current_index * 2 + 1;
+    stack.emplace_back(StackFrame{left_child_index, std::move(left_intervals)});
+
+    size_t right_child_index = current_index * 2 + 2;
+    stack.emplace_back(StackFrame{right_child_index, std::move(right_intervals)});
+  }
+}
 
 // Explicit template instantiations for Interval<T>
 
@@ -180,4 +164,4 @@ template class IntervalTree<Interval<Float64>, size_t>;
 
 template class IntervalTree<Interval<Int64>, std::string>;
 
-}
+}  // namespace DB

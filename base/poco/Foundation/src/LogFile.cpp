@@ -11,24 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/LogFile.h"
-
 
 #include "LogFile_STD.cpp"
 
-
 namespace Poco {
 
+LogFile::LogFile(const std::string& path) : LogFileImpl(path) {}
 
-LogFile::LogFile(const std::string& path): LogFileImpl(path)
-{
-}
+LogFile::~LogFile() {}
 
-
-LogFile::~LogFile()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

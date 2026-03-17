@@ -2,9 +2,8 @@
 
 #include <memory>
 
-namespace DB
-{
+namespace DB {
 class ICommand;
 
 using CommandPtr = std::shared_ptr<ICommand>;
-}
+}  // namespace DB

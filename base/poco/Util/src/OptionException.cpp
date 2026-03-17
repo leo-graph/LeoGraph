@@ -11,14 +11,11 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Util/OptionException.h"
 #include <typeinfo>
 
-
 namespace Poco {
 namespace Util {
-
 
 POCO_IMPLEMENT_EXCEPTION(OptionException, Poco::DataException, "Option exception")
 POCO_IMPLEMENT_EXCEPTION(UnknownOptionException, OptionException, "Unknown option specified")
@@ -31,5 +28,5 @@ POCO_IMPLEMENT_EXCEPTION(IncompatibleOptionsException, OptionException, "Incompa
 POCO_IMPLEMENT_EXCEPTION(DuplicateOptionException, OptionException, "Option must not be given more than once")
 POCO_IMPLEMENT_EXCEPTION(EmptyOptionException, OptionException, "Empty option specified")
 
-
-} } // namespace Poco::Util
+}  // namespace Util
+}  // namespace Poco

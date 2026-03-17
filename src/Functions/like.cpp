@@ -1,13 +1,10 @@
-#include <Functions/like.h>
 #include <Functions/FunctionFactory.h>
+#include <Functions/like.h>
 
+namespace DB {
 
-namespace DB
-{
-
-REGISTER_FUNCTION(Like)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(Like) {
+  FunctionDocumentation::Description description = R"(
 Returns whether string `haystack` matches the `LIKE` expression `pattern`.
 
 A `LIKE` expression can contain normal characters and the following metasymbols:
@@ -32,50 +29,39 @@ ClickHouse requires backslashes in strings [to be quoted as well](../syntax.md#s
 For `LIKE` expressions of the form `%needle%`, the function is as fast as the `position` function.
 All other LIKE expressions are internally converted to a regular expression and executed with a performance similar to function `match`.
    )";
-    FunctionDocumentation::Syntax syntax = R"(
+  FunctionDocumentation::Syntax syntax = R"(
 like(haystack, pattern)
 -- haystack LIKE pattern
     )";
-    FunctionDocumentation::Arguments arguments = {
-        {"haystack", "String in which the search is performed.", {"String", "FixedString"}},
-        {"pattern", "`LIKE` pattern to match against. Can contain `%` (matches any number of characters), `_` (matches single character), and `\\` for escaping.", {"String"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns `1` if the string matches the `LIKE` pattern, otherwise `0`.", {"UInt8"}};
-    FunctionDocumentation::Examples examples =
-    {
-    {
-        "Usage example",
-        "SELECT like('ClickHouse', '%House');",
-        R"(
+  FunctionDocumentation::Arguments arguments = {{"haystack", "String in which the search is performed.", {"String", "FixedString"}},
+                                                {"pattern",
+                                                 "`LIKE` pattern to match against. Can contain `%` (matches any number of characters), `_` "
+                                                 "(matches single character), and `\\` for escaping.",
+                                                 {"String"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns `1` if the string matches the `LIKE` pattern, otherwise `0`.", {"UInt8"}};
+  FunctionDocumentation::Examples examples = {{"Usage example", "SELECT like('ClickHouse', '%House');",
+                                               R"(
 ┌─like('ClickHouse', '%House')─┐
 │                            1 │
 └──────────────────────────────┘
-        )"
-    },
-    {
-        "Single character wildcard",
-        "SELECT like('ClickHouse', 'Click_ouse');",
-        R"(
+        )"},
+                                              {"Single character wildcard", "SELECT like('ClickHouse', 'Click_ouse');",
+                                               R"(
 ┌─like('ClickH⋯lick_ouse')─┐
 │                        1 │
 └──────────────────────────┘
-        )"
-    },
-    {
-        "Non-matching pattern",
-        "SELECT like('ClickHouse', '%SQL%');",
-        R"(
+        )"},
+                                              {"Non-matching pattern", "SELECT like('ClickHouse', '%SQL%');",
+                                               R"(
 ┌─like('ClickHouse', '%SQL%')─┐
 │                           0 │
 └─────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::StringSearch;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::StringSearch;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionLike>(documentation);
+  factory.registerFunction<FunctionLike>(documentation);
 }
 
-}
+}  // namespace DB

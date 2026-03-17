@@ -13,79 +13,57 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPIOStream_INCLUDED
 #define Net_HTTPIOStream_INCLUDED
-
 
 #include "Poco/Net/HTTPResponse.h"
 #include "Poco/Net/Net.h"
 #include "Poco/UnbufferedStreamBuf.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
-{
-namespace Net
-{
+class HTTPClientSession;
 
+class Net_API HTTPResponseStreamBuf : public Poco::UnbufferedStreamBuf {
+ public:
+  HTTPResponseStreamBuf(std::istream& istr);
 
-    class HTTPClientSession;
+  ~HTTPResponseStreamBuf();
 
+ private:
+  int readFromDevice();
 
-    class Net_API HTTPResponseStreamBuf : public Poco::UnbufferedStreamBuf
-    {
-    public:
-        HTTPResponseStreamBuf(std::istream & istr);
+  std::istream& _istr;
+};
 
-        ~HTTPResponseStreamBuf();
+inline int HTTPResponseStreamBuf::readFromDevice() { return _istr.get(); }
 
-    private:
-        int readFromDevice();
+class Net_API HTTPResponseIOS : public virtual std::ios {
+ public:
+  HTTPResponseIOS(std::istream& istr);
 
-        std::istream & _istr;
-    };
+  ~HTTPResponseIOS();
 
+  HTTPResponseStreamBuf* rdbuf();
 
-    inline int HTTPResponseStreamBuf::readFromDevice()
-    {
-        return _istr.get();
-    }
+ protected:
+  HTTPResponseStreamBuf _buf;
+};
 
+inline HTTPResponseStreamBuf* HTTPResponseIOS::rdbuf() { return &_buf; }
 
-    class Net_API HTTPResponseIOS : public virtual std::ios
-    {
-    public:
-        HTTPResponseIOS(std::istream & istr);
+class Net_API HTTPResponseStream : public HTTPResponseIOS, public std::istream {
+ public:
+  HTTPResponseStream(std::istream& istr, HTTPClientSession* pSession);
 
-        ~HTTPResponseIOS();
+  ~HTTPResponseStream();
 
-        HTTPResponseStreamBuf * rdbuf();
+ private:
+  HTTPClientSession* _pSession;
+};
 
-    protected:
-        HTTPResponseStreamBuf _buf;
-    };
+}  // namespace Net
+}  // namespace Poco
 
-
-    inline HTTPResponseStreamBuf * HTTPResponseIOS::rdbuf()
-    {
-        return &_buf;
-    }
-
-
-    class Net_API HTTPResponseStream : public HTTPResponseIOS, public std::istream
-    {
-    public:
-        HTTPResponseStream(std::istream & istr, HTTPClientSession * pSession);
-
-        ~HTTPResponseStream();
-
-    private:
-        HTTPClientSession * _pSession;
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPIOStream_INCLUDED
+#endif  // Net_HTTPIOStream_INCLUDED

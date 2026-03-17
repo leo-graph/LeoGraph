@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/NodeList.h"
-
 
 namespace Poco {
 namespace XML {
 
+NodeList::~NodeList() {}
 
-NodeList::~NodeList()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

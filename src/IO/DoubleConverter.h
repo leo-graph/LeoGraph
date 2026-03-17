@@ -9,34 +9,30 @@
 
 #pragma clang diagnostic pop
 
+namespace DB {
 
-namespace DB
-{
-
-template <bool emit_decimal_point> struct DoubleToStringConverterFlags
-{
-    static constexpr auto flags = double_conversion::DoubleToStringConverter::NO_FLAGS;
+template <bool emit_decimal_point>
+struct DoubleToStringConverterFlags {
+  static constexpr auto flags = double_conversion::DoubleToStringConverter::NO_FLAGS;
 };
 
-template <> struct DoubleToStringConverterFlags<true>
-{
-    static constexpr auto flags = double_conversion::DoubleToStringConverter::EMIT_TRAILING_DECIMAL_POINT;
+template <>
+struct DoubleToStringConverterFlags<true> {
+  static constexpr auto flags = double_conversion::DoubleToStringConverter::EMIT_TRAILING_DECIMAL_POINT;
 };
 
 template <bool emit_decimal_point>
-class DoubleConverter : private boost::noncopyable
-{
-    DoubleConverter() = default;
+class DoubleConverter : private boost::noncopyable {
+  DoubleConverter() = default;
 
-public:
-    /// Sign (1 byte) + DigitsBeforePoint + point (1 byte) + DigitsAfterPoint + zero byte.
-    /// See comment to DoubleToStringConverter::ToFixed method for explanation.
-    static constexpr auto MAX_REPRESENTATION_LENGTH =
-            1 + double_conversion::DoubleToStringConverter::kMaxFixedDigitsBeforePoint +
-            1 + double_conversion::DoubleToStringConverter::kMaxFixedDigitsAfterPoint + 1;
-    using BufferType = char[MAX_REPRESENTATION_LENGTH];
+ public:
+  /// Sign (1 byte) + DigitsBeforePoint + point (1 byte) + DigitsAfterPoint + zero byte.
+  /// See comment to DoubleToStringConverter::ToFixed method for explanation.
+  static constexpr auto MAX_REPRESENTATION_LENGTH = 1 + double_conversion::DoubleToStringConverter::kMaxFixedDigitsBeforePoint + 1 +
+                                                    double_conversion::DoubleToStringConverter::kMaxFixedDigitsAfterPoint + 1;
+  using BufferType = char[MAX_REPRESENTATION_LENGTH];
 
-    static const double_conversion::DoubleToStringConverter & instance();
+  static const double_conversion::DoubleToStringConverter& instance();
 };
 
-}
+}  // namespace DB

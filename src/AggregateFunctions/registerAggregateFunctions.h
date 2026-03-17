@@ -1,9 +1,8 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 struct Settings;
 
 void registerAggregateFunctions();
 
-}
+}  // namespace DB

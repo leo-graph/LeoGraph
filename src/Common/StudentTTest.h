@@ -1,8 +1,8 @@
 #pragma once
 
 #include <array>
-#include <string>
 #include <map>
+#include <string>
 
 /**
  * About:
@@ -13,47 +13,38 @@
  * It's it used to assume with some level of confidence that two distributions don't differ.
  * Values can be added with t_test.add(0/1, value) and after compared and reported with compareAndReport().
  */
-class StudentTTest
-{
-private:
-    struct DistributionData
-    {
-        size_t size = 0;
-        double sum = 0;
-        double squares_sum = 0;
+class StudentTTest {
+ private:
+  struct DistributionData {
+    size_t size = 0;
+    double sum = 0;
+    double squares_sum = 0;
 
-        void add(double value)
-        {
-            ++size;
-            sum += value;
-            squares_sum += value * value;
-        }
+    void add(double value) {
+      ++size;
+      sum += value;
+      squares_sum += value * value;
+    }
 
-        double avg() const
-        {
-            return sum / static_cast<double>(size);
-        }
+    double avg() const { return sum / static_cast<double>(size); }
 
-        double var() const
-        {
-            return (squares_sum - (sum * sum / static_cast<double>(size))) / static_cast<double>(size - 1);
-        }
+    double var() const { return (squares_sum - (sum * sum / static_cast<double>(size))) / static_cast<double>(size - 1); }
 
-        void clear()
-        {
-            size = 0;
-            sum = 0;
-            squares_sum = 0;
-        }
-    };
+    void clear() {
+      size = 0;
+      sum = 0;
+      squares_sum = 0;
+    }
+  };
 
-    std::array<DistributionData, 2> data {};
+  std::array<DistributionData, 2> data{};
 
-public:
-    void clear();
+ public:
+  void clear();
 
-    void add(size_t distribution, double value);
+  void add(size_t distribution, double value);
 
-    /// Confidence_level_index can be set in range [0, 5]. Corresponding values can be found above. TODO: Trash - no separation of concepts in code.
-    std::pair<bool, std::string> compareAndReport(size_t confidence_level_index = 5) const;
+  /// Confidence_level_index can be set in range [0, 5]. Corresponding values can be found above. TODO: Trash - no separation of concepts in
+  /// code.
+  std::pair<bool, std::string> compareAndReport(size_t confidence_level_index = 5) const;
 };

@@ -1,189 +1,180 @@
 #pragma once
+#include <Common/randomSeed.h>
 #include <Common/ZooKeeper/KeeperException.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
-#include <Common/ZooKeeper/ZooKeeperImpl.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Common/ZooKeeper/ZooKeeperImpl.h>
+#include <Poco/Util/AbstractConfiguration.h>
 #include <optional>
 #include <pcg-random/pcg_random.hpp>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Common/randomSeed.h>
 
+struct NumberGetter {
+  static NumberGetter fromConfig(const std::string &key, const Poco::Util::AbstractConfiguration &config,
+                                 std::optional<uint64_t> default_value = std::nullopt);
+  uint64_t getNumber() const;
+  std::string description() const;
 
-struct NumberGetter
-{
-    static NumberGetter fromConfig(const std::string & key, const Poco::Util::AbstractConfiguration & config, std::optional<uint64_t> default_value = std::nullopt);
-    uint64_t getNumber() const;
-    std::string description() const;
-private:
-    struct NumberRange
-    {
-        uint64_t min_value;
-        uint64_t max_value;
-    };
+ private:
+  struct NumberRange {
+    uint64_t min_value;
+    uint64_t max_value;
+  };
 
-    std::variant<uint64_t, NumberRange> value;
+  std::variant<uint64_t, NumberRange> value;
 };
 
-struct StringGetter
-{
-    explicit StringGetter(NumberGetter number_getter)
-        : value(std::move(number_getter))
-    {}
+struct StringGetter {
+  explicit StringGetter(NumberGetter number_getter) : value(std::move(number_getter)) {}
 
-    StringGetter() = default;
+  StringGetter() = default;
 
-    static StringGetter fromConfig(const std::string & key, const Poco::Util::AbstractConfiguration & config);
-    void setString(std::string name);
-    std::string getString() const;
-    std::string description() const;
-    bool isRandom() const;
-private:
-    std::variant<std::string, NumberGetter> value;
+  static StringGetter fromConfig(const std::string &key, const Poco::Util::AbstractConfiguration &config);
+  void setString(std::string name);
+  std::string getString() const;
+  std::string description() const;
+  bool isRandom() const;
+
+ private:
+  std::variant<std::string, NumberGetter> value;
 };
 
-struct PathGetter
-{
-    static PathGetter fromConfig(const std::string & key, const Poco::Util::AbstractConfiguration & config);
+struct PathGetter {
+  static PathGetter fromConfig(const std::string &key, const Poco::Util::AbstractConfiguration &config);
 
-    std::string getPath() const;
-    std::string description() const;
+  std::string getPath() const;
+  std::string description() const;
 
-    void initialize(Coordination::ZooKeeper & zookeeper);
-private:
-    std::vector<std::string> parent_paths;
+  void initialize(Coordination::ZooKeeper &zookeeper);
 
-    bool initialized = false;
+ private:
+  std::vector<std::string> parent_paths;
 
-    std::vector<std::string> paths;
-    mutable std::uniform_int_distribution<size_t> path_picker;
+  bool initialized = false;
+
+  std::vector<std::string> paths;
+  mutable std::uniform_int_distribution<size_t> path_picker;
 };
 
-struct ZooKeeperRequestWithCallbacks
-{
-    Coordination::ZooKeeperRequestPtr request;
-    std::vector<std::function<void()>> on_success_callbacks;
+struct ZooKeeperRequestWithCallbacks {
+  Coordination::ZooKeeperRequestPtr request;
+  std::vector<std::function<void()>> on_success_callbacks;
 };
 
-struct RequestGenerator
-{
-    virtual ~RequestGenerator() = default;
+struct RequestGenerator {
+  virtual ~RequestGenerator() = default;
 
-    void getFromConfig(const std::string & key, const Poco::Util::AbstractConfiguration & config);
+  void getFromConfig(const std::string &key, const Poco::Util::AbstractConfiguration &config);
 
-    ZooKeeperRequestWithCallbacks generate(const Coordination::ACLs & acls);
+  ZooKeeperRequestWithCallbacks generate(const Coordination::ACLs &acls);
 
-    std::string description();
+  std::string description();
 
-    void startup(Coordination::ZooKeeper & zookeeper);
+  void startup(Coordination::ZooKeeper &zookeeper);
 
-    size_t getWeight() const;
-private:
-    virtual void getFromConfigImpl(const std::string & key, const Poco::Util::AbstractConfiguration & config) = 0;
-    virtual std::string descriptionImpl() = 0;
-    virtual ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs & acls) = 0;
-    virtual void startupImpl(Coordination::ZooKeeper &) {}
+  size_t getWeight() const;
 
-    size_t weight = 1;
+ private:
+  virtual void getFromConfigImpl(const std::string &key, const Poco::Util::AbstractConfiguration &config) = 0;
+  virtual std::string descriptionImpl() = 0;
+  virtual ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs &acls) = 0;
+  virtual void startupImpl(Coordination::ZooKeeper &) {}
+
+  size_t weight = 1;
 };
 
 using RequestGeneratorPtr = std::shared_ptr<RequestGenerator>;
 
-struct CreateRequestGenerator final : public RequestGenerator
-{
-    CreateRequestGenerator();
-private:
-    void getFromConfigImpl(const std::string & key, const Poco::Util::AbstractConfiguration & config) override;
-    std::string descriptionImpl() override;
-    ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs & acls) override;
-    void startupImpl(Coordination::ZooKeeper & zookeeper) override;
+struct CreateRequestGenerator final : public RequestGenerator {
+  CreateRequestGenerator();
 
-    PathGetter parent_path;
-    StringGetter name;
-    std::optional<StringGetter> data;
+ private:
+  void getFromConfigImpl(const std::string &key, const Poco::Util::AbstractConfiguration &config) override;
+  std::string descriptionImpl() override;
+  ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs &acls) override;
+  void startupImpl(Coordination::ZooKeeper &zookeeper) override;
 
-    std::optional<double> remove_factor;
-    pcg64 rng;
-    std::uniform_real_distribution<double> remove_picker;
+  PathGetter parent_path;
+  StringGetter name;
+  std::optional<StringGetter> data;
 
-    std::mutex paths_mutex;
-    std::unordered_set<std::string> paths_pending;
-    std::unordered_set<std::string> paths_created;
+  std::optional<double> remove_factor;
+  pcg64 rng;
+  std::uniform_real_distribution<double> remove_picker;
+
+  std::mutex paths_mutex;
+  std::unordered_set<std::string> paths_pending;
+  std::unordered_set<std::string> paths_created;
 };
 
-struct SetRequestGenerator final : public RequestGenerator
-{
-private:
-    void getFromConfigImpl(const std::string & key, const Poco::Util::AbstractConfiguration & config) override;
-    std::string descriptionImpl() override;
-    ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs & acls) override;
-    void startupImpl(Coordination::ZooKeeper & zookeeper) override;
+struct SetRequestGenerator final : public RequestGenerator {
+ private:
+  void getFromConfigImpl(const std::string &key, const Poco::Util::AbstractConfiguration &config) override;
+  std::string descriptionImpl() override;
+  ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs &acls) override;
+  void startupImpl(Coordination::ZooKeeper &zookeeper) override;
 
-    PathGetter path;
-    StringGetter data;
+  PathGetter path;
+  StringGetter data;
 };
 
-struct GetRequestGenerator final : public RequestGenerator
-{
-private:
-    void getFromConfigImpl(const std::string & key, const Poco::Util::AbstractConfiguration & config) override;
-    std::string descriptionImpl() override;
-    ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs & acls) override;
-    void startupImpl(Coordination::ZooKeeper & zookeeper) override;
+struct GetRequestGenerator final : public RequestGenerator {
+ private:
+  void getFromConfigImpl(const std::string &key, const Poco::Util::AbstractConfiguration &config) override;
+  std::string descriptionImpl() override;
+  ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs &acls) override;
+  void startupImpl(Coordination::ZooKeeper &zookeeper) override;
 
-    PathGetter path;
+  PathGetter path;
 };
 
-struct ListRequestGenerator final : public RequestGenerator
-{
-private:
-    void getFromConfigImpl(const std::string & key, const Poco::Util::AbstractConfiguration & config) override;
-    std::string descriptionImpl() override;
-    ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs & acls) override;
-    void startupImpl(Coordination::ZooKeeper & zookeeper) override;
+struct ListRequestGenerator final : public RequestGenerator {
+ private:
+  void getFromConfigImpl(const std::string &key, const Poco::Util::AbstractConfiguration &config) override;
+  std::string descriptionImpl() override;
+  ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs &acls) override;
+  void startupImpl(Coordination::ZooKeeper &zookeeper) override;
 
-    PathGetter path;
+  PathGetter path;
 };
 
-struct RequestGetter
-{
-    explicit RequestGetter(std::vector<RequestGeneratorPtr> request_generators_);
+struct RequestGetter {
+  explicit RequestGetter(std::vector<RequestGeneratorPtr> request_generators_);
 
-    RequestGetter() = default;
+  RequestGetter() = default;
 
-    static RequestGetter fromConfig(const std::string & key, const Poco::Util::AbstractConfiguration & config, bool for_multi = false);
+  static RequestGetter fromConfig(const std::string &key, const Poco::Util::AbstractConfiguration &config, bool for_multi = false);
 
-    RequestGeneratorPtr getRequestGenerator() const;
-    std::string description() const;
-    void startup(Coordination::ZooKeeper & zookeeper);
-    const std::vector<RequestGeneratorPtr> & requestGenerators() const;
-private:
-    std::vector<RequestGeneratorPtr> request_generators;
-    std::vector<size_t> weights;
-    mutable std::uniform_int_distribution<size_t> request_generator_picker;
+  RequestGeneratorPtr getRequestGenerator() const;
+  std::string description() const;
+  void startup(Coordination::ZooKeeper &zookeeper);
+  const std::vector<RequestGeneratorPtr> &requestGenerators() const;
+
+ private:
+  std::vector<RequestGeneratorPtr> request_generators;
+  std::vector<size_t> weights;
+  mutable std::uniform_int_distribution<size_t> request_generator_picker;
 };
 
-struct MultiRequestGenerator final : public RequestGenerator
-{
-private:
-    void getFromConfigImpl(const std::string & key, const Poco::Util::AbstractConfiguration & config) override;
-    std::string descriptionImpl() override;
-    ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs & acls) override;
-    void startupImpl(Coordination::ZooKeeper & zookeeper) override;
+struct MultiRequestGenerator final : public RequestGenerator {
+ private:
+  void getFromConfigImpl(const std::string &key, const Poco::Util::AbstractConfiguration &config) override;
+  std::string descriptionImpl() override;
+  ZooKeeperRequestWithCallbacks generateImpl(const Coordination::ACLs &acls) override;
+  void startupImpl(Coordination::ZooKeeper &zookeeper) override;
 
-    std::optional<NumberGetter> size;
-    RequestGetter request_getter;
+  std::optional<NumberGetter> size;
+  RequestGetter request_getter;
 };
 
-class Generator
-{
-public:
-    explicit Generator(const Poco::Util::AbstractConfiguration & config);
+class Generator {
+ public:
+  explicit Generator(const Poco::Util::AbstractConfiguration &config);
 
-    void startup(Coordination::ZooKeeper & zookeeper);
-    ZooKeeperRequestWithCallbacks generate();
-private:
+  void startup(Coordination::ZooKeeper &zookeeper);
+  ZooKeeperRequestWithCallbacks generate();
 
-    std::uniform_int_distribution<size_t> request_picker;
-    RequestGetter request_getter;
-    Coordination::ACLs default_acls;
+ private:
+  std::uniform_int_distribution<size_t> request_picker;
+  RequestGetter request_getter;
+  Coordination::ACLs default_acls;
 };

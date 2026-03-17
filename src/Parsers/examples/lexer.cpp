@@ -1,21 +1,18 @@
-#include <map>
-#include <Parsers/Lexer.h>
 #include <base/types.h>
 #include <IO/ReadBufferFromFileDescriptor.h>
-#include <IO/WriteBufferFromFileDescriptor.h>
 #include <IO/ReadHelpers.h>
+#include <IO/WriteBufferFromFileDescriptor.h>
 #include <IO/WriteHelpers.h>
-
+#include <Parsers/Lexer.h>
+#include <map>
 
 /// How to test:
 /// for i in ~/work/ClickHouse/tests/queries/0_stateless/*.sql; do echo $i; grep -q 'FORMAT' $i || ./lexer < $i || break; done
 ///
 
-
 using namespace DB;
 
-std::map<TokenType, const char *> hilite =
-{
+std::map<TokenType, const char *> hilite = {
     {TokenType::Whitespace, "\033[0;44m"},
     {TokenType::Comment, "\033[1;46m"},
     {TokenType::BareWord, "\033[1m"},
@@ -61,61 +58,54 @@ std::map<TokenType, const char *> hilite =
     {TokenType::ErrorMaxQuerySizeExceeded, "\033[0;41m"},
 };
 
+int main(int, char **) {
+  String query;
+  ReadBufferFromFileDescriptor in(STDIN_FILENO);
+  WriteBufferFromFileDescriptor out(STDOUT_FILENO);
+  readStringUntilEOF(query, in);
 
-int main(int, char **)
-{
-    String query;
-    ReadBufferFromFileDescriptor in(STDIN_FILENO);
-    WriteBufferFromFileDescriptor out(STDOUT_FILENO);
-    readStringUntilEOF(query, in);
+  Lexer lexer(query.data(), query.data() + query.size());
 
-    Lexer lexer(query.data(), query.data() + query.size());
+  while (true) {
+    Token token = lexer.nextToken();
 
-    while (true)
-    {
-        Token token = lexer.nextToken();
+    if (token.isEnd()) break;
 
-        if (token.isEnd())
-            break;
+    writeChar(' ', out);
 
-        writeChar(' ', out);
+    auto it = hilite.find(token.type);
+    if (it != hilite.end()) writeCString(it->second, out);
 
-        auto it = hilite.find(token.type);
-        if (it != hilite.end())
-            writeCString(it->second, out);
+    writeString(token.begin, token.size(), out);
 
-        writeString(token.begin, token.size(), out);
+    if (it != hilite.end()) writeCString("\033[0m", out);
 
-        if (it != hilite.end())
-            writeCString("\033[0m", out);
+    writeChar(' ', out);
 
-        writeChar(' ', out);
+    if (token.isError()) return 1;
+  }
 
-        if (token.isError())
-            return 1;
-    }
+  writeChar('\n', out);
+  /*
+      Tokens tokens(query.data(), query.data() + query.size());
+      TokenIterator token(tokens);
 
-    writeChar('\n', out);
-/*
-    Tokens tokens(query.data(), query.data() + query.size());
-    TokenIterator token(tokens);
+      while (token->type.isEnd())
+      {
+          auto it = hilite.find(token->type);
+          if (it != hilite.end())
+              writeCString(it->second, out);
 
-    while (token->type.isEnd())
-    {
-        auto it = hilite.find(token->type);
-        if (it != hilite.end())
-            writeCString(it->second, out);
+          writeString(token->begin, token->size(), out);
 
-        writeString(token->begin, token->size(), out);
+          if (it != hilite.end())
+              writeCString("\033[0m", out);
 
-        if (it != hilite.end())
-            writeCString("\033[0m", out);
+          writeChar('\n', out);
+          ++token;
+      }*/
 
-        writeChar('\n', out);
-        ++token;
-    }*/
+  out.finalize();
 
-    out.finalize();
-
-    return 0;
+  return 0;
 }

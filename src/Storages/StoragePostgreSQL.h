@@ -3,89 +3,69 @@
 #include "config.h"
 
 #if USE_LIBPQXX
-#include <Interpreters/Context_fwd.h>
-#include <Storages/IStorage.h>
+#  include <Interpreters/Context_fwd.h>
+#  include <Storages/IStorage.h>
 
-namespace Poco
-{
+namespace Poco {
 class Logger;
 }
 
-namespace postgres
-{
+namespace postgres {
 class PoolWithFailover;
 using PoolWithFailoverPtr = std::shared_ptr<PoolWithFailover>;
-}
+}  // namespace postgres
 
-namespace DB
-{
+namespace DB {
 class NamedCollection;
 struct StorageID;
 
-class StoragePostgreSQL final : public IStorage
-{
-public:
-    StoragePostgreSQL(
-        const StorageID & table_id_,
-        postgres::PoolWithFailoverPtr pool_,
-        const String & remote_table_name_,
-        const ColumnsDescription & columns_,
-        const ConstraintsDescription & constraints_,
-        const String & comment,
-        ContextPtr context_,
-        const String & remote_table_schema_ = "",
-        const String & on_conflict = "");
+class StoragePostgreSQL final : public IStorage {
+ public:
+  StoragePostgreSQL(const StorageID& table_id_, postgres::PoolWithFailoverPtr pool_, const String& remote_table_name_,
+                    const ColumnsDescription& columns_, const ConstraintsDescription& constraints_, const String& comment,
+                    ContextPtr context_, const String& remote_table_schema_ = "", const String& on_conflict = "");
 
-    String getName() const override { return "PostgreSQL"; }
+  String getName() const override { return "PostgreSQL"; }
 
-    bool isExternalDatabase() const override { return true; }
+  bool isExternalDatabase() const override { return true; }
 
-    void read(
-        QueryPlan & query_plan,
-        const Names & column_names,
-        const StorageSnapshotPtr & storage_snapshot,
-        SelectQueryInfo & query_info,
-        ContextPtr local_context,
-        QueryProcessingStage::Enum processed_stage,
-        size_t max_block_size,
-        size_t num_streams) override;
+  void read(QueryPlan& query_plan, const Names& column_names, const StorageSnapshotPtr& storage_snapshot, SelectQueryInfo& query_info,
+            ContextPtr local_context, QueryProcessingStage::Enum processed_stage, size_t max_block_size, size_t num_streams) override;
 
-    SinkToStoragePtr write(const ASTPtr & query, const StorageMetadataPtr & /*metadata_snapshot*/, ContextPtr context, bool async_insert) override;
+  SinkToStoragePtr write(const ASTPtr& query, const StorageMetadataPtr& /*metadata_snapshot*/, ContextPtr context,
+                         bool async_insert) override;
 
-    struct Configuration
-    {
-        String host;
-        UInt16 port = 0;
-        String username = "default";
-        String password;
-        String database;
-        String table;
-        String schema;
-        String on_conflict;
-
-        std::vector<std::pair<String, UInt16>> addresses; /// Failover replicas.
-        String addresses_expr;
-    };
-
-    static Configuration getConfiguration(ASTs engine_args, ContextPtr context, const StorageID * table_id = nullptr);
-
-    static Configuration processNamedCollectionResult(const NamedCollection & named_collection, ContextPtr context_, bool require_table = true);
-
-    static ColumnsDescription getTableStructureFromData(
-        const postgres::PoolWithFailoverPtr & pool_,
-        const String & table,
-        const String & schema,
-        const ContextPtr & context_);
-
-private:
-    String remote_table_name;
-    String remote_table_schema;
+  struct Configuration {
+    String host;
+    UInt16 port = 0;
+    String username = "default";
+    String password;
+    String database;
+    String table;
+    String schema;
     String on_conflict;
-    postgres::PoolWithFailoverPtr pool;
 
-    LoggerPtr log;
+    std::vector<std::pair<String, UInt16>> addresses;  /// Failover replicas.
+    String addresses_expr;
+  };
+
+  static Configuration getConfiguration(ASTs engine_args, ContextPtr context, const StorageID* table_id = nullptr);
+
+  static Configuration processNamedCollectionResult(const NamedCollection& named_collection, ContextPtr context_,
+                                                    bool require_table = true);
+
+  static ColumnsDescription getTableStructureFromData(const postgres::PoolWithFailoverPtr& pool_, const String& table, const String& schema,
+                                                      const ContextPtr& context_);
+
+ private:
+  String remote_table_name;
+  String remote_table_schema;
+  String on_conflict;
+  postgres::PoolWithFailoverPtr pool;
+
+  LoggerPtr log;
 };
 
-}
+}  // namespace DB
 
 #endif

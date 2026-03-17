@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Disks/IDisk.h>
-namespace DB
-{
-bool supportWritingWithAppend(const DiskPtr & disk);
+namespace DB {
+bool supportWritingWithAppend(const DiskPtr& disk);
 }

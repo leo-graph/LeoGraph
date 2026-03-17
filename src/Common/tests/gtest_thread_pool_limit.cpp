@@ -1,34 +1,30 @@
-#include <atomic>
-#include <Common/ThreadPool.h>
 #include <Common/CurrentMetrics.h>
+#include <Common/ThreadPool.h>
+#include <atomic>
 
 #include <gtest/gtest.h>
 
-namespace CurrentMetrics
-{
-    extern const Metric LocalThread;
-    extern const Metric LocalThreadActive;
-    extern const Metric LocalThreadScheduled;
-}
+namespace CurrentMetrics {
+extern const Metric LocalThread;
+extern const Metric LocalThreadActive;
+extern const Metric LocalThreadScheduled;
+}  // namespace CurrentMetrics
 
 /// Test for thread self-removal when number of free threads in pool is too large.
 /// Just checks that nothing weird happens.
 
 template <typename Pool>
-int test()
-{
-    Pool pool(CurrentMetrics::LocalThread, CurrentMetrics::LocalThreadActive, CurrentMetrics::LocalThreadScheduled, 10, 2, 10);
+int test() {
+  Pool pool(CurrentMetrics::LocalThread, CurrentMetrics::LocalThreadActive, CurrentMetrics::LocalThreadScheduled, 10, 2, 10);
 
-    std::atomic<int> counter{0};
-    for (size_t i = 0; i < 10; ++i)
-        pool.scheduleOrThrowOnError([&]{ ++counter; });
-    pool.wait();
+  std::atomic<int> counter{0};
+  for (size_t i = 0; i < 10; ++i) pool.scheduleOrThrowOnError([&] { ++counter; });
+  pool.wait();
 
-    return counter;
+  return counter;
 }
 
-TEST(ThreadPool, ThreadRemoval)
-{
-    EXPECT_EQ(test<FreeThreadPool>(), 10);
-    EXPECT_EQ(test<ThreadPool>(), 10);
+TEST(ThreadPool, ThreadRemoval) {
+  EXPECT_EQ(test<FreeThreadPool>(), 10);
+  EXPECT_EQ(test<ThreadPool>(), 10);
 }

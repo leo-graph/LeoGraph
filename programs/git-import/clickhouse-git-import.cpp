@@ -1,1 +1,1 @@
-int mainEntryClickHouseGitImport(int argc, char ** argv);
+int mainEntryClickHouseGitImport(int argc, char** argv);

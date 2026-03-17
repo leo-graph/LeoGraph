@@ -4,24 +4,22 @@
 
 #include <Analyzer/IQueryTreeNode.h>
 
-namespace DB
-{
+namespace DB {
 
 class RecursiveCTEChunkGenerator;
 
-class RecursiveCTESource : public ISource
-{
-public:
-    explicit RecursiveCTESource(SharedHeader header, QueryTreeNodePtr recursive_cte_union_node_);
+class RecursiveCTESource : public ISource {
+ public:
+  explicit RecursiveCTESource(SharedHeader header, QueryTreeNodePtr recursive_cte_union_node_);
 
-    ~RecursiveCTESource() override;
+  ~RecursiveCTESource() override;
 
-    String getName() const override { return "RecursiveCTESource"; }
+  String getName() const override { return "RecursiveCTESource"; }
 
-    Chunk generate() override;
+  Chunk generate() override;
 
-private:
-    std::unique_ptr<RecursiveCTEChunkGenerator> generator;
+ private:
+  std::unique_ptr<RecursiveCTEChunkGenerator> generator;
 };
 
-}
+}  // namespace DB

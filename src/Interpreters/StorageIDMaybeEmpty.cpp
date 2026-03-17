@@ -1,28 +1,16 @@
 #include <Interpreters/StorageIDMaybeEmpty.h>
 
+namespace DB {
 
-namespace DB
-{
+StorageIDMaybeEmpty::StorageIDMaybeEmpty() : StorageIDMaybeEmpty(StorageID::createEmpty()) {}
 
-StorageIDMaybeEmpty::StorageIDMaybeEmpty()
-    : StorageIDMaybeEmpty(StorageID::createEmpty())
-{
+StorageIDMaybeEmpty::StorageIDMaybeEmpty(const StorageID& other)  // NOLINT this is an implicit c-tor
+    : StorageID(other) {}
+
+bool StorageIDMaybeEmpty::operator==(const StorageIDMaybeEmpty& other) const {
+  if (empty() && other.empty()) return true;
+  if (empty() || other.empty()) return false;
+  return StorageID::operator==(other);
 }
 
-
-StorageIDMaybeEmpty::StorageIDMaybeEmpty(const StorageID & other) // NOLINT this is an implicit c-tor
-    : StorageID(other)
-{
-}
-
-
-bool StorageIDMaybeEmpty::operator==(const StorageIDMaybeEmpty & other) const
-{
-    if (empty() && other.empty())
-        return true;
-    if (empty() || other.empty())
-        return false;
-    return StorageID::operator==(other);
-}
-
-}
+}  // namespace DB

@@ -1,26 +1,21 @@
 #include "config.h"
 
 #if USE_YAML_CPP
-#include <Common/tests/gtest_helper_functions.h>
-#include <base/scope_guard.h>
-#include <Common/Config/YAMLParser.h>
-#include <Common/Config/ConfigHelper.h>
-#include <Poco/AutoPtr.h>
-#include <Poco/DOM/Document.h>
+#  include <base/scope_guard.h>
+#  include <Common/Config/ConfigHelper.h>
+#  include <Common/Config/YAMLParser.h>
+#  include <Common/tests/gtest_helper_functions.h>
+#  include <Poco/AutoPtr.h>
+#  include <Poco/DOM/Document.h>
 
-#include <gtest/gtest.h>
-
+#  include <gtest/gtest.h>
 
 using namespace DB;
 
-TEST(YamlParser, InvalidFile)
-{
-    ASSERT_THROW(YAMLParser::parse("some-non-existing-file.yaml"), Exception);
-}
+TEST(YamlParser, InvalidFile) { ASSERT_THROW(YAMLParser::parse("some-non-existing-file.yaml"), Exception); }
 
-TEST(YamlParser, ProcessValuesList)
-{
-    auto yaml_file = getFileWithContents("values-list.yaml", R"YAML(
+TEST(YamlParser, ProcessValuesList) {
+  auto yaml_file = getFileWithContents("values-list.yaml", R"YAML(
 rules:
   - apiGroups: [""]
     resources:
@@ -30,11 +25,11 @@ rules:
       - endpoints
       - pods
 )YAML");
-    SCOPE_EXIT({ yaml_file->remove(); });
+  SCOPE_EXIT({ yaml_file->remove(); });
 
-    Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
-    auto *p_node = xml->getNodeByPath("/clickhouse");
-    EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
+  Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
+  auto *p_node = xml->getNodeByPath("/clickhouse");
+  EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
 <rules>
 <apiGroups></apiGroups>
 <resources>nodes</resources>
@@ -45,12 +40,10 @@ rules:
 </rules>
 </clickhouse>
 )CONFIG");
-
 }
 
-TEST(YamlParser, ProcessKeysList)
-{
-    auto yaml_file = getFileWithContents("keys-list.yaml", R"YAML(
+TEST(YamlParser, ProcessKeysList) {
+  auto yaml_file = getFileWithContents("keys-list.yaml", R"YAML(
 operator:
     access_management: 1
     networks:
@@ -59,11 +52,11 @@ operator:
           - ::1
           - 127.0.0.1
 )YAML");
-    SCOPE_EXIT({ yaml_file->remove(); });
+  SCOPE_EXIT({ yaml_file->remove(); });
 
-    Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
-    auto *p_node = xml->getNodeByPath("/clickhouse");
-    EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
+  Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
+  auto *p_node = xml->getNodeByPath("/clickhouse");
+  EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
 <operator>
 <access_management>1</access_management>
 <networks>
@@ -74,12 +67,10 @@ operator:
 </operator>
 </clickhouse>
 )CONFIG");
-
 }
 
-TEST(YamlParser, ProcessListAttributes)
-{
-    auto yaml_file = getFileWithContents("list_attributes.yaml", R"YAML(
+TEST(YamlParser, ProcessListAttributes) {
+  auto yaml_file = getFileWithContents("list_attributes.yaml", R"YAML(
 seq:
   - "@attr1": x
   - k1: val1
@@ -88,11 +79,11 @@ seq:
   - k3: val3
     "@attr3": z
 )YAML");
-    SCOPE_EXIT({ yaml_file->remove(); });
+  SCOPE_EXIT({ yaml_file->remove(); });
 
-    Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
-    auto *p_node = xml->getNodeByPath("/clickhouse");
-    EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
+  Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
+  auto *p_node = xml->getNodeByPath("/clickhouse");
+  EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
 <seq attr1="x"></seq>
 <seq attr2="y">
 <k1>val1</k1>
@@ -103,12 +94,10 @@ seq:
 </seq>
 </clickhouse>
 )CONFIG");
-
 }
 
-TEST(YamlParser, ProcessMapAttributes)
-{
-    auto yaml_file = getFileWithContents("map_attributes.yaml", R"YAML(
+TEST(YamlParser, ProcessMapAttributes) {
+  auto yaml_file = getFileWithContents("map_attributes.yaml", R"YAML(
 map:
     "@attr1": x
     k1: val1
@@ -117,11 +106,11 @@ map:
     k3: val3
     "@attr3": z
 )YAML");
-    SCOPE_EXIT({ yaml_file->remove(); });
+  SCOPE_EXIT({ yaml_file->remove(); });
 
-    Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
-    auto *p_node = xml->getNodeByPath("/clickhouse");
-    EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
+  Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
+  auto *p_node = xml->getNodeByPath("/clickhouse");
+  EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
 <map attr1="x" attr2="y" attr3="z">
 <k1>val1</k1>
 <k2>val2</k2>
@@ -129,12 +118,10 @@ map:
 </map>
 </clickhouse>
 )CONFIG");
-
 }
 
-TEST(YamlParser, ClusterDef)
-{
-    auto yaml_file = getFileWithContents("cluster_def.yaml", R"YAML(
+TEST(YamlParser, ClusterDef) {
+  auto yaml_file = getFileWithContents("cluster_def.yaml", R"YAML(
 test_cluster:
     shard:
         - internal_replication: false
@@ -150,11 +137,11 @@ test_cluster:
               - host: 127.0.0.4
                 port: 9000
 )YAML");
-    SCOPE_EXIT({ yaml_file->remove(); });
+  SCOPE_EXIT({ yaml_file->remove(); });
 
-    Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
-    auto *p_node = xml->getNodeByPath("/clickhouse");
-    EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
+  Poco::AutoPtr<Poco::XML::Document> xml = YAMLParser::parse(yaml_file->path());
+  auto *p_node = xml->getNodeByPath("/clickhouse");
+  EXPECT_EQ(xmlNodeAsString(p_node), R"CONFIG(<clickhouse>
 <test_cluster>
 <shard>
 <internal_replication>false</internal_replication>
@@ -181,7 +168,6 @@ test_cluster:
 </test_cluster>
 </clickhouse>
 )CONFIG");
-
 }
 
 #endif

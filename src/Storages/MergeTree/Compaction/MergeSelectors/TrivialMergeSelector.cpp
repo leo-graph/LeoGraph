@@ -4,95 +4,77 @@
 
 #include <algorithm>
 
-namespace DB
-{
+namespace DB {
 
-PartsRanges TrivialMergeSelector::select(
-    const PartsRanges & parts_ranges,
-    const MergeConstraints & merge_constraints,
-    const RangeFilter & range_filter) const
-{
-    chassert(merge_constraints.size() == 1, "Multi Select is not supported for TrivialMergeSelector");
-    const size_t max_total_size_to_merge = merge_constraints[0].max_size_bytes;
-    const size_t max_rows_in_part = merge_constraints[0].max_size_rows;
+PartsRanges TrivialMergeSelector::select(const PartsRanges& parts_ranges, const MergeConstraints& merge_constraints,
+                                         const RangeFilter& range_filter) const {
+  chassert(merge_constraints.size() == 1, "Multi Select is not supported for TrivialMergeSelector");
+  const size_t max_total_size_to_merge = merge_constraints[0].max_size_bytes;
+  const size_t max_rows_in_part = merge_constraints[0].max_size_rows;
 
-    size_t num_partitions = parts_ranges.size();
-    if (num_partitions == 0)
-        return {};
+  size_t num_partitions = parts_ranges.size();
+  if (num_partitions == 0) return {};
 
-    /// Sort partitions from the largest to smallest in the number of parts.
-    std::vector<size_t> sorted_partition_indices;
-    sorted_partition_indices.reserve(num_partitions);
-    for (size_t i = 0; i < num_partitions; ++i)
-        if (parts_ranges[i].size() >= settings.num_parts_to_merge)
-            sorted_partition_indices.emplace_back(i);
+  /// Sort partitions from the largest to smallest in the number of parts.
+  std::vector<size_t> sorted_partition_indices;
+  sorted_partition_indices.reserve(num_partitions);
+  for (size_t i = 0; i < num_partitions; ++i)
+    if (parts_ranges[i].size() >= settings.num_parts_to_merge) sorted_partition_indices.emplace_back(i);
 
-    if (sorted_partition_indices.empty())
-        return {};
+  if (sorted_partition_indices.empty()) return {};
 
-    std::sort(sorted_partition_indices.begin(), sorted_partition_indices.end(),
-        [&](size_t i, size_t j){ return parts_ranges[i].size() > parts_ranges[j].size(); });
+  std::sort(sorted_partition_indices.begin(), sorted_partition_indices.end(),
+            [&](size_t i, size_t j) { return parts_ranges[i].size() > parts_ranges[j].size(); });
 
-    size_t partition_idx = 0;
-    size_t left = 0;
-    size_t right = 0;
+  size_t partition_idx = 0;
+  size_t left = 0;
+  size_t right = 0;
 
-    std::vector<PartsRange> candidates;
-    while (candidates.size() < settings.num_ranges_to_choose)
-    {
-        const PartsRange & partition = parts_ranges[sorted_partition_indices[partition_idx]];
+  std::vector<PartsRange> candidates;
+  while (candidates.size() < settings.num_ranges_to_choose) {
+    const PartsRange& partition = parts_ranges[sorted_partition_indices[partition_idx]];
 
-        if (1 + right - left == settings.num_parts_to_merge)
-        {
-            ++right;
+    if (1 + right - left == settings.num_parts_to_merge) {
+      ++right;
 
-            size_t total_size = 0;
-            size_t total_rows = 0;
+      size_t total_size = 0;
+      size_t total_rows = 0;
 
-            for (size_t i = left; i < right; ++i)
-            {
-                total_size += partition[i].size;
-                total_rows += partition[i].rows;
-            }
+      for (size_t i = left; i < right; ++i) {
+        total_size += partition[i].size;
+        total_rows += partition[i].rows;
+      }
 
-            const auto range_begin = partition.begin() + left;
-            const auto range_end = partition.begin() + right;
+      const auto range_begin = partition.begin() + left;
+      const auto range_end = partition.begin() + right;
 
-            if (total_size <= max_total_size_to_merge
-                && total_rows <= max_rows_in_part
-                && (!range_filter || range_filter({range_begin, range_end})))
-            {
-                candidates.emplace_back(range_begin, range_end);
-                if (candidates.size() == settings.num_ranges_to_choose)
-                    break;
-            }
+      if (total_size <= max_total_size_to_merge && total_rows <= max_rows_in_part &&
+          (!range_filter || range_filter({range_begin, range_end}))) {
+        candidates.emplace_back(range_begin, range_end);
+        if (candidates.size() == settings.num_ranges_to_choose) break;
+      }
 
-            left = right;
-        }
-
-        if (partition.size() - left < settings.num_parts_to_merge)
-        {
-            ++partition_idx;
-            if (partition_idx == sorted_partition_indices.size())
-                break;
-
-            left = 0;
-            right = 0;
-        }
-
-        ++right;
-
-        if (right < partition.size() && partition[right].info.level < partition[left].info.level)
-            left = right;
+      left = right;
     }
 
-    if (candidates.empty())
-        return {};
+    if (partition.size() - left < settings.num_parts_to_merge) {
+      ++partition_idx;
+      if (partition_idx == sorted_partition_indices.size()) break;
 
-    if (candidates.size() == 1)
-        return {candidates[0]};
+      left = 0;
+      right = 0;
+    }
 
-    return {candidates[thread_local_rng() % candidates.size()]};
+    ++right;
+
+    if (right < partition.size() && partition[right].info.level < partition[left].info.level) left = right;
+  }
+
+  if (candidates.empty()) return {};
+
+  if (candidates.size() == 1) return {candidates[0]};
+
+  return {candidates[thread_local_rng() % candidates.size()]};
 }
 
-}
+}  // namespace DB

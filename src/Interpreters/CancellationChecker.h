@@ -1,18 +1,16 @@
 #pragma once
 
 #include <QueryPipeline/SizeLimits.h>
-#include <set>
 #include <mutex>
+#include <set>
 
-namespace Poco
-{
+namespace Poco {
 class Logger;
 }
 
 using LoggerPtr = std::shared_ptr<Poco::Logger>;
 
-namespace DB
-{
+namespace DB {
 
 class QueryStatus;
 using QueryStatusPtr = std::shared_ptr<QueryStatus>;
@@ -23,46 +21,44 @@ Has a priority queue ordered by end time. Checker waits until the
 first task in the list is done, then checks if this task needs to be cancelled.
 If yes, sets a cancellation flag on this task, otherwise removes the task from the queue.
 */
-class CancellationChecker
-{
-private:
-    CancellationChecker();
+class CancellationChecker {
+ private:
+  CancellationChecker();
 
-    struct QueryToTrack;
+  struct QueryToTrack;
 
-    struct CompareEndTime
-    {
-        bool operator()(const QueryToTrack & a, const QueryToTrack & b) const;
-    };
+  struct CompareEndTime {
+    bool operator()(const QueryToTrack &a, const QueryToTrack &b) const;
+  };
 
-    // Priority queue to manage tasks based on endTime
-    std::multiset<QueryToTrack, CompareEndTime> query_set;
+  // Priority queue to manage tasks based on endTime
+  std::multiset<QueryToTrack, CompareEndTime> query_set;
 
-    bool stop_thread;
-    std::mutex m;
-    std::condition_variable cond_var;
+  bool stop_thread;
+  std::mutex m;
+  std::condition_variable cond_var;
 
-    static void cancelTask(CancellationChecker::QueryToTrack task);
+  static void cancelTask(CancellationChecker::QueryToTrack task);
 
-    const LoggerPtr log;
+  const LoggerPtr log;
 
-public:
-    // Singleton instance retrieval
-    static CancellationChecker & getInstance();
+ public:
+  // Singleton instance retrieval
+  static CancellationChecker &getInstance();
 
-    // Deleted copy constructor and assignment operator
-    CancellationChecker(const CancellationChecker &) = delete;
-    CancellationChecker & operator=(const CancellationChecker &) = delete;
+  // Deleted copy constructor and assignment operator
+  CancellationChecker(const CancellationChecker &) = delete;
+  CancellationChecker &operator=(const CancellationChecker &) = delete;
 
-    void terminateThread();
+  void terminateThread();
 
-    // Method to add a new task to the multiset. Returns true if the task was added.
-    [[nodiscard]] bool appendTask(const QueryStatusPtr & query, Int64 timeout, OverflowMode overflow_mode);
+  // Method to add a new task to the multiset. Returns true if the task was added.
+  [[nodiscard]] bool appendTask(const QueryStatusPtr &query, Int64 timeout, OverflowMode overflow_mode);
 
-    // Used when some task is done
-    void appendDoneTasks(const QueryStatusPtr & query);
+  // Used when some task is done
+  void appendDoneTasks(const QueryStatusPtr &query);
 
-    // Worker thread function
-    void workerFunction();
+  // Worker thread function
+  void workerFunction();
 };
-}
+}  // namespace DB

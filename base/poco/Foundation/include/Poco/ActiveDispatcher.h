@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ActiveDispatcher_INCLUDED
 #define Foundation_ActiveDispatcher_INCLUDED
-
 
 #include "Poco/ActiveRunnable.h"
 #include "Poco/ActiveStarter.h"
@@ -25,10 +23,7 @@
 #include "Poco/Runnable.h"
 #include "Poco/Thread.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API ActiveDispatcher : protected Runnable
 /// This class is used to implement an active object
@@ -71,44 +66,41 @@ class Foundation_API ActiveDispatcher : protected Runnable
 /// template for exampleActiveMethod has an additional parameter,
 /// specifying the specialized ActiveStarter for ActiveDispatcher.
 {
-public:
-    ActiveDispatcher();
-    /// Creates the ActiveDispatcher.
+ public:
+  ActiveDispatcher();
+  /// Creates the ActiveDispatcher.
 
-    ActiveDispatcher(Thread::Priority prio);
-    /// Creates the ActiveDispatcher and sets
-    /// the priority of its thread.
+  ActiveDispatcher(Thread::Priority prio);
+  /// Creates the ActiveDispatcher and sets
+  /// the priority of its thread.
 
-    virtual ~ActiveDispatcher();
-    /// Destroys the ActiveDispatcher.
+  virtual ~ActiveDispatcher();
+  /// Destroys the ActiveDispatcher.
 
-    void start(ActiveRunnableBase::Ptr pRunnable);
-    /// Adds the Runnable to the dispatch queue.
+  void start(ActiveRunnableBase::Ptr pRunnable);
+  /// Adds the Runnable to the dispatch queue.
 
-    void cancel();
-    /// Cancels all queued methods.
+  void cancel();
+  /// Cancels all queued methods.
 
-protected:
-    void run();
-    void stop();
+ protected:
+  void run();
+  void stop();
 
-private:
-    Thread _thread;
-    NotificationQueue _queue;
+ private:
+  Thread _thread;
+  NotificationQueue _queue;
 };
-
 
 template <>
 class ActiveStarter<ActiveDispatcher>
 /// A specialization of ActiveStarter
 /// for ActiveDispatcher.
 {
-public:
-    static void start(ActiveDispatcher * pOwner, ActiveRunnableBase::Ptr pRunnable) { pOwner->start(pRunnable); }
+ public:
+  static void start(ActiveDispatcher* pOwner, ActiveRunnableBase::Ptr pRunnable) { pOwner->start(pRunnable); }
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ActiveDispatcher_INCLUDED
+#endif  // Foundation_ActiveDispatcher_INCLUDED

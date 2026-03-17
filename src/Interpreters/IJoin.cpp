@@ -1,25 +1,17 @@
 #include <Interpreters/IJoin.h>
 
-namespace DB
-{
+namespace DB {
 
-class JoinResultFromBlock : public IJoinResult
-{
-public:
-    explicit JoinResultFromBlock(Block block_) : block(std::move(block_)) {}
+class JoinResultFromBlock : public IJoinResult {
+ public:
+  explicit JoinResultFromBlock(Block block_) : block(std::move(block_)) {}
 
-    JoinResultBlock next() override
-    {
-        return {std::move(block), nullptr, true};
-    }
+  JoinResultBlock next() override { return {std::move(block), nullptr, true}; }
 
-private:
-    Block block;
+ private:
+  Block block;
 };
 
-JoinResultPtr IJoinResult::createFromBlock(Block block)
-{
-    return std::make_unique<JoinResultFromBlock>(std::move(block));
-}
+JoinResultPtr IJoinResult::createFromBlock(Block block) { return std::make_unique<JoinResultFromBlock>(std::move(block)); }
 
-}
+}  // namespace DB

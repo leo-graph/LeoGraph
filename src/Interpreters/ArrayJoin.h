@@ -1,13 +1,11 @@
 #pragma once
 #include <Core/Names.h>
 
-namespace DB
-{
+namespace DB {
 
-struct ArrayJoin
-{
-    Names columns;
-    bool is_left = false;
+struct ArrayJoin {
+  Names columns;
+  bool is_left = false;
 };
 
-}
+}  // namespace DB

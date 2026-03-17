@@ -2,59 +2,57 @@
 
 #include <Core/Types_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 /// @note Except explicitly described you should not assume on TypeIndex numbers and/or their orders in this enum.
-enum class TypeIndex : uint8_t
-{
-    Nothing = 0,
-    UInt8,
-    UInt16,
-    UInt32,
-    UInt64,
-    UInt128,
-    UInt256,
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-    Int128,
-    Int256,
-    BFloat16,
-    Float32,
-    Float64,
-    Date,
-    Date32,
-    DateTime,
-    DateTime64,
-    Time,
-    Time64,
-    String,
-    FixedString,
-    Enum8,
-    Enum16,
-    Decimal32,
-    Decimal64,
-    Decimal128,
-    Decimal256,
-    UUID,
-    Array,
-    Tuple,
-    QBit,
-    Set,
-    Interval,
-    Nullable,
-    Function,
-    AggregateFunction,
-    LowCardinality,
-    Map,
-    Object,
-    IPv4,
-    IPv6,
-    JSONPaths,
-    Variant,
-    Dynamic
+enum class TypeIndex : uint8_t {
+  Nothing = 0,
+  UInt8,
+  UInt16,
+  UInt32,
+  UInt64,
+  UInt128,
+  UInt256,
+  Int8,
+  Int16,
+  Int32,
+  Int64,
+  Int128,
+  Int256,
+  BFloat16,
+  Float32,
+  Float64,
+  Date,
+  Date32,
+  DateTime,
+  DateTime64,
+  Time,
+  Time64,
+  String,
+  FixedString,
+  Enum8,
+  Enum16,
+  Decimal32,
+  Decimal64,
+  Decimal128,
+  Decimal256,
+  UUID,
+  Array,
+  Tuple,
+  QBit,
+  Set,
+  Interval,
+  Nullable,
+  Function,
+  AggregateFunction,
+  LowCardinality,
+  Map,
+  Object,
+  IPv4,
+  IPv6,
+  JSONPaths,
+  Variant,
+  Dynamic
 };
 
 /**
@@ -66,9 +64,11 @@ enum class TypeIndex : uint8_t
  * @example TypeToTypeIndex<UInt8> == TypeIndex::UInt8
  * @example TypeToTypeIndex<MySuperType> == TypeIndex::Nothing
  */
-template <class T> inline constexpr TypeIndex TypeToTypeIndex = TypeIndex::Nothing;
+template <class T>
+inline constexpr TypeIndex TypeToTypeIndex = TypeIndex::Nothing;
 
-template <TypeIndex index> struct TypeIndexToTypeHelper : std::false_type {};
+template <TypeIndex index>
+struct TypeIndexToTypeHelper : std::false_type {};
 
 /**
  * Obtain real type from TypeIndex if possible.
@@ -78,12 +78,18 @@ template <TypeIndex index> struct TypeIndexToTypeHelper : std::false_type {};
  *
  * @example TypeIndexToType<TypeIndex::UInt8> == UInt8
  */
-template <TypeIndex index> using TypeIndexToType = typename TypeIndexToTypeHelper<index>::T;
-template <TypeIndex index> constexpr bool TypeIndexHasType = TypeIndexToTypeHelper<index>::value;
+template <TypeIndex index>
+using TypeIndexToType = typename TypeIndexToTypeHelper<index>::T;
+template <TypeIndex index>
+constexpr bool TypeIndexHasType = TypeIndexToTypeHelper<index>::value;
 
-#define TYPEID_MAP(_A) \
-    template <> inline constexpr TypeIndex TypeToTypeIndex<_A> = TypeIndex::_A; \
-    template <> struct TypeIndexToTypeHelper<TypeIndex::_A> : std::true_type { using T = _A; };
+#define TYPEID_MAP(_A)                                            \
+  template <>                                                     \
+  inline constexpr TypeIndex TypeToTypeIndex<_A> = TypeIndex::_A; \
+  template <>                                                     \
+  struct TypeIndexToTypeHelper<TypeIndex::_A> : std::true_type {  \
+    using T = _A;                                                 \
+  };
 
 TYPEID_MAP(UInt8)
 TYPEID_MAP(UInt16)
@@ -118,4 +124,4 @@ TYPEID_MAP(Array)
 
 #undef TYPEID_MAP
 
-}
+}  // namespace DB

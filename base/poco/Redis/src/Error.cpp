@@ -13,27 +13,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Redis/Error.h"
-
 
 namespace Poco {
 namespace Redis {
 
+Error::Error() {}
 
-Error::Error()
-{
-}
+Error::Error(const std::string& message) : _message(message) {}
 
+Error::~Error() {}
 
-Error::Error(const std::string& message): _message(message)
-{
-}
-
-
-Error::~Error()
-{
-}
-
-
-} } // namespace Poco::Redis
+}  // namespace Redis
+}  // namespace Poco

@@ -9,7 +9,7 @@
 #pragma clang diagnostic ignored "-Wdtor-name"
 #pragma clang diagnostic ignored "-Wnullability-extension"
 #if defined(__clang__) && __clang_major__ >= 21
-#pragma clang diagnostic ignored "-Wms-bitfield-padding"
+#  pragma clang diagnostic ignored "-Wms-bitfield-padding"
 #endif
 #include <re2/re2.h>
 #include <re2/regexp.h>

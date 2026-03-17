@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ActiveMethod_INCLUDED
 #define Foundation_ActiveMethod_INCLUDED
-
 
 #include "Poco/ActiveResult.h"
 #include "Poco/ActiveRunnable.h"
@@ -24,10 +22,7 @@
 #include "Poco/AutoPtr.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class ResultType, class ArgType, class OwnerType, class StarterType = ActiveStarter<OwnerType>>
 class ActiveMethod
@@ -72,48 +67,47 @@ class ActiveMethod
 /// For methods that do not require an argument or a return value, the Void
 /// class can be used.
 {
-public:
-    typedef ResultType (OwnerType::*Callback)(const ArgType &);
-    typedef ActiveResult<ResultType> ActiveResultType;
-    typedef ActiveRunnable<ResultType, ArgType, OwnerType> ActiveRunnableType;
+ public:
+  typedef ResultType (OwnerType::*Callback)(const ArgType &);
+  typedef ActiveResult<ResultType> ActiveResultType;
+  typedef ActiveRunnable<ResultType, ArgType, OwnerType> ActiveRunnableType;
 
-    ActiveMethod(OwnerType * pOwner, Callback method) : _pOwner(pOwner), _method(method)
-    /// Creates an ActiveMethod object.
-    {
-        poco_check_ptr(pOwner);
-    }
+  ActiveMethod(OwnerType *pOwner, Callback method)
+      : _pOwner(pOwner),
+        _method(method)
+  /// Creates an ActiveMethod object.
+  {
+    poco_check_ptr(pOwner);
+  }
 
-    ActiveResultType operator()(const ArgType & arg)
-    /// Invokes the ActiveMethod.
-    {
-        ActiveResultType result(new ActiveResultHolder<ResultType>());
-        ActiveRunnableBase::Ptr pRunnable(new ActiveRunnableType(_pOwner, _method, arg, result));
-        StarterType::start(_pOwner, pRunnable);
-        return result;
-    }
+  ActiveResultType operator()(const ArgType &arg)
+  /// Invokes the ActiveMethod.
+  {
+    ActiveResultType result(new ActiveResultHolder<ResultType>());
+    ActiveRunnableBase::Ptr pRunnable(new ActiveRunnableType(_pOwner, _method, arg, result));
+    StarterType::start(_pOwner, pRunnable);
+    return result;
+  }
 
-    ActiveMethod(const ActiveMethod & other) : _pOwner(other._pOwner), _method(other._method) { }
+  ActiveMethod(const ActiveMethod &other) : _pOwner(other._pOwner), _method(other._method) {}
 
-    ActiveMethod & operator=(const ActiveMethod & other)
-    {
-        ActiveMethod tmp(other);
-        swap(tmp);
-        return *this;
-    }
+  ActiveMethod &operator=(const ActiveMethod &other) {
+    ActiveMethod tmp(other);
+    swap(tmp);
+    return *this;
+  }
 
-    void swap(ActiveMethod & other)
-    {
-        std::swap(_pOwner, other._pOwner);
-        std::swap(_method, other._method);
-    }
+  void swap(ActiveMethod &other) {
+    std::swap(_pOwner, other._pOwner);
+    std::swap(_method, other._method);
+  }
 
-private:
-    ActiveMethod();
+ private:
+  ActiveMethod();
 
-    OwnerType * _pOwner;
-    Callback _method;
+  OwnerType *_pOwner;
+  Callback _method;
 };
-
 
 template <class ResultType, class OwnerType, class StarterType>
 class ActiveMethod<ResultType, void, OwnerType, StarterType>
@@ -157,50 +151,48 @@ class ActiveMethod<ResultType, void, OwnerType, StarterType>
 ///
 /// For methods that do not require an argument or a return value, simply use void.
 {
-public:
-    typedef ResultType (OwnerType::*Callback)(void);
-    typedef ActiveResult<ResultType> ActiveResultType;
-    typedef ActiveRunnable<ResultType, void, OwnerType> ActiveRunnableType;
+ public:
+  typedef ResultType (OwnerType::*Callback)(void);
+  typedef ActiveResult<ResultType> ActiveResultType;
+  typedef ActiveRunnable<ResultType, void, OwnerType> ActiveRunnableType;
 
-    ActiveMethod(OwnerType * pOwner, Callback method) : _pOwner(pOwner), _method(method)
-    /// Creates an ActiveMethod object.
-    {
-        poco_check_ptr(pOwner);
-    }
+  ActiveMethod(OwnerType *pOwner, Callback method)
+      : _pOwner(pOwner),
+        _method(method)
+  /// Creates an ActiveMethod object.
+  {
+    poco_check_ptr(pOwner);
+  }
 
-    ActiveResultType operator()(void)
-    /// Invokes the ActiveMethod.
-    {
-        ActiveResultType result(new ActiveResultHolder<ResultType>());
-        ActiveRunnableBase::Ptr pRunnable(new ActiveRunnableType(_pOwner, _method, result));
-        StarterType::start(_pOwner, pRunnable);
-        return result;
-    }
+  ActiveResultType operator()(void)
+  /// Invokes the ActiveMethod.
+  {
+    ActiveResultType result(new ActiveResultHolder<ResultType>());
+    ActiveRunnableBase::Ptr pRunnable(new ActiveRunnableType(_pOwner, _method, result));
+    StarterType::start(_pOwner, pRunnable);
+    return result;
+  }
 
-    ActiveMethod(const ActiveMethod & other) : _pOwner(other._pOwner), _method(other._method) { }
+  ActiveMethod(const ActiveMethod &other) : _pOwner(other._pOwner), _method(other._method) {}
 
-    ActiveMethod & operator=(const ActiveMethod & other)
-    {
-        ActiveMethod tmp(other);
-        swap(tmp);
-        return *this;
-    }
+  ActiveMethod &operator=(const ActiveMethod &other) {
+    ActiveMethod tmp(other);
+    swap(tmp);
+    return *this;
+  }
 
-    void swap(ActiveMethod & other)
-    {
-        std::swap(_pOwner, other._pOwner);
-        std::swap(_method, other._method);
-    }
+  void swap(ActiveMethod &other) {
+    std::swap(_pOwner, other._pOwner);
+    std::swap(_method, other._method);
+  }
 
-private:
-    ActiveMethod();
+ private:
+  ActiveMethod();
 
-    OwnerType * _pOwner;
-    Callback _method;
+  OwnerType *_pOwner;
+  Callback _method;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ActiveMethod_INCLUDED
+#endif  // Foundation_ActiveMethod_INCLUDED

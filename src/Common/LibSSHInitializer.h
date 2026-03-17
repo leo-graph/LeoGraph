@@ -1,20 +1,18 @@
 #pragma once
 
-namespace ssh
-{
+namespace ssh {
 
-class LibSSHInitializer
-{
-public:
-    LibSSHInitializer(const LibSSHInitializer &) = delete;
-    LibSSHInitializer & operator=(const LibSSHInitializer &) = delete;
+class LibSSHInitializer {
+ public:
+  LibSSHInitializer(const LibSSHInitializer &) = delete;
+  LibSSHInitializer &operator=(const LibSSHInitializer &) = delete;
 
-    static LibSSHInitializer & instance();
+  static LibSSHInitializer &instance();
 
-    ~LibSSHInitializer();
+  ~LibSSHInitializer();
 
-private:
-    LibSSHInitializer(); // NOLINT
+ private:
+  LibSSHInitializer();  // NOLINT
 };
 
-}
+}  // namespace ssh

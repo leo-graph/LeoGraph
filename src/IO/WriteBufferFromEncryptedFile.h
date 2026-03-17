@@ -3,52 +3,44 @@
 #include "config.h"
 
 #if USE_SSL
-#include <Common/Logger.h>
-#include <Common/assert_cast.h>
-#include <IO/WriteBufferFromFileBase.h>
-#include <IO/FileEncryptionCommon.h>
-#include <IO/WriteBufferDecorator.h>
+#  include <Common/assert_cast.h>
+#  include <Common/Logger.h>
+#  include <IO/FileEncryptionCommon.h>
+#  include <IO/WriteBufferDecorator.h>
+#  include <IO/WriteBufferFromFileBase.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /// Encrypts data and writes the encrypted data to the underlying write buffer.
-class WriteBufferFromEncryptedFile : public WriteBufferDecorator<WriteBufferFromFileBase>
-{
-public:
-    /// `old_file_size` should be set to non-zero if we're going to append an existing file.
-    WriteBufferFromEncryptedFile(
-        size_t buffer_size_,
-        std::unique_ptr<WriteBufferFromFileBase> out_,
-        const String & key_,
-        const FileEncryption::Header & header_,
-        size_t old_file_size,
-        bool use_adaptive_buffer_size_,
-        size_t adaptive_buffer_initial_size);
+class WriteBufferFromEncryptedFile : public WriteBufferDecorator<WriteBufferFromFileBase> {
+ public:
+  /// `old_file_size` should be set to non-zero if we're going to append an existing file.
+  WriteBufferFromEncryptedFile(size_t buffer_size_, std::unique_ptr<WriteBufferFromFileBase> out_, const String &key_,
+                               const FileEncryption::Header &header_, size_t old_file_size, bool use_adaptive_buffer_size_,
+                               size_t adaptive_buffer_initial_size);
 
-    ~WriteBufferFromEncryptedFile() override;
+  ~WriteBufferFromEncryptedFile() override;
 
-    void sync() override;
+  void sync() override;
 
-    std::string getFileName() const override { return assert_cast<WriteBufferFromFileBase *>(out)->getFileName(); }
+  std::string getFileName() const override { return assert_cast<WriteBufferFromFileBase *>(out)->getFileName(); }
 
-private:
-    void nextImpl() override;
+ private:
+  void nextImpl() override;
 
-    void finalFlushBefore() override;
+  void finalFlushBefore() override;
 
-    FileEncryption::Header header;
-    bool flush_header = false;
+  FileEncryption::Header header;
+  bool flush_header = false;
 
-    FileEncryption::Encryptor encryptor;
+  FileEncryption::Encryptor encryptor;
 
-    LoggerPtr log = getLogger("WriteBufferFromEncryptedFile");
+  LoggerPtr log = getLogger("WriteBufferFromEncryptedFile");
 
-    bool use_adaptive_buffer_size;
-    size_t adaptive_buffer_max_size;
+  bool use_adaptive_buffer_size;
+  size_t adaptive_buffer_max_size;
 };
 
-}
+}  // namespace DB
 
 #endif

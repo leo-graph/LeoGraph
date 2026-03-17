@@ -11,28 +11,18 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/RWLock.h"
 
-
-#if   POCO_OS == POCO_OS_ANDROID
-#include "RWLock_Android.cpp"
+#if POCO_OS == POCO_OS_ANDROID
+#  include "RWLock_Android.cpp"
 #else
-#include "RWLock_POSIX.cpp"
+#  include "RWLock_POSIX.cpp"
 #endif
-
 
 namespace Poco {
 
+RWLock::RWLock() {}
 
-RWLock::RWLock()
-{
-}
+RWLock::~RWLock() {}
 
-	
-RWLock::~RWLock()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

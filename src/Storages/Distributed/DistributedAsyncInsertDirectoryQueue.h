@@ -1,17 +1,17 @@
 #pragma once
 
-#include <mutex>
-#include <Core/BackgroundSchedulePoolTaskHolder.h>
-#include <IO/ReadBufferFromFile.h>
-#include <Interpreters/Cluster.h>
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/SettingsChanges.h>
+#include <Core/BackgroundSchedulePoolTaskHolder.h>
+#include <Interpreters/Cluster.h>
+#include <IO/ReadBufferFromFile.h>
+#include <mutex>
 
+namespace CurrentMetrics {
+class Increment;
+}
 
-namespace CurrentMetrics { class Increment; }
-
-namespace DB
-{
+namespace DB {
 
 class IDisk;
 using DiskPtr = std::shared_ptr<IDisk>;
@@ -45,118 +45,111 @@ class ISource;
  * - distributed_background_insert_sleep_time_ms
  * - distributed_background_insert_max_sleep_time_ms
  */
-class DistributedAsyncInsertDirectoryQueue
-{
-    friend class DistributedAsyncInsertBatch;
+class DistributedAsyncInsertDirectoryQueue {
+  friend class DistributedAsyncInsertBatch;
 
-public:
-    DistributedAsyncInsertDirectoryQueue(
-        StorageDistributed & storage_,
-        const DiskPtr & disk_,
-        const std::string & relative_path_,
-        ConnectionPoolWithFailoverPtr pool_,
-        ActionBlocker & monitor_blocker_,
-        BackgroundSchedulePool & bg_pool);
+ public:
+  DistributedAsyncInsertDirectoryQueue(StorageDistributed& storage_, const DiskPtr& disk_, const std::string& relative_path_,
+                                       ConnectionPoolWithFailoverPtr pool_, ActionBlocker& monitor_blocker_,
+                                       BackgroundSchedulePool& bg_pool);
 
-    ~DistributedAsyncInsertDirectoryQueue();
+  ~DistributedAsyncInsertDirectoryQueue();
 
-    static ConnectionPoolWithFailoverPtr createPool(const Cluster::Addresses & addresses, const StorageDistributed & storage);
+  static ConnectionPoolWithFailoverPtr createPool(const Cluster::Addresses& addresses, const StorageDistributed& storage);
 
-    void updatePath(const std::string & new_relative_path);
+  void updatePath(const std::string& new_relative_path);
 
-    void flushAllData(const SettingsChanges & settings_changes);
+  void flushAllData(const SettingsChanges& settings_changes);
 
-    void shutdownAndDropAllData();
+  void shutdownAndDropAllData();
 
-    void shutdownWithoutFlush();
+  void shutdownWithoutFlush();
 
-    static std::shared_ptr<ISource> createSourceFromFile(const String & file_name);
+  static std::shared_ptr<ISource> createSourceFromFile(const String& file_name);
 
-    /// For scheduling via DistributedSink.
-    bool addFileAndSchedule(const std::string & file_path, size_t file_size, size_t ms);
+  /// For scheduling via DistributedSink.
+  bool addFileAndSchedule(const std::string& file_path, size_t file_size, size_t ms);
 
-    struct InternalStatus
-    {
-        std::exception_ptr last_exception;
-        std::chrono::system_clock::time_point last_exception_time;
+  struct InternalStatus {
+    std::exception_ptr last_exception;
+    std::chrono::system_clock::time_point last_exception_time;
 
-        size_t error_count = 0;
+    size_t error_count = 0;
 
-        size_t files_count = 0;
-        size_t bytes_count = 0;
+    size_t files_count = 0;
+    size_t bytes_count = 0;
 
-        size_t broken_files_count = 0;
-        size_t broken_bytes_count = 0;
-    };
-    /// system.distribution_queue interface
-    struct Status : InternalStatus
-    {
-        std::string path;
-        bool is_blocked = false;
-    };
-    Status getStatus();
-
-private:
-    void run();
-
-    bool hasPendingFiles() const;
-
-    void initializeFilesFromDisk();
-    /// Set `force = true` if processing of files must be finished fully despite cancellation flag being set
-    void processFiles(bool force, const SettingsChanges & settings_changes = {});
-    void processFile(std::string & file_path, const SettingsChanges & settings_changes);
-    void processFilesWithBatching(bool force, const SettingsChanges & settings_changes);
-
-    void markAsBroken(const std::string & file_path);
-    void markAsSend(const std::string & file_path);
-
-    SyncGuardPtr getDirectorySyncGuard(const std::string & path);
-
-    std::string getLoggerName() const;
-
-    StorageDistributed & storage;
-    const ConnectionPoolWithFailoverPtr pool;
-
-    DiskPtr disk;
-    std::string relative_path;
+    size_t broken_files_count = 0;
+    size_t broken_bytes_count = 0;
+  };
+  /// system.distribution_queue interface
+  struct Status : InternalStatus {
     std::string path;
-    std::string broken_relative_path;
-    std::string broken_path;
+    bool is_blocked = false;
+  };
+  Status getStatus();
 
-    const bool should_batch_inserts = false;
-    const bool split_batch_on_failure = true;
-    const bool dir_fsync = false;
-    const size_t min_batched_block_size_rows = 0;
-    const size_t min_batched_block_size_bytes = 0;
+ private:
+  void run();
 
-    /// This is pending data (due to some error) for should_batch_inserts==true
-    std::string current_batch_file_path;
-    /// This is pending data (due to some error) for should_batch_inserts==false
-    std::string current_file;
+  bool hasPendingFiles() const;
 
-    struct BatchHeader;
-    struct Batch;
+  void initializeFilesFromDisk();
+  /// Set `force = true` if processing of files must be finished fully despite cancellation flag being set
+  void processFiles(bool force, const SettingsChanges& settings_changes = {});
+  void processFile(std::string& file_path, const SettingsChanges& settings_changes);
+  void processFilesWithBatching(bool force, const SettingsChanges& settings_changes);
 
-    std::mutex status_mutex;
+  void markAsBroken(const std::string& file_path);
+  void markAsSend(const std::string& file_path);
 
-    InternalStatus status;
+  SyncGuardPtr getDirectorySyncGuard(const std::string& path);
 
-    ConcurrentBoundedQueue<std::string> pending_files;
+  std::string getLoggerName() const;
 
-    const std::chrono::milliseconds default_sleep_time;
-    std::chrono::milliseconds sleep_time;
-    const std::chrono::milliseconds max_sleep_time;
-    std::chrono::time_point<std::chrono::system_clock> last_decrease_time {std::chrono::system_clock::now()};
-    std::mutex mutex;
-    LoggerPtr log;
-    ActionBlocker & monitor_blocker;
+  StorageDistributed& storage;
+  const ConnectionPoolWithFailoverPtr pool;
 
-    BackgroundSchedulePoolTaskHolder task_handle;
+  DiskPtr disk;
+  std::string relative_path;
+  std::string path;
+  std::string broken_relative_path;
+  std::string broken_path;
 
-    CurrentMetrics::Increment metric_pending_bytes;
-    CurrentMetrics::Increment metric_pending_files;
-    CurrentMetrics::Increment metric_broken_bytes;
-    CurrentMetrics::Increment metric_broken_files;
+  const bool should_batch_inserts = false;
+  const bool split_batch_on_failure = true;
+  const bool dir_fsync = false;
+  const size_t min_batched_block_size_rows = 0;
+  const size_t min_batched_block_size_bytes = 0;
+
+  /// This is pending data (due to some error) for should_batch_inserts==true
+  std::string current_batch_file_path;
+  /// This is pending data (due to some error) for should_batch_inserts==false
+  std::string current_file;
+
+  struct BatchHeader;
+  struct Batch;
+
+  std::mutex status_mutex;
+
+  InternalStatus status;
+
+  ConcurrentBoundedQueue<std::string> pending_files;
+
+  const std::chrono::milliseconds default_sleep_time;
+  std::chrono::milliseconds sleep_time;
+  const std::chrono::milliseconds max_sleep_time;
+  std::chrono::time_point<std::chrono::system_clock> last_decrease_time{std::chrono::system_clock::now()};
+  std::mutex mutex;
+  LoggerPtr log;
+  ActionBlocker& monitor_blocker;
+
+  BackgroundSchedulePoolTaskHolder task_handle;
+
+  CurrentMetrics::Increment metric_pending_bytes;
+  CurrentMetrics::Increment metric_pending_files;
+  CurrentMetrics::Increment metric_broken_bytes;
+  CurrentMetrics::Increment metric_broken_files;
 };
 
-}
+}  // namespace DB

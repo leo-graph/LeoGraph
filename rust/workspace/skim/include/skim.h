@@ -19,9 +19,9 @@ inline namespace cxxbridge1 {
 struct unsafe_bitcopy_t;
 
 #ifndef CXXBRIDGE1_RUST_STRING
-#define CXXBRIDGE1_RUST_STRING
+#  define CXXBRIDGE1_RUST_STRING
 class String final {
-public:
+ public:
   String() noexcept;
   String(const String &) noexcept;
   String(String &&) noexcept;
@@ -39,8 +39,8 @@ public:
   static String lossy(const char16_t *) noexcept;
   static String lossy(const char16_t *, std::size_t) noexcept;
 
-  String &operator=(const String &) &noexcept;
-  String &operator=(String &&) &noexcept;
+  String &operator=(const String &) & noexcept;
+  String &operator=(String &&) & noexcept;
 
   explicit operator std::string() const;
 
@@ -75,7 +75,7 @@ public:
 
   String(unsafe_bitcopy_t, const String &) noexcept;
 
-private:
+ private:
   struct lossy_t;
   String(lossy_t, const char *, std::size_t) noexcept;
   String(lossy_t, const char16_t *, std::size_t) noexcept;
@@ -83,8 +83,8 @@ private:
 
   std::array<std::uintptr_t, 3> repr;
 };
-#endif // CXXBRIDGE1_RUST_STRING
-} // namespace cxxbridge1
-} // namespace rust
+#endif  // CXXBRIDGE1_RUST_STRING
+}  // namespace cxxbridge1
+}  // namespace rust
 
 ::rust::String skim(::std::string const &prefix, ::std::vector<::std::string> const &words);

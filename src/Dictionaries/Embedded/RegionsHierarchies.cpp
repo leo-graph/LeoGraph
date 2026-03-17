@@ -1,25 +1,22 @@
 #include <Dictionaries/Embedded/RegionsHierarchies.h>
 
-#include <Poco/DirectoryIterator.h>
 #include <Common/logger_useful.h>
+#include <Poco/DirectoryIterator.h>
 
-namespace DB
-{
+namespace DB {
 
-RegionsHierarchies::RegionsHierarchies(IRegionsHierarchiesDataProviderPtr data_provider)
-{
-    LoggerPtr log = getLogger("RegionsHierarchies");
+RegionsHierarchies::RegionsHierarchies(IRegionsHierarchiesDataProviderPtr data_provider) {
+  LoggerPtr log = getLogger("RegionsHierarchies");
 
-    LOG_DEBUG(log, "Adding default regions hierarchy");
-    data.emplace("", data_provider->getDefaultHierarchySource());
+  LOG_DEBUG(log, "Adding default regions hierarchy");
+  data.emplace("", data_provider->getDefaultHierarchySource());
 
-    for (const auto & name : data_provider->listCustomHierarchies())
-    {
-        LOG_DEBUG(log, "Adding regions hierarchy for {}", name);
-        data.emplace(name, data_provider->getHierarchySource(name));
-    }
+  for (const auto& name : data_provider->listCustomHierarchies()) {
+    LOG_DEBUG(log, "Adding regions hierarchy for {}", name);
+    data.emplace(name, data_provider->getHierarchySource(name));
+  }
 
-    reload();
+  reload();
 }
 
-}
+}  // namespace DB

@@ -2,35 +2,33 @@
 
 #include <Storages/Statistics/Statistics.h>
 
+namespace DB {
 
-namespace DB
-{
+class StatisticsMinMax : public IStatistics {
+ public:
+  StatisticsMinMax(const SingleStatisticsDescription& statistics_description, const DataTypePtr& data_type_);
 
-class StatisticsMinMax : public IStatistics
-{
-public:
-    StatisticsMinMax(const SingleStatisticsDescription & statistics_description, const DataTypePtr & data_type_);
+  void build(const ColumnPtr& column) override;
+  void merge(const StatisticsPtr& other_stats) override;
 
-    void build(const ColumnPtr & column) override;
-    void merge(const StatisticsPtr & other_stats) override;
+  void serialize(WriteBuffer& buf) override;
+  void deserialize(ReadBuffer& buf) override;
 
-    void serialize(WriteBuffer & buf) override;
-    void deserialize(ReadBuffer & buf) override;
+  Float64 getMin() const { return min; }
+  Float64 getMax() const { return max; }
 
-    Float64 getMin() const { return min; }
-    Float64 getMax() const { return max; }
+  Float64 estimateLess(const Field& val) const override;
+  String getNameForLogs() const override;
 
-    Float64 estimateLess(const Field & val) const override;
-    String getNameForLogs() const override;
-private:
-    Float64 min = std::numeric_limits<Float64>::max();
-    Float64 max = std::numeric_limits<Float64>::lowest();
-    UInt64 row_count = 0;
+ private:
+  Float64 min = std::numeric_limits<Float64>::max();
+  Float64 max = std::numeric_limits<Float64>::lowest();
+  UInt64 row_count = 0;
 
-    DataTypePtr data_type;
+  DataTypePtr data_type;
 };
 
-bool minMaxStatisticsValidator(const SingleStatisticsDescription & description, const DataTypePtr & data_type);
-StatisticsPtr minMaxStatisticsCreator(const SingleStatisticsDescription & description, const DataTypePtr & data_type);
+bool minMaxStatisticsValidator(const SingleStatisticsDescription& description, const DataTypePtr& data_type);
+StatisticsPtr minMaxStatisticsCreator(const SingleStatisticsDescription& description, const DataTypePtr& data_type);
 
-}
+}  // namespace DB

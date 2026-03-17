@@ -1,29 +1,24 @@
 #pragma once
-#include <Storages/MergeTree/ReplicatedMergeTreeSink.h>
 #include <Storages/MergeTree/PatchParts/PatchPartsLock.h>
+#include <Storages/MergeTree/ReplicatedMergeTreeSink.h>
 
-namespace DB
-{
+namespace DB {
 
-class ReplicatedMergeTreeSinkPatch : public ReplicatedMergeTreeSink
-{
-public:
-    ReplicatedMergeTreeSinkPatch(
-        StorageReplicatedMergeTree & storage_,
-        StorageMetadataPtr metadata_snapshot_,
-        LightweightUpdateHolderInKeeper update_holder_,
-        ContextPtr context_);
+class ReplicatedMergeTreeSinkPatch : public ReplicatedMergeTreeSink {
+ public:
+  ReplicatedMergeTreeSinkPatch(StorageReplicatedMergeTree& storage_, StorageMetadataPtr metadata_snapshot_,
+                               LightweightUpdateHolderInKeeper update_holder_, ContextPtr context_);
 
-    ~ReplicatedMergeTreeSinkPatch() override;
+  ~ReplicatedMergeTreeSinkPatch() override;
 
-    String getName() const override { return "ReplicatedMergeTreeSinkPatch"; }
+  String getName() const override { return "ReplicatedMergeTreeSinkPatch"; }
 
-private:
-    void finishDelayed(const ZooKeeperWithFaultInjectionPtr & zookeeper) override;
-    TemporaryPartPtr writeNewTempPart(BlockWithPartition & block) override;
-    UInt64 getDataVersionInPartition(const String & original_partition_id) const;
+ private:
+  void finishDelayed(const ZooKeeperWithFaultInjectionPtr& zookeeper) override;
+  TemporaryPartPtr writeNewTempPart(BlockWithPartition& block) override;
+  UInt64 getDataVersionInPartition(const String& original_partition_id) const;
 
-    LightweightUpdateHolderInKeeper update_holder;
+  LightweightUpdateHolderInKeeper update_holder;
 };
 
-}
+}  // namespace DB

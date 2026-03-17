@@ -14,93 +14,84 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPAuthenticationParams_INCLUDED
 #define Net_HTTPAuthenticationParams_INCLUDED
 
-
 #include "Poco/Net/NameValueCollection.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class HTTPRequest;
+class HTTPResponse;
+
+class Net_API HTTPAuthenticationParams : public NameValueCollection
+/// Collection of name-value pairs of HTTP authentication header (i.e.
+/// "realm", "qop", "nonce" in case of digest authentication header).
 {
-namespace Net
-{
+ public:
+  HTTPAuthenticationParams();
+  /// Creates an empty authentication parameters collection.
 
+  explicit HTTPAuthenticationParams(const std::string& authInfo);
+  /// See fromAuthInfo() documentation.
 
-    class HTTPRequest;
-    class HTTPResponse;
+  explicit HTTPAuthenticationParams(const HTTPRequest& request);
+  /// See fromRequest() documentation.
 
+  HTTPAuthenticationParams(const HTTPResponse& response, const std::string& header = WWW_AUTHENTICATE);
+  /// See fromResponse() documentation.
 
-    class Net_API HTTPAuthenticationParams : public NameValueCollection
-    /// Collection of name-value pairs of HTTP authentication header (i.e.
-    /// "realm", "qop", "nonce" in case of digest authentication header).
-    {
-    public:
-        HTTPAuthenticationParams();
-        /// Creates an empty authentication parameters collection.
+  virtual ~HTTPAuthenticationParams();
+  /// Destroys the HTTPAuthenticationParams.
 
-        explicit HTTPAuthenticationParams(const std::string & authInfo);
-        /// See fromAuthInfo() documentation.
+  HTTPAuthenticationParams& operator=(const HTTPAuthenticationParams& authParams);
+  /// Assigns the content of another HTTPAuthenticationParams.
 
-        explicit HTTPAuthenticationParams(const HTTPRequest & request);
-        /// See fromRequest() documentation.
+  void fromAuthInfo(const std::string& authInfo);
+  /// Creates an HTTPAuthenticationParams by parsing authentication
+  /// information.
 
-        HTTPAuthenticationParams(const HTTPResponse & response, const std::string & header = WWW_AUTHENTICATE);
-        /// See fromResponse() documentation.
+  void fromRequest(const HTTPRequest& request);
+  /// Extracts authentication information from the request and creates
+  /// HTTPAuthenticationParams by parsing it.
+  ///
+  /// Throws a NotAuthenticatedException if no authentication
+  /// information is contained in request.
+  /// Throws a InvalidArgumentException if authentication scheme is
+  /// unknown or invalid.
 
-        virtual ~HTTPAuthenticationParams();
-        /// Destroys the HTTPAuthenticationParams.
+  void fromResponse(const HTTPResponse& response, const std::string& header = WWW_AUTHENTICATE);
+  /// Extracts authentication information from the response and creates
+  /// HTTPAuthenticationParams by parsing it.
+  ///
+  /// Throws a NotAuthenticatedException if no authentication
+  /// information is contained in response.
+  /// Throws a InvalidArgumentException if authentication scheme is
+  /// unknown or invalid.
 
-        HTTPAuthenticationParams & operator=(const HTTPAuthenticationParams & authParams);
-        /// Assigns the content of another HTTPAuthenticationParams.
+  void setRealm(const std::string& realm);
+  /// Sets the "realm" parameter to the provided string.
 
-        void fromAuthInfo(const std::string & authInfo);
-        /// Creates an HTTPAuthenticationParams by parsing authentication
-        /// information.
+  const std::string& getRealm() const;
+  /// Returns value of the "realm" parameter.
+  ///
+  /// Throws NotFoundException is there is no "realm" set in the
+  /// HTTPAuthenticationParams.
 
-        void fromRequest(const HTTPRequest & request);
-        /// Extracts authentication information from the request and creates
-        /// HTTPAuthenticationParams by parsing it.
-        ///
-        /// Throws a NotAuthenticatedException if no authentication
-        /// information is contained in request.
-        /// Throws a InvalidArgumentException if authentication scheme is
-        /// unknown or invalid.
+  std::string toString() const;
+  /// Formats the HTTPAuthenticationParams for inclusion in HTTP
+  /// request or response authentication header.
 
-        void fromResponse(const HTTPResponse & response, const std::string & header = WWW_AUTHENTICATE);
-        /// Extracts authentication information from the response and creates
-        /// HTTPAuthenticationParams by parsing it.
-        ///
-        /// Throws a NotAuthenticatedException if no authentication
-        /// information is contained in response.
-        /// Throws a InvalidArgumentException if authentication scheme is
-        /// unknown or invalid.
+  static const std::string REALM;
+  static const std::string WWW_AUTHENTICATE;
+  static const std::string PROXY_AUTHENTICATE;
 
-        void setRealm(const std::string & realm);
-        /// Sets the "realm" parameter to the provided string.
+ private:
+  void parse(std::string::const_iterator first, std::string::const_iterator last);
+};
 
-        const std::string & getRealm() const;
-        /// Returns value of the "realm" parameter.
-        ///
-        /// Throws NotFoundException is there is no "realm" set in the
-        /// HTTPAuthenticationParams.
+}  // namespace Net
+}  // namespace Poco
 
-        std::string toString() const;
-        /// Formats the HTTPAuthenticationParams for inclusion in HTTP
-        /// request or response authentication header.
-
-        static const std::string REALM;
-        static const std::string WWW_AUTHENTICATE;
-        static const std::string PROXY_AUTHENTICATE;
-
-    private:
-        void parse(std::string::const_iterator first, std::string::const_iterator last);
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPAuthenticationParams_INCLUDED
+#endif  // Net_HTTPAuthenticationParams_INCLUDED

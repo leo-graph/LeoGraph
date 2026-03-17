@@ -12,8 +12,7 @@
  *  "flags" originate from BaseSettings (e.g. IMPORTANT) and may influence exposure or validation.
  */
 
-namespace DB
-{
+namespace DB {
 
 // clang-format off
 
@@ -107,48 +106,34 @@ namespace DB
     DECLARE(Double, join_runtime_bloom_filter_max_ratio_of_set_bits, 0.7, "If the number of set bits in a runtime bloom filter exceeds this ratio the filter is completely disabled to reduce the overhead.", 0) \
     DECLARE(Bool, enable_lazy_columns_replication, false, "When enabled, replication of columns data during ARRAY JOIN and JOIN is performed lazily", 0) \
     DECLARE(Bool, serialize_string_in_memory_with_zero_byte, true, "Serialize String values during aggregation with zero byte at the end. Enable to keep compatibility when querying cluster of incompatible versions.", 0) \
-    DECLARE(Bool, use_hash_table_stats_for_join_reordering, false, "Enable using collected hash table statistics for cardinality estimation during join reordering", 0) \
-
+    DECLARE(Bool, use_hash_table_stats_for_join_reordering, false, "Enable using collected hash table statistics for cardinality estimation during join reordering", 0)
 
 // clang-format on
 
 DECLARE_SETTINGS_TRAITS(QueryPlanSerializationSettingsTraits, PLAN_SERIALIZATION_SETTINGS)
 IMPLEMENT_SETTINGS_TRAITS(QueryPlanSerializationSettingsTraits, PLAN_SERIALIZATION_SETTINGS)
 
-struct QueryPlanSerializationSettingsImpl : public BaseSettings<QueryPlanSerializationSettingsTraits>
-{
-};
+struct QueryPlanSerializationSettingsImpl : public BaseSettings<QueryPlanSerializationSettingsTraits> {};
 
+#define INITIALIZE_SETTING_EXTERN(TYPE, NAME, DEFAULT, DESCRIPTION, FLAGS, ...) \
+  QueryPlanSerializationSettings##TYPE NAME = &QueryPlanSerializationSettingsImpl ::NAME;
 
-#define INITIALIZE_SETTING_EXTERN(TYPE, NAME, DEFAULT, DESCRIPTION, FLAGS, ...) QueryPlanSerializationSettings##TYPE NAME = &QueryPlanSerializationSettingsImpl ::NAME;
-
-namespace QueryPlanSerializationSetting
-{
+namespace QueryPlanSerializationSetting {
 PLAN_SERIALIZATION_SETTINGS(INITIALIZE_SETTING_EXTERN, INITIALIZE_SETTING_EXTERN)
 }
 
 #undef INITIALIZE_SETTING_EXTERN
 
+QueryPlanSerializationSettings::QueryPlanSerializationSettings() : impl(std::make_unique<QueryPlanSerializationSettingsImpl>()) {}
 
-QueryPlanSerializationSettings::QueryPlanSerializationSettings() : impl(std::make_unique<QueryPlanSerializationSettingsImpl>())
-{
-}
-
-QueryPlanSerializationSettings::QueryPlanSerializationSettings(const QueryPlanSerializationSettings & settings) : impl(std::make_unique<QueryPlanSerializationSettingsImpl>(*settings.impl))
-{
-}
+QueryPlanSerializationSettings::QueryPlanSerializationSettings(const QueryPlanSerializationSettings& settings)
+    : impl(std::make_unique<QueryPlanSerializationSettingsImpl>(*settings.impl)) {}
 
 QueryPlanSerializationSettings::~QueryPlanSerializationSettings() = default;
 
-void QueryPlanSerializationSettings::writeChangedBinary(WriteBuffer & out) const
-{
-    impl->writeChangedBinary(out);
-}
-void QueryPlanSerializationSettings::readBinary(ReadBuffer & in)
-{
-    impl->readBinary(in);
-}
+void QueryPlanSerializationSettings::writeChangedBinary(WriteBuffer& out) const { impl->writeChangedBinary(out); }
+void QueryPlanSerializationSettings::readBinary(ReadBuffer& in) { impl->readBinary(in); }
 
 QUERY_PLAN_SERIALIZATION_SETTINGS_SUPPORTED_TYPES(QueryPlanSerializationSettings, IMPLEMENT_SETTING_SUBSCRIPT_OPERATOR)
 
-}
+}  // namespace DB

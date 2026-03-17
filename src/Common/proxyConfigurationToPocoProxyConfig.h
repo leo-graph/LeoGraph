@@ -1,13 +1,12 @@
 #pragma once
 
-#include <Poco/Net/HTTPClientSession.h>
 #include <Common/ProxyConfiguration.h>
+#include <Poco/Net/HTTPClientSession.h>
 
-namespace DB
-{
+namespace DB {
 
-Poco::Net::HTTPClientSession::ProxyConfig proxyConfigurationToPocoProxyConfig(const DB::ProxyConfiguration & proxy_configuration);
+Poco::Net::HTTPClientSession::ProxyConfig proxyConfigurationToPocoProxyConfig(const DB::ProxyConfiguration& proxy_configuration);
 
-std::string buildPocoNonProxyHosts(const std::string & no_proxy_hosts_string);
+std::string buildPocoNonProxyHosts(const std::string& no_proxy_hosts_string);
 
-}
+}  // namespace DB

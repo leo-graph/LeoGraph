@@ -1,111 +1,91 @@
-#include <Functions/IFunction.h>
+#include <Core/Field.h>
+#include <DataTypes/FieldToDataType.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionHelpers.h>
-#include <DataTypes/FieldToDataType.h>
-#include <Interpreters/convertFieldToType.h>
+#include <Functions/IFunction.h>
 #include <Interpreters/Context.h>
-#include <Core/Field.h>
+#include <Interpreters/convertFieldToType.h>
 // #include <Core/ServerSettings.h>
 #include <Storages/MergeTree/MergeTreeSettings.h>
 
+namespace DB {
+namespace ErrorCodes {
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+extern const int ILLEGAL_COLUMN;
+}  // namespace ErrorCodes
 
-namespace DB
-{
-namespace ErrorCodes
-{
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-    extern const int ILLEGAL_COLUMN;
-}
+namespace {
 
-namespace
-{
+class FunctionGetMergeTreeSetting : public IFunction, WithContext {
+ public:
+  static constexpr auto name = "getMergeTreeSetting";
 
-class FunctionGetMergeTreeSetting : public IFunction, WithContext
-{
-public:
-    static constexpr auto name = "getMergeTreeSetting";
+  static FunctionPtr create(ContextPtr context_) { return std::make_shared<FunctionGetMergeTreeSetting>(context_); }
+  explicit FunctionGetMergeTreeSetting(ContextPtr context_) : WithContext(context_) {}
 
-    static FunctionPtr create(ContextPtr context_) { return std::make_shared<FunctionGetMergeTreeSetting>(context_); }
-    explicit FunctionGetMergeTreeSetting(ContextPtr context_) : WithContext(context_) {}
+  String getName() const override { return name; }
 
-    String getName() const override { return name; }
+  bool isDeterministic() const override { return false; }
 
-    bool isDeterministic() const override { return false; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo& /*arguments*/) const override { return false; }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+  size_t getNumberOfArguments() const override { return 1; }
 
-    size_t getNumberOfArguments() const override { return 1 ; }
+  ColumnNumbers getArgumentsThatAreAlwaysConstant() const override { return {0}; }
 
-    ColumnNumbers getArgumentsThatAreAlwaysConstant() const override { return {0}; }
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName& arguments) const override {
+    auto value = getValue(arguments);
+    return applyVisitor(FieldToDataType{}, value);
+  }
 
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
-    {
-        auto value = getValue(arguments);
-        return applyVisitor(FieldToDataType{}, value);
-    }
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& result_type, size_t input_rows_count) const override {
+    auto value = getValue(arguments);
+    return result_type->createColumnConst(input_rows_count, convertFieldToType(value, *result_type));
+  }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
-    {
-        auto value = getValue(arguments);
-        return result_type->createColumnConst(input_rows_count, convertFieldToType(value, *result_type));
-    }
+ private:
+  Field getValue(const ColumnsWithTypeAndName& arguments) const {
+    if (arguments.size() != 1)
+      throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Number of arguments for function {} can't be {}, should be 1", getName(),
+                      arguments.size());
 
-private:
-    Field getValue(const ColumnsWithTypeAndName & arguments) const
-    {
-        if (arguments.size() != 1)
-            throw Exception(
-                ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                "Number of arguments for function {} can't be {}, should be 1",
-                getName(),
-                arguments.size());
+    if (!isString(arguments[0].type))
+      throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                      "The argument of function {} should be a constant string with the name of a setting", String{name});
+    const auto* column = arguments[0].column.get();
+    if (!column || !checkAndGetColumnConstStringOrFixedString(column))
+      throw Exception(ErrorCodes::ILLEGAL_COLUMN, "The argument of function {} should be a constant string with the name of a setting",
+                      String{name});
 
-        if (!isString(arguments[0].type))
-            throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                            "The argument of function {} should be a constant string with the name of a setting",
-                            String{name});
-        const auto * column = arguments[0].column.get();
-        if (!column || !checkAndGetColumnConstStringOrFixedString(column))
-            throw Exception(ErrorCodes::ILLEGAL_COLUMN,
-                            "The argument of function {} should be a constant string with the name of a setting",
-                            String{name});
+    std::string_view setting_name{column->getDataAt(0)};
 
-        std::string_view setting_name{column->getDataAt(0)};
-
-        return getContext()->getMergeTreeSettings().get(setting_name);
-    }
+    return getContext()->getMergeTreeSettings().get(setting_name);
+  }
 };
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(GetMergeTreeSetting)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(GetMergeTreeSetting) {
+  FunctionDocumentation::Description description = R"(
 Returns the current value of a MergeTree setting.
 )";
-    FunctionDocumentation::Syntax syntax = "getMergeTreeSetting(setting_name)";
-    FunctionDocumentation::Arguments arguments = {
-        {"setting_name", "The setting name.", {"String"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns the merge tree setting's current value.", {}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "getMergeTreeSetting(setting_name)";
+  FunctionDocumentation::Arguments arguments = {{"setting_name", "The setting name.", {"String"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns the merge tree setting's current value.", {}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 SELECT getMergeTreeSetting('index_granularity');
         )",
-        R"(
+                                               R"(
 ┌─getMergeTreeSetting('index_granularity')─┐
 │                                     8192 │
 └──────────────────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {25, 6};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Other;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {25, 6};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Other;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionGetMergeTreeSetting>(documentation);
+  factory.registerFunction<FunctionGetMergeTreeSetting>(documentation);
 }
 
-}
+}  // namespace DB

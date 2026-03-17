@@ -11,22 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/HTTPServerRequest.h"
-
 
 namespace Poco {
 namespace Net {
 
+HTTPServerRequest::HTTPServerRequest() {}
 
-HTTPServerRequest::HTTPServerRequest()
-{
-}
+HTTPServerRequest::~HTTPServerRequest() {}
 
-
-HTTPServerRequest::~HTTPServerRequest()
-{
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

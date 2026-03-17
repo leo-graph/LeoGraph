@@ -1,33 +1,31 @@
 #pragma once
 
-#include <mutex>
 #include <condition_variable>
-#include <variant>
+#include <mutex>
 #include <utility>
+#include <variant>
 
+#include <Poco/Event.h>
 #include <boost/circular_buffer.hpp>
 #include <boost/noncopyable.hpp>
-#include <Poco/Event.h>
 
-#include <Storages/MergeTree/IExecutableTask.h>
 #include <base/defines.h>
-#include <Common/ElapsedTimeProfileEventIncrement.h>
 #include <Common/CurrentMetrics.h>
+#include <Common/ElapsedTimeProfileEventIncrement.h>
 #include <Common/Logger.h>
 #include <Common/ProfileEvents.h>
 #include <Common/Stopwatch.h>
 #include <Common/ThreadPool_fwd.h>
+#include <Storages/MergeTree/IExecutableTask.h>
 
-namespace DB
-{
+namespace DB {
 
 struct TaskRuntimeData;
-struct TaskProfileEvents
-{
-    ProfileEvents::Event execute_ms = ProfileEvents::end();
-    ProfileEvents::Event cancel_ms = ProfileEvents::end();
-    ProfileEvents::Event reset_ms = ProfileEvents::end();
-    ProfileEvents::Event wait_ms = ProfileEvents::end();
+struct TaskProfileEvents {
+  ProfileEvents::Event execute_ms = ProfileEvents::end();
+  ProfileEvents::Event cancel_ms = ProfileEvents::end();
+  ProfileEvents::Event reset_ms = ProfileEvents::end();
+  ProfileEvents::Event wait_ms = ProfileEvents::end();
 };
 using TaskRuntimeDataPtr = std::shared_ptr<TaskRuntimeData>;
 enum class ThreadName : uint8_t;
@@ -36,225 +34,181 @@ enum class ThreadName : uint8_t;
  * Has RAII class to determine how many tasks are waiting for the execution and executing at the moment.
  * Also has some flags and primitives to wait for current task to be executed.
  */
-struct TaskRuntimeData
-{
-    TaskRuntimeData(ExecutableTaskPtr && task_, CurrentMetrics::Metric metric_, TaskProfileEvents events_)
-        : storage_id(task_->getStorageID())
-        , task(std::move(task_))
-        , metric(metric_)
-        , events(events_)
-    {
-        /// Increment and decrement a metric with sequentially consistent memory order
-        /// This is needed, because in unit test this metric is read from another thread
-        /// and some invariant is checked. With relaxed memory order we could read stale value
-        /// for this metric, that's why test can be failed.
-        CurrentMetrics::values[metric].fetch_add(1);
-    }
+struct TaskRuntimeData {
+  TaskRuntimeData(ExecutableTaskPtr&& task_, CurrentMetrics::Metric metric_, TaskProfileEvents events_)
+      : storage_id(task_->getStorageID()), task(std::move(task_)), metric(metric_), events(events_) {
+    /// Increment and decrement a metric with sequentially consistent memory order
+    /// This is needed, because in unit test this metric is read from another thread
+    /// and some invariant is checked. With relaxed memory order we could read stale value
+    /// for this metric, that's why test can be failed.
+    CurrentMetrics::values[metric].fetch_add(1);
+  }
 
-    ~TaskRuntimeData()
-    {
-        CurrentMetrics::values[metric].fetch_sub(1);
-    }
+  ~TaskRuntimeData() { CurrentMetrics::values[metric].fetch_sub(1); }
 
-    void cancel() const
-    {
-        ProfileEventTimeIncrement<Microseconds> watch(events.cancel_ms);
-        if (task)
-            task->cancel();
-    }
+  void cancel() const {
+    ProfileEventTimeIncrement<Microseconds> watch(events.cancel_ms);
+    if (task) task->cancel();
+  }
 
-    void wait()
-    {
-        ProfileEventTimeIncrement<Microseconds> watch(events.wait_ms);
-        is_done.wait();
-    }
+  void wait() {
+    ProfileEventTimeIncrement<Microseconds> watch(events.wait_ms);
+    is_done.wait();
+  }
 
-    bool executeStep() const
-    {
-        ProfileEventTimeIncrement<Microseconds> watch(events.execute_ms);
-        return task->executeStep();
-    }
+  bool executeStep() const {
+    ProfileEventTimeIncrement<Microseconds> watch(events.execute_ms);
+    return task->executeStep();
+  }
 
-    void resetTask()
-    {
-        ProfileEventTimeIncrement<Microseconds> watch(events.reset_ms);
-        if (task)
-            task.reset();
-    }
+  void resetTask() {
+    ProfileEventTimeIncrement<Microseconds> watch(events.reset_ms);
+    if (task) task.reset();
+  }
 
-    /// Cached at construction — valid even after resetTask() nulls the task pointer.
-    /// Used by removeTasksCorrespondingToStorage to identify items during destruction.
-    StorageID storage_id;
-    ExecutableTaskPtr task;
-    CurrentMetrics::Metric metric;
-    TaskProfileEvents events;
-    /// Guarded by MergeTreeBackgroundExecutor<>::mutex
-    bool is_currently_deleting{false};
-    /// Actually autoreset=false is needed only for unit test
-    /// where multiple threads could remove tasks corresponding to the same storage
-    /// This scenario in not possible in reality.
-    Poco::Event is_done{/*autoreset=*/false};
-    /// This is equal to task->getPriority() not to do useless virtual calls in comparator
-    Priority priority;
+  /// Cached at construction — valid even after resetTask() nulls the task pointer.
+  /// Used by removeTasksCorrespondingToStorage to identify items during destruction.
+  StorageID storage_id;
+  ExecutableTaskPtr task;
+  CurrentMetrics::Metric metric;
+  TaskProfileEvents events;
+  /// Guarded by MergeTreeBackgroundExecutor<>::mutex
+  bool is_currently_deleting{false};
+  /// Actually autoreset=false is needed only for unit test
+  /// where multiple threads could remove tasks corresponding to the same storage
+  /// This scenario in not possible in reality.
+  Poco::Event is_done{/*autoreset=*/false};
+  /// This is equal to task->getPriority() not to do useless virtual calls in comparator
+  Priority priority;
 
-    /// By default priority queue will have max element at top
-    static bool comparePtrByPriority(const TaskRuntimeDataPtr & lhs, const TaskRuntimeDataPtr & rhs)
-    {
-        return lhs->priority > rhs->priority;
-    }
+  /// By default priority queue will have max element at top
+  static bool comparePtrByPriority(const TaskRuntimeDataPtr& lhs, const TaskRuntimeDataPtr& rhs) { return lhs->priority > rhs->priority; }
 };
 
 /// Simplest First-in-First-out queue, ignores priority.
-class RoundRobinRuntimeQueue
-{
-public:
-    TaskRuntimeDataPtr pop()
-    {
-        auto result = std::move(queue.front());
-        queue.pop_front();
-        return result;
+class RoundRobinRuntimeQueue {
+ public:
+  TaskRuntimeDataPtr pop() {
+    auto result = std::move(queue.front());
+    queue.pop_front();
+    return result;
+  }
+
+  void push(TaskRuntimeDataPtr item) { queue.push_back(std::move(item)); }
+
+  std::vector<TaskRuntimeDataPtr> removeTasks(StorageID id) {
+    std::vector<TaskRuntimeDataPtr> res;
+    for (auto& item : queue) {
+      if (item->task->getStorageID() == id) res.push_back(item);
     }
 
-    void push(TaskRuntimeDataPtr item)
-    {
-        queue.push_back(std::move(item));
-    }
+    auto it = std::remove_if(queue.begin(), queue.end(), [&](auto&& item) -> bool { return item->task->getStorageID() == id; });
+    queue.erase(it, queue.end());
+    return res;
+  }
 
-    std::vector<TaskRuntimeDataPtr> removeTasks(StorageID id)
-    {
-        std::vector<TaskRuntimeDataPtr> res;
-        for (auto & item : queue)
-        {
-            if (item->task->getStorageID() == id)
-                res.push_back(item);
-        }
+  void setCapacity(size_t count) { queue.set_capacity(count); }
+  bool empty() { return queue.empty(); }
 
-        auto it = std::remove_if(queue.begin(), queue.end(),
-            [&] (auto && item) -> bool { return item->task->getStorageID() == id; });
-        queue.erase(it, queue.end());
-        return res;
-    }
+  [[noreturn]] void updatePolicy(std::string_view);
 
-    void setCapacity(size_t count) { queue.set_capacity(count); }
-    bool empty() { return queue.empty(); }
+  static constexpr std::string_view name = "round_robin";
 
-    [[noreturn]] void updatePolicy(std::string_view);
-
-    static constexpr std::string_view name = "round_robin";
-
-private:
-    boost::circular_buffer<TaskRuntimeDataPtr> queue{0};
+ private:
+  boost::circular_buffer<TaskRuntimeDataPtr> queue{0};
 };
 
 /// Uses a heap to pop a task with minimal priority.
-class PriorityRuntimeQueue
-{
-public:
-    TaskRuntimeDataPtr pop()
-    {
-        std::pop_heap(buffer.begin(), buffer.end(), TaskRuntimeData::comparePtrByPriority);
-        auto result = std::move(buffer.back());
-        buffer.pop_back();
-        return result;
+class PriorityRuntimeQueue {
+ public:
+  TaskRuntimeDataPtr pop() {
+    std::pop_heap(buffer.begin(), buffer.end(), TaskRuntimeData::comparePtrByPriority);
+    auto result = std::move(buffer.back());
+    buffer.pop_back();
+    return result;
+  }
+
+  void push(TaskRuntimeDataPtr item) {
+    item->priority = item->task->getPriority();
+    buffer.push_back(std::move(item));
+    std::push_heap(buffer.begin(), buffer.end(), TaskRuntimeData::comparePtrByPriority);
+  }
+
+  std::vector<TaskRuntimeDataPtr> removeTasks(StorageID id) {
+    std::vector<TaskRuntimeDataPtr> res;
+    for (auto& item : buffer) {
+      if (item->task->getStorageID() == id) res.push_back(item);
     }
 
-    void push(TaskRuntimeDataPtr item)
-    {
-        item->priority = item->task->getPriority();
-        buffer.push_back(std::move(item));
-        std::push_heap(buffer.begin(), buffer.end(), TaskRuntimeData::comparePtrByPriority);
-    }
+    std::erase_if(buffer, [&](auto&& item) -> bool { return item->task->getStorageID() == id; });
+    std::make_heap(buffer.begin(), buffer.end(), TaskRuntimeData::comparePtrByPriority);
+    return res;
+  }
 
-    std::vector<TaskRuntimeDataPtr> removeTasks(StorageID id)
-    {
-        std::vector<TaskRuntimeDataPtr> res;
-        for (auto & item : buffer)
-        {
-            if (item->task->getStorageID() == id)
-                res.push_back(item);
-        }
+  void setCapacity(size_t count) { buffer.reserve(count); }
+  bool empty() { return buffer.empty(); }
 
-        std::erase_if(buffer, [&] (auto && item) -> bool { return item->task->getStorageID() == id; });
-        std::make_heap(buffer.begin(), buffer.end(), TaskRuntimeData::comparePtrByPriority);
-        return res;
-    }
+  [[noreturn]] void updatePolicy(std::string_view);
 
-    void setCapacity(size_t count) { buffer.reserve(count); }
-    bool empty() { return buffer.empty(); }
+  static constexpr std::string_view name = "shortest_task_first";
 
-    [[noreturn]] void updatePolicy(std::string_view);
-
-    static constexpr std::string_view name = "shortest_task_first";
-
-private:
-    std::vector<TaskRuntimeDataPtr> buffer;
+ private:
+  std::vector<TaskRuntimeDataPtr> buffer;
 };
 
 /// Queue that can dynamically change scheduling policy
-template <class ... Policies>
-class DynamicRuntimeQueueImpl
-{
-public:
-    TaskRuntimeDataPtr pop()
-    {
-        return std::visit<TaskRuntimeDataPtr>([&] (auto && queue) { return queue.pop(); }, impl);
-    }
+template <class... Policies>
+class DynamicRuntimeQueueImpl {
+ public:
+  TaskRuntimeDataPtr pop() {
+    return std::visit<TaskRuntimeDataPtr>([&](auto&& queue) { return queue.pop(); }, impl);
+  }
 
-    void push(TaskRuntimeDataPtr item)
-    {
-        std::visit([&] (auto && queue) { queue.push(std::move(item)); }, impl);
-    }
+  void push(TaskRuntimeDataPtr item) {
+    std::visit([&](auto&& queue) { queue.push(std::move(item)); }, impl);
+  }
 
-    std::vector<TaskRuntimeDataPtr> removeTasks(StorageID id)
-    {
-        return std::visit([&] (auto && queue) { return queue.removeTasks(id); }, impl);
-    }
+  std::vector<TaskRuntimeDataPtr> removeTasks(StorageID id) {
+    return std::visit([&](auto&& queue) { return queue.removeTasks(id); }, impl);
+  }
 
-    void setCapacity(size_t count)
-    {
-        capacity = count;
-        std::visit([&] (auto && queue) { queue.setCapacity(count); }, impl);
-    }
+  void setCapacity(size_t count) {
+    capacity = count;
+    std::visit([&](auto&& queue) { queue.setCapacity(count); }, impl);
+  }
 
-    bool empty()
-    {
-        return std::visit<bool>([&] (auto && queue) { return queue.empty(); }, impl);
-    }
+  bool empty() {
+    return std::visit<bool>([&](auto&& queue) { return queue.empty(); }, impl);
+  }
 
-    // Change policy. It does nothing if new policy is unknown or equals current policy.
-    void updatePolicy(std::string_view name)
-    {
-        // We use this double lambda trick to generate code for all possible pairs of types of old and new queue.
-        // If types are different it moves tasks from old queue to new one using corresponding pop() and push()
-        resolve<Policies...>(name, [&] <class NewQueue> (std::in_place_type_t<NewQueue>)
-        {
-            std::visit([&] (auto && queue)
-            {
-                if constexpr (std::is_same_v<std::decay_t<decltype(queue)>, NewQueue>)
-                    return; // The same policy
-                NewQueue new_queue;
-                new_queue.setCapacity(capacity);
-                while (!queue.empty())
-                    new_queue.push(queue.pop());
-                impl = std::move(new_queue);
-            }, impl);
-        });
-    }
+  // Change policy. It does nothing if new policy is unknown or equals current policy.
+  void updatePolicy(std::string_view name) {
+    // We use this double lambda trick to generate code for all possible pairs of types of old and new queue.
+    // If types are different it moves tasks from old queue to new one using corresponding pop() and push()
+    resolve<Policies...>(name, [&]<class NewQueue>(std::in_place_type_t<NewQueue>) {
+      std::visit(
+          [&](auto&& queue) {
+            if constexpr (std::is_same_v<std::decay_t<decltype(queue)>, NewQueue>) return;  // The same policy
+            NewQueue new_queue;
+            new_queue.setCapacity(capacity);
+            while (!queue.empty()) new_queue.push(queue.pop());
+            impl = std::move(new_queue);
+          },
+          impl);
+    });
+  }
 
-private:
-    // Find policy with specified `name` and call `func()` if found.
-    // Tag `std::in_place_type_t<T>` used to help templated lambda to deduce type T w/o creating its instance
-    template <class T, class ... Ts, class Func>
-    void resolve(std::string_view name, Func && func)
-    {
-        if (T::name == name)
-            return func(std::in_place_type<T>);
-        if constexpr (sizeof...(Ts))
-            return resolve<Ts...>(name, std::forward<Func>(func));
-    }
+ private:
+  // Find policy with specified `name` and call `func()` if found.
+  // Tag `std::in_place_type_t<T>` used to help templated lambda to deduce type T w/o creating its instance
+  template <class T, class... Ts, class Func>
+  void resolve(std::string_view name, Func&& func) {
+    if (T::name == name) return func(std::in_place_type<T>);
+    if constexpr (sizeof...(Ts)) return resolve<Ts...>(name, std::forward<Func>(func));
+  }
 
-    std::variant<Policies...> impl;
-    size_t capacity;
+  std::variant<Policies...> impl;
+  size_t capacity;
 };
 
 // Avoid typedef and alias to facilitate forward declaration
@@ -294,79 +248,65 @@ class DynamicRuntimeQueue : public DynamicRuntimeQueueImpl<RoundRobinRuntimeQueu
  *  So, when a Storage wants to shutdown, it must wait until all its background operations are finished.
  */
 template <class Queue>
-class MergeTreeBackgroundExecutor final : boost::noncopyable
-{
-public:
-    MergeTreeBackgroundExecutor(
-        ThreadName name_,
-        size_t threads_count_,
-        size_t max_tasks_count_,
-        CurrentMetrics::Metric metric_,
-        CurrentMetrics::Metric max_tasks_metric_,
-        ProfileEvents::Event execute_profile_event_,
-        ProfileEvents::Event cancel_profile_event_,
-        ProfileEvents::Event reset_profile_event_,
-        ProfileEvents::Event wait_profile_event_,
-        std::string_view policy = {});
+class MergeTreeBackgroundExecutor final : boost::noncopyable {
+ public:
+  MergeTreeBackgroundExecutor(ThreadName name_, size_t threads_count_, size_t max_tasks_count_, CurrentMetrics::Metric metric_,
+                              CurrentMetrics::Metric max_tasks_metric_, ProfileEvents::Event execute_profile_event_,
+                              ProfileEvents::Event cancel_profile_event_, ProfileEvents::Event reset_profile_event_,
+                              ProfileEvents::Event wait_profile_event_, std::string_view policy = {});
 
-    MergeTreeBackgroundExecutor(
-        ThreadName name_,
-        size_t threads_count_,
-        size_t max_tasks_count_,
-        CurrentMetrics::Metric metric_,
-        CurrentMetrics::Metric max_tasks_metric_,
-        std::string_view policy = {});
+  MergeTreeBackgroundExecutor(ThreadName name_, size_t threads_count_, size_t max_tasks_count_, CurrentMetrics::Metric metric_,
+                              CurrentMetrics::Metric max_tasks_metric_, std::string_view policy = {});
 
-    ~MergeTreeBackgroundExecutor();
+  ~MergeTreeBackgroundExecutor();
 
-    /// Handler for hot-reloading
-    /// Supports only increasing the number of threads and tasks, because
-    /// implementing tasks eviction will definitely be too error-prone and buggy.
-    void increaseThreadsAndMaxTasksCount(size_t new_threads_count, size_t new_max_tasks_count);
+  /// Handler for hot-reloading
+  /// Supports only increasing the number of threads and tasks, because
+  /// implementing tasks eviction will definitely be too error-prone and buggy.
+  void increaseThreadsAndMaxTasksCount(size_t new_threads_count, size_t new_max_tasks_count);
 
-    size_t getMaxThreads() const;
+  size_t getMaxThreads() const;
 
-    /// This method can return stale value of max_tasks_count (no mutex locking).
-    /// It's okay because amount of tasks can be only increased and getting stale value
-    /// can lead only to some postponing, not logical error.
-    size_t getMaxTasksCount() const;
+  /// This method can return stale value of max_tasks_count (no mutex locking).
+  /// It's okay because amount of tasks can be only increased and getting stale value
+  /// can lead only to some postponing, not logical error.
+  size_t getMaxTasksCount() const;
 
-    bool trySchedule(ExecutableTaskPtr task);
-    void removeTasksCorrespondingToStorage(StorageID id);
-    void wait();
+  bool trySchedule(ExecutableTaskPtr task);
+  void removeTasksCorrespondingToStorage(StorageID id);
+  void wait();
 
-    /// Update scheduling policy for pending tasks. It does nothing if `new_policy` is the same or unknown.
-    void updateSchedulingPolicy(std::string_view new_policy)
-    {
-        std::lock_guard lock(mutex);
-        pending.updatePolicy(new_policy);
-    }
+  /// Update scheduling policy for pending tasks. It does nothing if `new_policy` is the same or unknown.
+  void updateSchedulingPolicy(std::string_view new_policy) {
+    std::lock_guard lock(mutex);
+    pending.updatePolicy(new_policy);
+  }
 
-private:
-    ThreadName name;
-    size_t threads_count TSA_GUARDED_BY(mutex) = 0;
-    std::atomic<size_t> max_tasks_count = 0;
-    CurrentMetrics::Metric metric;
-    CurrentMetrics::Increment max_tasks_metric;
+ private:
+  ThreadName name;
+  size_t threads_count TSA_GUARDED_BY(mutex) = 0;
+  std::atomic<size_t> max_tasks_count = 0;
+  CurrentMetrics::Metric metric;
+  CurrentMetrics::Increment max_tasks_metric;
 
-    void routine(TaskRuntimeDataPtr item);
+  void routine(TaskRuntimeDataPtr item);
 
-    /// libc++ does not provide TSA support for std::unique_lock -> TSA_NO_THREAD_SAFETY_ANALYSIS
-    void threadFunction() TSA_NO_THREAD_SAFETY_ANALYSIS;
+  /// libc++ does not provide TSA support for std::unique_lock -> TSA_NO_THREAD_SAFETY_ANALYSIS
+  void threadFunction() TSA_NO_THREAD_SAFETY_ANALYSIS;
 
-    /// Initially it will be empty
-    Queue pending TSA_GUARDED_BY(mutex);
-    boost::circular_buffer<TaskRuntimeDataPtr> active TSA_GUARDED_BY(mutex);
-    mutable std::mutex mutex;
-    std::condition_variable has_tasks TSA_GUARDED_BY(mutex);
-    bool shutdown TSA_GUARDED_BY(mutex) = false;
-    std::unique_ptr<ThreadPool> pool;
-    LoggerPtr log = getLogger("MergeTreeBackgroundExecutor");
-    TaskProfileEvents task_events;
+  /// Initially it will be empty
+  Queue pending TSA_GUARDED_BY(mutex);
+  boost::circular_buffer<TaskRuntimeDataPtr> active TSA_GUARDED_BY(mutex);
+  mutable std::mutex mutex;
+  std::condition_variable has_tasks TSA_GUARDED_BY(mutex);
+  bool shutdown TSA_GUARDED_BY(mutex) = false;
+  std::unique_ptr<ThreadPool> pool;
+  LoggerPtr log = getLogger("MergeTreeBackgroundExecutor");
+  TaskProfileEvents task_events;
 };
 
 extern template class MergeTreeBackgroundExecutor<RoundRobinRuntimeQueue>;
 extern template class MergeTreeBackgroundExecutor<PriorityRuntimeQueue>;
 extern template class MergeTreeBackgroundExecutor<DynamicRuntimeQueue>;
 
-}
+}  // namespace DB

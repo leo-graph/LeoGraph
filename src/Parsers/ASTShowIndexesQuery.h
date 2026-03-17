@@ -1,29 +1,26 @@
 #pragma once
 
-#include <Parsers/IAST_fwd.h>
 #include <Parsers/ASTQueryWithOutput.h>
+#include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Query SHOW INDEXES
-class ASTShowIndexesQuery : public ASTQueryWithOutput
-{
-public:
-    bool extended = false;
+class ASTShowIndexesQuery : public ASTQueryWithOutput {
+ public:
+  bool extended = false;
 
-    ASTPtr where_expression;
+  ASTPtr where_expression;
 
-    String database;
-    String table;
+  String database;
+  String table;
 
-    String getID(char) const override { return "ShowColumns"; }
-    ASTPtr clone() const override;
-    QueryKind getQueryKind() const override { return QueryKind::Show; }
+  String getID(char) const override { return "ShowColumns"; }
+  ASTPtr clone() const override;
+  QueryKind getQueryKind() const override { return QueryKind::Show; }
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatQueryImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
 
-}
-
+}  // namespace DB

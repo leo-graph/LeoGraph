@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/EventListener.h"
-
 
 namespace Poco {
 namespace XML {
 
+EventListener::~EventListener() {}
 
-EventListener::~EventListener()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

@@ -1,26 +1,22 @@
 #pragma once
 
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeArray.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeString.h>
 #include <Storages/System/IStorageSystemOneBlock.h>
 
+namespace DB {
 
-namespace DB
-{
+class StorageSystemViewRefreshes final : public IStorageSystemOneBlock {
+ public:
+  std::string getName() const override { return "SystemViewRefreshes"; }
 
+  static ColumnsDescription getColumnsDescription();
 
-class StorageSystemViewRefreshes final : public IStorageSystemOneBlock
-{
-public:
-    std::string getName() const override { return "SystemViewRefreshes"; }
+ protected:
+  using IStorageSystemOneBlock::IStorageSystemOneBlock;
 
-    static ColumnsDescription getColumnsDescription();
-
-protected:
-    using IStorageSystemOneBlock::IStorageSystemOneBlock;
-
-    void fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
+  void fillData(MutableColumns &res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const override;
 };
 
-}
+}  // namespace DB

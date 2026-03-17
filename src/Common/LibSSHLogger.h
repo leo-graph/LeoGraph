@@ -1,7 +1,6 @@
 #pragma once
 
-namespace ssh::libsshLogger
-{
+namespace ssh::libsshLogger {
 
 void initialize();
 

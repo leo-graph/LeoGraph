@@ -3,39 +3,41 @@
 
 #if USE_ARROW
 
-#include <Formats/FormatSettings.h>
-#include <Processors/Formats/IOutputFormat.h>
-#include <Processors/Formats/Impl/ArrowBufferedStreams.h>
+#  include <Formats/FormatSettings.h>
+#  include <Processors/Formats/Impl/ArrowBufferedStreams.h>
+#  include <Processors/Formats/IOutputFormat.h>
 
-namespace arrow { class Schema; }
-namespace arrow::ipc { class RecordBatchWriter; }
+namespace arrow {
+class Schema;
+}
+namespace arrow::ipc {
+class RecordBatchWriter;
+}
 
-namespace DB
-{
+namespace DB {
 
 class CHColumnToArrowColumn;
 
-class ArrowBlockOutputFormat : public IOutputFormat
-{
-public:
-    ArrowBlockOutputFormat(WriteBuffer & out_, SharedHeader header_, bool stream_, const FormatSettings & format_settings_);
+class ArrowBlockOutputFormat : public IOutputFormat {
+ public:
+  ArrowBlockOutputFormat(WriteBuffer& out_, SharedHeader header_, bool stream_, const FormatSettings& format_settings_);
 
-    String getName() const override { return "Arrow"; }
+  String getName() const override { return "Arrow"; }
 
-private:
-    void consume(Chunk) override;
-    void finalizeImpl() override;
-    void resetFormatterImpl() override;
+ private:
+  void consume(Chunk) override;
+  void finalizeImpl() override;
+  void resetFormatterImpl() override;
 
-    void prepareWriter(const std::shared_ptr<arrow::Schema> & schema);
+  void prepareWriter(const std::shared_ptr<arrow::Schema>& schema);
 
-    bool stream;
-    const FormatSettings format_settings;
-    std::shared_ptr<ArrowBufferedOutputStream> arrow_ostream;
-    std::shared_ptr<arrow::ipc::RecordBatchWriter> writer;
-    std::unique_ptr<CHColumnToArrowColumn> ch_column_to_arrow_column;
+  bool stream;
+  const FormatSettings format_settings;
+  std::shared_ptr<ArrowBufferedOutputStream> arrow_ostream;
+  std::shared_ptr<arrow::ipc::RecordBatchWriter> writer;
+  std::unique_ptr<CHColumnToArrowColumn> ch_column_to_arrow_column;
 };
 
-}
+}  // namespace DB
 
 #endif

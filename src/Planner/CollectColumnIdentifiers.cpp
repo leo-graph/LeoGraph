@@ -9,87 +9,66 @@
 
 #include <Planner/PlannerContext.h>
 
+namespace DB {
 
-namespace DB
-{
+namespace {
 
-namespace
-{
+class CollectTopLevelColumnIdentifiersVisitor : public ConstInDepthQueryTreeVisitor<CollectTopLevelColumnIdentifiersVisitor> {
+ public:
+  explicit CollectTopLevelColumnIdentifiersVisitor(const PlannerContextPtr &planner_context_, ColumnIdentifierSet &used_identifiers_)
+      : used_identifiers(used_identifiers_), planner_context(planner_context_) {}
 
-class CollectTopLevelColumnIdentifiersVisitor : public ConstInDepthQueryTreeVisitor<CollectTopLevelColumnIdentifiersVisitor>
-{
-public:
+  static bool needChildVisit(const QueryTreeNodePtr &, const QueryTreeNodePtr &child) {
+    auto child_node_type = child->getNodeType();
+    return child_node_type != QueryTreeNodeType::TABLE && child_node_type != QueryTreeNodeType::TABLE_FUNCTION &&
+           child_node_type != QueryTreeNodeType::QUERY && child_node_type != QueryTreeNodeType::UNION &&
+           child_node_type != QueryTreeNodeType::JOIN && child_node_type != QueryTreeNodeType::CROSS_JOIN &&
+           child_node_type != QueryTreeNodeType::ARRAY_JOIN;
+  }
 
-    explicit CollectTopLevelColumnIdentifiersVisitor(const PlannerContextPtr & planner_context_, ColumnIdentifierSet & used_identifiers_)
-        : used_identifiers(used_identifiers_)
-        , planner_context(planner_context_)
-    {}
+  void visitImpl(const QueryTreeNodePtr &node) {
+    if (node->getNodeType() == QueryTreeNodeType::FUNCTION) {
+      auto *function_node = node->as<FunctionNode>();
+      for (const auto &argument : function_node->getArguments().getNodes()) {
+        if (!isCorrelatedQueryOrUnionNode(argument)) continue;
 
-    static bool needChildVisit(const QueryTreeNodePtr &, const QueryTreeNodePtr & child)
-    {
-        auto child_node_type = child->getNodeType();
-        return child_node_type != QueryTreeNodeType::TABLE
-            && child_node_type != QueryTreeNodeType::TABLE_FUNCTION
-            && child_node_type != QueryTreeNodeType::QUERY
-            && child_node_type != QueryTreeNodeType::UNION
-            && child_node_type != QueryTreeNodeType::JOIN
-            && child_node_type != QueryTreeNodeType::CROSS_JOIN
-            && child_node_type != QueryTreeNodeType::ARRAY_JOIN;
-    }
+        auto *query_node = argument->as<QueryNode>();
+        auto *union_node = argument->as<UnionNode>();
 
-    void visitImpl(const QueryTreeNodePtr & node)
-    {
-        if (node->getNodeType() == QueryTreeNodeType::FUNCTION)
-        {
-            auto * function_node = node->as<FunctionNode>();
-            for (const auto & argument : function_node->getArguments().getNodes())
-            {
-                if (!isCorrelatedQueryOrUnionNode(argument))
-                    continue;
+        const auto &correlated_columns = query_node != nullptr ? query_node->getCorrelatedColumns() : union_node->getCorrelatedColumns();
+        for (const auto &column : correlated_columns) {
+          const auto *column_identifier = planner_context->getColumnNodeIdentifierOrNull(column);
+          if (!column_identifier) return;
 
-                auto * query_node = argument->as<QueryNode>();
-                auto * union_node = argument->as<UnionNode>();
-
-                const auto & correlated_columns = query_node != nullptr ? query_node->getCorrelatedColumns() : union_node->getCorrelatedColumns();
-                for (const auto & column : correlated_columns)
-                {
-                    const auto * column_identifier = planner_context->getColumnNodeIdentifierOrNull(column);
-                    if (!column_identifier)
-                        return;
-
-                    used_identifiers.insert(*column_identifier);
-                }
-            }
-            return;
+          used_identifiers.insert(*column_identifier);
         }
-
-        if (node->getNodeType() != QueryTreeNodeType::COLUMN)
-            return;
-
-        const auto * column_identifier = planner_context->getColumnNodeIdentifierOrNull(node);
-        if (!column_identifier)
-            return;
-
-        used_identifiers.insert(*column_identifier);
+      }
+      return;
     }
 
-    ColumnIdentifierSet & used_identifiers;
-    const PlannerContextPtr & planner_context;
+    if (node->getNodeType() != QueryTreeNodeType::COLUMN) return;
+
+    const auto *column_identifier = planner_context->getColumnNodeIdentifierOrNull(node);
+    if (!column_identifier) return;
+
+    used_identifiers.insert(*column_identifier);
+  }
+
+  ColumnIdentifierSet &used_identifiers;
+  const PlannerContextPtr &planner_context;
 };
 
+}  // namespace
+
+void collectTopLevelColumnIdentifiers(const QueryTreeNodePtr &node, const PlannerContextPtr &planner_context, ColumnIdentifierSet &out) {
+  CollectTopLevelColumnIdentifiersVisitor visitor(planner_context, out);
+  visitor.visit(node);
 }
 
-void collectTopLevelColumnIdentifiers(const QueryTreeNodePtr & node, const PlannerContextPtr & planner_context, ColumnIdentifierSet & out)
-{
-    CollectTopLevelColumnIdentifiersVisitor visitor(planner_context, out);
-    visitor.visit(node);
+ColumnIdentifierSet collectTopLevelColumnIdentifiers(const QueryTreeNodePtr &node, const PlannerContextPtr &planner_context) {
+  ColumnIdentifierSet out;
+  collectTopLevelColumnIdentifiers(node, planner_context, out);
+  return out;
 }
 
-ColumnIdentifierSet collectTopLevelColumnIdentifiers(const QueryTreeNodePtr & node, const PlannerContextPtr & planner_context)
-{
-    ColumnIdentifierSet out;
-    collectTopLevelColumnIdentifiers(node, planner_context, out);
-    return out;
-}
-
-}
+}  // namespace DB

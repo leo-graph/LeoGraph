@@ -3,9 +3,7 @@
 #include <Parsers/IAST_fwd.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/SQLQueryPiece.h>
 
-
-namespace DB::PrometheusQueryToSQL
-{
+namespace DB::PrometheusQueryToSQL {
 
 /// Finalizes an AST built to execute a prometheus query.
 /// The function makes a SQL query returning either:
@@ -15,6 +13,6 @@ namespace DB::PrometheusQueryToSQL
 ///    (if the result of the prometheus query is STRING).
 /// 3. Three columns named "tags", "timestamp", "value" (if the result of the prometheus query is INSTANT VECTOR).
 /// 4. Two columns named "tags", "time_series" (if the result of the prometheus query is RANGE VECTOR).
-ASTPtr finalizeSQL(SQLQueryPiece && result, ConverterContext & context);
+ASTPtr finalizeSQL(SQLQueryPiece&& result, ConverterContext& context);
 
-}
+}  // namespace DB::PrometheusQueryToSQL

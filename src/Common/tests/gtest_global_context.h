@@ -2,23 +2,21 @@
 
 #include <Interpreters/Context.h>
 
-struct ContextHolder
-{
-    DB::SharedContextHolder shared_context;
-    DB::ContextMutablePtr context;
+struct ContextHolder {
+  DB::SharedContextHolder shared_context;
+  DB::ContextMutablePtr context;
 
-    ContextHolder();
+  ContextHolder();
 
-    ContextHolder(ContextHolder &&) = default;
+  ContextHolder(ContextHolder &&) = default;
 
-    void destroy()
-    {
-        context->shutdown();
-        context.reset();
-        shared_context.reset();
-    }
+  void destroy() {
+    context->shutdown();
+    context.reset();
+    shared_context.reset();
+  }
 };
 
-const ContextHolder & getContext();
+const ContextHolder &getContext();
 
-ContextHolder & getMutableContext();
+ContextHolder &getMutableContext();

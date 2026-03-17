@@ -1,8 +1,7 @@
 #pragma once
 #include <Processors/Formats/Impl/JSONColumnsBlockOutputFormat.h>
 
-namespace DB
-{
+namespace DB {
 
 /* Format JSONColumnsWithMetadata outputs all data as a single block in the next format:
  * {
@@ -36,41 +35,38 @@ namespace DB
  *     }
  * }
  */
-class JSONColumnsWithMetadataBlockOutputFormat : public JSONColumnsBlockOutputFormat
-{
-public:
-    JSONColumnsWithMetadataBlockOutputFormat(WriteBuffer & out_, SharedHeader header_, const FormatSettings & format_settings_);
+class JSONColumnsWithMetadataBlockOutputFormat : public JSONColumnsBlockOutputFormat {
+ public:
+  JSONColumnsWithMetadataBlockOutputFormat(WriteBuffer& out_, SharedHeader header_, const FormatSettings& format_settings_);
 
-    String getName() const override { return "JSONCompactColumnsBlockOutputFormat"; }
+  String getName() const override { return "JSONCompactColumnsBlockOutputFormat"; }
 
-    void setRowsBeforeLimit(size_t rows_before_limit_) override
-    {
-        statistics.rows_before_limit = rows_before_limit_;
-        statistics.applied_limit = true;
-    }
+  void setRowsBeforeLimit(size_t rows_before_limit_) override {
+    statistics.rows_before_limit = rows_before_limit_;
+    statistics.applied_limit = true;
+  }
 
-    void setRowsBeforeAggregation(size_t rows_before_aggregation_) override
-    {
-        statistics.rows_before_aggregation = rows_before_aggregation_;
-        statistics.applied_aggregation = true;
-    }
+  void setRowsBeforeAggregation(size_t rows_before_aggregation_) override {
+    statistics.rows_before_aggregation = rows_before_aggregation_;
+    statistics.applied_aggregation = true;
+  }
 
-protected:
-    void consumeTotals(Chunk chunk) override;
-    void consumeExtremes(Chunk chunk) override;
+ protected:
+  void consumeTotals(Chunk chunk) override;
+  void consumeExtremes(Chunk chunk) override;
 
-    void writePrefix() override;
-    void writeSuffix() override;
-    void finalizeImpl() override;
-    void resetFormatterImpl() override;
+  void writePrefix() override;
+  void writeSuffix() override;
+  void finalizeImpl() override;
+  void resetFormatterImpl() override;
 
-    void writeChunkStart() override;
-    void writeChunkEnd() override;
+  void writeChunkStart() override;
+  void writeChunkEnd() override;
 
-    void writeExtremesElement(const char * title, const Columns & columns, size_t row_num);
+  void writeExtremesElement(const char* title, const Columns& columns, size_t row_num);
 
-    DataTypes types;
-    size_t rows;
+  DataTypes types;
+  size_t rows;
 };
 
-}
+}  // namespace DB

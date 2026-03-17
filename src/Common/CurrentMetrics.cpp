@@ -1,6 +1,5 @@
 #include <Common/CurrentMetrics.h>
 
-
 // clang-format off
 /// Available metrics. Add something here as you wish.
 /// If the metric is generic (i.e. not server specific)

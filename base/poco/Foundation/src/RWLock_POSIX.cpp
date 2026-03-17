@@ -11,24 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/RWLock_POSIX.h"
-
 
 namespace Poco {
 
-
-RWLockImpl::RWLockImpl()
-{
-	if (pthread_rwlock_init(&_rwl, NULL))
-		throw SystemException("cannot create reader/writer lock");
+RWLockImpl::RWLockImpl() {
+  if (pthread_rwlock_init(&_rwl, NULL)) throw SystemException("cannot create reader/writer lock");
 }
 
+RWLockImpl::~RWLockImpl() { pthread_rwlock_destroy(&_rwl); }
 
-RWLockImpl::~RWLockImpl()
-{
-	pthread_rwlock_destroy(&_rwl);
-}
-
-
-} // namespace Poco
+}  // namespace Poco

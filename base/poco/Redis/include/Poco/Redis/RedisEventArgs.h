@@ -13,90 +13,65 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Redis_RedisEventArgs_INCLUDED
 #define Redis_RedisEventArgs_INCLUDED
 
-
 #include "Poco/Redis/Type.h"
 
+namespace Poco {
+namespace Redis {
 
-namespace Poco
+class Redis_API RedisEventArgs
+/// Event arguments for AsyncReader events.
 {
-namespace Redis
-{
+ public:
+  RedisEventArgs(RedisType::Ptr message);
+  /// Creates the RedisEventArgs from the given message.
 
+  RedisEventArgs(Exception* e);
+  /// Creates the RedisEventArgs from the given Redis Exception.
 
-    class Redis_API RedisEventArgs
-    /// Event arguments for AsyncReader events.
-    {
-    public:
-        RedisEventArgs(RedisType::Ptr message);
-        /// Creates the RedisEventArgs from the given message.
+  ~RedisEventArgs();
+  /// Destroys the RedisEventArgs.
 
-        RedisEventArgs(Exception * e);
-        /// Creates the RedisEventArgs from the given Redis Exception.
+  RedisType::Ptr message() const;
+  /// Returns the message retrieved from the Redis server.
+  /// This can be a NULL pointer when this event is about an exception.
 
-        ~RedisEventArgs();
-        /// Destroys the RedisEventArgs.
+  const Exception* exception() const;
+  /// Returns the exception if any, otherwise it returns null pointer.
 
-        RedisType::Ptr message() const;
-        /// Returns the message retrieved from the Redis server.
-        /// This can be a NULL pointer when this event is about an exception.
+  void stop();
+  /// When called, the AsyncReader will stop.
+  ///
+  /// Note: The AsyncReader will always stop when this is an exception
+  /// event. Use this for example for pub/sub when there are no
+  /// subcribers anymore.
 
-        const Exception * exception() const;
-        /// Returns the exception if any, otherwise it returns null pointer.
+  bool isStopped() const;
+  /// Returns true when the AsyncReader will stop.
 
-        void stop();
-        /// When called, the AsyncReader will stop.
-        ///
-        /// Note: The AsyncReader will always stop when this is an exception
-        /// event. Use this for example for pub/sub when there are no
-        /// subcribers anymore.
+ private:
+  RedisType::Ptr _message;
 
-        bool isStopped() const;
-        /// Returns true when the AsyncReader will stop.
+  Exception* _exception;
 
-    private:
-        RedisType::Ptr _message;
+  bool _stop;
+};
 
-        Exception * _exception;
+//
+// inlines
+//
 
-        bool _stop;
-    };
+inline RedisType::Ptr RedisEventArgs::message() const { return _message; }
 
+inline const Exception* RedisEventArgs::exception() const { return _exception; }
 
-    //
-    // inlines
-    //
+inline bool RedisEventArgs::isStopped() const { return _stop; }
 
+inline void RedisEventArgs::stop() { _stop = true; }
 
-    inline RedisType::Ptr RedisEventArgs::message() const
-    {
-        return _message;
-    }
+}  // namespace Redis
+}  // namespace Poco
 
-
-    inline const Exception * RedisEventArgs::exception() const
-    {
-        return _exception;
-    }
-
-
-    inline bool RedisEventArgs::isStopped() const
-    {
-        return _stop;
-    }
-
-
-    inline void RedisEventArgs::stop()
-    {
-        _stop = true;
-    }
-
-
-}
-} // namespace Poco::Redis
-
-
-#endif // Redis_RedisEventArgs_INCLUDED
+#endif  // Redis_RedisEventArgs_INCLUDED

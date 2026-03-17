@@ -4,11 +4,10 @@
 
 #if USE_H3
 
-#include <constants.h>
-#include <h3api.h>
+#  include <constants.h>
+#  include <h3api.h>
 
-namespace DB
-{
+namespace DB {
 
 /// H3 functions that take a cell index don't behave well when given an invalid index.
 /// Let's be careful to never call h3 functions on invalid cell indices.
@@ -25,6 +24,6 @@ namespace DB
 /// which means there's probably memory corruption.)
 void validateH3Cell(uint64_t h);
 
-}
+}  // namespace DB
 
 #endif

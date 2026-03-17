@@ -13,98 +13,84 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_PartStore_INCLUDED
 #define Net_PartStore_INCLUDED
-
 
 #include "Poco/FileStream.h"
 #include "Poco/Net/Net.h"
 #include "Poco/Net/PartSource.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API PartStore : public PartSource
+/// A parent class for part stores storing message parts.
 {
-namespace Net
+ public:
+  PartStore(const std::string& mediaType);
+  /// Creates the PartStore for the given MIME type.
+
+  ~PartStore();
+  /// Destroys the PartFileStore.
+
+ private:
+  PartStore();
+};
+
+class Net_API FilePartStore : public PartStore
+/// An implementation of PartSource for persisting
+/// parts (usually email attachment files) to the file system.
 {
+ public:
+  FilePartStore(const std::string& content, const std::string& mediaType, const std::string& filename = "");
+  /// Creates the FilePartStore for the given MIME type.
+  /// For security purposes, attachment filename is NOT used to save file to the file system.
+  /// A unique temporary file name is used to persist the file.
+  /// The given filename parameter is the message part (attachment) filename (see filename()) only.
+  ///
+  /// Throws an exception if the file cannot be opened.
 
+  ~FilePartStore();
+  /// Destroys the FilePartStore.
 
-    class Net_API PartStore : public PartSource
-    /// A parent class for part stores storing message parts.
-    {
-    public:
-        PartStore(const std::string & mediaType);
-        /// Creates the PartStore for the given MIME type.
+  std::istream& stream();
+  /// Returns a file input stream for the given file.
 
-        ~PartStore();
-        /// Destroys the PartFileStore.
+  const std::string& filename() const;
+  /// Returns the filename portion of the path.
+  /// This is the name under which the file is known
+  /// to the user of this class (typically, MailMessage
+  /// class). The real name of the file as saved
+  /// to the filesystem can be obtained by calling
+  /// path() member function.
 
-    private:
-        PartStore();
-    };
+  const std::string& path() const;
+  /// Returns the full path to the file as saved
+  /// to the file system. For security reasons,
+  /// file is not saved under the real file name
+  /// (as specified by the user).
 
+ private:
+  std::string _filename;
+  std::string _path;
+  Poco::FileStream _fstr;
+};
 
-    class Net_API FilePartStore : public PartStore
-    /// An implementation of PartSource for persisting
-    /// parts (usually email attachment files) to the file system.
-    {
-    public:
-        FilePartStore(const std::string & content, const std::string & mediaType, const std::string & filename = "");
-        /// Creates the FilePartStore for the given MIME type.
-        /// For security purposes, attachment filename is NOT used to save file to the file system.
-        /// A unique temporary file name is used to persist the file.
-        /// The given filename parameter is the message part (attachment) filename (see filename()) only.
-        ///
-        /// Throws an exception if the file cannot be opened.
+class PartStoreFactory
+/// Parent factory class for part stores creation.
+{
+ public:
+  virtual PartSource* createPartStore(const std::string& content, const std::string& mediaType, const std::string& filename = "") = 0;
+};
 
-        ~FilePartStore();
-        /// Destroys the FilePartStore.
+class FilePartStoreFactory : public PartStoreFactory {
+ public:
+  PartSource* createPartStore(const std::string& content, const std::string& mediaType, const std::string& filename = "") {
+    return new FilePartStore(content, mediaType, filename);
+  }
+};
 
-        std::istream & stream();
-        /// Returns a file input stream for the given file.
+}  // namespace Net
+}  // namespace Poco
 
-        const std::string & filename() const;
-        /// Returns the filename portion of the path.
-        /// This is the name under which the file is known
-        /// to the user of this class (typically, MailMessage
-        /// class). The real name of the file as saved
-        /// to the filesystem can be obtained by calling
-        /// path() member function.
-
-        const std::string & path() const;
-        /// Returns the full path to the file as saved
-        /// to the file system. For security reasons,
-        /// file is not saved under the real file name
-        /// (as specified by the user).
-
-    private:
-        std::string _filename;
-        std::string _path;
-        Poco::FileStream _fstr;
-    };
-
-
-    class PartStoreFactory
-    /// Parent factory class for part stores creation.
-    {
-    public:
-        virtual PartSource * createPartStore(const std::string & content, const std::string & mediaType, const std::string & filename = "")
-            = 0;
-    };
-
-
-    class FilePartStoreFactory : public PartStoreFactory
-    {
-    public:
-        PartSource * createPartStore(const std::string & content, const std::string & mediaType, const std::string & filename = "")
-        {
-            return new FilePartStore(content, mediaType, filename);
-        }
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_PartStore_INCLUDED
+#endif  // Net_PartStore_INCLUDED

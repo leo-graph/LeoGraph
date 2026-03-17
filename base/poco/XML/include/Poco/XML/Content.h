@@ -16,45 +16,32 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef XML_Content_INCLUDED
 #define XML_Content_INCLUDED
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+struct Content
+/// XML content model. C++11 enum class emulated for C++98.
+///
+///               element   characters  whitespaces  notes
+///     Empty     no          no        ignored
+///     Simple    no          yes       preserved    content accumulated
+///     Complex   yes         no        ignored
+///     Mixed     yes         yes       preserved
 {
-namespace XML
-{
+  enum value { Empty, Simple, Complex, Mixed };
 
+  Content(value v) : _v(v) {}
 
-    struct Content
-    /// XML content model. C++11 enum class emulated for C++98.
-    ///
-    ///               element   characters  whitespaces  notes
-    ///     Empty     no          no        ignored
-    ///     Simple    no          yes       preserved    content accumulated
-    ///     Complex   yes         no        ignored
-    ///     Mixed     yes         yes       preserved
-    {
-        enum value
-        {
-            Empty,
-            Simple,
-            Complex,
-            Mixed
-        };
+  operator value() const { return _v; }
 
-        Content(value v) : _v(v) { }
+ private:
+  value _v;
+};
 
-        operator value() const { return _v; }
+}  // namespace XML
+}  // namespace Poco
 
-    private:
-        value _v;
-    };
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // XML_Content_INCLUDED
+#endif  // XML_Content_INCLUDED

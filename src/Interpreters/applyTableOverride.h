@@ -1,11 +1,10 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
 class ASTTableOverride;
 class ASTCreateQuery;
 
-void applyTableOverrideToCreateQuery(const ASTTableOverride & override, ASTCreateQuery * create_query);
+void applyTableOverrideToCreateQuery(const ASTTableOverride& override, ASTCreateQuery* create_query);
 
-}
+}  // namespace DB

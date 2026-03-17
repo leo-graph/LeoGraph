@@ -13,17 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ScopedLock_INCLUDED
 #define Foundation_ScopedLock_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class M>
 class ScopedLock
@@ -33,31 +28,26 @@ class ScopedLock
 /// a timeout value in milliseconds) and locks it.
 /// The destructor unlocks the mutex.
 {
-public:
-    explicit ScopedLock(M & mutex) : _mutex(mutex) { _mutex.lock(); }
+ public:
+  explicit ScopedLock(M &mutex) : _mutex(mutex) { _mutex.lock(); }
 
-    ScopedLock(M & mutex, long milliseconds) : _mutex(mutex) { _mutex.lock(milliseconds); }
+  ScopedLock(M &mutex, long milliseconds) : _mutex(mutex) { _mutex.lock(milliseconds); }
 
-    ~ScopedLock()
-    {
-        try
-        {
-            _mutex.unlock();
-        }
-        catch (...)
-        {
-            poco_unexpected();
-        }
+  ~ScopedLock() {
+    try {
+      _mutex.unlock();
+    } catch (...) {
+      poco_unexpected();
     }
+  }
 
-private:
-    M & _mutex;
+ private:
+  M &_mutex;
 
-    ScopedLock();
-    ScopedLock(const ScopedLock &);
-    ScopedLock & operator=(const ScopedLock &);
+  ScopedLock();
+  ScopedLock(const ScopedLock &);
+  ScopedLock &operator=(const ScopedLock &);
 };
-
 
 template <class M>
 class ScopedLockWithUnlock
@@ -69,42 +59,34 @@ class ScopedLockWithUnlock
 /// The unlock() member function allows for manual
 /// unlocking of the mutex.
 {
-public:
-    explicit ScopedLockWithUnlock(M & mutex) : _pMutex(&mutex) { _pMutex->lock(); }
+ public:
+  explicit ScopedLockWithUnlock(M &mutex) : _pMutex(&mutex) { _pMutex->lock(); }
 
-    ScopedLockWithUnlock(M & mutex, long milliseconds) : _pMutex(&mutex) { _pMutex->lock(milliseconds); }
+  ScopedLockWithUnlock(M &mutex, long milliseconds) : _pMutex(&mutex) { _pMutex->lock(milliseconds); }
 
-    ~ScopedLockWithUnlock()
-    {
-        try
-        {
-            unlock();
-        }
-        catch (...)
-        {
-            poco_unexpected();
-        }
+  ~ScopedLockWithUnlock() {
+    try {
+      unlock();
+    } catch (...) {
+      poco_unexpected();
     }
+  }
 
-    void unlock()
-    {
-        if (_pMutex)
-        {
-            _pMutex->unlock();
-            _pMutex = 0;
-        }
+  void unlock() {
+    if (_pMutex) {
+      _pMutex->unlock();
+      _pMutex = 0;
     }
+  }
 
-private:
-    M * _pMutex;
+ private:
+  M *_pMutex;
 
-    ScopedLockWithUnlock();
-    ScopedLockWithUnlock(const ScopedLockWithUnlock &);
-    ScopedLockWithUnlock & operator=(const ScopedLockWithUnlock &);
+  ScopedLockWithUnlock();
+  ScopedLockWithUnlock(const ScopedLockWithUnlock &);
+  ScopedLockWithUnlock &operator=(const ScopedLockWithUnlock &);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ScopedLock_INCLUDED
+#endif  // Foundation_ScopedLock_INCLUDED

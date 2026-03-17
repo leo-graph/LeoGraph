@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_UTF16Encoding_INCLUDED
 #define Foundation_UTF16Encoding_INCLUDED
-
 
 #include "Poco/Foundation.h"
 #include "Poco/TextEncoding.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API UTF16Encoding : public TextEncoding
 /// UTF-16 text encoding, as defined in RFC 2781.
@@ -36,51 +31,44 @@ class Foundation_API UTF16Encoding : public TextEncoding
 /// outside the 16-bit range are converted into a low and
 /// high surrogate.
 {
-public:
-    enum ByteOrderType
-    {
-        BIG_ENDIAN_BYTE_ORDER,
-        LITTLE_ENDIAN_BYTE_ORDER,
-        NATIVE_BYTE_ORDER
-    };
+ public:
+  enum ByteOrderType { BIG_ENDIAN_BYTE_ORDER, LITTLE_ENDIAN_BYTE_ORDER, NATIVE_BYTE_ORDER };
 
-    UTF16Encoding(ByteOrderType byteOrder = NATIVE_BYTE_ORDER);
-    /// Creates and initializes the encoding for the given byte order.
+  UTF16Encoding(ByteOrderType byteOrder = NATIVE_BYTE_ORDER);
+  /// Creates and initializes the encoding for the given byte order.
 
-    UTF16Encoding(int byteOrderMark);
-    /// Creates and initializes the encoding for the byte-order
-    /// indicated by the given byte-order mark, which is the Unicode
-    /// character 0xFEFF.
+  UTF16Encoding(int byteOrderMark);
+  /// Creates and initializes the encoding for the byte-order
+  /// indicated by the given byte-order mark, which is the Unicode
+  /// character 0xFEFF.
 
-    ~UTF16Encoding();
+  ~UTF16Encoding();
 
-    ByteOrderType getByteOrder() const;
-    /// Returns the byte-order currently in use.
+  ByteOrderType getByteOrder() const;
+  /// Returns the byte-order currently in use.
 
-    void setByteOrder(ByteOrderType byteOrder);
-    /// Sets the byte order.
+  void setByteOrder(ByteOrderType byteOrder);
+  /// Sets the byte order.
 
-    void setByteOrder(int byteOrderMark);
-    /// Sets the byte order according to the given
-    /// byte order mark, which is the Unicode
-    /// character 0xFEFF.
+  void setByteOrder(int byteOrderMark);
+  /// Sets the byte order according to the given
+  /// byte order mark, which is the Unicode
+  /// character 0xFEFF.
 
-    const char * canonicalName() const;
-    bool isA(const std::string & encodingName) const;
-    const CharacterMap & characterMap() const;
-    int convert(const unsigned char * bytes) const;
-    int convert(int ch, unsigned char * bytes, int length) const;
-    int queryConvert(const unsigned char * bytes, int length) const;
-    int sequenceLength(const unsigned char * bytes, int length) const;
+  const char* canonicalName() const;
+  bool isA(const std::string& encodingName) const;
+  const CharacterMap& characterMap() const;
+  int convert(const unsigned char* bytes) const;
+  int convert(int ch, unsigned char* bytes, int length) const;
+  int queryConvert(const unsigned char* bytes, int length) const;
+  int sequenceLength(const unsigned char* bytes, int length) const;
 
-private:
-    bool _flipBytes;
-    static const char * _names[];
-    static const CharacterMap _charMap;
+ private:
+  bool _flipBytes;
+  static const char* _names[];
+  static const CharacterMap _charMap;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_UTF16Encoding_INCLUDED
+#endif  // Foundation_UTF16Encoding_INCLUDED

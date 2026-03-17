@@ -2,21 +2,18 @@
 
 #include <IO/AsynchronousReader.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Implementation of IAsynchronousReader that in fact synchronous.
-  * The only addition is posix_fadvise.
-  */
-class SynchronousReader final : public IAsynchronousReader
-{
-public:
-    std::future<Result> submit(Request request) override;
+ * The only addition is posix_fadvise.
+ */
+class SynchronousReader final : public IAsynchronousReader {
+ public:
+  std::future<Result> submit(Request request) override;
 
-    Result execute(Request request) override;
+  Result execute(Request request) override;
 
-    void wait() override {}
+  void wait() override {}
 };
 
-}
+}  // namespace DB

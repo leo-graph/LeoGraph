@@ -9,58 +9,47 @@
 
 #include <boost/algorithm/string.hpp>
 
-namespace DB
-{
+namespace DB {
 
-bool ParserShowIndexesQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    ASTPtr from1;
-    ASTPtr from2;
+bool ParserShowIndexesQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  ASTPtr from1;
+  ASTPtr from2;
 
-    String from2_str;
+  String from2_str;
 
-    auto query = make_intrusive<ASTShowIndexesQuery>();
+  auto query = make_intrusive<ASTShowIndexesQuery>();
 
-    if (!ParserKeyword(Keyword::SHOW).ignore(pos, expected))
-        return false;
+  if (!ParserKeyword(Keyword::SHOW).ignore(pos, expected)) return false;
 
-    if (ParserKeyword(Keyword::EXTENDED).ignore(pos, expected))
-        query->extended = true;
+  if (ParserKeyword(Keyword::EXTENDED).ignore(pos, expected)) query->extended = true;
 
-    if (!(ParserKeyword(Keyword::INDEX).ignore(pos, expected) || ParserKeyword(Keyword::INDEXES).ignore(pos, expected) || ParserKeyword(Keyword::INDICES).ignore(pos, expected) || ParserKeyword(Keyword::KEYS).ignore(pos, expected)))
-        return false;
+  if (!(ParserKeyword(Keyword::INDEX).ignore(pos, expected) || ParserKeyword(Keyword::INDEXES).ignore(pos, expected) ||
+        ParserKeyword(Keyword::INDICES).ignore(pos, expected) || ParserKeyword(Keyword::KEYS).ignore(pos, expected)))
+    return false;
 
+  if (ParserKeyword(Keyword::FROM).ignore(pos, expected) || ParserKeyword(Keyword::IN).ignore(pos, expected)) {
+    if (!ParserCompoundIdentifier().parse(pos, from1, expected)) return false;
+  } else
+    return false;
+
+  const auto* table_id = from1->as<ASTIdentifier>();
+  if (!table_id) return false;
+  query->table = table_id->shortName();
+  if (table_id->compound())
+    query->database = table_id->name_parts[0];
+  else {
     if (ParserKeyword(Keyword::FROM).ignore(pos, expected) || ParserKeyword(Keyword::IN).ignore(pos, expected))
-    {
-        if (!ParserCompoundIdentifier().parse(pos, from1, expected))
-            return false;
-    }
-    else
-        return false;
+      if (!ParserIdentifier().parse(pos, from2, expected)) return false;
+    tryGetIdentifierNameInto(from2, from2_str);
+    query->database = from2_str;
+  }
 
-    const auto * table_id = from1->as<ASTIdentifier>();
-    if (!table_id)
-        return false;
-    query->table = table_id->shortName();
-    if (table_id->compound())
-        query->database = table_id->name_parts[0];
-    else
-    {
-        if (ParserKeyword(Keyword::FROM).ignore(pos, expected) || ParserKeyword(Keyword::IN).ignore(pos, expected))
-            if (!ParserIdentifier().parse(pos, from2, expected))
-                return false;
-        tryGetIdentifierNameInto(from2, from2_str);
-        query->database = from2_str;
-    }
+  if (ParserKeyword(Keyword::WHERE).ignore(pos, expected))
+    if (!ParserExpressionWithOptionalAlias(false).parse(pos, query->where_expression, expected)) return false;
 
-    if (ParserKeyword(Keyword::WHERE).ignore(pos, expected))
-        if (!ParserExpressionWithOptionalAlias(false).parse(pos, query->where_expression, expected))
-            return false;
+  node = query;
 
-    node = query;
-
-    return true;
+  return true;
 }
 
-}
-
+}  // namespace DB

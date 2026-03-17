@@ -13,17 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_FIFOStrategy_INCLUDED
 #define Foundation_FIFOStrategy_INCLUDED
 
-
 #include "Poco/DefaultStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 //@ deprecated
 template <class TArgs, class TDelegate>
@@ -32,22 +27,19 @@ class FIFOStrategy : public DefaultStrategy<TArgs, TDelegate>
 /// implements FIFO behavior, so this class is provided
 /// for backwards compatibility only.
 {
-public:
-    FIFOStrategy() { }
+ public:
+  FIFOStrategy() {}
 
-    FIFOStrategy(const FIFOStrategy & s) : DefaultStrategy<TArgs, TDelegate>(s) { }
+  FIFOStrategy(const FIFOStrategy& s) : DefaultStrategy<TArgs, TDelegate>(s) {}
 
-    ~FIFOStrategy() { }
+  ~FIFOStrategy() {}
 
-    FIFOStrategy & operator=(const FIFOStrategy & s)
-    {
-        DefaultStrategy<TArgs, TDelegate>::operator=(s);
-        return *this;
-    }
+  FIFOStrategy& operator=(const FIFOStrategy& s) {
+    DefaultStrategy<TArgs, TDelegate>::operator=(s);
+    return *this;
+  }
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_FIFOStrategy_INCLUDED
+#endif  // Foundation_FIFOStrategy_INCLUDED

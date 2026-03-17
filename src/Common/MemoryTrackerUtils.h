@@ -1,7 +1,7 @@
 #pragma once
 
-#include <optional>
 #include <base/types.h>
+#include <optional>
 
 /// Return most strict (by hard limit) system (non query-level, i.e. server/user/merges/...) memory limit
 std::optional<UInt64> getMostStrictAvailableSystemMemory();

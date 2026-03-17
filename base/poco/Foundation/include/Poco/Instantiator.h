@@ -13,42 +13,34 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Instantiator_INCLUDED
 #define Foundation_Instantiator_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class Base>
 class AbstractInstantiator
 /// The common base class for all Instantiator instantiations.
 /// Used by DynamicFactory.
 {
-public:
-    AbstractInstantiator()
-    /// Creates the AbstractInstantiator.
-    {
-    }
+ public:
+  AbstractInstantiator()
+  /// Creates the AbstractInstantiator.
+  {}
 
-    virtual ~AbstractInstantiator()
-    /// Destroys the AbstractInstantiator.
-    {
-    }
+  virtual ~AbstractInstantiator()
+  /// Destroys the AbstractInstantiator.
+  {}
 
-    virtual Base * createInstance() const = 0;
-    /// Creates an instance of a concrete subclass of Base.
+  virtual Base *createInstance() const = 0;
+  /// Creates an instance of a concrete subclass of Base.
 
-private:
-    AbstractInstantiator(const AbstractInstantiator &);
-    AbstractInstantiator & operator=(const AbstractInstantiator &);
+ private:
+  AbstractInstantiator(const AbstractInstantiator &);
+  AbstractInstantiator &operator=(const AbstractInstantiator &);
 };
-
 
 template <class C, class Base>
 class Instantiator : public AbstractInstantiator<Base>
@@ -59,22 +51,18 @@ class Instantiator : public AbstractInstantiator<Base>
 /// instances are to be instantiated must have a no-argument
 /// constructor.
 {
-public:
-    Instantiator()
-    /// Creates the Instantiator.
-    {
-    }
+ public:
+  Instantiator()
+  /// Creates the Instantiator.
+  {}
 
-    virtual ~Instantiator()
-    /// Destroys the Instantiator.
-    {
-    }
+  virtual ~Instantiator()
+  /// Destroys the Instantiator.
+  {}
 
-    Base * createInstance() const { return new C; }
+  Base *createInstance() const { return new C; }
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Instantiator_INCLUDED
+#endif  // Foundation_Instantiator_INCLUDED

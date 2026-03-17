@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_FileChannel_INCLUDED
 #define Foundation_FileChannel_INCLUDED
-
 
 #include "Poco/Channel.h"
 #include "Poco/Foundation.h"
@@ -24,16 +22,12 @@
 #include "Poco/Timespan.h"
 #include "Poco/Timestamp.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class LogFile;
 class RotateStrategy;
 class ArchiveStrategy;
 class PurgeStrategy;
-
 
 class Foundation_API FileChannel : public Channel
 /// A Channel that writes to a file. This class supports
@@ -165,113 +159,111 @@ class Foundation_API FileChannel : public Channel
 ///
 /// For a more lightweight file channel class, see SimpleFileChannel.
 {
-public:
-    FileChannel();
-    /// Creates the FileChannel.
+ public:
+  FileChannel();
+  /// Creates the FileChannel.
 
-    FileChannel(const std::string & path);
-    /// Creates the FileChannel for a file with the given path.
+  FileChannel(const std::string& path);
+  /// Creates the FileChannel for a file with the given path.
 
-    void open();
-    /// Opens the FileChannel and creates the log file if necessary.
+  void open();
+  /// Opens the FileChannel and creates the log file if necessary.
 
-    void close();
-    /// Closes the FileChannel.
+  void close();
+  /// Closes the FileChannel.
 
-    void log(const Message & msg);
-    /// Logs the given message to the file.
+  void log(const Message& msg);
+  /// Logs the given message to the file.
 
-    void setProperty(const std::string & name, const std::string & value);
-    /// Sets the property with the given name.
-    ///
-    /// The following properties are supported:
-    ///   * path:         The log file's path.
-    ///   * rotation:     The log file's rotation mode. See the
-    ///                   FileChannel class for details.
-    ///   * archive:      The log file's archive mode. See the
-    ///                   FileChannel class for details.
-    ///   * times:        The log file's time mode. See the
-    ///                   FileChannel class for details.
-    ///   * compress:     Enable or disable compression of
-    ///                   archived files. See the FileChannel class
-    ///                   for details.
-    ///   * purgeAge:     Maximum age of an archived log file before
-    ///                   it is purged. See the FileChannel class for
-    ///                   details.
-    ///   * purgeCount:   Maximum number of archived log files before
-    ///                   files are purged. See the FileChannel class
-    ///                   for details.
-    ///   * flush:        Specifies whether messages are immediately
-    ///                   flushed to the log file. See the FileChannel class
-    ///                   for details.
-    ///   * rotateOnOpen: Specifies whether an existing log file should be
-    ///                   rotated and archived when the channel is opened.
+  void setProperty(const std::string& name, const std::string& value);
+  /// Sets the property with the given name.
+  ///
+  /// The following properties are supported:
+  ///   * path:         The log file's path.
+  ///   * rotation:     The log file's rotation mode. See the
+  ///                   FileChannel class for details.
+  ///   * archive:      The log file's archive mode. See the
+  ///                   FileChannel class for details.
+  ///   * times:        The log file's time mode. See the
+  ///                   FileChannel class for details.
+  ///   * compress:     Enable or disable compression of
+  ///                   archived files. See the FileChannel class
+  ///                   for details.
+  ///   * purgeAge:     Maximum age of an archived log file before
+  ///                   it is purged. See the FileChannel class for
+  ///                   details.
+  ///   * purgeCount:   Maximum number of archived log files before
+  ///                   files are purged. See the FileChannel class
+  ///                   for details.
+  ///   * flush:        Specifies whether messages are immediately
+  ///                   flushed to the log file. See the FileChannel class
+  ///                   for details.
+  ///   * rotateOnOpen: Specifies whether an existing log file should be
+  ///                   rotated and archived when the channel is opened.
 
-    std::string getProperty(const std::string & name) const;
-    /// Returns the value of the property with the given name.
-    /// See setProperty() for a description of the supported
-    /// properties.
+  std::string getProperty(const std::string& name) const;
+  /// Returns the value of the property with the given name.
+  /// See setProperty() for a description of the supported
+  /// properties.
 
-    Timestamp creationDate() const;
-    /// Returns the log file's creation date.
+  Timestamp creationDate() const;
+  /// Returns the log file's creation date.
 
-    UInt64 size() const;
-    /// Returns the log file's current size in bytes.
+  UInt64 size() const;
+  /// Returns the log file's current size in bytes.
 
-    const std::string & path() const;
-    /// Returns the log file's path.
+  const std::string& path() const;
+  /// Returns the log file's path.
 
-    static const std::string PROP_PATH;
-    static const std::string PROP_ROTATION;
-    static const std::string PROP_ARCHIVE;
-    static const std::string PROP_TIMES;
-    static const std::string PROP_COMPRESS;
-    static const std::string PROP_STREAMCOMPRESS;
-    static const std::string PROP_PURGEAGE;
-    static const std::string PROP_PURGECOUNT;
-    static const std::string PROP_FLUSH;
-    static const std::string PROP_ROTATEONOPEN;
+  static const std::string PROP_PATH;
+  static const std::string PROP_ROTATION;
+  static const std::string PROP_ARCHIVE;
+  static const std::string PROP_TIMES;
+  static const std::string PROP_COMPRESS;
+  static const std::string PROP_STREAMCOMPRESS;
+  static const std::string PROP_PURGEAGE;
+  static const std::string PROP_PURGECOUNT;
+  static const std::string PROP_FLUSH;
+  static const std::string PROP_ROTATEONOPEN;
 
-protected:
-    ~FileChannel();
-    void setRotation(const std::string & rotation);
-    void setArchive(const std::string & archive);
-    void setCompress(const std::string & compress);
-    void setStreamCompress(const std::string & streamCompress);
-    void setPurgeAge(const std::string & age);
-    void setPurgeCount(const std::string & count);
-    void setFlush(const std::string & flush);
-    void setRotateOnOpen(const std::string & rotateOnOpen);
-    void purge();
-    void unsafeOpen();
+ protected:
+  ~FileChannel();
+  void setRotation(const std::string& rotation);
+  void setArchive(const std::string& archive);
+  void setCompress(const std::string& compress);
+  void setStreamCompress(const std::string& streamCompress);
+  void setPurgeAge(const std::string& age);
+  void setPurgeCount(const std::string& count);
+  void setFlush(const std::string& flush);
+  void setRotateOnOpen(const std::string& rotateOnOpen);
+  void purge();
+  void unsafeOpen();
 
-private:
-    LogFile * newLogFile();
-    void archiveCorrupted(const std::string & path);
-    bool setNoPurge(const std::string & value);
-    int extractDigit(const std::string & value, std::string::const_iterator * nextToDigit = NULL) const;
-    void setPurgeStrategy(PurgeStrategy * strategy);
-    Timespan::TimeDiff extractFactor(const std::string & value, std::string::const_iterator start) const;
+ private:
+  LogFile* newLogFile();
+  void archiveCorrupted(const std::string& path);
+  bool setNoPurge(const std::string& value);
+  int extractDigit(const std::string& value, std::string::const_iterator* nextToDigit = NULL) const;
+  void setPurgeStrategy(PurgeStrategy* strategy);
+  Timespan::TimeDiff extractFactor(const std::string& value, std::string::const_iterator start) const;
 
-    std::string _path;
-    std::string _times;
-    std::string _rotation;
-    std::string _archive;
-    bool _compress;
-    bool _streamCompress;
-    std::string _purgeAge;
-    std::string _purgeCount;
-    bool _flush;
-    bool _rotateOnOpen;
-    LogFile * _pFile;
-    RotateStrategy * _pRotateStrategy;
-    ArchiveStrategy * _pArchiveStrategy;
-    PurgeStrategy * _pPurgeStrategy;
-    FastMutex _mutex;
+  std::string _path;
+  std::string _times;
+  std::string _rotation;
+  std::string _archive;
+  bool _compress;
+  bool _streamCompress;
+  std::string _purgeAge;
+  std::string _purgeCount;
+  bool _flush;
+  bool _rotateOnOpen;
+  LogFile* _pFile;
+  RotateStrategy* _pRotateStrategy;
+  ArchiveStrategy* _pArchiveStrategy;
+  PurgeStrategy* _pPurgeStrategy;
+  FastMutex _mutex;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_FileChannel_INCLUDED
+#endif  // Foundation_FileChannel_INCLUDED

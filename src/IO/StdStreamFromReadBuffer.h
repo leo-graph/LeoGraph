@@ -4,36 +4,31 @@
 #include <iostream>
 #include <memory>
 
-
-namespace DB
-{
+namespace DB {
 class ReadBuffer;
 
 /// `std::istream`-compatible wrapper around a ReadBuffer.
-class StdIStreamFromReadBuffer : public std::istream
-{
-public:
-    using Base = std::istream;
-    StdIStreamFromReadBuffer(std::unique_ptr<ReadBuffer> buf, size_t size);
-    StdIStreamFromReadBuffer(ReadBuffer & buf, size_t size);
-    StdStreamBufFromReadBuffer * rdbuf() const { return const_cast<StdStreamBufFromReadBuffer *>(&stream_buf); }
+class StdIStreamFromReadBuffer : public std::istream {
+ public:
+  using Base = std::istream;
+  StdIStreamFromReadBuffer(std::unique_ptr<ReadBuffer> buf, size_t size);
+  StdIStreamFromReadBuffer(ReadBuffer &buf, size_t size);
+  StdStreamBufFromReadBuffer *rdbuf() const { return const_cast<StdStreamBufFromReadBuffer *>(&stream_buf); }
 
-private:
-    StdStreamBufFromReadBuffer stream_buf;
+ private:
+  StdStreamBufFromReadBuffer stream_buf;
 };
-
 
 /// `std::iostream`-compatible wrapper around a ReadBuffer.
-class StdStreamFromReadBuffer : public std::iostream
-{
-public:
-    using Base = std::iostream;
-    StdStreamFromReadBuffer(std::unique_ptr<ReadBuffer> buf, size_t size);
-    StdStreamFromReadBuffer(ReadBuffer & buf, size_t size);
-    StdStreamBufFromReadBuffer * rdbuf() const { return const_cast<StdStreamBufFromReadBuffer *>(&stream_buf); }
+class StdStreamFromReadBuffer : public std::iostream {
+ public:
+  using Base = std::iostream;
+  StdStreamFromReadBuffer(std::unique_ptr<ReadBuffer> buf, size_t size);
+  StdStreamFromReadBuffer(ReadBuffer &buf, size_t size);
+  StdStreamBufFromReadBuffer *rdbuf() const { return const_cast<StdStreamBufFromReadBuffer *>(&stream_buf); }
 
-private:
-    StdStreamBufFromReadBuffer stream_buf;
+ private:
+  StdStreamBufFromReadBuffer stream_buf;
 };
 
-}
+}  // namespace DB

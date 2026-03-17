@@ -1,7 +1,6 @@
 
 #include <Interpreters/HashJoin/HashJoinMethodsImpl.h>
 
-namespace DB
-{
+namespace DB {
 template class HashJoinMethods<JoinKind::Inner, JoinStrictness::Anti, HashJoin::MapsOne>;
 }

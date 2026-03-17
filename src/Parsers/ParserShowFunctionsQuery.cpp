@@ -5,31 +5,25 @@
 #include <Parsers/CommonParsers.h>
 #include <Parsers/ExpressionElementParsers.h>
 
-namespace DB
-{
+namespace DB {
 
-bool ParserShowFunctionsQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    ASTPtr like;
+bool ParserShowFunctionsQuery::parseImpl(Pos &pos, ASTPtr &node, Expected &expected) {
+  ASTPtr like;
 
-    auto query = make_intrusive<ASTShowFunctionsQuery>();
-    if (!ParserKeyword(Keyword::SHOW_FUNCTIONS).ignore(pos, expected))
-        return false;
+  auto query = make_intrusive<ASTShowFunctionsQuery>();
+  if (!ParserKeyword(Keyword::SHOW_FUNCTIONS).ignore(pos, expected)) return false;
 
-    if (bool insensitive = ParserKeyword(Keyword::ILIKE).ignore(pos, expected); insensitive || ParserKeyword(Keyword::LIKE).ignore(pos, expected))
-    {
-        if (insensitive)
-            query->case_insensitive_like = true;
+  if (bool insensitive = ParserKeyword(Keyword::ILIKE).ignore(pos, expected);
+      insensitive || ParserKeyword(Keyword::LIKE).ignore(pos, expected)) {
+    if (insensitive) query->case_insensitive_like = true;
 
-        if (!ParserStringLiteral().parse(pos, like, expected))
-            return false;
-    }
+    if (!ParserStringLiteral().parse(pos, like, expected)) return false;
+  }
 
-    if (like)
-        query->like = like->as<ASTLiteral &>().value.safeGet<String>();
-    node = query;
+  if (like) query->like = like->as<ASTLiteral &>().value.safeGet<String>();
+  node = query;
 
-    return true;
+  return true;
 }
 
-}
+}  // namespace DB

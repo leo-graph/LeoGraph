@@ -7,25 +7,22 @@
 #include <map>
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
-namespace SettingsChangesHistory
-{
-    struct SettingChange
-    {
-        String name;
-        Field previous_value;
-        Field new_value;
-        String reason;
-    };
+namespace SettingsChangesHistory {
+struct SettingChange {
+  String name;
+  Field previous_value;
+  Field new_value;
+  String reason;
+};
 
-    using SettingsChanges = std::vector<SettingChange>;
-}
+using SettingsChanges = std::vector<SettingChange>;
+}  // namespace SettingsChangesHistory
 
 using VersionToSettingsChangesMap = std::map<ClickHouseVersion, SettingsChangesHistory::SettingsChanges>;
 
-const VersionToSettingsChangesMap & getSettingsChangesHistory();
-const VersionToSettingsChangesMap & getMergeTreeSettingsChangesHistory();
+const VersionToSettingsChangesMap& getSettingsChangesHistory();
+const VersionToSettingsChangesMap& getMergeTreeSettingsChangesHistory();
 
-}
+}  // namespace DB

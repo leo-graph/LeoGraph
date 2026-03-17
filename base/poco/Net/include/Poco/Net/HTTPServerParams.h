@@ -13,145 +13,113 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPServerParams_INCLUDED
 #define Net_HTTPServerParams_INCLUDED
-
 
 #include "Poco/Net/Net.h"
 #include "Poco/Net/TCPServerParams.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API HTTPServerParams : public TCPServerParams
+/// This class is used to specify parameters to both the
+/// HTTPServer, as well as to HTTPRequestHandler objects.
+///
+/// Subclasses may add new parameters to the class.
 {
-namespace Net
-{
+ public:
+  typedef Poco::AutoPtr<HTTPServerParams> Ptr;
 
+  HTTPServerParams();
+  /// Creates the HTTPServerParams.
+  ///
+  /// Sets the following default values:
+  ///   - timeout:              60 seconds
+  ///   - keepAlive:            true
+  ///   - maxKeepAliveRequests: 100
+  ///   - keepAliveTimeout:     15 seconds
 
-    class Net_API HTTPServerParams : public TCPServerParams
-    /// This class is used to specify parameters to both the
-    /// HTTPServer, as well as to HTTPRequestHandler objects.
-    ///
-    /// Subclasses may add new parameters to the class.
-    {
-    public:
-        typedef Poco::AutoPtr<HTTPServerParams> Ptr;
+  void setServerName(const std::string& serverName);
+  /// Sets the name and port (name:port) that the server uses to identify itself.
+  ///
+  /// If this is not set to valid DNS name for your host, server-generated
+  /// redirections will not work.
 
-        HTTPServerParams();
-        /// Creates the HTTPServerParams.
-        ///
-        /// Sets the following default values:
-        ///   - timeout:              60 seconds
-        ///   - keepAlive:            true
-        ///   - maxKeepAliveRequests: 100
-        ///   - keepAliveTimeout:     15 seconds
+  const std::string& getServerName() const;
+  /// Returns the name and port (name:port) that the server uses to identify itself.
 
-        void setServerName(const std::string & serverName);
-        /// Sets the name and port (name:port) that the server uses to identify itself.
-        ///
-        /// If this is not set to valid DNS name for your host, server-generated
-        /// redirections will not work.
+  void setSoftwareVersion(const std::string& softwareVersion);
+  /// Sets the server software name and version that the server uses to identify
+  /// itself. If this is set to a non-empty string, the server will
+  /// automatically include a Server header field with the value given
+  /// here in every response it sends.
+  ///
+  /// The format of the softwareVersion string should be name/version
+  /// (e.g. MyHTTPServer/1.0).
 
-        const std::string & getServerName() const;
-        /// Returns the name and port (name:port) that the server uses to identify itself.
+  const std::string& getSoftwareVersion() const;
+  /// Returns the server software name and version that the server uses to
+  /// identify itself.
 
-        void setSoftwareVersion(const std::string & softwareVersion);
-        /// Sets the server software name and version that the server uses to identify
-        /// itself. If this is set to a non-empty string, the server will
-        /// automatically include a Server header field with the value given
-        /// here in every response it sends.
-        ///
-        /// The format of the softwareVersion string should be name/version
-        /// (e.g. MyHTTPServer/1.0).
+  void setTimeout(const Poco::Timespan& timeout);
+  /// Sets the connection timeout for HTTP connections.
 
-        const std::string & getSoftwareVersion() const;
-        /// Returns the server software name and version that the server uses to
-        /// identify itself.
+  const Poco::Timespan& getTimeout() const;
+  /// Returns the connection timeout for HTTP connections.
 
-        void setTimeout(const Poco::Timespan & timeout);
-        /// Sets the connection timeout for HTTP connections.
+  void setKeepAlive(bool keepAlive);
+  /// Enables (keepAlive == true) or disables (keepAlive == false)
+  /// persistent connections.
 
-        const Poco::Timespan & getTimeout() const;
-        /// Returns the connection timeout for HTTP connections.
+  bool getKeepAlive() const;
+  /// Returns true iff persistent connections are enabled.
 
-        void setKeepAlive(bool keepAlive);
-        /// Enables (keepAlive == true) or disables (keepAlive == false)
-        /// persistent connections.
+  void setKeepAliveTimeout(const Poco::Timespan& timeout);
+  /// Sets the connection timeout for HTTP connections.
 
-        bool getKeepAlive() const;
-        /// Returns true iff persistent connections are enabled.
+  const Poco::Timespan& getKeepAliveTimeout() const;
+  /// Returns the connection timeout for HTTP connections.
 
-        void setKeepAliveTimeout(const Poco::Timespan & timeout);
-        /// Sets the connection timeout for HTTP connections.
+  void setMaxKeepAliveRequests(size_t maxKeepAliveRequests);
+  /// Specifies the maximum number of requests allowed
+  /// during a persistent connection. 0 means unlimited
+  /// connections.
 
-        const Poco::Timespan & getKeepAliveTimeout() const;
-        /// Returns the connection timeout for HTTP connections.
+  size_t getMaxKeepAliveRequests() const;
+  /// Returns the maximum number of requests allowed
+  /// during a persistent connection, or 0 if
+  /// unlimited connections are allowed.
 
-        void setMaxKeepAliveRequests(size_t maxKeepAliveRequests);
-        /// Specifies the maximum number of requests allowed
-        /// during a persistent connection. 0 means unlimited
-        /// connections.
+ protected:
+  virtual ~HTTPServerParams();
+  /// Destroys the HTTPServerParams.
 
-        size_t getMaxKeepAliveRequests() const;
-        /// Returns the maximum number of requests allowed
-        /// during a persistent connection, or 0 if
-        /// unlimited connections are allowed.
+ private:
+  std::string _serverName;
+  std::string _softwareVersion;
+  Poco::Timespan _timeout;
+  bool _keepAlive;
+  size_t _maxKeepAliveRequests;
+  Poco::Timespan _keepAliveTimeout;
+};
 
-    protected:
-        virtual ~HTTPServerParams();
-        /// Destroys the HTTPServerParams.
+//
+// inlines
+//
+inline const std::string& HTTPServerParams::getServerName() const { return _serverName; }
 
-    private:
-        std::string _serverName;
-        std::string _softwareVersion;
-        Poco::Timespan _timeout;
-        bool _keepAlive;
-        size_t _maxKeepAliveRequests;
-        Poco::Timespan _keepAliveTimeout;
-    };
+inline const std::string& HTTPServerParams::getSoftwareVersion() const { return _softwareVersion; }
 
+inline const Poco::Timespan& HTTPServerParams::getTimeout() const { return _timeout; }
 
-    //
-    // inlines
-    //
-    inline const std::string & HTTPServerParams::getServerName() const
-    {
-        return _serverName;
-    }
+inline bool HTTPServerParams::getKeepAlive() const { return _keepAlive; }
 
+inline size_t HTTPServerParams::getMaxKeepAliveRequests() const { return _maxKeepAliveRequests; }
 
-    inline const std::string & HTTPServerParams::getSoftwareVersion() const
-    {
-        return _softwareVersion;
-    }
+inline const Poco::Timespan& HTTPServerParams::getKeepAliveTimeout() const { return _keepAliveTimeout; }
 
+}  // namespace Net
+}  // namespace Poco
 
-    inline const Poco::Timespan & HTTPServerParams::getTimeout() const
-    {
-        return _timeout;
-    }
-
-
-    inline bool HTTPServerParams::getKeepAlive() const
-    {
-        return _keepAlive;
-    }
-
-
-    inline size_t HTTPServerParams::getMaxKeepAliveRequests() const
-    {
-        return _maxKeepAliveRequests;
-    }
-
-
-    inline const Poco::Timespan & HTTPServerParams::getKeepAliveTimeout() const
-    {
-        return _keepAliveTimeout;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPServerParams_INCLUDED
+#endif  // Net_HTTPServerParams_INCLUDED

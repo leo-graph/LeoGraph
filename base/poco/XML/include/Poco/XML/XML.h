@@ -15,13 +15,10 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef XML_XML_INCLUDED
 #define XML_XML_INCLUDED
 
-
 #include "Poco/Foundation.h"
-
 
 //
 // The following block is the standard way of creating macros which make exporting
@@ -32,19 +29,16 @@
 // defined with this macro as being exported.
 //
 
-
 #if !defined(XML_API)
-#    if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
-#        define XML_API __attribute__((visibility("default")))
-#    else
-#        define XML_API
-#    endif
+#  if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
+#    define XML_API __attribute__((visibility("default")))
+#  else
+#    define XML_API
+#  endif
 #endif
-
 
 //
 // Automatically link XML library.
 //
 
-
-#endif // XML_XML_INCLUDED
+#endif  // XML_XML_INCLUDED

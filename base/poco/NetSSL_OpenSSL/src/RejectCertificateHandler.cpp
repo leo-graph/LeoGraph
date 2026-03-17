@@ -11,28 +11,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/RejectCertificateHandler.h"
-
 
 namespace Poco {
 namespace Net {
 
+RejectCertificateHandler::RejectCertificateHandler(bool server) : InvalidCertificateHandler(server) {}
 
-RejectCertificateHandler::RejectCertificateHandler(bool server): InvalidCertificateHandler(server)
-{
-}
+RejectCertificateHandler::~RejectCertificateHandler() {}
 
+void RejectCertificateHandler::onInvalidCertificate(const void*, VerificationErrorArgs& errorCert) { errorCert.setIgnoreError(false); }
 
-RejectCertificateHandler::~RejectCertificateHandler()
-{
-}
-
-
-void RejectCertificateHandler::onInvalidCertificate(const void*, VerificationErrorArgs& errorCert)
-{
-	errorCert.setIgnoreError(false);
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

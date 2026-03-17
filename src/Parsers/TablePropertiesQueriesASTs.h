@@ -1,77 +1,65 @@
 #pragma once
 
-#include <Parsers/ASTQueryWithTableAndOutput.h>
 #include <Common/quoteString.h>
+#include <Parsers/ASTQueryWithTableAndOutput.h>
 
+namespace DB {
 
-namespace DB
-{
-
-struct ASTExistsDatabaseQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ExistsDatabaseQuery";
-    static constexpr auto Query = "EXISTS DATABASE";
-    /// No temporary databases are supported, just for parsing
-    static constexpr auto QueryTemporary = "";
+struct ASTExistsDatabaseQueryIDAndQueryNames {
+  static constexpr auto ID = "ExistsDatabaseQuery";
+  static constexpr auto Query = "EXISTS DATABASE";
+  /// No temporary databases are supported, just for parsing
+  static constexpr auto QueryTemporary = "";
 };
 
-struct ASTExistsTableQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ExistsTableQuery";
-    static constexpr auto Query = "EXISTS TABLE";
-    static constexpr auto QueryTemporary = "EXISTS TEMPORARY TABLE";
+struct ASTExistsTableQueryIDAndQueryNames {
+  static constexpr auto ID = "ExistsTableQuery";
+  static constexpr auto Query = "EXISTS TABLE";
+  static constexpr auto QueryTemporary = "EXISTS TEMPORARY TABLE";
 };
 
-struct ASTExistsViewQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ExistsViewQuery";
-    static constexpr auto Query = "EXISTS VIEW";
-    static constexpr auto QueryTemporary = "EXISTS TEMPORARY VIEW";
+struct ASTExistsViewQueryIDAndQueryNames {
+  static constexpr auto ID = "ExistsViewQuery";
+  static constexpr auto Query = "EXISTS VIEW";
+  static constexpr auto QueryTemporary = "EXISTS TEMPORARY VIEW";
 };
 
-
-struct ASTExistsDictionaryQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ExistsDictionaryQuery";
-    static constexpr auto Query = "EXISTS DICTIONARY";
-    /// No temporary dictionaries are supported, just for parsing
-    static constexpr auto QueryTemporary = "EXISTS TEMPORARY DICTIONARY";
+struct ASTExistsDictionaryQueryIDAndQueryNames {
+  static constexpr auto ID = "ExistsDictionaryQuery";
+  static constexpr auto Query = "EXISTS DICTIONARY";
+  /// No temporary dictionaries are supported, just for parsing
+  static constexpr auto QueryTemporary = "EXISTS TEMPORARY DICTIONARY";
 };
 
-struct ASTShowCreateTableQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ShowCreateTableQuery";
-    static constexpr auto Query = "SHOW CREATE TABLE";
-    static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY TABLE";
+struct ASTShowCreateTableQueryIDAndQueryNames {
+  static constexpr auto ID = "ShowCreateTableQuery";
+  static constexpr auto Query = "SHOW CREATE TABLE";
+  static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY TABLE";
 };
 
-struct ASTShowCreateViewQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ShowCreateViewQuery";
-    static constexpr auto Query = "SHOW CREATE VIEW";
-    static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY VIEW";
+struct ASTShowCreateViewQueryIDAndQueryNames {
+  static constexpr auto ID = "ShowCreateViewQuery";
+  static constexpr auto Query = "SHOW CREATE VIEW";
+  static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY VIEW";
 };
 
-struct ASTShowCreateDatabaseQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ShowCreateDatabaseQuery";
-    static constexpr auto Query = "SHOW CREATE DATABASE";
-    static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY DATABASE";
+struct ASTShowCreateDatabaseQueryIDAndQueryNames {
+  static constexpr auto ID = "ShowCreateDatabaseQuery";
+  static constexpr auto Query = "SHOW CREATE DATABASE";
+  static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY DATABASE";
 };
 
-struct ASTShowCreateDictionaryQueryIDAndQueryNames
-{
-    static constexpr auto ID = "ShowCreateDictionaryQuery";
-    static constexpr auto Query = "SHOW CREATE DICTIONARY";
-    /// No temporary dictionaries are supported, just for parsing
-    static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY DICTIONARY";
+struct ASTShowCreateDictionaryQueryIDAndQueryNames {
+  static constexpr auto ID = "ShowCreateDictionaryQuery";
+  static constexpr auto Query = "SHOW CREATE DICTIONARY";
+  /// No temporary dictionaries are supported, just for parsing
+  static constexpr auto QueryTemporary = "SHOW CREATE TEMPORARY DICTIONARY";
 };
 
-struct ASTDescribeQueryExistsQueryIDAndQueryNames
-{
-    static constexpr auto ID = "DescribeQuery";
-    static constexpr auto Query = "DESCRIBE TABLE";
-    static constexpr auto QueryTemporary = "DESCRIBE TEMPORARY TABLE";
+struct ASTDescribeQueryExistsQueryIDAndQueryNames {
+  static constexpr auto ID = "DescribeQuery";
+  static constexpr auto Query = "DESCRIBE TABLE";
+  static constexpr auto QueryTemporary = "DESCRIBE TEMPORARY TABLE";
 };
 
 using ASTExistsTableQuery = ASTQueryWithTableAndOutputImpl<ASTExistsTableQueryIDAndQueryNames>;
@@ -81,78 +69,64 @@ using ASTShowCreateTableQuery = ASTQueryWithTableAndOutputImpl<ASTShowCreateTabl
 using ASTShowCreateViewQuery = ASTQueryWithTableAndOutputImpl<ASTShowCreateViewQueryIDAndQueryNames>;
 using ASTShowCreateDictionaryQuery = ASTQueryWithTableAndOutputImpl<ASTShowCreateDictionaryQueryIDAndQueryNames>;
 
-class ASTExistsDatabaseQuery : public ASTQueryWithTableAndOutputImpl<ASTExistsDatabaseQueryIDAndQueryNames>
-{
-public:
-    ASTPtr clone() const override
-    {
-        auto res = make_intrusive<ASTExistsDatabaseQuery>(*this);
-        res->children.clear();
-        cloneTableOptions(*res);
-        return res;
-    }
+class ASTExistsDatabaseQuery : public ASTQueryWithTableAndOutputImpl<ASTExistsDatabaseQueryIDAndQueryNames> {
+ public:
+  ASTPtr clone() const override {
+    auto res = make_intrusive<ASTExistsDatabaseQuery>(*this);
+    res->children.clear();
+    cloneTableOptions(*res);
+    return res;
+  }
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
-    {
-        ostr << ASTExistsDatabaseQueryIDAndQueryNames::Query
-                    << " ";
-        database->format(ostr, settings, state, frame);
-    }
+ protected:
+  void formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override {
+    ostr << ASTExistsDatabaseQueryIDAndQueryNames::Query << " ";
+    database->format(ostr, settings, state, frame);
+  }
 
-    QueryKind getQueryKind() const override { return QueryKind::Exists; }
+  QueryKind getQueryKind() const override { return QueryKind::Exists; }
 };
 
-class ASTShowCreateDatabaseQuery : public ASTQueryWithTableAndOutputImpl<ASTShowCreateDatabaseQueryIDAndQueryNames>
-{
-public:
-    ASTPtr clone() const override
-    {
-        auto res = make_intrusive<ASTShowCreateDatabaseQuery>(*this);
-        res->children.clear();
-        cloneTableOptions(*res);
-        return res;
-    }
+class ASTShowCreateDatabaseQuery : public ASTQueryWithTableAndOutputImpl<ASTShowCreateDatabaseQueryIDAndQueryNames> {
+ public:
+  ASTPtr clone() const override {
+    auto res = make_intrusive<ASTShowCreateDatabaseQuery>(*this);
+    res->children.clear();
+    cloneTableOptions(*res);
+    return res;
+  }
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
-    {
-        ostr << ASTShowCreateDatabaseQueryIDAndQueryNames::Query
-                      << " ";
-        database->format(ostr, settings, state, frame);
-    }
+ protected:
+  void formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override {
+    ostr << ASTShowCreateDatabaseQueryIDAndQueryNames::Query << " ";
+    database->format(ostr, settings, state, frame);
+  }
 };
 
-class ASTDescribeQuery : public ASTQueryWithOutput
-{
-public:
-    ASTPtr table_expression;
+class ASTDescribeQuery : public ASTQueryWithOutput {
+ public:
+  ASTPtr table_expression;
 
-    String getID(char) const override { return "DescribeQuery"; }
+  String getID(char) const override { return "DescribeQuery"; }
 
-    ASTPtr clone() const override
-    {
-        auto res = make_intrusive<ASTDescribeQuery>(*this);
-        res->children.clear();
-        if (table_expression)
-        {
-            res->table_expression = table_expression->clone();
-            res->children.push_back(res->table_expression);
-        }
-        cloneOutputOptions(*res);
-        return res;
+  ASTPtr clone() const override {
+    auto res = make_intrusive<ASTDescribeQuery>(*this);
+    res->children.clear();
+    if (table_expression) {
+      res->table_expression = table_expression->clone();
+      res->children.push_back(res->table_expression);
     }
+    cloneOutputOptions(*res);
+    return res;
+  }
 
-    QueryKind getQueryKind() const override { return QueryKind::Describe; }
+  QueryKind getQueryKind() const override { return QueryKind::Describe; }
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
-    {
-        ostr
-                      << "DESCRIBE TABLE";
-        table_expression->format(ostr, settings, state, frame);
-    }
-
+ protected:
+  void formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override {
+    ostr << "DESCRIBE TABLE";
+    table_expression->format(ostr, settings, state, frame);
+  }
 };
 
-}
+}  // namespace DB

@@ -50,119 +50,100 @@
  *  TODO: Add ConstVisitor with 'visit(const Type &)' function in order to implement 'accept(...) const'.
  */
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
 }
 
-template <typename ... Types>
+template <typename... Types>
 class Visitor;
 
 template <>
-class Visitor<>
-{
-public:
-    using List = TypeList<>;
+class Visitor<> {
+ public:
+  using List = TypeList<>;
 
-protected:
-    ~Visitor() = default;
+ protected:
+  ~Visitor() = default;
 };
 
 template <typename Type>
-class Visitor<Type> : public Visitor<>
-{
-public:
-    using List = TypeList<Type>;
+class Visitor<Type> : public Visitor<> {
+ public:
+  using List = TypeList<Type>;
 
-    virtual void visit(Type &) = 0;
+  virtual void visit(Type &) = 0;
 
-protected:
-    ~Visitor() = default;
+ protected:
+  ~Visitor() = default;
 };
 
-template <typename Type, typename ... Types>
-class Visitor<Type, Types ...> : public Visitor<Types ...>
-{
-public:
-    using List = TypeList<Type, Types ...>;
-    using Visitor<Types ...>::visit;
+template <typename Type, typename... Types>
+class Visitor<Type, Types...> : public Visitor<Types...> {
+ public:
+  using List = TypeList<Type, Types...>;
+  using Visitor<Types...>::visit;
 
-    virtual void visit(Type &) = 0;
+  virtual void visit(Type &) = 0;
 
-protected:
-    ~Visitor() = default;
+ protected:
+  ~Visitor() = default;
 };
 
-
-template <typename Derived, typename VisitorBase, typename ... Types>
+template <typename Derived, typename VisitorBase, typename... Types>
 class VisitorImplHelper;
 
 template <typename Derived, typename VisitorBase>
-class VisitorImplHelper<Derived, VisitorBase> : public VisitorBase
-{
-protected:
-    ~VisitorImplHelper() = default;
+class VisitorImplHelper<Derived, VisitorBase> : public VisitorBase {
+ protected:
+  ~VisitorImplHelper() = default;
 };
 
 template <typename Derived, typename VisitorBase, typename Type>
-class VisitorImplHelper<Derived, VisitorBase, Type> : public VisitorBase
-{
-public:
-    using VisitorBase::visit;
-    void visit(Type & value) override { static_cast<Derived *>(this)->visitImpl(value); }
+class VisitorImplHelper<Derived, VisitorBase, Type> : public VisitorBase {
+ public:
+  using VisitorBase::visit;
+  void visit(Type &value) override { static_cast<Derived *>(this)->visitImpl(value); }
 
-protected:
-    template <typename T>
-    void visitImpl(Type &)
-    {
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "visitImpl({} &) is not implemented for class{}",
-                        demangle(typeid(T).name()), demangle(typeid(Derived).name()));
-    }
+ protected:
+  template <typename T>
+  void visitImpl(Type &) {
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "visitImpl({} &) is not implemented for class{}", demangle(typeid(T).name()),
+                    demangle(typeid(Derived).name()));
+  }
 
-    ~VisitorImplHelper() = default;
+  ~VisitorImplHelper() = default;
 };
 
-template <typename Derived, typename VisitorBase, typename Type, typename ... Types>
-class VisitorImplHelper<Derived, VisitorBase, Type, Types ...>
-        : public VisitorImplHelper<Derived, VisitorBase, Types ...>
-{
-public:
-    using VisitorImplHelper<Derived, VisitorBase, Types ...>::visit;
-    void visit(Type & value) override { static_cast<Derived *>(this)->visitImpl(value); }
+template <typename Derived, typename VisitorBase, typename Type, typename... Types>
+class VisitorImplHelper<Derived, VisitorBase, Type, Types...> : public VisitorImplHelper<Derived, VisitorBase, Types...> {
+ public:
+  using VisitorImplHelper<Derived, VisitorBase, Types...>::visit;
+  void visit(Type &value) override { static_cast<Derived *>(this)->visitImpl(value); }
 
-protected:
-    template <typename T>
-    void visitImpl(Type &)
-    {
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "visitImpl({} &) is not implemented for class{}",
-                        demangle(typeid(T).name()), demangle(typeid(Derived).name()));
-    }
+ protected:
+  template <typename T>
+  void visitImpl(Type &) {
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "visitImpl({} &) is not implemented for class{}", demangle(typeid(T).name()),
+                    demangle(typeid(Derived).name()));
+  }
 
-    ~VisitorImplHelper() = default;
+  ~VisitorImplHelper() = default;
 };
 
 template <typename Derived, typename VisitorBase>
-class VisitorImpl : public
-    TypeListChangeRoot<
-        VisitorImplHelper,
-        TypeListConcat<
-            TypeList<Derived, VisitorBase>,
-            typename VisitorBase::List
-        >
-    >
-{
-protected:
-    ~VisitorImpl() = default;
+class VisitorImpl
+    : public TypeListChangeRoot<VisitorImplHelper, TypeListConcat<TypeList<Derived, VisitorBase>, typename VisitorBase::List> > {
+ protected:
+  ~VisitorImpl() = default;
 };
 
 template <typename Derived, typename Base, typename Visitor>
 class Visitable : public Base  /// NOLINT(bugprone-crtp-constructor-accessibility)
 {
-public:
-    void accept(Visitor & visitor) override { visitor.visit(*static_cast<Derived *>(this)); }
+ public:
+  void accept(Visitor &visitor) override { visitor.visit(*static_cast<Derived *>(this)); }
 };
 
-}
+}  // namespace DB

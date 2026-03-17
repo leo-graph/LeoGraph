@@ -1,7 +1,6 @@
 #pragma once
 
-namespace ClickHouseRevision
-{
-    unsigned getVersionRevision();
-    unsigned getVersionInteger();
-}
+namespace ClickHouseRevision {
+unsigned getVersionRevision();
+unsigned getVersionInteger();
+}  // namespace ClickHouseRevision

@@ -1,30 +1,23 @@
 #pragma once
 
+#include <Core/NamesAndTypes.h>
 #include <Storages/ColumnsDescription.h>
 #include <Storages/ObjectStorage/StorageObjectStorageConfiguration.h>
-#include <Core/NamesAndTypes.h>
 
-namespace DB
-{
+namespace DB {
 
 class Chunk;
 
-namespace HivePartitioningUtils
-{
+namespace HivePartitioningUtils {
 using HivePartitioningKeysAndValues = std::map<std::string_view, std::string_view>;
 
-HivePartitioningKeysAndValues parseHivePartitioningKeysAndValues(const std::string & path);
+HivePartitioningKeysAndValues parseHivePartitioningKeysAndValues(const std::string& path);
 
-void addPartitionColumnsToChunk(
-    Chunk & chunk,
-    const NamesAndTypesList & hive_partition_columns_to_read_from_file_path,
-    const std::string & path);
+void addPartitionColumnsToChunk(Chunk& chunk, const NamesAndTypesList& hive_partition_columns_to_read_from_file_path,
+                                const std::string& path);
 
-NamesAndTypesList extractHivePartitionColumnsFromPath(
-    const ColumnsDescription & storage_columns,
-    const std::string & sample_path,
-    const std::optional<FormatSettings> & format_settings,
-    const ContextPtr & context);
+NamesAndTypesList extractHivePartitionColumnsFromPath(const ColumnsDescription& storage_columns, const std::string& sample_path,
+                                                      const std::optional<FormatSettings>& format_settings, const ContextPtr& context);
 
 /// Hive partition columns and file columns (Note that file columns might not contain the hive partition columns)
 using HivePartitionColumnsWithFileColumnsPair = std::pair<NamesAndTypesList, NamesAndTypesList>;
@@ -42,26 +35,19 @@ using HivePartitionColumnsWithFileColumnsPair = std::pair<NamesAndTypesList, Nam
  * and there are hive partitioned paths,
  * then for compatibility we use old hive partitioning support with hive partition columns as virtual.
  */
-HivePartitionColumnsWithFileColumnsPair setupHivePartitioningForObjectStorage(
-    ColumnsDescription & columns,
-    const StorageObjectStorageConfigurationPtr & configuration,
-    const std::string & sample_path,
-    bool inferred_schema,
-    std::optional<FormatSettings> format_settings,
-    ContextPtr context);
+HivePartitionColumnsWithFileColumnsPair setupHivePartitioningForObjectStorage(ColumnsDescription& columns,
+                                                                              const StorageObjectStorageConfigurationPtr& configuration,
+                                                                              const std::string& sample_path, bool inferred_schema,
+                                                                              std::optional<FormatSettings> format_settings,
+                                                                              ContextPtr context);
 
-HivePartitionColumnsWithFileColumnsPair setupHivePartitioningForFileURLLikeStorage(
-    ColumnsDescription & columns,
-    const std::string & sample_path,
-    bool inferred_schema,
-    std::optional<FormatSettings> format_settings,
-    ContextPtr context);
+HivePartitionColumnsWithFileColumnsPair setupHivePartitioningForFileURLLikeStorage(ColumnsDescription& columns,
+                                                                                   const std::string& sample_path, bool inferred_schema,
+                                                                                   std::optional<FormatSettings> format_settings,
+                                                                                   ContextPtr context);
 
-NamesAndTypesList extractHivePartitionColumnsFromPath(
-    const ColumnsDescription & storage_columns,
-    const std::string & sample_path,
-    const std::optional<FormatSettings> & format_settings,
-    const ContextPtr & context);
-}
+NamesAndTypesList extractHivePartitionColumnsFromPath(const ColumnsDescription& storage_columns, const std::string& sample_path,
+                                                      const std::optional<FormatSettings>& format_settings, const ContextPtr& context);
+}  // namespace HivePartitioningUtils
 
-}
+}  // namespace DB

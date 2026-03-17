@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Version_INCLUDED
 #define Foundation_Version_INCLUDED
-
 
 //
 // Version Information
@@ -39,4 +37,4 @@
 
 #define POCO_CLICKHOUSE_PATCH 1
 
-#endif // Foundation_Version_INCLUDED
+#endif  // Foundation_Version_INCLUDED

@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ExpireLRUCache_INCLUDED
 #define Foundation_ExpireLRUCache_INCLUDED
-
 
 #include "Poco/AbstractCache.h"
 #include "Poco/ExpireStrategy.h"
 #include "Poco/LRUStrategy.h"
 #include "Poco/StrategyCollection.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TKey, class TValue, class TMutex = FastMutex, class TEventMutex = FastMutex>
 class ExpireLRUCache : public AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>
@@ -34,23 +29,20 @@ class ExpireLRUCache : public AbstractCache<TKey, TValue, StrategyCollection<TKe
 /// It cache entries for a fixed time period (per default 10 minutes)
 /// but also limits the size of the cache (per default: 1024).
 {
-public:
-    ExpireLRUCache(long cacheSize = 1024, Timestamp::TimeDiff expire = 600000)
-        : AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>(StrategyCollection<TKey, TValue>())
-    {
-        this->_strategy.pushBack(new LRUStrategy<TKey, TValue>(cacheSize));
-        this->_strategy.pushBack(new ExpireStrategy<TKey, TValue>(expire));
-    }
+ public:
+  ExpireLRUCache(long cacheSize = 1024, Timestamp::TimeDiff expire = 600000)
+      : AbstractCache<TKey, TValue, StrategyCollection<TKey, TValue>, TMutex, TEventMutex>(StrategyCollection<TKey, TValue>()) {
+    this->_strategy.pushBack(new LRUStrategy<TKey, TValue>(cacheSize));
+    this->_strategy.pushBack(new ExpireStrategy<TKey, TValue>(expire));
+  }
 
-    ~ExpireLRUCache() { }
+  ~ExpireLRUCache() {}
 
-private:
-    ExpireLRUCache(const ExpireLRUCache & aCache);
-    ExpireLRUCache & operator=(const ExpireLRUCache & aCache);
+ private:
+  ExpireLRUCache(const ExpireLRUCache& aCache);
+  ExpireLRUCache& operator=(const ExpireLRUCache& aCache);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ExpireLRUCache_INCLUDED
+#endif  // Foundation_ExpireLRUCache_INCLUDED

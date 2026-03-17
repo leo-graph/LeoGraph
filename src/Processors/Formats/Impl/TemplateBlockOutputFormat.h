@@ -1,78 +1,73 @@
 #pragma once
 
 #include <Formats/FormatSettings.h>
-#include <Processors/Formats/IOutputFormat.h>
 #include <Formats/ParsedTemplateFormatString.h>
+#include <Processors/Formats/IOutputFormat.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class ISerialization;
 using SerializationPtr = std::shared_ptr<const ISerialization>;
 using Serializations = std::vector<SerializationPtr>;
 
-class TemplateBlockOutputFormat : public IOutputFormat
-{
-    using EscapingRule = FormatSettings::EscapingRule;
-public:
-    TemplateBlockOutputFormat(SharedHeader header_, WriteBuffer & out_, const FormatSettings & settings_,
-                              ParsedTemplateFormatString format_, ParsedTemplateFormatString row_format_,
-                              std::string row_between_delimiter_);
+class TemplateBlockOutputFormat : public IOutputFormat {
+  using EscapingRule = FormatSettings::EscapingRule;
 
-    String getName() const override { return "TemplateBlockOutputFormat"; }
+ public:
+  TemplateBlockOutputFormat(SharedHeader header_, WriteBuffer& out_, const FormatSettings& settings_, ParsedTemplateFormatString format_,
+                            ParsedTemplateFormatString row_format_, std::string row_between_delimiter_);
 
-    void setRowsBeforeLimit(size_t rows_before_limit_) override
-    {
-        statistics.rows_before_limit = rows_before_limit_;
-        statistics.applied_limit = true;
-    }
+  String getName() const override { return "TemplateBlockOutputFormat"; }
 
-    void setRowsBeforeAggregation(size_t rows_before_aggregation_) override
-    {
-        statistics.rows_before_aggregation = rows_before_aggregation_;
-        statistics.applied_aggregation = true;
-    }
+  void setRowsBeforeLimit(size_t rows_before_limit_) override {
+    statistics.rows_before_limit = rows_before_limit_;
+    statistics.applied_limit = true;
+  }
 
-    enum class ResultsetPart : size_t
-    {
-        Data,
-        Totals,
-        ExtremesMin,
-        ExtremesMax,
-        Rows,
-        RowsBeforeLimit,
-        TimeElapsed,
-        RowsRead,
-        BytesRead,
-        RowsBeforeAggregation
-    };
+  void setRowsBeforeAggregation(size_t rows_before_aggregation_) override {
+    statistics.rows_before_aggregation = rows_before_aggregation_;
+    statistics.applied_aggregation = true;
+  }
 
-    static ResultsetPart stringToResultsetPart(const String & part);
+  enum class ResultsetPart : size_t {
+    Data,
+    Totals,
+    ExtremesMin,
+    ExtremesMax,
+    Rows,
+    RowsBeforeLimit,
+    TimeElapsed,
+    RowsRead,
+    BytesRead,
+    RowsBeforeAggregation
+  };
 
-private:
-    void writePrefix() override;
-    void consume(Chunk chunk) override;
-    void consumeTotals(Chunk chunk) override { statistics.totals = std::move(chunk); }
-    void consumeExtremes(Chunk chunk) override { statistics.extremes = std::move(chunk); }
-    void finalizeImpl() override;
-    void resetFormatterImpl() override;
+  static ResultsetPart stringToResultsetPart(const String& part);
 
-    void writeRow(const Chunk & chunk, size_t row_num);
-    template <typename U, typename V> void writeValue(U value, EscapingRule escaping_rule);
+ private:
+  void writePrefix() override;
+  void consume(Chunk chunk) override;
+  void consumeTotals(Chunk chunk) override { statistics.totals = std::move(chunk); }
+  void consumeExtremes(Chunk chunk) override { statistics.extremes = std::move(chunk); }
+  void finalizeImpl() override;
+  void resetFormatterImpl() override;
 
-    void onRowsReadBeforeUpdate() override { row_count = getRowsReadBefore(); }
-    bool areTotalsAndExtremesUsedInFinalize() const override { return true; }
+  void writeRow(const Chunk& chunk, size_t row_num);
+  template <typename U, typename V>
+  void writeValue(U value, EscapingRule escaping_rule);
 
-    const FormatSettings settings;
-    Serializations serializations;
+  void onRowsReadBeforeUpdate() override { row_count = getRowsReadBefore(); }
+  bool areTotalsAndExtremesUsedInFinalize() const override { return true; }
 
-    ParsedTemplateFormatString format;
-    ParsedTemplateFormatString row_format;
+  const FormatSettings settings;
+  Serializations serializations;
 
-    size_t row_count = 0;
+  ParsedTemplateFormatString format;
+  ParsedTemplateFormatString row_format;
 
-    std::string row_between_delimiter;
+  size_t row_count = 0;
+
+  std::string row_between_delimiter;
 };
 
-}
+}  // namespace DB

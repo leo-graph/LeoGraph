@@ -13,26 +13,18 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef JSON_JSONException_INCLUDED
 #define JSON_JSONException_INCLUDED
-
 
 #include "Poco/Exception.h"
 #include "Poco/JSON/JSON.h"
 
+namespace Poco {
+namespace JSON {
 
-namespace Poco
-{
-namespace JSON
-{
-
-
-    POCO_DECLARE_EXCEPTION(JSON_API, JSONException, Poco::Exception)
-
+POCO_DECLARE_EXCEPTION(JSON_API, JSONException, Poco::Exception)
 
 }
-} // namespace Poco::JSON
+}  // namespace Poco
 
-
-#endif // JSON_JSONException_INCLUDED
+#endif  // JSON_JSONException_INCLUDED

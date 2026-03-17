@@ -2,50 +2,45 @@
 
 #include <base/types.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /// What to do if the limit is exceeded.
-enum class OverflowMode : uint8_t
-{
-    THROW     = 0,    /// Throw exception.
-    BREAK     = 1,    /// Abort query execution, return what is.
+enum class OverflowMode : uint8_t {
+  THROW = 0,  /// Throw exception.
+  BREAK = 1,  /// Abort query execution, return what is.
 
-    /** Only for GROUP BY: do not add new rows to the set,
-      * but continue to aggregate for keys that are already in the set.
-      */
-    ANY       = 2,
+  /** Only for GROUP BY: do not add new rows to the set,
+   * but continue to aggregate for keys that are already in the set.
+   */
+  ANY = 2,
 };
 
 class WriteBuffer;
 class ReadBuffer;
 
+struct SizeLimits {
+  /// If it is zero, corresponding limit check isn't performed.
+  UInt64 max_rows = 0;
+  UInt64 max_bytes = 0;
+  OverflowMode overflow_mode = OverflowMode::THROW;
 
-struct SizeLimits
-{
-    /// If it is zero, corresponding limit check isn't performed.
-    UInt64 max_rows = 0;
-    UInt64 max_bytes = 0;
-    OverflowMode overflow_mode = OverflowMode::THROW;
+  SizeLimits() = default;
+  SizeLimits(UInt64 max_rows_, UInt64 max_bytes_, OverflowMode overflow_mode_)
+      : max_rows(max_rows_), max_bytes(max_bytes_), overflow_mode(overflow_mode_) {}
 
-    SizeLimits() = default;
-    SizeLimits(UInt64 max_rows_, UInt64 max_bytes_, OverflowMode overflow_mode_)
-        : max_rows(max_rows_), max_bytes(max_bytes_), overflow_mode(overflow_mode_) {}
+  /// Check limits. If exceeded, return false or throw an exception, depending on overflow_mode.
+  bool check(UInt64 rows, UInt64 bytes, const char* what, int too_many_rows_exception_code, int too_many_bytes_exception_code) const;
+  bool check(UInt64 rows, UInt64 bytes, const char* what, int exception_code) const;
 
-    /// Check limits. If exceeded, return false or throw an exception, depending on overflow_mode.
-    bool check(UInt64 rows, UInt64 bytes, const char * what, int too_many_rows_exception_code, int too_many_bytes_exception_code) const;
-    bool check(UInt64 rows, UInt64 bytes, const char * what, int exception_code) const;
+  /// Check limits. No exceptions.
+  bool softCheck(UInt64 rows, UInt64 bytes) const;
 
-    /// Check limits. No exceptions.
-    bool softCheck(UInt64 rows, UInt64 bytes) const;
+  bool hasLimits() const { return max_rows || max_bytes; }
 
-    bool hasLimits() const { return max_rows || max_bytes; }
+  void serialize(WriteBuffer& out) const;
+  void deserialize(ReadBuffer& in);
 
-    void serialize(WriteBuffer & out) const;
-    void deserialize(ReadBuffer & in);
-
-    bool operator==(const SizeLimits & other) const = default;
+  bool operator==(const SizeLimits& other) const = default;
 };
 
-}
+}  // namespace DB

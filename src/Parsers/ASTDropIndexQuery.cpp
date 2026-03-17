@@ -2,66 +2,57 @@
 #include <IO/Operators.h>
 #include <Parsers/ASTDropIndexQuery.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Get the text that identifies this element. */
-String ASTDropIndexQuery::getID(char delim) const
-{
-    return "DropIndexQuery" + (delim + getDatabase()) + delim + getTable();
+String ASTDropIndexQuery::getID(char delim) const { return "DropIndexQuery" + (delim + getDatabase()) + delim + getTable(); }
+
+ASTPtr ASTDropIndexQuery::clone() const {
+  auto res = make_intrusive<ASTDropIndexQuery>(*this);
+  res->children.clear();
+
+  res->index_name = index_name->clone();
+  res->children.push_back(res->index_name);
+
+  cloneTableOptions(*res);
+
+  return res;
 }
 
-ASTPtr ASTDropIndexQuery::clone() const
-{
-    auto res = make_intrusive<ASTDropIndexQuery>(*this);
-    res->children.clear();
+void ASTDropIndexQuery::formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                        FormatStateStacked frame) const {
+  frame.need_parens = false;
 
-    res->index_name = index_name->clone();
-    res->children.push_back(res->index_name);
+  std::string indent_str = settings.one_line ? "" : std::string(4u * frame.indent, ' ');
 
-    cloneTableOptions(*res);
+  ostr << indent_str;
 
-    return res;
-}
+  ostr << "DROP INDEX " << (if_exists ? "IF EXISTS " : "");
+  index_name->format(ostr, settings, state, frame);
+  ostr << " ON ";
 
-void ASTDropIndexQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    frame.need_parens = false;
-
-    std::string indent_str = settings.one_line ? "" : std::string(4u * frame.indent, ' ');
-
-    ostr << indent_str;
-
-    ostr << "DROP INDEX " << (if_exists ? "IF EXISTS " : "");
-    index_name->format(ostr, settings, state, frame);
-    ostr << " ON ";
-
-    if (table)
-    {
-        if (database)
-        {
-            database->format(ostr, settings, state, frame);
-            ostr << '.';
-        }
-
-        chassert(table);
-        table->format(ostr, settings, state, frame);
+  if (table) {
+    if (database) {
+      database->format(ostr, settings, state, frame);
+      ostr << '.';
     }
 
-    formatOnCluster(ostr, settings);
+    chassert(table);
+    table->format(ostr, settings, state, frame);
+  }
+
+  formatOnCluster(ostr, settings);
 }
 
-ASTPtr ASTDropIndexQuery::convertToASTAlterCommand() const
-{
-    auto command = make_intrusive<ASTAlterCommand>();
+ASTPtr ASTDropIndexQuery::convertToASTAlterCommand() const {
+  auto command = make_intrusive<ASTAlterCommand>();
 
-    command->type = ASTAlterCommand::DROP_INDEX;
-    command->if_exists = if_exists;
+  command->type = ASTAlterCommand::DROP_INDEX;
+  command->if_exists = if_exists;
 
-    command->index = command->children.emplace_back(index_name).get();
+  command->index = command->children.emplace_back(index_name).get();
 
-    return command;
+  return command;
 }
 
-}
+}  // namespace DB

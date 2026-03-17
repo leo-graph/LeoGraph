@@ -1,63 +1,48 @@
-#include <Disks/IStoragePolicy.h>
-#include <Common/quoteString.h>
 #include <Common/Exception.h>
+#include <Common/quoteString.h>
+#include <Disks/IStoragePolicy.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int UNKNOWN_VOLUME;
-    extern const int UNKNOWN_DISK;
+namespace ErrorCodes {
+extern const int UNKNOWN_VOLUME;
+extern const int UNKNOWN_DISK;
+}  // namespace ErrorCodes
+
+DiskPtr IStoragePolicy::getDiskByName(const String& disk_name) const {
+  auto disk = tryGetDiskByName(disk_name);
+  if (!disk) throw Exception(ErrorCodes::UNKNOWN_DISK, "No such disk {} in storage policy {}", backQuote(disk_name), backQuote(getName()));
+
+  return disk;
 }
 
-DiskPtr IStoragePolicy::getDiskByName(const String & disk_name) const
-{
-    auto disk = tryGetDiskByName(disk_name);
-    if (!disk)
-        throw Exception(ErrorCodes::UNKNOWN_DISK,
-            "No such disk {} in storage policy {}", backQuote(disk_name), backQuote(getName()));
+VolumePtr IStoragePolicy::getVolumeByName(const String& volume_name) const {
+  auto volume = tryGetVolumeByName(volume_name);
+  if (!volume)
+    throw Exception(ErrorCodes::UNKNOWN_VOLUME, "No such volume {} in storage policy {}", backQuote(volume_name), backQuote(getName()));
 
-    return disk;
+  return volume;
 }
 
-VolumePtr IStoragePolicy::getVolumeByName(const String & volume_name) const
-{
-    auto volume = tryGetVolumeByName(volume_name);
-    if (!volume)
-        throw Exception(ErrorCodes::UNKNOWN_VOLUME,
-            "No such volume {} in storage policy {}", backQuote(volume_name), backQuote(getName()));
+size_t IStoragePolicy::getVolumeIndexByDiskName(const String& disk_name) const {
+  auto index = tryGetVolumeIndexByDiskName(disk_name);
+  if (!index) throw Exception(ErrorCodes::UNKNOWN_DISK, "No disk {} in policy {}", backQuote(disk_name), backQuote(getName()));
 
-    return volume;
+  return *index;
 }
 
-size_t IStoragePolicy::getVolumeIndexByDiskName(const String & disk_name) const
-{
-    auto index = tryGetVolumeIndexByDiskName(disk_name);
-    if (!index)
-        throw Exception(ErrorCodes::UNKNOWN_DISK,
-            "No disk {} in policy {}", backQuote(disk_name), backQuote(getName()));
+VolumePtr IStoragePolicy::tryGetVolumeByDiskName(const String& disk_name) const {
+  auto index = tryGetVolumeIndexByDiskName(disk_name);
+  if (!index) return nullptr;
 
-    return *index;
+  return getVolume(*index);
 }
 
-VolumePtr IStoragePolicy::tryGetVolumeByDiskName(const String & disk_name) const
-{
-    auto index = tryGetVolumeIndexByDiskName(disk_name);
-    if (!index)
-        return nullptr;
+VolumePtr IStoragePolicy::getVolumeByDiskName(const String& disk_name) const {
+  auto volume = tryGetVolumeByDiskName(disk_name);
+  if (!volume) throw Exception(ErrorCodes::UNKNOWN_DISK, "No disk {} in policy {}", backQuote(disk_name), backQuote(getName()));
 
-    return getVolume(*index);
+  return volume;
 }
 
-VolumePtr IStoragePolicy::getVolumeByDiskName(const String & disk_name) const
-{
-    auto volume = tryGetVolumeByDiskName(disk_name);
-    if (!volume)
-        throw Exception(ErrorCodes::UNKNOWN_DISK,
-            "No disk {} in policy {}", backQuote(disk_name), backQuote(getName()));
-
-    return volume;
-}
-
-}
+}  // namespace DB

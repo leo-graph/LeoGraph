@@ -2,13 +2,11 @@
 
 #include <cstdint>
 
-namespace DB
-{
+namespace DB {
 
-enum class SchemaInferenceMode : uint8_t
-{
-    DEFAULT,
-    UNION,
+enum class SchemaInferenceMode : uint8_t {
+  DEFAULT,
+  UNION,
 };
 
 }

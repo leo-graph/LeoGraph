@@ -14,176 +14,155 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPDigestCredentials_INCLUDED
 #define Net_HTTPDigestCredentials_INCLUDED
-
 
 #include <map>
 #include "Poco/Mutex.h"
 #include "Poco/Net/HTTPAuthenticationParams.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class HTTPRequest;
+class HTTPResponse;
+
+class Net_API HTTPDigestCredentials
+/// This is a utility class for working with
+/// HTTP Digest Authentication in HTTPRequest
+/// objects.
+///
+/// Note: currently, no qop or qop=auth is
+/// supported only.
 {
-namespace Net
-{
+ public:
+  HTTPDigestCredentials();
+  /// Creates an empty HTTPDigestCredentials object.
 
+  HTTPDigestCredentials(const std::string &username, const std::string &password);
+  /// Creates a HTTPDigestCredentials object with the given username and password.
 
-    class HTTPRequest;
-    class HTTPResponse;
+  ~HTTPDigestCredentials();
+  /// Destroys the HTTPDigestCredentials.
 
+  void reset();
+  /// Resets the HTTPDigestCredentials object to a clean state.
+  /// Does not clear username and password.
 
-    class Net_API HTTPDigestCredentials
-    /// This is a utility class for working with
-    /// HTTP Digest Authentication in HTTPRequest
-    /// objects.
-    ///
-    /// Note: currently, no qop or qop=auth is
-    /// supported only.
-    {
-    public:
-        HTTPDigestCredentials();
-        /// Creates an empty HTTPDigestCredentials object.
+  void clear();
+  /// Clears both username and password.
 
-        HTTPDigestCredentials(const std::string & username, const std::string & password);
-        /// Creates a HTTPDigestCredentials object with the given username and password.
+  void setUsername(const std::string &username);
+  /// Sets the username.
 
-        ~HTTPDigestCredentials();
-        /// Destroys the HTTPDigestCredentials.
+  const std::string &getUsername() const;
+  /// Returns the username.
 
-        void reset();
-        /// Resets the HTTPDigestCredentials object to a clean state.
-        /// Does not clear username and password.
+  void setPassword(const std::string &password);
+  /// Sets the password.
 
-        void clear();
-        /// Clears both username and password.
+  const std::string &getPassword() const;
+  /// Returns the password.
 
-        void setUsername(const std::string & username);
-        /// Sets the username.
+  bool empty() const;
+  /// Returns true if both username and password are empty, otherwise false.
 
-        const std::string & getUsername() const;
-        /// Returns the username.
+  void authenticate(HTTPRequest &request, const HTTPResponse &response);
+  /// Parses WWW-Authenticate header of the HTTPResponse, initializes
+  /// internal state, and adds authentication information to the given HTTPRequest.
 
-        void setPassword(const std::string & password);
-        /// Sets the password.
+  void authenticate(HTTPRequest &request, const HTTPAuthenticationParams &responseAuthParams);
+  /// Initializes internal state according to information from the
+  /// HTTPAuthenticationParams of the response, and adds authentication
+  /// information to the given HTTPRequest.
+  ///
+  /// Throws InvalidArgumentException if HTTPAuthenticationParams is
+  /// invalid or some required parameter is missing.
+  /// Throws NotImplementedException in case of unsupported digest
+  /// algorithm or quality of protection method.
 
-        const std::string & getPassword() const;
-        /// Returns the password.
+  void updateAuthInfo(HTTPRequest &request);
+  /// Updates internal state and adds authentication information to
+  /// the given HTTPRequest.
 
-        bool empty() const;
-        /// Returns true if both username and password are empty, otherwise false.
+  void proxyAuthenticate(HTTPRequest &request, const HTTPResponse &response);
+  /// Parses Proxy-Authenticate header of the HTTPResponse, initializes
+  /// internal state, and adds proxy authentication information to the given HTTPRequest.
 
-        void authenticate(HTTPRequest & request, const HTTPResponse & response);
-        /// Parses WWW-Authenticate header of the HTTPResponse, initializes
-        /// internal state, and adds authentication information to the given HTTPRequest.
+  void proxyAuthenticate(HTTPRequest &request, const HTTPAuthenticationParams &responseAuthParams);
+  /// Initializes internal state according to information from the
+  /// HTTPAuthenticationParams of the response, and adds proxy authentication
+  /// information to the given HTTPRequest.
+  ///
+  /// Throws InvalidArgumentException if HTTPAuthenticationParams is
+  /// invalid or some required parameter is missing.
+  /// Throws NotImplementedException in case of unsupported digest
+  /// algorithm or quality of protection method.
 
-        void authenticate(HTTPRequest & request, const HTTPAuthenticationParams & responseAuthParams);
-        /// Initializes internal state according to information from the
-        /// HTTPAuthenticationParams of the response, and adds authentication
-        /// information to the given HTTPRequest.
-        ///
-        /// Throws InvalidArgumentException if HTTPAuthenticationParams is
-        /// invalid or some required parameter is missing.
-        /// Throws NotImplementedException in case of unsupported digest
-        /// algorithm or quality of protection method.
+  void updateProxyAuthInfo(HTTPRequest &request);
+  /// Updates internal state and adds proxy authentication information to
+  /// the given HTTPRequest.
 
-        void updateAuthInfo(HTTPRequest & request);
-        /// Updates internal state and adds authentication information to
-        /// the given HTTPRequest.
+  bool verifyAuthInfo(const HTTPRequest &request) const;
+  /// Verifies the digest authentication information in the given HTTPRequest
+  /// by recomputing the response and comparing it with what's in the request.
+  ///
+  /// Note: This method creates a HTTPAuthenticationParams object from the request
+  /// and calls verifyAuthParams() with request and params.
 
-        void proxyAuthenticate(HTTPRequest & request, const HTTPResponse & response);
-        /// Parses Proxy-Authenticate header of the HTTPResponse, initializes
-        /// internal state, and adds proxy authentication information to the given HTTPRequest.
+  bool verifyAuthParams(const HTTPRequest &request, const HTTPAuthenticationParams &params) const;
+  /// Verifies the digest authentication information in the given HTTPRequest
+  /// and HTTPAuthenticationParams by recomputing the response and comparing
+  /// it with what's in the request.
 
-        void proxyAuthenticate(HTTPRequest & request, const HTTPAuthenticationParams & responseAuthParams);
-        /// Initializes internal state according to information from the
-        /// HTTPAuthenticationParams of the response, and adds proxy authentication
-        /// information to the given HTTPRequest.
-        ///
-        /// Throws InvalidArgumentException if HTTPAuthenticationParams is
-        /// invalid or some required parameter is missing.
-        /// Throws NotImplementedException in case of unsupported digest
-        /// algorithm or quality of protection method.
+  static std::string createNonce();
+  /// Creates a random nonce string.
 
-        void updateProxyAuthInfo(HTTPRequest & request);
-        /// Updates internal state and adds proxy authentication information to
-        /// the given HTTPRequest.
+  static const std::string SCHEME;
 
-        bool verifyAuthInfo(const HTTPRequest & request) const;
-        /// Verifies the digest authentication information in the given HTTPRequest
-        /// by recomputing the response and comparing it with what's in the request.
-        ///
-        /// Note: This method creates a HTTPAuthenticationParams object from the request
-        /// and calls verifyAuthParams() with request and params.
+ private:
+  HTTPDigestCredentials(const HTTPDigestCredentials &);
+  HTTPDigestCredentials &operator=(const HTTPDigestCredentials &);
 
-        bool verifyAuthParams(const HTTPRequest & request, const HTTPAuthenticationParams & params) const;
-        /// Verifies the digest authentication information in the given HTTPRequest
-        /// and HTTPAuthenticationParams by recomputing the response and comparing
-        /// it with what's in the request.
+  void createAuthParams(const HTTPRequest &request, const HTTPAuthenticationParams &responseAuthParams);
+  void updateAuthParams(const HTTPRequest &request);
+  int updateNonceCounter(const std::string &nonce);
 
-        static std::string createNonce();
-        /// Creates a random nonce string.
+  static const std::string DEFAULT_ALGORITHM;
+  static const std::string DEFAULT_QOP;
+  static const std::string NONCE_PARAM;
+  static const std::string REALM_PARAM;
+  static const std::string QOP_PARAM;
+  static const std::string ALGORITHM_PARAM;
+  static const std::string USERNAME_PARAM;
+  static const std::string OPAQUE_PARAM;
+  static const std::string URI_PARAM;
+  static const std::string RESPONSE_PARAM;
+  static const std::string AUTH_PARAM;
+  static const std::string CNONCE_PARAM;
+  static const std::string NC_PARAM;
 
-        static const std::string SCHEME;
+  typedef std::map<std::string, int> NonceCounterMap;
 
-    private:
-        HTTPDigestCredentials(const HTTPDigestCredentials &);
-        HTTPDigestCredentials & operator=(const HTTPDigestCredentials &);
+  std::string _username;
+  std::string _password;
+  HTTPAuthenticationParams _requestAuthParams;
+  NonceCounterMap _nc;
 
-        void createAuthParams(const HTTPRequest & request, const HTTPAuthenticationParams & responseAuthParams);
-        void updateAuthParams(const HTTPRequest & request);
-        int updateNonceCounter(const std::string & nonce);
+  static int _nonceCounter;
+  static Poco::FastMutex _nonceMutex;
+};
 
-        static const std::string DEFAULT_ALGORITHM;
-        static const std::string DEFAULT_QOP;
-        static const std::string NONCE_PARAM;
-        static const std::string REALM_PARAM;
-        static const std::string QOP_PARAM;
-        static const std::string ALGORITHM_PARAM;
-        static const std::string USERNAME_PARAM;
-        static const std::string OPAQUE_PARAM;
-        static const std::string URI_PARAM;
-        static const std::string RESPONSE_PARAM;
-        static const std::string AUTH_PARAM;
-        static const std::string CNONCE_PARAM;
-        static const std::string NC_PARAM;
+//
+// inlines
+//
+inline const std::string &HTTPDigestCredentials::getUsername() const { return _username; }
 
-        typedef std::map<std::string, int> NonceCounterMap;
+inline const std::string &HTTPDigestCredentials::getPassword() const { return _password; }
 
-        std::string _username;
-        std::string _password;
-        HTTPAuthenticationParams _requestAuthParams;
-        NonceCounterMap _nc;
+inline bool HTTPDigestCredentials::empty() const { return _username.empty() && _password.empty(); }
 
-        static int _nonceCounter;
-        static Poco::FastMutex _nonceMutex;
-    };
+}  // namespace Net
+}  // namespace Poco
 
-
-    //
-    // inlines
-    //
-    inline const std::string & HTTPDigestCredentials::getUsername() const
-    {
-        return _username;
-    }
-
-
-    inline const std::string & HTTPDigestCredentials::getPassword() const
-    {
-        return _password;
-    }
-
-
-    inline bool HTTPDigestCredentials::empty() const
-    {
-        return _username.empty() && _password.empty();
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPDigestCredentials_INCLUDED
+#endif  // Net_HTTPDigestCredentials_INCLUDED

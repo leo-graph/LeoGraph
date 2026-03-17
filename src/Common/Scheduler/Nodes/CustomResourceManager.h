@@ -1,13 +1,12 @@
 #pragma once
 
 #include <Common/Scheduler/IResourceManager.h>
-#include <Common/Scheduler/SchedulerRoot.h>
 #include <Common/Scheduler/Nodes/ClassifiersConfig.h>
+#include <Common/Scheduler/SchedulerRoot.h>
 
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 
 /*
  * Implementation of `IResourceManager` supporting arbitrary hierarchy of scheduler nodes.
@@ -26,74 +25,63 @@ namespace DB
  * violation will apply to fairness. Old version exists as long as there is at least one classifier
  * instance referencing it. Classifiers are typically attached to queries and will be destructed with them.
  */
-class CustomResourceManager : public IResourceManager
-{
-public:
-    CustomResourceManager();
-    void updateConfiguration(const Poco::Util::AbstractConfiguration & config) override;
-    bool hasResource(const String & resource_name) const override;
-    ClassifierPtr acquire(const String & classifier_name, const ClassifierSettings & settings) override;
-    void forEachNode(VisitorFunc visitor) override;
+class CustomResourceManager : public IResourceManager {
+ public:
+  CustomResourceManager();
+  void updateConfiguration(const Poco::Util::AbstractConfiguration& config) override;
+  bool hasResource(const String& resource_name) const override;
+  ClassifierPtr acquire(const String& classifier_name, const ClassifierSettings& settings) override;
+  void forEachNode(VisitorFunc visitor) override;
 
-private:
-    /// Holds everything required to work with one specific configuration
-    struct State
-    {
-        struct Node
-        {
-            String type;
-            SchedulerNodePtr ptr;
+ private:
+  /// Holds everything required to work with one specific configuration
+  struct State {
+    struct Node {
+      String type;
+      SchedulerNodePtr ptr;
 
-            Node(
-                const String & name,
-                EventQueue * event_queue,
-                const Poco::Util::AbstractConfiguration & config,
-                const std::string & config_prefix);
-            bool equals(const Node & o) const;
-        };
-
-        struct Resource
-        {
-            std::unordered_map<String, Node> nodes; // by path
-            SchedulerRoot * attached_to = nullptr;
-
-            Resource(
-                const String & name,
-                EventQueue * event_queue,
-                const Poco::Util::AbstractConfiguration & config,
-                const std::string & config_prefix);
-            ~Resource(); // unregisters resource from scheduler
-            bool equals(const Resource & o) const;
-        };
-
-        using ResourcePtr = std::shared_ptr<Resource>;
-
-        std::unordered_map<String, ResourcePtr> resources; // by name
-        ClassifiersConfig classifiers;
-
-        State() = default;
-        explicit State(EventQueue * event_queue, const Poco::Util::AbstractConfiguration & config);
+      Node(const String& name, EventQueue* event_queue, const Poco::Util::AbstractConfiguration& config, const std::string& config_prefix);
+      bool equals(const Node& o) const;
     };
 
-    using StatePtr = std::shared_ptr<State>;
+    struct Resource {
+      std::unordered_map<String, Node> nodes;  // by path
+      SchedulerRoot* attached_to = nullptr;
 
-    /// Created per query, holds State used by that query
-    class Classifier : public IClassifier
-    {
-    public:
-        Classifier(const ClassifierSettings & settings_, const StatePtr & state_, const String & classifier_name);
-        bool has(const String & resource_name) override;
-        ResourceLink get(const String & resource_name) override;
-        WorkloadSettings getWorkloadSettings(const String & resource_name) const override;
-    private:
-        const ClassifierSettings settings;
-        std::unordered_map<String, ResourceLink> resources; // accessible resources by names
-        StatePtr state; // hold state to avoid ResourceLink invalidation due to resource deregistration from SchedulerRoot
+      Resource(const String& name, EventQueue* event_queue, const Poco::Util::AbstractConfiguration& config,
+               const std::string& config_prefix);
+      ~Resource();  // unregisters resource from scheduler
+      bool equals(const Resource& o) const;
     };
 
-    SchedulerRoot scheduler;
-    mutable std::mutex mutex;
-    StatePtr state;
+    using ResourcePtr = std::shared_ptr<Resource>;
+
+    std::unordered_map<String, ResourcePtr> resources;  // by name
+    ClassifiersConfig classifiers;
+
+    State() = default;
+    explicit State(EventQueue* event_queue, const Poco::Util::AbstractConfiguration& config);
+  };
+
+  using StatePtr = std::shared_ptr<State>;
+
+  /// Created per query, holds State used by that query
+  class Classifier : public IClassifier {
+   public:
+    Classifier(const ClassifierSettings& settings_, const StatePtr& state_, const String& classifier_name);
+    bool has(const String& resource_name) override;
+    ResourceLink get(const String& resource_name) override;
+    WorkloadSettings getWorkloadSettings(const String& resource_name) const override;
+
+   private:
+    const ClassifierSettings settings;
+    std::unordered_map<String, ResourceLink> resources;  // accessible resources by names
+    StatePtr state;  // hold state to avoid ResourceLink invalidation due to resource deregistration from SchedulerRoot
+  };
+
+  SchedulerRoot scheduler;
+  mutable std::mutex mutex;
+  StatePtr state;
 };
 
-}
+}  // namespace DB

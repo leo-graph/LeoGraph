@@ -13,24 +13,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Formatter_INCLUDED
 #define Foundation_Formatter_INCLUDED
-
 
 #include "Poco/Configurable.h"
 #include "Poco/Foundation.h"
 #include "Poco/RefCountedObject.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Message;
 
-
-class Foundation_API Formatter : public Configurable, public RefCountedObject
+class Foundation_API Formatter : public Configurable,
+                                 public RefCountedObject
 /// The base class for all Formatter classes.
 ///
 /// A formatter basically takes a Message object
@@ -50,26 +45,24 @@ class Foundation_API Formatter : public Configurable, public RefCountedObject
 ///
 /// Subclasses must at least provide a format() method.
 {
-public:
-    Formatter();
-    /// Creates the formatter.
+ public:
+  Formatter();
+  /// Creates the formatter.
 
-    virtual ~Formatter();
-    /// Destroys the formatter.
+  virtual ~Formatter();
+  /// Destroys the formatter.
 
-    virtual void format(const Message & msg, std::string & text) = 0;
-    /// Formats the message and places the result in text.
-    /// Subclasses must override this method.
+  virtual void format(const Message& msg, std::string& text) = 0;
+  /// Formats the message and places the result in text.
+  /// Subclasses must override this method.
 
-    void setProperty(const std::string & name, const std::string & value);
-    /// Throws a PropertyNotSupportedException.
+  void setProperty(const std::string& name, const std::string& value);
+  /// Throws a PropertyNotSupportedException.
 
-    std::string getProperty(const std::string & name) const;
-    /// Throws a PropertyNotSupportedException.
+  std::string getProperty(const std::string& name) const;
+  /// Throws a PropertyNotSupportedException.
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Formatter_INCLUDED
+#endif  // Foundation_Formatter_INCLUDED

@@ -1,86 +1,72 @@
 #pragma once
 
-#include <Interpreters/InDepthNodeVisitor.h>
-#include <Parsers/ASTFunction.h>
-#include <Parsers/ASTOrderByElement.h>
-#include <Parsers/ASTExpressionList.h>
-#include <Parsers/ASTIdentifier.h>
 #include <Functions/FunctionFactory.h>
+#include <Interpreters/InDepthNodeVisitor.h>
+#include <Parsers/ASTExpressionList.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTOrderByElement.h>
 
-namespace DB
-{
+namespace DB {
 
-class RedundantFunctionsInOrderByMatcher
-{
-public:
-    struct Data
-    {
-        std::unordered_set<String> & keys;
-        ContextPtr context;
-        bool redundant = true;
-        bool done = false;
+class RedundantFunctionsInOrderByMatcher {
+ public:
+  struct Data {
+    std::unordered_set<String> &keys;
+    ContextPtr context;
+    bool redundant = true;
+    bool done = false;
 
-        void preventErase()
-        {
-            redundant = false;
-            done = true;
-        }
-    };
+    void preventErase() {
+      redundant = false;
+      done = true;
+    }
+  };
 
-    static void visit(const ASTPtr & ast, Data & data)
-    {
-        if (const auto * func = ast->as<ASTFunction>())
-            visit(*func, data);
+  static void visit(const ASTPtr &ast, Data &data) {
+    if (const auto *func = ast->as<ASTFunction>()) visit(*func, data);
+  }
+
+  static void visit(const ASTFunction &ast_function, Data &data) {
+    if (data.done) return;
+
+    bool is_lambda = (ast_function.name == "lambda");
+
+    const auto &arguments = ast_function.arguments;
+    bool has_arguments = arguments && !arguments->children.empty();
+
+    if (is_lambda || !has_arguments) {
+      data.preventErase();
+      return;
     }
 
-    static void visit(const ASTFunction & ast_function, Data & data)
-    {
-        if (data.done)
-            return;
+    /// If we meet function as argument then we have already checked
+    /// arguments of it and if it can be erased
+    for (const auto &arg : arguments->children) {
+      /// Allow functions: visit them later
+      if (arg->as<ASTFunction>()) continue;
 
-        bool is_lambda = (ast_function.name == "lambda");
+      /// Allow known identifiers: they are present in ORDER BY before current item
+      if (auto *identifier = arg->as<ASTIdentifier>())
+        if (data.keys.contains(getIdentifierName(identifier))) continue;
 
-        const auto & arguments = ast_function.arguments;
-        bool has_arguments = arguments && !arguments->children.empty();
-
-        if (is_lambda || !has_arguments)
-        {
-            data.preventErase();
-            return;
-        }
-
-        /// If we meet function as argument then we have already checked
-        /// arguments of it and if it can be erased
-        for (const auto & arg : arguments->children)
-        {
-            /// Allow functions: visit them later
-            if (arg->as<ASTFunction>())
-                continue;
-
-            /// Allow known identifiers: they are present in ORDER BY before current item
-            if (auto * identifier = arg->as<ASTIdentifier>())
-                if (data.keys.contains(getIdentifierName(identifier)))
-                    continue;
-
-            /// Reject erase others
-            data.preventErase();
-            return;
-        }
-
-        const auto function = FunctionFactory::instance().tryGet(ast_function.name, data.context);
-        if (!function || !function->isDeterministicInScopeOfQuery())
-        {
-            data.preventErase();
-        }
+      /// Reject erase others
+      data.preventErase();
+      return;
     }
 
-    static bool needChildVisit(const ASTPtr & node, const ASTPtr &)
-    {
-        /// Visit functions and their arguments, that are stored in ASTExpressionList.
-        return node->as<ASTFunction>() || node->as<ASTExpressionList>();
+    const auto function = FunctionFactory::instance().tryGet(ast_function.name, data.context);
+    if (!function || !function->isDeterministicInScopeOfQuery()) {
+      data.preventErase();
     }
+  }
+
+  static bool needChildVisit(const ASTPtr &node, const ASTPtr &) {
+    /// Visit functions and their arguments, that are stored in ASTExpressionList.
+    return node->as<ASTFunction>() || node->as<ASTExpressionList>();
+  }
 };
 
 using RedundantFunctionsInOrderByVisitor = ConstInDepthNodeVisitor<RedundantFunctionsInOrderByMatcher, true>;
 
-}
+}  // namespace DB

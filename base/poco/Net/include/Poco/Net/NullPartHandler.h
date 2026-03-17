@@ -13,38 +13,30 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_NullPartHandler_INCLUDED
 #define Net_NullPartHandler_INCLUDED
-
 
 #include "Poco/Net/Net.h"
 #include "Poco/Net/PartHandler.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API NullPartHandler : public PartHandler
+/// A very special PartHandler that simply discards all data.
 {
-namespace Net
-{
+ public:
+  NullPartHandler();
+  /// Creates the NullPartHandler.
 
+  ~NullPartHandler();
+  /// Destroys the NullPartHandler.
 
-    class Net_API NullPartHandler : public PartHandler
-    /// A very special PartHandler that simply discards all data.
-    {
-    public:
-        NullPartHandler();
-        /// Creates the NullPartHandler.
+  void handlePart(const MessageHeader& header, std::istream& stream);
+  /// Reads and discards all data from the stream.
+};
 
-        ~NullPartHandler();
-        /// Destroys the NullPartHandler.
+}  // namespace Net
+}  // namespace Poco
 
-        void handlePart(const MessageHeader & header, std::istream & stream);
-        /// Reads and discards all data from the stream.
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_NullPartHandler_INCLUDED
+#endif  // Net_NullPartHandler_INCLUDED

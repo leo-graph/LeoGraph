@@ -13,55 +13,47 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_CertificateHandlerFactoryMgr_INCLUDED
 #define NetSSL_CertificateHandlerFactoryMgr_INCLUDED
-
 
 #include <map>
 #include "Poco/Net/CertificateHandlerFactory.h"
 #include "Poco/Net/NetSSL.h"
 #include "Poco/SharedPtr.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class NetSSL_API CertificateHandlerFactoryMgr
+/// A CertificateHandlerFactoryMgr manages all existing CertificateHandlerFactories.
 {
-namespace Net
-{
+ public:
+  typedef std::map<std::string, Poco::SharedPtr<CertificateHandlerFactory>> FactoriesMap;
 
+  CertificateHandlerFactoryMgr();
+  /// Creates the CertificateHandlerFactoryMgr.
 
-    class NetSSL_API CertificateHandlerFactoryMgr
-    /// A CertificateHandlerFactoryMgr manages all existing CertificateHandlerFactories.
-    {
-    public:
-        typedef std::map<std::string, Poco::SharedPtr<CertificateHandlerFactory>> FactoriesMap;
+  ~CertificateHandlerFactoryMgr();
+  /// Destroys the CertificateHandlerFactoryMgr.
 
-        CertificateHandlerFactoryMgr();
-        /// Creates the CertificateHandlerFactoryMgr.
+  void setFactory(const std::string& name, CertificateHandlerFactory* pFactory);
+  /// Registers the factory. Class takes ownership of the pointer.
+  /// If a factory with the same name already exists, an exception is thrown.
 
-        ~CertificateHandlerFactoryMgr();
-        /// Destroys the CertificateHandlerFactoryMgr.
+  bool hasFactory(const std::string& name) const;
+  /// Returns true if for the given name a factory is already registered
 
-        void setFactory(const std::string & name, CertificateHandlerFactory * pFactory);
-        /// Registers the factory. Class takes ownership of the pointer.
-        /// If a factory with the same name already exists, an exception is thrown.
+  const CertificateHandlerFactory* getFactory(const std::string& name) const;
+  /// Returns NULL if for the given name a factory does not exist, otherwise the factory is returned
 
-        bool hasFactory(const std::string & name) const;
-        /// Returns true if for the given name a factory is already registered
+  void removeFactory(const std::string& name);
+  /// Removes the factory from the manager.
 
-        const CertificateHandlerFactory * getFactory(const std::string & name) const;
-        /// Returns NULL if for the given name a factory does not exist, otherwise the factory is returned
+ private:
+  FactoriesMap _factories;
+};
 
-        void removeFactory(const std::string & name);
-        /// Removes the factory from the manager.
+}  // namespace Net
+}  // namespace Poco
 
-    private:
-        FactoriesMap _factories;
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // NetSSL_CertificateHandlerFactoryMgr_INCLUDED
+#endif  // NetSSL_CertificateHandlerFactoryMgr_INCLUDED

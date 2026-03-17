@@ -10,21 +10,18 @@
 #include "config.h"
 
 #if USE_SIMDJSON
-#    include <Common/JSONParsers/SimdJSONParser.h>
-namespace BuzzHouse
-{
+#  include <Common/JSONParsers/SimdJSONParser.h>
+namespace BuzzHouse {
 using JSONParserImpl = DB::SimdJSONParser;
 }
 #elif USE_RAPIDJSON
-#    include <Common/JSONParsers/RapidJSONParser.h>
-namespace BuzzHouse
-{
+#  include <Common/JSONParsers/RapidJSONParser.h>
+namespace BuzzHouse {
 using JSONParserImpl = DB::RapidJSONParser;
 }
 #else
-#    include <Common/JSONParsers/DummyJSONParser.h>
-namespace BuzzHouse
-{
+#  include <Common/JSONParsers/DummyJSONParser.h>
+namespace BuzzHouse {
 using JSONParserImpl = DB::DummyJSONParser;
 }
 #endif
@@ -33,8 +30,7 @@ using JSONParserImpl = DB::DummyJSONParser;
 #include <Client/ClientBase.h>
 #include <Common/logger_useful.h>
 
-namespace BuzzHouse
-{
+namespace BuzzHouse {
 
 const constexpr uint64_t allow_bool = (UINT64_C(1) << 0), allow_unsigned_int = (UINT64_C(1) << 1), allow_int8 = (UINT64_C(1) << 2),
                          allow_int64 = (UINT64_C(1) << 3), allow_int128 = (UINT64_C(1) << 4), allow_float32 = (UINT64_C(1) << 5),
@@ -76,339 +72,279 @@ extern const DB::Strings codecs;
 
 using JSONObjectType = JSONParserImpl::Element;
 
-class Catalog
-{
-public:
-    String client_hostname;
-    String server_hostname;
-    String path;
-    String region;
-    String warehouse;
-    uint32_t port;
+class Catalog {
+ public:
+  String client_hostname;
+  String server_hostname;
+  String path;
+  String region;
+  String warehouse;
+  uint32_t port;
 
-    Catalog()
-        : client_hostname("localhost")
-        , server_hostname("localhost")
-        , path()
-        , region()
-        , warehouse()
-        , port(0)
-    {
-    }
+  Catalog() : client_hostname("localhost"), server_hostname("localhost"), path(), region(), warehouse(), port(0) {}
 
-    Catalog(
-        const String & client_hostname_,
-        const String & server_hostname_,
-        const String & path_,
-        const String & region_,
-        const String & warehouse_,
-        const uint32_t port_)
-        : client_hostname(client_hostname_)
-        , server_hostname(server_hostname_)
-        , path(path_)
-        , region(region_)
-        , warehouse(warehouse_)
-        , port(port_)
-    {
-    }
+  Catalog(const String& client_hostname_, const String& server_hostname_, const String& path_, const String& region_,
+          const String& warehouse_, const uint32_t port_)
+      : client_hostname(client_hostname_),
+        server_hostname(server_hostname_),
+        path(path_),
+        region(region_),
+        warehouse(warehouse_),
+        port(port_) {}
 
-    Catalog(const Catalog & c) = default;
-    Catalog(Catalog && c) = default;
-    Catalog & operator=(const Catalog & c) = default;
-    Catalog & operator=(Catalog && c) noexcept = default;
+  Catalog(const Catalog& c) = default;
+  Catalog(Catalog&& c) = default;
+  Catalog& operator=(const Catalog& c) = default;
+  Catalog& operator=(Catalog&& c) noexcept = default;
 };
 
-class ServerCredentials
-{
-public:
-    String client_hostname;
-    String server_hostname;
-    String container;
-    uint32_t port;
-    uint32_t mysql_port;
-    String unix_socket;
-    String user;
-    String password;
-    String secret;
-    String database;
-    String named_collection;
-    std::filesystem::path user_files_dir;
-    std::filesystem::path query_log_file;
-    std::optional<Catalog> glue_catalog;
-    std::optional<Catalog> hive_catalog;
-    std::optional<Catalog> rest_catalog;
-    std::optional<Catalog> unity_catalog;
+class ServerCredentials {
+ public:
+  String client_hostname;
+  String server_hostname;
+  String container;
+  uint32_t port;
+  uint32_t mysql_port;
+  String unix_socket;
+  String user;
+  String password;
+  String secret;
+  String database;
+  String named_collection;
+  std::filesystem::path user_files_dir;
+  std::filesystem::path query_log_file;
+  std::optional<Catalog> glue_catalog;
+  std::optional<Catalog> hive_catalog;
+  std::optional<Catalog> rest_catalog;
+  std::optional<Catalog> unity_catalog;
 
-    ServerCredentials()
-        : client_hostname("localhost")
-        , server_hostname("localhost")
-        , port(0)
-        , mysql_port(0)
-        , user("test")
-    {
-    }
+  ServerCredentials() : client_hostname("localhost"), server_hostname("localhost"), port(0), mysql_port(0), user("test") {}
 
-    ServerCredentials(
-        const String & client_hostname_,
-        const String & server_hostname_,
-        const String & container_,
-        const uint32_t port_,
-        const uint32_t mysql_port_,
-        const String & unix_socket_,
-        const String & user_,
-        const String & password_,
-        const String & secret_,
-        const String & database_,
-        const String & named_collection_,
-        const std::filesystem::path & user_files_dir_,
-        const std::filesystem::path & query_log_file_,
-        const std::optional<Catalog> glue_catalog_,
-        const std::optional<Catalog> hive_catalog_,
-        const std::optional<Catalog> rest_catalog_,
-        const std::optional<Catalog> unity_catalog_)
-        : client_hostname(client_hostname_)
-        , server_hostname(server_hostname_)
-        , container(container_)
-        , port(port_)
-        , mysql_port(mysql_port_)
-        , unix_socket(unix_socket_)
-        , user(user_)
-        , password(password_)
-        , secret(secret_)
-        , database(database_)
-        , named_collection(named_collection_)
-        , user_files_dir(user_files_dir_)
-        , query_log_file(query_log_file_)
-        , glue_catalog(glue_catalog_)
-        , hive_catalog(hive_catalog_)
-        , rest_catalog(rest_catalog_)
-        , unity_catalog(unity_catalog_)
-    {
-    }
+  ServerCredentials(const String& client_hostname_, const String& server_hostname_, const String& container_, const uint32_t port_,
+                    const uint32_t mysql_port_, const String& unix_socket_, const String& user_, const String& password_,
+                    const String& secret_, const String& database_, const String& named_collection_,
+                    const std::filesystem::path& user_files_dir_, const std::filesystem::path& query_log_file_,
+                    const std::optional<Catalog> glue_catalog_, const std::optional<Catalog> hive_catalog_,
+                    const std::optional<Catalog> rest_catalog_, const std::optional<Catalog> unity_catalog_)
+      : client_hostname(client_hostname_),
+        server_hostname(server_hostname_),
+        container(container_),
+        port(port_),
+        mysql_port(mysql_port_),
+        unix_socket(unix_socket_),
+        user(user_),
+        password(password_),
+        secret(secret_),
+        database(database_),
+        named_collection(named_collection_),
+        user_files_dir(user_files_dir_),
+        query_log_file(query_log_file_),
+        glue_catalog(glue_catalog_),
+        hive_catalog(hive_catalog_),
+        rest_catalog(rest_catalog_),
+        unity_catalog(unity_catalog_) {}
 
-    ServerCredentials(const ServerCredentials & sc) = default;
-    ServerCredentials(ServerCredentials && sc) = default;
-    ServerCredentials & operator=(const ServerCredentials & sc) = default;
-    ServerCredentials & operator=(ServerCredentials && sc) noexcept = default;
+  ServerCredentials(const ServerCredentials& sc) = default;
+  ServerCredentials(ServerCredentials&& sc) = default;
+  ServerCredentials& operator=(const ServerCredentials& sc) = default;
+  ServerCredentials& operator=(ServerCredentials&& sc) noexcept = default;
 };
 
-class PerformanceMetric
-{
-public:
-    bool enabled = false;
-    uint64_t threshold = 10;
-    uint64_t minimum = 1000;
+class PerformanceMetric {
+ public:
+  bool enabled = false;
+  uint64_t threshold = 10;
+  uint64_t minimum = 1000;
 
-    PerformanceMetric() = default;
+  PerformanceMetric() = default;
 
-    PerformanceMetric(const bool enabled_, const uint64_t threshold_, const uint64_t minimum_)
-        : enabled(enabled_)
-        , threshold(threshold_)
-        , minimum(minimum_)
-    {
-    }
+  PerformanceMetric(const bool enabled_, const uint64_t threshold_, const uint64_t minimum_)
+      : enabled(enabled_), threshold(threshold_), minimum(minimum_) {}
 
-    PerformanceMetric(const PerformanceMetric & pm) = default;
-    PerformanceMetric(PerformanceMetric && pm) = default;
-    PerformanceMetric & operator=(const PerformanceMetric & pm) = default;
-    PerformanceMetric & operator=(PerformanceMetric && pm) noexcept = default;
+  PerformanceMetric(const PerformanceMetric& pm) = default;
+  PerformanceMetric(PerformanceMetric&& pm) = default;
+  PerformanceMetric& operator=(const PerformanceMetric& pm) = default;
+  PerformanceMetric& operator=(PerformanceMetric&& pm) noexcept = default;
 };
 
-class PerformanceResult
-{
-public:
-    /// The metrics and respective value
-    std::unordered_map<String, uint64_t> metrics;
-    /// The metrics and respective String representation (I can improve this)
-    std::unordered_map<String, String> result_strings;
+class PerformanceResult {
+ public:
+  /// The metrics and respective value
+  std::unordered_map<String, uint64_t> metrics;
+  /// The metrics and respective String representation (I can improve this)
+  std::unordered_map<String, String> result_strings;
 
-    PerformanceResult() = default;
+  PerformanceResult() = default;
 
-    PerformanceResult(const PerformanceResult & pr) = default;
-    PerformanceResult(PerformanceResult && pr) = default;
-    PerformanceResult & operator=(const PerformanceResult & pr) = default;
-    PerformanceResult & operator=(PerformanceResult && pr) noexcept = default;
+  PerformanceResult(const PerformanceResult& pr) = default;
+  PerformanceResult(PerformanceResult&& pr) = default;
+  PerformanceResult& operator=(const PerformanceResult& pr) = default;
+  PerformanceResult& operator=(PerformanceResult&& pr) noexcept = default;
 };
 
-class SystemTable
-{
-public:
-    String schema_name;
-    String table_name;
-    DB::Strings columns;
+class SystemTable {
+ public:
+  String schema_name;
+  String table_name;
+  DB::Strings columns;
 
-    SystemTable()
-        : schema_name("system")
-        , table_name("tables")
-        , columns()
-    {
-    }
+  SystemTable() : schema_name("system"), table_name("tables"), columns() {}
 
-    SystemTable(const String & schema_name_, const String & table_name_, const DB::Strings & columns_)
-        : schema_name(schema_name_)
-        , table_name(table_name_)
-        , columns(columns_)
-    {
-    }
+  SystemTable(const String& schema_name_, const String& table_name_, const DB::Strings& columns_)
+      : schema_name(schema_name_), table_name(table_name_), columns(columns_) {}
 
-    SystemTable(const SystemTable & c) = default;
-    SystemTable(SystemTable && c) = default;
-    SystemTable & operator=(const SystemTable & c) = default;
-    SystemTable & operator=(SystemTable && c) noexcept = default;
+  SystemTable(const SystemTable& c) = default;
+  SystemTable(SystemTable&& c) = default;
+  SystemTable& operator=(const SystemTable& c) = default;
+  SystemTable& operator=(SystemTable&& c) noexcept = default;
 
-    void setName(ExprSchemaTable * est) const
-    {
-        est->mutable_database()->set_database(schema_name);
-        est->mutable_table()->set_table(table_name);
-    }
+  void setName(ExprSchemaTable* est) const {
+    est->mutable_database()->set_database(schema_name);
+    est->mutable_table()->set_table(table_name);
+  }
 };
 
-class FuzzConfig
-{
-private:
-    DB::ClientBase * cb = nullptr;
+class FuzzConfig {
+ private:
+  DB::ClientBase* cb = nullptr;
 
-public:
-    LoggerPtr log;
-    std::ofstream outf;
-    DB::Strings collations;
-    DB::Strings storage_policies;
-    DB::Strings timezones;
-    DB::Strings disks;
-    DB::Strings keeper_disks;
-    DB::Strings clusters;
-    DB::Strings caches;
-    DB::Strings failpoints;
-    DB::Strings remote_servers;
-    DB::Strings remote_secure_servers;
-    DB::Strings http_servers;
-    DB::Strings https_servers;
-    DB::Strings arrow_flight_servers;
-    DB::Strings hot_settings;
-    DB::Strings disallowed_settings;
-    DB::Strings hot_table_settings;
-    DB::Strings tokenizers;
+ public:
+  LoggerPtr log;
+  std::ofstream outf;
+  DB::Strings collations;
+  DB::Strings storage_policies;
+  DB::Strings timezones;
+  DB::Strings disks;
+  DB::Strings keeper_disks;
+  DB::Strings clusters;
+  DB::Strings caches;
+  DB::Strings failpoints;
+  DB::Strings remote_servers;
+  DB::Strings remote_secure_servers;
+  DB::Strings http_servers;
+  DB::Strings https_servers;
+  DB::Strings arrow_flight_servers;
+  DB::Strings hot_settings;
+  DB::Strings disallowed_settings;
+  DB::Strings hot_table_settings;
+  DB::Strings tokenizers;
 
-    std::optional<ServerCredentials> clickhouse_server;
-    std::optional<ServerCredentials> mysql_server;
-    std::optional<ServerCredentials> postgresql_server;
-    std::optional<ServerCredentials> sqlite_server;
-    std::optional<ServerCredentials> mongodb_server;
-    std::optional<ServerCredentials> redis_server;
-    std::optional<ServerCredentials> minio_server;
-    std::optional<ServerCredentials> http_server;
-    std::optional<ServerCredentials> azurite_server;
-    std::optional<ServerCredentials> kafka_server;
-    std::optional<ServerCredentials> dolor_server;
+  std::optional<ServerCredentials> clickhouse_server;
+  std::optional<ServerCredentials> mysql_server;
+  std::optional<ServerCredentials> postgresql_server;
+  std::optional<ServerCredentials> sqlite_server;
+  std::optional<ServerCredentials> mongodb_server;
+  std::optional<ServerCredentials> redis_server;
+  std::optional<ServerCredentials> minio_server;
+  std::optional<ServerCredentials> http_server;
+  std::optional<ServerCredentials> azurite_server;
+  std::optional<ServerCredentials> kafka_server;
+  std::optional<ServerCredentials> dolor_server;
 
-    std::unordered_map<String, PerformanceMetric> metrics;
+  std::unordered_map<String, PerformanceMetric> metrics;
 
-    std::unordered_set<uint32_t> disallowed_error_codes;
-    std::unordered_set<uint32_t> oracle_ignore_error_codes;
+  std::unordered_set<uint32_t> disallowed_error_codes;
+  std::unordered_set<uint32_t> oracle_ignore_error_codes;
 
-    String host = "localhost";
-    String keeper_map_path_prefix;
+  String host = "localhost";
+  String keeper_map_path_prefix;
 
-    bool read_log = false;
-    bool fuzz_floating_points = true;
-    bool test_with_fill = true;
-    bool compare_success_results = false;
-    bool measure_performance = false;
-    bool allow_infinite_tables = false;
-    bool compare_explains = false;
-    bool allow_memory_tables = true;
-    bool allow_client_restarts = false;
-    bool enable_fault_injection_settings = false;
-    bool enable_force_settings = false;
-    bool allow_hardcoded_inserts = true;
-    bool allow_async_requests = false;
-    bool truncate_output = false;
-    bool allow_transactions = true;
-    bool enable_overflow_settings = false;
-    bool random_limited_values = false;
-    bool set_smt_disk = true;
-    bool allow_query_oracles = true;
-    bool allow_health_check = true;
-    bool enable_compatibility_settings = false;
-    bool enable_memory_settings = false;
-    bool enable_backups = true;
-    bool enable_renames = true;
+  bool read_log = false;
+  bool fuzz_floating_points = true;
+  bool test_with_fill = true;
+  bool compare_success_results = false;
+  bool measure_performance = false;
+  bool allow_infinite_tables = false;
+  bool compare_explains = false;
+  bool allow_memory_tables = true;
+  bool allow_client_restarts = false;
+  bool enable_fault_injection_settings = false;
+  bool enable_force_settings = false;
+  bool allow_hardcoded_inserts = true;
+  bool allow_async_requests = false;
+  bool truncate_output = false;
+  bool allow_transactions = true;
+  bool enable_overflow_settings = false;
+  bool random_limited_values = false;
+  bool set_smt_disk = true;
+  bool allow_query_oracles = true;
+  bool allow_health_check = true;
+  bool enable_compatibility_settings = false;
+  bool enable_memory_settings = false;
+  bool enable_backups = true;
+  bool enable_renames = true;
 
-    uint64_t seed = 0;
-    uint64_t min_insert_rows = 1;
-    uint64_t max_insert_rows = 1000;
-    uint64_t min_nested_rows = 0;
-    uint64_t max_nested_rows = 10;
-    uint64_t flush_log_wait_time = 1000;
-    uint64_t type_mask = std::numeric_limits<uint64_t>::max();
-    uint64_t engine_mask = std::numeric_limits<uint64_t>::max();
+  uint64_t seed = 0;
+  uint64_t min_insert_rows = 1;
+  uint64_t max_insert_rows = 1000;
+  uint64_t min_nested_rows = 0;
+  uint64_t max_nested_rows = 10;
+  uint64_t flush_log_wait_time = 1000;
+  uint64_t type_mask = std::numeric_limits<uint64_t>::max();
+  uint64_t engine_mask = std::numeric_limits<uint64_t>::max();
 
-    uint32_t max_depth = 3;
-    uint32_t max_width = 3;
-    uint32_t max_databases = 4;
-    uint32_t max_functions = 4;
-    uint32_t max_tables = 10;
-    uint32_t max_views = 5;
-    uint32_t max_dictionaries = 5;
-    uint32_t max_columns = 5;
-    uint32_t time_to_run = 0;
-    uint32_t port = 9000;
-    uint32_t secure_port = 9440;
-    uint32_t http_port = 8123;
-    uint32_t http_secure_port = 8443;
-    uint32_t use_dump_table_oracle = 2;
-    uint32_t max_reconnection_attempts = 3;
-    uint32_t time_to_sleep_between_reconnects = 3000;
-    uint32_t min_string_length = 0;
-    uint32_t max_string_length = 1009;
-    uint32_t max_parallel_queries = 5;
-    uint32_t max_number_alters = 4;
-    uint32_t deterministic_prob = 50;
+  uint32_t max_depth = 3;
+  uint32_t max_width = 3;
+  uint32_t max_databases = 4;
+  uint32_t max_functions = 4;
+  uint32_t max_tables = 10;
+  uint32_t max_views = 5;
+  uint32_t max_dictionaries = 5;
+  uint32_t max_columns = 5;
+  uint32_t time_to_run = 0;
+  uint32_t port = 9000;
+  uint32_t secure_port = 9440;
+  uint32_t http_port = 8123;
+  uint32_t http_secure_port = 8443;
+  uint32_t use_dump_table_oracle = 2;
+  uint32_t max_reconnection_attempts = 3;
+  uint32_t time_to_sleep_between_reconnects = 3000;
+  uint32_t min_string_length = 0;
+  uint32_t max_string_length = 1009;
+  uint32_t max_parallel_queries = 5;
+  uint32_t max_number_alters = 4;
+  uint32_t deterministic_prob = 50;
 
-    std::filesystem::path log_path = std::filesystem::temp_directory_path() / "out.sql";
-    std::filesystem::path client_file_path = "/var/lib/clickhouse/user_files";
-    std::filesystem::path server_file_path = "/var/lib/clickhouse/user_files";
-    std::filesystem::path fuzzer_out_file = std::filesystem::temp_directory_path() / "out.data";
-    std::filesystem::path lakes_path = "/var/lib/clickhouse/user_files/lakehouses";
+  std::filesystem::path log_path = std::filesystem::temp_directory_path() / "out.sql";
+  std::filesystem::path client_file_path = "/var/lib/clickhouse/user_files";
+  std::filesystem::path server_file_path = "/var/lib/clickhouse/user_files";
+  std::filesystem::path fuzzer_out_file = std::filesystem::temp_directory_path() / "out.data";
+  std::filesystem::path lakes_path = "/var/lib/clickhouse/user_files/lakehouses";
 
-    FuzzConfig()
-        : cb(nullptr)
-        , log(getLogger("BuzzHouse"))
-    {
-    }
+  FuzzConfig() : cb(nullptr), log(getLogger("BuzzHouse")) {}
 
-    FuzzConfig(DB::ClientBase * c, const String & path);
+  FuzzConfig(DB::ClientBase* c, const String& path);
 
-    bool processServerQuery(bool outlog, const String & query);
+  bool processServerQuery(bool outlog, const String& query);
 
-private:
-    template <typename T>
-    void loadServerSettings(std::vector<T> & out, const String & desc, const String & query);
+ private:
+  template <typename T>
+  void loadServerSettings(std::vector<T>& out, const String& desc, const String& query);
 
-public:
-    void loadServerConfigurations();
+ public:
+  void loadServerConfigurations();
 
-    String getConnectionHostAndPort(bool secure) const;
+  String getConnectionHostAndPort(bool secure) const;
 
-    String getHTTPURL(bool secure) const;
+  String getHTTPURL(bool secure) const;
 
-    void loadSystemTables(std::vector<SystemTable> & tables);
+  void loadSystemTables(std::vector<SystemTable>& tables);
 
-    bool hasMutations();
+  bool hasMutations();
 
-    String getRandomMutation(uint64_t rand_val);
+  String getRandomMutation(uint64_t rand_val);
 
-    String getRandomIcebergHistoryValue(const String & property);
+  String getRandomIcebergHistoryValue(const String& property);
 
-    String getRandomFileSystemCacheValue();
+  String getRandomFileSystemCacheValue();
 
-    bool tableHasPartitions(bool detached, const String & database, const String & table);
+  bool tableHasPartitions(bool detached, const String& database, const String& table);
 
-    String tableGetRandomPartitionOrPart(uint64_t rand_val, bool detached, bool partition, const String & database, const String & table);
+  String tableGetRandomPartitionOrPart(uint64_t rand_val, bool detached, bool partition, const String& database, const String& table);
 
-    void comparePerformanceResults(const String & oracle_name, PerformanceResult & server, PerformanceResult & peer) const;
+  void comparePerformanceResults(const String& oracle_name, PerformanceResult& server, PerformanceResult& peer) const;
 
-    void validateClickHouseHealth();
+  void validateClickHouseHealth();
 };
 
-}
+}  // namespace BuzzHouse

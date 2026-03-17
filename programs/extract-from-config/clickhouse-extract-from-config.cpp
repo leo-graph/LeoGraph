@@ -1,1 +1,1 @@
-int mainEntryClickHouseExtractFromConfig(int argc, char ** argv);
+int mainEntryClickHouseExtractFromConfig(int argc, char** argv);

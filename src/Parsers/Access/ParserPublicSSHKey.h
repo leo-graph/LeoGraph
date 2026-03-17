@@ -2,15 +2,12 @@
 
 #include <Parsers/IParserBase.h>
 
+namespace DB {
 
-namespace DB
-{
-
-class ParserPublicSSHKey : public IParserBase
-{
-protected:
-    const char * getName() const override { return "PublicSSHKey"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+class ParserPublicSSHKey : public IParserBase {
+ protected:
+  const char* getName() const override { return "PublicSSHKey"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace DB

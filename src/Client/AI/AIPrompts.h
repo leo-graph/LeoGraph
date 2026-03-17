@@ -2,13 +2,12 @@
 
 #include <string>
 
-namespace DB
-{
+namespace DB {
 
-namespace AIPrompts
-{
+namespace AIPrompts {
 
-constexpr const char * SQL_GENERATOR_WITH_SCHEMA_ACCESS = R"(You are a ClickHouse SQL code generator. Your ONLY job is to output SQL statements wrapped in <sql> tags.
+constexpr const char* SQL_GENERATOR_WITH_SCHEMA_ACCESS =
+    R"(You are a ClickHouse SQL code generator. Your ONLY job is to output SQL statements wrapped in <sql> tags.
 
 MANDATORY WORKFLOW:
 1. ALWAYS use tools to discover the schema BEFORE generating SQL
@@ -184,7 +183,8 @@ IMPORTANT:
 - Even if tools show table doesn't exist but user asks for query, generate the SQL anyway
 - Use IF NOT EXISTS for CREATE statements when appropriate)";
 
-constexpr const char * SQL_GENERATOR_WITHOUT_SCHEMA_ACCESS = R"(You are a ClickHouse SQL code generator. Your ONLY job is to output SQL statements wrapped in <sql> tags.
+constexpr const char* SQL_GENERATOR_WITHOUT_SCHEMA_ACCESS =
+    R"(You are a ClickHouse SQL code generator. Your ONLY job is to output SQL statements wrapped in <sql> tags.
 
 CRITICAL RULES:
 1. Output SQL wrapped in <sql> tags
@@ -257,8 +257,8 @@ LIMIT 50
 
 Note: Schema discovery tools are not available. SQL will be generated based on common patterns and best practices.)";
 
-constexpr const char * USER_PROMPT_PREFIX = "Convert this to a ClickHouse SQL query: ";
+constexpr const char* USER_PROMPT_PREFIX = "Convert this to a ClickHouse SQL query: ";
 
-}
+}  // namespace AIPrompts
 
-}
+}  // namespace DB

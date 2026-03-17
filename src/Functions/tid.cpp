@@ -5,64 +5,52 @@
 
 #include <base/getThreadId.h>
 
-namespace DB
-{
-namespace
-{
-    class FunctionTid : public IFunction
-    {
-    public:
-        static constexpr auto name = "tid";
-        static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionTid>(); }
+namespace DB {
+namespace {
+class FunctionTid : public IFunction {
+ public:
+  static constexpr auto name = "tid";
+  static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionTid>(); }
 
-        String getName() const override { return name; }
+  String getName() const override { return name; }
 
-        size_t getNumberOfArguments() const override { return 0; }
+  size_t getNumberOfArguments() const override { return 0; }
 
-        DataTypePtr getReturnTypeImpl(const DataTypes &) const override { return std::make_shared<DataTypeUInt64>(); }
+  DataTypePtr getReturnTypeImpl(const DataTypes &) const override { return std::make_shared<DataTypeUInt64>(); }
 
-        DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
-        {
-            return std::make_shared<DataTypeUInt64>();
-        }
+  DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override { return std::make_shared<DataTypeUInt64>(); }
 
-        bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
 
-        ColumnPtr executeImpl(const ColumnsWithTypeAndName &, const DataTypePtr &, size_t input_rows_count) const override
-        {
-            auto current_tid = getThreadId();
-            return DataTypeUInt64().createColumnConst(input_rows_count, current_tid);
-        }
-    };
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &, const DataTypePtr &, size_t input_rows_count) const override {
+    auto current_tid = getThreadId();
+    return DataTypeUInt64().createColumnConst(input_rows_count, current_tid);
+  }
+};
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(Tid)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(Tid) {
+  FunctionDocumentation::Description description = R"(
 Returns id of the thread, in which the current [Block](/development/architecture/#block) is processed.
     )";
-    FunctionDocumentation::Syntax syntax = "tid()";
-    FunctionDocumentation::Arguments arguments = {};
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns the current thread id.", {"UInt64"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "tid()";
+  FunctionDocumentation::Arguments arguments = {};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns the current thread id.", {"UInt64"}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 SELECT tid();
         )",
-        R"(
+                                               R"(
 ┌─tid()─┐
 │  3878 │
 └───────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {20, 12};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Introspection;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {20, 12};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Introspection;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionTid>(documentation);
+  factory.registerFunction<FunctionTid>(documentation);
 }
 
-}
+}  // namespace DB

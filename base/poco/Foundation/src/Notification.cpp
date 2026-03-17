@@ -11,28 +11,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Notification.h"
 #include <typeinfo>
 
-
 namespace Poco {
 
+Notification::Notification() {}
 
-Notification::Notification()
-{
-}
+Notification::~Notification() {}
 
+std::string Notification::name() const { return typeid(*this).name(); }
 
-Notification::~Notification()
-{
-}
-
-
-std::string Notification::name() const
-{
-	return typeid(*this).name();
-}
-
-
-} // namespace Poco
+}  // namespace Poco

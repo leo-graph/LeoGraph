@@ -13,56 +13,47 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef DOM_AttrMap_INCLUDED
 #define DOM_AttrMap_INCLUDED
-
 
 #include "Poco/DOM/NamedNodeMap.h"
 #include "Poco/XML/XML.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class Element;
+
+class XML_API AttrMap : public NamedNodeMap
+// This implementation of NamedNodeMap is
+// returned by Element::attributes()
 {
-namespace XML
-{
+ public:
+  Node* getNamedItem(const XMLString& name) const;
+  Node* setNamedItem(Node* arg);
+  Node* removeNamedItem(const XMLString& name);
+  Node* item(unsigned long index) const;
+  unsigned long length() const;
 
+  Node* getNamedItemNS(const XMLString& namespaceURI, const XMLString& localName) const;
+  Node* setNamedItemNS(Node* arg);
+  Node* removeNamedItemNS(const XMLString& namespaceURI, const XMLString& localName);
 
-    class Element;
+  void autoRelease();
 
+ protected:
+  AttrMap(Element* pElement);
+  ~AttrMap();
 
-    class XML_API AttrMap : public NamedNodeMap
-    // This implementation of NamedNodeMap is
-    // returned by Element::attributes()
-    {
-    public:
-        Node * getNamedItem(const XMLString & name) const;
-        Node * setNamedItem(Node * arg);
-        Node * removeNamedItem(const XMLString & name);
-        Node * item(unsigned long index) const;
-        unsigned long length() const;
+ private:
+  AttrMap();
 
-        Node * getNamedItemNS(const XMLString & namespaceURI, const XMLString & localName) const;
-        Node * setNamedItemNS(Node * arg);
-        Node * removeNamedItemNS(const XMLString & namespaceURI, const XMLString & localName);
+  Element* _pElement;
 
-        void autoRelease();
+  friend class Element;
+};
 
-    protected:
-        AttrMap(Element * pElement);
-        ~AttrMap();
+}  // namespace XML
+}  // namespace Poco
 
-    private:
-        AttrMap();
-
-        Element * _pElement;
-
-        friend class Element;
-    };
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // DOM_AttrMap_INCLUDED
+#endif  // DOM_AttrMap_INCLUDED

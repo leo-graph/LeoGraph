@@ -6,21 +6,19 @@
 
 #include <map>
 
-namespace DB
-{
+namespace DB {
 
 /// Compound time interval like 1 YEAR 3 DAY 15 MINUTE
-class ASTTimeInterval : public IAST
-{
-public:
-    CalendarTimeInterval interval;
+class ASTTimeInterval : public IAST {
+ public:
+  CalendarTimeInterval interval;
 
-    String getID(char) const override { return "TimeInterval"; }
+  String getID(char) const override { return "TimeInterval"; }
 
-    ASTPtr clone() const override;
+  ASTPtr clone() const override;
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override;
 };
 
-}
+}  // namespace DB

@@ -5,56 +5,54 @@
 #include <DataTypes/IDataType.h>
 #include <DataTypes/Serializations/SerializationNumber.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Implements part of the IDataType interface, common to all numbers and for Date and DateTime.
-  */
+ */
 template <typename T>
-class DataTypeNumberBase : public IDataType
-{
-    static_assert(is_arithmetic_v<T>);
+class DataTypeNumberBase : public IDataType {
+  static_assert(is_arithmetic_v<T>);
 
-public:
-    static constexpr bool is_parametric = false;
-    static constexpr auto family_name = TypeName<T>;
-    static constexpr auto type_id = TypeToTypeIndex<T>;
+ public:
+  static constexpr bool is_parametric = false;
+  static constexpr auto family_name = TypeName<T>;
+  static constexpr auto type_id = TypeToTypeIndex<T>;
 
-    using FieldType = T;
-    using ColumnType = ColumnVector<T>;
+  using FieldType = T;
+  using ColumnType = ColumnVector<T>;
 
-    const char * getFamilyName() const override { return TypeName<T>.data(); }
-    TypeIndex getTypeId() const override { return TypeToTypeIndex<T>; }
+  const char *getFamilyName() const override { return TypeName<T>.data(); }
+  TypeIndex getTypeId() const override { return TypeToTypeIndex<T>; }
 
-    Field getDefault() const override;
+  Field getDefault() const override;
 
-    MutableColumnPtr createColumn() const override;
-    MutableColumnPtr createUninitializedColumnWithSize(size_t size) const override;
+  MutableColumnPtr createColumn() const override;
+  MutableColumnPtr createUninitializedColumnWithSize(size_t size) const override;
 
-    bool isParametric() const override { return false; }
-    bool haveSubtypes() const override { return false; }
+  bool isParametric() const override { return false; }
+  bool haveSubtypes() const override { return false; }
 
-    bool shouldAlignRightInPrettyFormats() const override
-    {
-        /// Just a number, without customizations. Counterexample: IPv4.
-        return !custom_serialization;
-    }
+  bool shouldAlignRightInPrettyFormats() const override {
+    /// Just a number, without customizations. Counterexample: IPv4.
+    return !custom_serialization;
+  }
 
-    bool textCanContainOnlyValidUTF8() const override { return true; }
-    bool isComparable() const override { return true; }
-    bool isValueRepresentedByNumber() const override { return true; }
-    bool isValueRepresentedByInteger() const override;
-    bool isValueRepresentedByUnsignedInteger() const override;
-    bool isValueUnambiguouslyRepresentedInContiguousMemoryRegion() const override { return true; }
-    bool haveMaximumSizeOfValue() const override { return true; }
-    size_t getSizeOfValueInMemory() const override { return sizeof(T); }
-    bool isCategorial() const override { return isValueRepresentedByInteger(); }
-    bool canBeInsideLowCardinality() const override { return true; }
+  bool textCanContainOnlyValidUTF8() const override { return true; }
+  bool isComparable() const override { return true; }
+  bool isValueRepresentedByNumber() const override { return true; }
+  bool isValueRepresentedByInteger() const override;
+  bool isValueRepresentedByUnsignedInteger() const override;
+  bool isValueUnambiguouslyRepresentedInContiguousMemoryRegion() const override { return true; }
+  bool haveMaximumSizeOfValue() const override { return true; }
+  size_t getSizeOfValueInMemory() const override { return sizeof(T); }
+  bool isCategorial() const override { return isValueRepresentedByInteger(); }
+  bool canBeInsideLowCardinality() const override { return true; }
 
-    void updateHashImpl(SipHash &) const override { /* For numeric types, the type ID is sufficient */ }
+  void updateHashImpl(SipHash &) const override { /* For numeric types, the type ID is sufficient */ }
 
-    SerializationPtr doGetSerialization(const SerializationInfoSettings &) const override { return std::make_shared<SerializationNumber<T>>(); }
+  SerializationPtr doGetSerialization(const SerializationInfoSettings &) const override {
+    return std::make_shared<SerializationNumber<T>>();
+  }
 };
 
 /// Prevent implicit template instantiation of DataTypeNumberBase for common numeric types
@@ -75,4 +73,4 @@ extern template class DataTypeNumberBase<BFloat16>;
 extern template class DataTypeNumberBase<Float32>;
 extern template class DataTypeNumberBase<Float64>;
 
-}
+}  // namespace DB

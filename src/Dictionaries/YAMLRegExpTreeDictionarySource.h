@@ -11,65 +11,59 @@
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 
-#include <Dictionaries/IDictionarySource.h>
 #include <Dictionaries/DictionaryStructure.h>
+#include <Dictionaries/IDictionarySource.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
+namespace ErrorCodes {
+extern const int NOT_IMPLEMENTED;
 }
 
-class YAMLRegExpTreeDictionarySource : public IDictionarySource
-{
+class YAMLRegExpTreeDictionarySource : public IDictionarySource {
 #if USE_YAML_CPP
-public:
-    YAMLRegExpTreeDictionarySource(const String & filepath_, const DictionaryStructure & dict_struct_, ContextPtr context_, bool created_from_ddl);
+ public:
+  YAMLRegExpTreeDictionarySource(const String &filepath_, const DictionaryStructure &dict_struct_, ContextPtr context_,
+                                 bool created_from_ddl);
 
-    YAMLRegExpTreeDictionarySource(const YAMLRegExpTreeDictionarySource & other);
+  YAMLRegExpTreeDictionarySource(const YAMLRegExpTreeDictionarySource &other);
 
-    BlockIO loadAll() override;
+  BlockIO loadAll() override;
 
-    BlockIO loadUpdatedAll() override
-    {
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method loadUpdatedAll is unsupported for YAMLRegExpTreeDictionarySource");
-    }
+  BlockIO loadUpdatedAll() override {
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method loadUpdatedAll is unsupported for YAMLRegExpTreeDictionarySource");
+  }
 
-    BlockIO loadIds(const VectorWithMemoryTracking<UInt64> &) override
-    {
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method loadIds is unsupported for YAMLRegExpTreeDictionarySource");
-    }
+  BlockIO loadIds(const VectorWithMemoryTracking<UInt64> &) override {
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method loadIds is unsupported for YAMLRegExpTreeDictionarySource");
+  }
 
-    BlockIO loadKeys(const Columns &, const VectorWithMemoryTracking<size_t> &) override
-    {
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method loadKeys is unsupported for YAMLRegExpTreeDictionarySource");
-    }
+  BlockIO loadKeys(const Columns &, const VectorWithMemoryTracking<size_t> &) override {
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method loadKeys is unsupported for YAMLRegExpTreeDictionarySource");
+  }
 
-    bool supportsSelectiveLoad() const override { return false; }
+  bool supportsSelectiveLoad() const override { return false; }
 
-    bool hasUpdateField() const override { return false; }
+  bool hasUpdateField() const override { return false; }
 
-    DictionarySourcePtr clone() const override { return std::make_shared<YAMLRegExpTreeDictionarySource>(*this); }
+  DictionarySourcePtr clone() const override { return std::make_shared<YAMLRegExpTreeDictionarySource>(*this); }
 
-    bool isModified() const override;
+  bool isModified() const override;
 
-    String toString() const override;
+  String toString() const override;
 
-private:
-    const String filepath;
-    String key_name;
-    const DictionaryStructure structure;
+ private:
+  const String filepath;
+  String key_name;
+  const DictionaryStructure structure;
 
-    ContextPtr context;
+  ContextPtr context;
 
-    LoggerPtr logger;
-    Poco::Timestamp last_modification;
+  LoggerPtr logger;
+  Poco::Timestamp last_modification;
 
-    Poco::Timestamp getLastModification() const;
+  Poco::Timestamp getLastModification() const;
 #endif
 };
 
-}
-
+}  // namespace DB

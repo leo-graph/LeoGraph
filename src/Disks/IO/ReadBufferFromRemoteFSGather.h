@@ -6,77 +6,73 @@
 #include <IO/ReadSettings.h>
 #include "config.h"
 
-namespace Poco { class Logger; }
+namespace Poco {
+class Logger;
+}
 
-namespace DB
-{
+namespace DB {
 class FilesystemCacheLog;
 
 /**
  * Remote disk might need to split one clickhouse file into multiple files in remote fs.
  * This class works like a proxy to allow transition from one file into multiple.
  */
-class ReadBufferFromRemoteFSGather final : public ReadBufferFromFileBase
-{
-friend class ReadIndirectBufferFromRemoteFS;
+class ReadBufferFromRemoteFSGather final : public ReadBufferFromFileBase {
+  friend class ReadIndirectBufferFromRemoteFS;
 
-public:
-    using ReadBufferCreator = std::function<std::unique_ptr<ReadBufferFromFileBase>(bool restricted_seek, const StoredObject & object)>;
+ public:
+  using ReadBufferCreator = std::function<std::unique_ptr<ReadBufferFromFileBase>(bool restricted_seek, const StoredObject& object)>;
 
-    ReadBufferFromRemoteFSGather(
-        ReadBufferCreator && read_buffer_creator_,
-        const StoredObjects & blobs_to_read_,
-        const ReadSettings & settings_,
-        bool use_external_buffer_,
-        size_t buffer_size);
+  ReadBufferFromRemoteFSGather(ReadBufferCreator&& read_buffer_creator_, const StoredObjects& blobs_to_read_, const ReadSettings& settings_,
+                               bool use_external_buffer_, size_t buffer_size);
 
-    String getFileName() const override { return current_object.remote_path; }
+  String getFileName() const override { return current_object.remote_path; }
 
-    String getInfoForLog() override { return current_buf ? current_buf->getInfoForLog() : ""; }
+  String getInfoForLog() override { return current_buf ? current_buf->getInfoForLog() : ""; }
 
-    void setReadUntilPosition(size_t position) override;
+  void setReadUntilPosition(size_t position) override;
 
-    void setReadUntilEnd() override { setReadUntilPosition(getFileSize()); }
+  void setReadUntilEnd() override { setReadUntilPosition(getFileSize()); }
 
-    std::optional<size_t> tryGetFileSize() override { return getTotalSize(blobs_to_read); }
+  std::optional<size_t> tryGetFileSize() override { return getTotalSize(blobs_to_read); }
 
-    size_t getFileOffsetOfBufferEnd() const override { return file_offset_of_buffer_end; }
+  size_t getFileOffsetOfBufferEnd() const override { return file_offset_of_buffer_end; }
 
-    off_t seek(off_t offset, int whence) override;
+  off_t seek(off_t offset, int whence) override;
 
-    off_t getPosition() override { return file_offset_of_buffer_end - available(); }
+  off_t getPosition() override { return file_offset_of_buffer_end - available(); }
 
-    bool isSeekCheap() override;
+  bool isSeekCheap() override;
 
-    bool isContentCached(size_t offset, size_t size) override;
+  bool isContentCached(size_t offset, size_t size) override;
 
-private:
-    SeekableReadBufferPtr createImplementationBuffer(const StoredObject & object, size_t start_offset);
+ private:
+  SeekableReadBufferPtr createImplementationBuffer(const StoredObject& object, size_t start_offset);
 
-    bool nextImpl() override;
+  bool nextImpl() override;
 
-    void initialize();
+  void initialize();
 
-    bool readImpl();
+  bool readImpl();
 
-    bool moveToNextBuffer();
+  bool moveToNextBuffer();
 
-    void reset();
+  void reset();
 
-    const ReadSettings settings;
-    const StoredObjects blobs_to_read;
-    const ReadBufferCreator read_buffer_creator;
-    const String query_id;
-    const bool use_external_buffer;
-    const bool with_file_cache;
+  const ReadSettings settings;
+  const StoredObjects blobs_to_read;
+  const ReadBufferCreator read_buffer_creator;
+  const String query_id;
+  const bool use_external_buffer;
+  const bool with_file_cache;
 
-    size_t read_until_position = 0;
-    size_t file_offset_of_buffer_end = 0;
+  size_t read_until_position = 0;
+  size_t file_offset_of_buffer_end = 0;
 
-    StoredObject current_object;
-    size_t current_buf_idx = 0;
-    SeekableReadBufferPtr current_buf;
+  StoredObject current_object;
+  size_t current_buf_idx = 0;
+  SeekableReadBufferPtr current_buf;
 
-    LoggerPtr log;
+  LoggerPtr log;
 };
-}
+}  // namespace DB

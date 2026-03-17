@@ -3,26 +3,22 @@
 
 #include <istream>
 
-namespace Poco::Net
-{
+namespace Poco::Net {
 class HTTPResponse;
 }
 
-namespace DB
-{
+namespace DB {
 /// Class for parsing authentication response containing session settings
-class SettingsAuthResponseParser
-{
-    static constexpr auto settings_key = "settings";
+class SettingsAuthResponseParser {
+  static constexpr auto settings_key = "settings";
 
-public:
-    struct Result
-    {
-        bool is_ok = false;
-        SettingsChanges settings;
-    };
+ public:
+  struct Result {
+    bool is_ok = false;
+    SettingsChanges settings;
+  };
 
-    Result parse(const Poco::Net::HTTPResponse & response, std::istream * body_stream) const;
+  Result parse(const Poco::Net::HTTPResponse& response, std::istream* body_stream) const;
 };
 
-}
+}  // namespace DB

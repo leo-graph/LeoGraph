@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ActiveStarter_INCLUDED
 #define Foundation_ActiveStarter_INCLUDED
-
 
 #include "Poco/ActiveRunnable.h"
 #include "Poco/Foundation.h"
 #include "Poco/ThreadPool.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class OwnerType>
 class ActiveStarter
@@ -34,16 +29,13 @@ class ActiveStarter
 /// in its own thread, obtained from the default
 /// thread pool.
 {
-public:
-    static void start(OwnerType * /*pOwner*/, ActiveRunnableBase::Ptr pRunnable)
-    {
-        ThreadPool::defaultPool().start(*pRunnable);
-        pRunnable->duplicate(); // The runnable will release itself.
-    }
+ public:
+  static void start(OwnerType* /*pOwner*/, ActiveRunnableBase::Ptr pRunnable) {
+    ThreadPool::defaultPool().start(*pRunnable);
+    pRunnable->duplicate();  // The runnable will release itself.
+  }
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ActiveStarter_INCLUDED
+#endif  // Foundation_ActiveStarter_INCLUDED

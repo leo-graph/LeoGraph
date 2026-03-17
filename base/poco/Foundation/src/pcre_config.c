@@ -1,6 +1,6 @@
 /*************************************************
-*      Perl-Compatible Regular Expressions       *
-*************************************************/
+ *      Perl-Compatible Regular Expressions       *
+ *************************************************/
 
 /* PCRE is a library of functions to support regular expressions whose syntax
 and semantics are as close as possible to those of the Perl 5 language.
@@ -37,7 +37,6 @@ POSSIBILITY OF SUCH DAMAGE.
 -----------------------------------------------------------------------------
 */
 
-
 /* This module contains the external function pcre_config(). */
 
 #include "pcre_config.h"
@@ -47,10 +46,9 @@ static int real_link_size = LINK_SIZE;
 
 #include "pcre_internal.h"
 
-
 /*************************************************
-* Return info about what features are configured *
-*************************************************/
+ * Return info about what features are configured *
+ *************************************************/
 
 /* This function has an extensible interface so that additional items can be
 added compatibly.
@@ -63,125 +61,122 @@ Returns:           0 if data returned, negative on error
 */
 
 #if defined COMPILE_PCRE8
-PCRE_EXP_DEFN int PCRE_CALL_CONVENTION
-pcre_config(int what, void *where)
+PCRE_EXP_DEFN int PCRE_CALL_CONVENTION pcre_config(int what, void *where)
 #elif defined COMPILE_PCRE16
-PCRE_EXP_DEFN int PCRE_CALL_CONVENTION
-pcre16_config(int what, void *where)
+PCRE_EXP_DEFN int PCRE_CALL_CONVENTION pcre16_config(int what, void *where)
 #elif defined COMPILE_PCRE32
-PCRE_EXP_DEFN int PCRE_CALL_CONVENTION
-pcre32_config(int what, void *where)
+PCRE_EXP_DEFN int PCRE_CALL_CONVENTION pcre32_config(int what, void *where)
 #endif
 {
-switch (what)
-  {
-  case PCRE_CONFIG_UTF8:
+  switch (what) {
+    case PCRE_CONFIG_UTF8:
 #if defined COMPILE_PCRE16 || defined COMPILE_PCRE32
-  *((int *)where) = 0;
-  return PCRE_ERROR_BADOPTION;
+      *((int *)where) = 0;
+      return PCRE_ERROR_BADOPTION;
 #else
-#if defined SUPPORT_UTF
-  *((int *)where) = 1;
-#else
-  *((int *)where) = 0;
-#endif
-  break;
+#  if defined SUPPORT_UTF
+      *((int *)where) = 1;
+#  else
+      *((int *)where) = 0;
+#  endif
+      break;
 #endif
 
-  case PCRE_CONFIG_UTF16:
+    case PCRE_CONFIG_UTF16:
 #if defined COMPILE_PCRE8 || defined COMPILE_PCRE32
-  *((int *)where) = 0;
-  return PCRE_ERROR_BADOPTION;
+      *((int *)where) = 0;
+      return PCRE_ERROR_BADOPTION;
 #else
-#if defined SUPPORT_UTF
-  *((int *)where) = 1;
-#else
-  *((int *)where) = 0;
-#endif
-  break;
+#  if defined SUPPORT_UTF
+      *((int *)where) = 1;
+#  else
+      *((int *)where) = 0;
+#  endif
+      break;
 #endif
 
-  case PCRE_CONFIG_UTF32:
+    case PCRE_CONFIG_UTF32:
 #if defined COMPILE_PCRE8 || defined COMPILE_PCRE16
-  *((int *)where) = 0;
-  return PCRE_ERROR_BADOPTION;
+      *((int *)where) = 0;
+      return PCRE_ERROR_BADOPTION;
 #else
-#if defined SUPPORT_UTF
-  *((int *)where) = 1;
-#else
-  *((int *)where) = 0;
-#endif
-  break;
+#  if defined SUPPORT_UTF
+      *((int *)where) = 1;
+#  else
+      *((int *)where) = 0;
+#  endif
+      break;
 #endif
 
-  case PCRE_CONFIG_UNICODE_PROPERTIES:
+    case PCRE_CONFIG_UNICODE_PROPERTIES:
 #ifdef SUPPORT_UCP
-  *((int *)where) = 1;
+      *((int *)where) = 1;
 #else
-  *((int *)where) = 0;
+      *((int *)where) = 0;
 #endif
-  break;
+      break;
 
-  case PCRE_CONFIG_JIT:
+    case PCRE_CONFIG_JIT:
 #ifdef SUPPORT_JIT
-  *((int *)where) = 1;
+      *((int *)where) = 1;
 #else
-  *((int *)where) = 0;
+      *((int *)where) = 0;
 #endif
-  break;
+      break;
 
-  case PCRE_CONFIG_JITTARGET:
+    case PCRE_CONFIG_JITTARGET:
 #ifdef SUPPORT_JIT
-  *((const char **)where) = PRIV(jit_get_target)();
+      *((const char **)where) = PRIV(jit_get_target)();
 #else
-  *((const char **)where) = NULL;
+      *((const char **)where) = NULL;
 #endif
-  break;
+      break;
 
-  case PCRE_CONFIG_NEWLINE:
-  *((int *)where) = NEWLINE;
-  break;
+    case PCRE_CONFIG_NEWLINE:
+      *((int *)where) = NEWLINE;
+      break;
 
-  case PCRE_CONFIG_BSR:
+    case PCRE_CONFIG_BSR:
 #ifdef BSR_ANYCRLF
-  *((int *)where) = 1;
+      *((int *)where) = 1;
 #else
-  *((int *)where) = 0;
+      *((int *)where) = 0;
 #endif
-  break;
+      break;
 
-  case PCRE_CONFIG_LINK_SIZE:
-  *((int *)where) = real_link_size;
-  break;
+    case PCRE_CONFIG_LINK_SIZE:
+      *((int *)where) = real_link_size;
+      break;
 
-  case PCRE_CONFIG_POSIX_MALLOC_THRESHOLD:
-  *((int *)where) = POSIX_MALLOC_THRESHOLD;
-  break;
+    case PCRE_CONFIG_POSIX_MALLOC_THRESHOLD:
+      *((int *)where) = POSIX_MALLOC_THRESHOLD;
+      break;
 
-  case PCRE_CONFIG_PARENS_LIMIT:
-  *((unsigned long int *)where) = PARENS_NEST_LIMIT;
-  break;
+    case PCRE_CONFIG_PARENS_LIMIT:
+      *((unsigned long int *)where) = PARENS_NEST_LIMIT;
+      break;
 
-  case PCRE_CONFIG_MATCH_LIMIT:
-  *((unsigned long int *)where) = MATCH_LIMIT;
-  break;
+    case PCRE_CONFIG_MATCH_LIMIT:
+      *((unsigned long int *)where) = MATCH_LIMIT;
+      break;
 
-  case PCRE_CONFIG_MATCH_LIMIT_RECURSION:
-  *((unsigned long int *)where) = MATCH_LIMIT_RECURSION;
-  break;
+    case PCRE_CONFIG_MATCH_LIMIT_RECURSION:
+      *((unsigned long int *)where) = MATCH_LIMIT_RECURSION;
+      break;
 
-  case PCRE_CONFIG_STACKRECURSE:
+    case PCRE_CONFIG_STACKRECURSE:
 #ifdef NO_RECURSE
-  *((int *)where) = 0;
+      *((int *)where) = 0;
 #else
-  *((int *)where) = 1;
+      *((int *)where) = 1;
 #endif
-  break;
+      break;
 
-  default: return PCRE_ERROR_BADOPTION;
+    default:
+      return PCRE_ERROR_BADOPTION;
   }
 
-return 0;
+  return 0;
 }
 
 /* End of pcre_config.c */

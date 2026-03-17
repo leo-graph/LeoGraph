@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef SAX_DefaultHandler_INCLUDED
 #define SAX_DefaultHandler_INCLUDED
-
 
 #include "Poco/SAX/ContentHandler.h"
 #include "Poco/SAX/DTDHandler.h"
@@ -24,64 +22,60 @@
 #include "Poco/SAX/ErrorHandler.h"
 #include "Poco/XML/XML.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class XML_API DefaultHandler : public EntityResolver,
+                               public DTDHandler,
+                               public ContentHandler,
+                               public ErrorHandler
+/// Default base class for SAX2 event handlers.
+/// This class is available as a convenience base class for SAX2 applications:
+/// it provides default implementations for all of the
+/// callbacks in the four core SAX2 handler classes:
+///      * EntityResolver
+///      * DTDHandler
+///      * ContentHandler
+///      * ErrorHandler
+/// Application writers can extend this class when they need to implement only
+/// part of an interface; parser writers can instantiate this
+/// class to provide default handlers when the application has not supplied its own.
 {
-namespace XML
-{
+ public:
+  DefaultHandler();
+  /// Creates the DefaultHandler.
 
+  ~DefaultHandler();
+  /// Destroys the DefaultHandler.
 
-    class XML_API DefaultHandler : public EntityResolver, public DTDHandler, public ContentHandler, public ErrorHandler
-    /// Default base class for SAX2 event handlers.
-    /// This class is available as a convenience base class for SAX2 applications:
-    /// it provides default implementations for all of the
-    /// callbacks in the four core SAX2 handler classes:
-    ///      * EntityResolver
-    ///      * DTDHandler
-    ///      * ContentHandler
-    ///      * ErrorHandler
-    /// Application writers can extend this class when they need to implement only
-    /// part of an interface; parser writers can instantiate this
-    /// class to provide default handlers when the application has not supplied its own.
-    {
-    public:
-        DefaultHandler();
-        /// Creates the DefaultHandler.
+  // EntityResolver
+  InputSource* resolveEntity(const XMLString* publicId, const XMLString& systemId);
+  void releaseInputSource(InputSource* pSource);
 
-        ~DefaultHandler();
-        /// Destroys the DefaultHandler.
+  // DTDHandler
+  void notationDecl(const XMLString& name, const XMLString* publicId, const XMLString* systemId);
+  void unparsedEntityDecl(const XMLString& name, const XMLString* publicId, const XMLString& systemId, const XMLString& notationName);
 
-        // EntityResolver
-        InputSource * resolveEntity(const XMLString * publicId, const XMLString & systemId);
-        void releaseInputSource(InputSource * pSource);
+  // ContentHandler
+  void setDocumentLocator(const Locator* loc);
+  void startDocument();
+  void endDocument();
+  void startElement(const XMLString& uri, const XMLString& localName, const XMLString& qname, const Attributes& attributes);
+  void endElement(const XMLString& uri, const XMLString& localName, const XMLString& qname);
+  void characters(const XMLChar ch[], int start, int length);
+  void ignorableWhitespace(const XMLChar ch[], int start, int length);
+  void processingInstruction(const XMLString& target, const XMLString& data);
+  void startPrefixMapping(const XMLString& prefix, const XMLString& uri);
+  void endPrefixMapping(const XMLString& prefix);
+  void skippedEntity(const XMLString& name);
 
-        // DTDHandler
-        void notationDecl(const XMLString & name, const XMLString * publicId, const XMLString * systemId);
-        void
-        unparsedEntityDecl(const XMLString & name, const XMLString * publicId, const XMLString & systemId, const XMLString & notationName);
+  // ErrorHandler
+  void warning(const SAXException& exc);
+  void error(const SAXException& exc);
+  void fatalError(const SAXException& exc);
+};
 
-        // ContentHandler
-        void setDocumentLocator(const Locator * loc);
-        void startDocument();
-        void endDocument();
-        void startElement(const XMLString & uri, const XMLString & localName, const XMLString & qname, const Attributes & attributes);
-        void endElement(const XMLString & uri, const XMLString & localName, const XMLString & qname);
-        void characters(const XMLChar ch[], int start, int length);
-        void ignorableWhitespace(const XMLChar ch[], int start, int length);
-        void processingInstruction(const XMLString & target, const XMLString & data);
-        void startPrefixMapping(const XMLString & prefix, const XMLString & uri);
-        void endPrefixMapping(const XMLString & prefix);
-        void skippedEntity(const XMLString & name);
+}  // namespace XML
+}  // namespace Poco
 
-        // ErrorHandler
-        void warning(const SAXException & exc);
-        void error(const SAXException & exc);
-        void fatalError(const SAXException & exc);
-    };
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // SAX_DefaultHandler_INCLUDED
+#endif  // SAX_DefaultHandler_INCLUDED

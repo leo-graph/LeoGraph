@@ -1,49 +1,41 @@
 #pragma once
 
-#include <Parsers/IAST.h>
-#include <Parsers/ASTIdentifier_fwd.h>
 #include <Common/quoteString.h>
 #include <IO/Operators.h>
+#include <Parsers/ASTIdentifier_fwd.h>
+#include <Parsers/IAST.h>
 
-
-namespace DB
-{
-
+namespace DB {
 
 /** USE query
-  */
-class ASTUseQuery : public IAST
-{
-public:
-    IAST * database;
+ */
+class ASTUseQuery : public IAST {
+ public:
+  IAST* database;
 
-    String getDatabase() const
-    {
-        String name;
-        tryGetIdentifierNameInto(database, name);
-        return name;
-    }
+  String getDatabase() const {
+    String name;
+    tryGetIdentifierNameInto(database, name);
+    return name;
+  }
 
-    /** Get the text that identifies this element. */
-    String getID(char delim) const override { return "UseQuery" + (delim + getDatabase()); }
+  /** Get the text that identifies this element. */
+  String getID(char delim) const override { return "UseQuery" + (delim + getDatabase()); }
 
-    ASTPtr clone() const override
-    {
-        auto res = make_intrusive<ASTUseQuery>(*this);
-        res->children.clear();
-        if (database)
-            res->set(res->database, database->clone());
-        return res;
-    }
+  ASTPtr clone() const override {
+    auto res = make_intrusive<ASTUseQuery>(*this);
+    res->children.clear();
+    if (database) res->set(res->database, database->clone());
+    return res;
+  }
 
-    QueryKind getQueryKind() const override { return QueryKind::Use; }
+  QueryKind getQueryKind() const override { return QueryKind::Use; }
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
-    {
-        ostr << "USE ";
-        database->format(ostr, settings, state, frame);
-    }
+ protected:
+  void formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override {
+    ostr << "USE ";
+    database->format(ostr, settings, state, frame);
+  }
 };
 
-}
+}  // namespace DB

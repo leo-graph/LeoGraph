@@ -1,39 +1,35 @@
 #pragma once
 
-#include <Interpreters/SystemLog.h>
 #include <Common/AsynchronousMetrics.h>
-#include <Core/NamesAndTypes.h>
 #include <Core/NamesAndAliases.h>
+#include <Core/NamesAndTypes.h>
+#include <Interpreters/SystemLog.h>
 #include <Storages/ColumnsDescription.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** AsynchronousMetricLog is a log of metric values measured at regular time interval.
-  */
-struct AsynchronousMetricLogElement
-{
-    UInt16 event_date;
-    time_t event_time;
-    std::string metric_name;
-    double value;
+ */
+struct AsynchronousMetricLogElement {
+  UInt16 event_date;
+  time_t event_time;
+  std::string metric_name;
+  double value;
 
-    static std::string name() { return "AsynchronousMetricLog"; }
-    static ColumnsDescription getColumnsDescription();
-    static NamesAndAliases getNamesAndAliases() { return {}; }
-    void appendToBlock(MutableColumns & columns) const;
+  static std::string name() { return "AsynchronousMetricLog"; }
+  static ColumnsDescription getColumnsDescription();
+  static NamesAndAliases getNamesAndAliases() { return {}; }
+  void appendToBlock(MutableColumns &columns) const;
 };
 
-class AsynchronousMetricLog : public SystemLog<AsynchronousMetricLogElement>
-{
-public:
-    using SystemLog<AsynchronousMetricLogElement>::SystemLog;
+class AsynchronousMetricLog : public SystemLog<AsynchronousMetricLogElement> {
+ public:
+  using SystemLog<AsynchronousMetricLogElement>::SystemLog;
 
-    void addValues(const AsynchronousMetricValues &);
+  void addValues(const AsynchronousMetricValues &);
 
-    /// This table is usually queried for fixed metric name.
-    static const char * getDefaultOrderBy() { return "metric, event_date, event_time"; }
+  /// This table is usually queried for fixed metric name.
+  static const char *getDefaultOrderBy() { return "metric, event_date, event_time"; }
 };
 
-}
+}  // namespace DB

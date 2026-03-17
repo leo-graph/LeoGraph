@@ -10,9 +10,7 @@
 #include <optional>
 #include <vector>
 
-
-namespace DB
-{
+namespace DB {
 
 class ExpressionActions;
 using ExpressionActionsPtr = std::shared_ptr<ExpressionActions>;
@@ -21,82 +19,79 @@ using ConstraintsExpressions = std::vector<ExpressionActionsPtr>;
 
 class NamesAndTypesList;
 
-struct ConstraintsDescription
-{
-public:
-    ConstraintsDescription() { update(); }
-    explicit ConstraintsDescription(const ASTs & constraints_);
-    ConstraintsDescription(const ConstraintsDescription & other);
-    ConstraintsDescription & operator=(const ConstraintsDescription & other);
+struct ConstraintsDescription {
+ public:
+  ConstraintsDescription() { update(); }
+  explicit ConstraintsDescription(const ASTs& constraints_);
+  ConstraintsDescription(const ConstraintsDescription& other);
+  ConstraintsDescription& operator=(const ConstraintsDescription& other);
 
-    ConstraintsDescription(ConstraintsDescription && other) noexcept;
-    ConstraintsDescription & operator=(ConstraintsDescription && other) noexcept;
+  ConstraintsDescription(ConstraintsDescription&& other) noexcept;
+  ConstraintsDescription& operator=(ConstraintsDescription&& other) noexcept;
 
-    bool empty() const { return constraints.empty(); }
-    String toString() const;
+  bool empty() const { return constraints.empty(); }
+  String toString() const;
 
-    static ConstraintsDescription parse(const String & str);
+  static ConstraintsDescription parse(const String& str);
 
-    enum class ConstraintType : UInt8
-    {
-        CHECK = 1,
-        ASSUME = 2,
-        ALWAYS_TRUE = CHECK | ASSUME,
-        ALL = CHECK | ASSUME,
-    };
+  enum class ConstraintType : UInt8 {
+    CHECK = 1,
+    ASSUME = 2,
+    ALWAYS_TRUE = CHECK | ASSUME,
+    ALL = CHECK | ASSUME,
+  };
 
-    ASTs filterConstraints(ConstraintType selection) const;
+  ASTs filterConstraints(ConstraintType selection) const;
 
-    const ASTs & getConstraints() const;
+  const ASTs& getConstraints() const;
 
-    const std::vector<std::vector<CNFQueryAtomicFormula>> & getConstraintData() const;
-    std::vector<CNFQueryAtomicFormula> getAtomicConstraintData() const;
+  const std::vector<std::vector<CNFQueryAtomicFormula>>& getConstraintData() const;
+  std::vector<CNFQueryAtomicFormula> getAtomicConstraintData() const;
 
-    const ComparisonGraph<ASTPtr> & getGraph() const;
+  const ComparisonGraph<ASTPtr>& getGraph() const;
 
-    ConstraintsExpressions getExpressions(ContextPtr context, const NamesAndTypesList & source_columns_) const;
+  ConstraintsExpressions getExpressions(ContextPtr context, const NamesAndTypesList& source_columns_) const;
 
-    struct AtomId
-    {
-        size_t group_id;
-        size_t atom_id;
-    };
+  struct AtomId {
+    size_t group_id;
+    size_t atom_id;
+  };
 
-    using AtomIds = std::vector<AtomId>;
+  using AtomIds = std::vector<AtomId>;
 
-    std::optional<AtomIds> getAtomIds(const ASTPtr & ast) const;
-    std::vector<CNFQueryAtomicFormula> getAtomsById(const AtomIds & ids) const;
+  std::optional<AtomIds> getAtomIds(const ASTPtr& ast) const;
+  std::vector<CNFQueryAtomicFormula> getAtomsById(const AtomIds& ids) const;
 
-    class QueryTreeData
-    {
-    public:
-        const QueryTreeNodes & getConstraints() const;
-        const std::vector<std::vector<Analyzer::CNFAtomicFormula>> & getConstraintData() const;
-        std::optional<AtomIds> getAtomIds(const QueryTreeNodePtrWithHash & node_with_hash) const;
-        std::vector<Analyzer::CNFAtomicFormula> getAtomsById(const AtomIds & ids) const;
-        const ComparisonGraph<QueryTreeNodePtr> & getGraph() const;
-    private:
-        QueryTreeNodes constraints;
-        std::vector<std::vector<Analyzer::CNFAtomicFormula>> cnf_constraints;
-        QueryTreeNodePtrWithHashMap<AtomIds> query_node_to_atom_ids;
-        std::unique_ptr<ComparisonGraph<QueryTreeNodePtr>> graph;
+  class QueryTreeData {
+   public:
+    const QueryTreeNodes& getConstraints() const;
+    const std::vector<std::vector<Analyzer::CNFAtomicFormula>>& getConstraintData() const;
+    std::optional<AtomIds> getAtomIds(const QueryTreeNodePtrWithHash& node_with_hash) const;
+    std::vector<Analyzer::CNFAtomicFormula> getAtomsById(const AtomIds& ids) const;
+    const ComparisonGraph<QueryTreeNodePtr>& getGraph() const;
 
-        friend ConstraintsDescription;
-    };
+   private:
+    QueryTreeNodes constraints;
+    std::vector<std::vector<Analyzer::CNFAtomicFormula>> cnf_constraints;
+    QueryTreeNodePtrWithHashMap<AtomIds> query_node_to_atom_ids;
+    std::unique_ptr<ComparisonGraph<QueryTreeNodePtr>> graph;
 
-    QueryTreeData getQueryTreeData(const ContextPtr & context, const QueryTreeNodePtr & table_node) const;
+    friend ConstraintsDescription;
+  };
 
-private:
-    std::vector<std::vector<CNFQueryAtomicFormula>> buildConstraintData() const;
-    std::unique_ptr<ComparisonGraph<ASTPtr>> buildGraph() const;
-    void update();
+  QueryTreeData getQueryTreeData(const ContextPtr& context, const QueryTreeNodePtr& table_node) const;
 
-    ASTs constraints;
+ private:
+  std::vector<std::vector<CNFQueryAtomicFormula>> buildConstraintData() const;
+  std::unique_ptr<ComparisonGraph<ASTPtr>> buildGraph() const;
+  void update();
 
-    std::vector<std::vector<CNFQueryAtomicFormula>> cnf_constraints;
-    std::map<IASTHash, AtomIds> ast_to_atom_ids;
+  ASTs constraints;
 
-    std::unique_ptr<ComparisonGraph<ASTPtr>> graph;
+  std::vector<std::vector<CNFQueryAtomicFormula>> cnf_constraints;
+  std::map<IASTHash, AtomIds> ast_to_atom_ids;
+
+  std::unique_ptr<ComparisonGraph<ASTPtr>> graph;
 };
 
-}
+}  // namespace DB

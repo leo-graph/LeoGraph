@@ -8,63 +8,49 @@
 
 #include <Common/logger_useful.h>
 
-namespace DB
-{
+namespace DB {
 
 template <typename Base>
-class OutputFormatWithUTF8ValidationAdaptorBase : public Base
-{
-public:
-    OutputFormatWithUTF8ValidationAdaptorBase(SharedHeader header, WriteBuffer & out_, bool validate_utf8)
-        : Base(header, out_)
-    {
-        bool values_can_contain_invalid_utf8 = false;
-        for (const auto & type : this->getPort(IOutputFormat::PortKind::Main).getHeader().getDataTypes())
-        {
-            if (!type->textCanContainOnlyValidUTF8())
-                values_can_contain_invalid_utf8 = true;
-        }
-
-        if (validate_utf8 && values_can_contain_invalid_utf8)
-            validating_ostr = std::make_unique<WriteBufferValidUTF8>(*Base::getWriteBufferPtr());
+class OutputFormatWithUTF8ValidationAdaptorBase : public Base {
+ public:
+  OutputFormatWithUTF8ValidationAdaptorBase(SharedHeader header, WriteBuffer& out_, bool validate_utf8) : Base(header, out_) {
+    bool values_can_contain_invalid_utf8 = false;
+    for (const auto& type : this->getPort(IOutputFormat::PortKind::Main).getHeader().getDataTypes()) {
+      if (!type->textCanContainOnlyValidUTF8()) values_can_contain_invalid_utf8 = true;
     }
 
-    void flushImpl() override
-    {
-        if (validating_ostr)
-            validating_ostr->next();
-        Base::flushImpl();
-    }
+    if (validate_utf8 && values_can_contain_invalid_utf8)
+      validating_ostr = std::make_unique<WriteBufferValidUTF8>(*Base::getWriteBufferPtr());
+  }
 
-    void finalizeBuffers() override
-    {
-        if (validating_ostr)
-            validating_ostr->finalize();
-        Base::finalizeBuffers();
-    }
+  void flushImpl() override {
+    if (validating_ostr) validating_ostr->next();
+    Base::flushImpl();
+  }
 
-    void resetFormatterImpl() override
-    {
-        Base::resetFormatterImpl();
-        if (validating_ostr)
-            validating_ostr = std::make_unique<WriteBufferValidUTF8>(*Base::getWriteBufferPtr());
-    }
+  void finalizeBuffers() override {
+    if (validating_ostr) validating_ostr->finalize();
+    Base::finalizeBuffers();
+  }
 
-protected:
-    /// Returns buffer that should be used in derived classes instead of out.
-    WriteBuffer * getWriteBufferPtr() override
-    {
-        if (validating_ostr)
-            return validating_ostr.get();
-        return Base::getWriteBufferPtr();
-    }
+  void resetFormatterImpl() override {
+    Base::resetFormatterImpl();
+    if (validating_ostr) validating_ostr = std::make_unique<WriteBufferValidUTF8>(*Base::getWriteBufferPtr());
+  }
 
-private:
-    /// Validates UTF-8 sequences, replaces bad sequences with replacement character.
-    std::unique_ptr<WriteBuffer> validating_ostr;
+ protected:
+  /// Returns buffer that should be used in derived classes instead of out.
+  WriteBuffer* getWriteBufferPtr() override {
+    if (validating_ostr) return validating_ostr.get();
+    return Base::getWriteBufferPtr();
+  }
+
+ private:
+  /// Validates UTF-8 sequences, replaces bad sequences with replacement character.
+  std::unique_ptr<WriteBuffer> validating_ostr;
 };
 
 using OutputFormatWithUTF8ValidationAdaptor = OutputFormatWithUTF8ValidationAdaptorBase<IOutputFormat>;
 using RowOutputFormatWithUTF8ValidationAdaptor = OutputFormatWithUTF8ValidationAdaptorBase<IRowOutputFormat>;
 
-}
+}  // namespace DB

@@ -2,27 +2,22 @@
 
 #include <Storages/System/IStorageSystemOneBlock.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class Context;
 
-
 /** System table "build_options" with many params used for clickhouse building
-  */
-class StorageSystemBuildOptions final : public IStorageSystemOneBlock
-{
-protected:
-    void fillData(MutableColumns & res_columns, ContextPtr, const ActionsDAG::Node *, std::vector<UInt8>) const override;
+ */
+class StorageSystemBuildOptions final : public IStorageSystemOneBlock {
+ protected:
+  void fillData(MutableColumns &res_columns, ContextPtr, const ActionsDAG::Node *, std::vector<UInt8>) const override;
 
-    using IStorageSystemOneBlock::IStorageSystemOneBlock;
+  using IStorageSystemOneBlock::IStorageSystemOneBlock;
 
-public:
+ public:
+  std::string getName() const override { return "SystemBuildOptions"; }
 
-    std::string getName() const override { return "SystemBuildOptions"; }
-
-    static ColumnsDescription getColumnsDescription();
+  static ColumnsDescription getColumnsDescription();
 };
 
-}
+}  // namespace DB

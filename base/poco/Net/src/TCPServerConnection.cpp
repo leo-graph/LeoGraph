@@ -11,47 +11,30 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/TCPServerConnection.h"
-#include "Poco/Exception.h"
 #include "Poco/ErrorHandler.h"
-
+#include "Poco/Exception.h"
 
 using Poco::Exception;
-
 
 namespace Poco {
 namespace Net {
 
-
-TCPServerConnection::TCPServerConnection(const StreamSocket& socket):
-	_socket(socket)
-{
-}
-
+TCPServerConnection::TCPServerConnection(const StreamSocket& socket) : _socket(socket) {}
 
 TCPServerConnection::~TCPServerConnection() = default;
 
-
-void TCPServerConnection::start()
-{
-	try
-	{
-		run();
-	}
-	catch (Exception& exc)
-	{
-		ErrorHandler::handle(exc);
-	}
-	catch (std::exception& exc)
-	{
-		ErrorHandler::handle(exc);
-	}
-	catch (...)
-	{
-		ErrorHandler::handle();
-	}
+void TCPServerConnection::start() {
+  try {
+    run();
+  } catch (Exception& exc) {
+    ErrorHandler::handle(exc);
+  } catch (std::exception& exc) {
+    ErrorHandler::handle(exc);
+  } catch (...) {
+    ErrorHandler::handle();
+  }
 }
 
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

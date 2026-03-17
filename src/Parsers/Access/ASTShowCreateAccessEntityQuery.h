@@ -1,52 +1,49 @@
 #pragma once
 
-#include <Parsers/ASTQueryWithOutput.h>
 #include <Access/Common/AccessEntityType.h>
+#include <Parsers/ASTQueryWithOutput.h>
 
-
-namespace DB
-{
+namespace DB {
 class ASTRowPolicyNames;
 
 using Strings = std::vector<String>;
 
 /** SHOW CREATE USER [name | CURRENT_USER]
-  * SHOW CREATE USERS [name [, name2 ...]
-  * SHOW CREATE ROLE name
-  * SHOW CREATE ROLES [name [, name2 ...]]
-  * SHOW CREATE [SETTINGS] PROFILE name
-  * SHOW CREATE [SETTINGS] PROFILES [name [, name2 ...]]
-  * SHOW CREATE [ROW] POLICY name ON [database.]table
-  * SHOW CREATE [ROW] POLICIES [name ON [database.]table [, name2 ON database2.table2 ...] | name | ON database.table]
-  * SHOW CREATE MASKING POLICY name ON [database.]table
-  * SHOW CREATE MASKING POLICIES [name [, name2 ...] | name ON [database.]table | ON [database.]table]
-  * SHOW CREATE QUOTA [name]
-  * SHOW CREATE QUOTAS [name [, name2 ...]]
-  */
-class ASTShowCreateAccessEntityQuery : public ASTQueryWithOutput
-{
-public:
-    AccessEntityType type;
-    Strings names;
-    boost::intrusive_ptr<ASTRowPolicyNames> row_policy_names;
+ * SHOW CREATE USERS [name [, name2 ...]
+ * SHOW CREATE ROLE name
+ * SHOW CREATE ROLES [name [, name2 ...]]
+ * SHOW CREATE [SETTINGS] PROFILE name
+ * SHOW CREATE [SETTINGS] PROFILES [name [, name2 ...]]
+ * SHOW CREATE [ROW] POLICY name ON [database.]table
+ * SHOW CREATE [ROW] POLICIES [name ON [database.]table [, name2 ON database2.table2 ...] | name | ON database.table]
+ * SHOW CREATE MASKING POLICY name ON [database.]table
+ * SHOW CREATE MASKING POLICIES [name [, name2 ...] | name ON [database.]table | ON [database.]table]
+ * SHOW CREATE QUOTA [name]
+ * SHOW CREATE QUOTAS [name [, name2 ...]]
+ */
+class ASTShowCreateAccessEntityQuery : public ASTQueryWithOutput {
+ public:
+  AccessEntityType type;
+  Strings names;
+  boost::intrusive_ptr<ASTRowPolicyNames> row_policy_names;
 
-    bool current_quota = false;
-    bool current_user = false;
-    bool all = false;
+  bool current_quota = false;
+  bool current_user = false;
+  bool all = false;
 
-    String short_name;
-    std::optional<std::pair<String, String>> database_and_table_name;
+  String short_name;
+  std::optional<std::pair<String, String>> database_and_table_name;
 
-    String getID(char) const override;
-    ASTPtr clone() const override;
+  String getID(char) const override;
+  ASTPtr clone() const override;
 
-    void replaceEmptyDatabase(const String & current_database);
+  void replaceEmptyDatabase(const String &current_database);
 
-    QueryKind getQueryKind() const override { return QueryKind::Show; }
+  QueryKind getQueryKind() const override { return QueryKind::Show; }
 
-protected:
-    String getKeyword() const;
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  String getKeyword() const;
+  void formatQueryImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
 
-}
+}  // namespace DB

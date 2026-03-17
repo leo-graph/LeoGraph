@@ -1,1 +1,1 @@
-int mainEntryClickHouseFormat(int argc, char ** argv);
+int mainEntryClickHouseFormat(int argc, char** argv);

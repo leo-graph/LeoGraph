@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cstdint>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <cstdint>
 
 /*
 Overview of compression:
@@ -28,22 +28,19 @@ Metadata contains:
     3) end of binary to know start of compressed data
     4) uncompressed data size
 */
-struct MetaData
-{
-    uint64_t number_of_files     = 0;
-    uint64_t start_of_files_data = 0;
+struct MetaData {
+  uint64_t number_of_files = 0;
+  uint64_t start_of_files_data = 0;
 };
 
 /// Information about each file for correct extraction.
 /// Each file data is followed by name of file
 /// with length equals to name_length.
-struct FileData
-{
-    uint64_t start             = 0;
-    uint64_t end               = 0;
-    uint64_t name_length       = 0;
-    uint64_t uncompressed_size = 0;
-    uint64_t umask             = 0;
-    bool     exec              = false;
+struct FileData {
+  uint64_t start = 0;
+  uint64_t end = 0;
+  uint64_t name_length = 0;
+  uint64_t uncompressed_size = 0;
+  uint64_t umask = 0;
+  bool exec = false;
 };
-

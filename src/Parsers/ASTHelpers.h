@@ -2,16 +2,12 @@
 
 #include <Parsers/ASTFunction.h>
 
+namespace DB {
 
-namespace DB
+static inline bool isFunctionCast(const ASTFunction* function)  /// NOLINT
 {
-
-static inline bool isFunctionCast(const ASTFunction * function) /// NOLINT
-{
-    if (function)
-        return function->name == "CAST" || function->name == "_CAST";
-    return false;
+  if (function) return function->name == "CAST" || function->name == "_CAST";
+  return false;
 }
 
-
-}
+}  // namespace DB

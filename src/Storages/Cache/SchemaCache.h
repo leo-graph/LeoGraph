@@ -1,13 +1,12 @@
 #pragma once
 
 #include <Storages/ColumnsDescription.h>
-#include <unordered_map>
 #include <list>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
-namespace DB
-{
+namespace DB {
 
 const size_t DEFAULT_SCHEMA_CACHE_ELEMENTS = 4096;
 
@@ -19,77 +18,71 @@ const size_t DEFAULT_SCHEMA_CACHE_ELEMENTS = 4096;
 /// It also supports keys invalidations by last modification time. If last modification time
 /// is provided and last modification happened after a key was added to the cache, this key
 /// will be removed from cache.
-class SchemaCache
-{
-public:
-    explicit SchemaCache(size_t max_elements_);
+class SchemaCache {
+ public:
+  explicit SchemaCache(size_t max_elements_);
 
-    struct Key
-    {
-        String source;
-        String format;
-        String additional_format_info;
-        String schema_inference_mode;
+  struct Key {
+    String source;
+    String format;
+    String additional_format_info;
+    String schema_inference_mode;
 
-        bool operator==(const Key & other) const
-        {
-            return source == other.source && format == other.format && additional_format_info == other.additional_format_info && schema_inference_mode == other.schema_inference_mode;
-        }
-    };
+    bool operator==(const Key& other) const {
+      return source == other.source && format == other.format && additional_format_info == other.additional_format_info &&
+             schema_inference_mode == other.schema_inference_mode;
+    }
+  };
 
-    using Keys = std::vector<Key>;
+  using Keys = std::vector<Key>;
 
-    struct KeyHash
-    {
-        size_t operator()(const Key & key) const
-        {
-            return std::hash<String>()(key.source + key.format + key.additional_format_info + key.schema_inference_mode);
-        }
-    };
+  struct KeyHash {
+    size_t operator()(const Key& key) const {
+      return std::hash<String>()(key.source + key.format + key.additional_format_info + key.schema_inference_mode);
+    }
+  };
 
-    struct SchemaInfo
-    {
-        std::optional<ColumnsDescription> columns;
-        std::optional<size_t> num_rows;
-        time_t registration_time;
-    };
+  struct SchemaInfo {
+    std::optional<ColumnsDescription> columns;
+    std::optional<size_t> num_rows;
+    time_t registration_time;
+  };
 
-    using LastModificationTimeGetter = std::function<std::optional<time_t>()>;
+  using LastModificationTimeGetter = std::function<std::optional<time_t>()>;
 
-    /// Add new key or update existing with a schema
-    void addColumns(const Key & key, const ColumnsDescription & columns);
-    /// Add/update many keys with the same schema (usually used for globs)
-    void addManyColumns(const Keys & keys, const ColumnsDescription & columns);
+  /// Add new key or update existing with a schema
+  void addColumns(const Key& key, const ColumnsDescription& columns);
+  /// Add/update many keys with the same schema (usually used for globs)
+  void addManyColumns(const Keys& keys, const ColumnsDescription& columns);
 
-    /// Add new key or update existing with number of rows
-    void addNumRows(const Key & key, size_t num_rows);
+  /// Add new key or update existing with number of rows
+  void addNumRows(const Key& key, size_t num_rows);
 
-    std::optional<ColumnsDescription> tryGetColumns(const Key & key, LastModificationTimeGetter get_last_mod_time = {});
-    std::optional<size_t> tryGetNumRows(const Key & key, LastModificationTimeGetter get_last_mod_time = {});
+  std::optional<ColumnsDescription> tryGetColumns(const Key& key, LastModificationTimeGetter get_last_mod_time = {});
+  std::optional<size_t> tryGetNumRows(const Key& key, LastModificationTimeGetter get_last_mod_time = {});
 
-    void clear();
+  void clear();
 
-    std::unordered_map<Key, SchemaInfo, SchemaCache::KeyHash> getAll();
+  std::unordered_map<Key, SchemaInfo, SchemaCache::KeyHash> getAll();
 
-private:
-    void addUnlocked(const Key & key, const std::optional<ColumnsDescription> & columns, std::optional<size_t> num_rows);
-    std::optional<SchemaInfo> tryGetImpl(const Key & key, LastModificationTimeGetter get_last_mod_time);
-    void checkOverflow();
+ private:
+  void addUnlocked(const Key& key, const std::optional<ColumnsDescription>& columns, std::optional<size_t> num_rows);
+  std::optional<SchemaInfo> tryGetImpl(const Key& key, LastModificationTimeGetter get_last_mod_time);
+  void checkOverflow();
 
-    using Queue = std::list<Key>;
-    using QueueIterator = Queue::iterator;
+  using Queue = std::list<Key>;
+  using QueueIterator = Queue::iterator;
 
-    struct Cell
-    {
-        SchemaInfo schema_info;
-        QueueIterator iterator;
-    };
+  struct Cell {
+    SchemaInfo schema_info;
+    QueueIterator iterator;
+  };
 
-    Queue queue;
-    std::unordered_map<Key, Cell, KeyHash> data;
+  Queue queue;
+  std::unordered_map<Key, Cell, KeyHash> data;
 
-    size_t max_elements;
-    std::mutex mutex;
+  size_t max_elements;
+  std::mutex mutex;
 };
 
-}
+}  // namespace DB

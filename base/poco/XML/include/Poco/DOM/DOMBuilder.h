@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef DOM_DOMBuilder_INCLUDED
 #define DOM_DOMBuilder_INCLUDED
-
 
 #include "Poco/SAX/ContentHandler.h"
 #include "Poco/SAX/DTDHandler.h"
@@ -24,93 +22,87 @@
 #include "Poco/XML/XML.h"
 #include "Poco/XML/XMLString.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class XMLReader;
+class Document;
+class InputSource;
+class AbstractNode;
+class AbstractContainerNode;
+class NamePool;
+
+class XML_API DOMBuilder : protected DTDHandler,
+                           protected ContentHandler,
+                           protected LexicalHandler
+/// This class builds a tree representation of an
+/// XML document, according to the W3C Document Object Model, Level 1 and 2
+/// specifications.
+///
+/// The actual XML parsing is done by an XMLReader, which
+/// must be supplied to the DOMBuilder.
 {
-namespace XML
-{
+ public:
+  DOMBuilder(XMLReader& xmlReader, NamePool* pNamePool = 0);
+  /// Creates a DOMBuilder using the given XMLReader.
+  /// If a NamePool is given, it becomes the Document's NamePool.
 
+  virtual ~DOMBuilder();
+  /// Destroys the DOMBuilder.
 
-    class XMLReader;
-    class Document;
-    class InputSource;
-    class AbstractNode;
-    class AbstractContainerNode;
-    class NamePool;
+  virtual Document* parse(const XMLString& uri);
+  /// Parse an XML document from a location identified by an URI.
 
+  virtual Document* parse(InputSource* pInputSource);
+  /// Parse an XML document from a location identified by an InputSource.
 
-    class XML_API DOMBuilder : protected DTDHandler, protected ContentHandler, protected LexicalHandler
-    /// This class builds a tree representation of an
-    /// XML document, according to the W3C Document Object Model, Level 1 and 2
-    /// specifications.
-    ///
-    /// The actual XML parsing is done by an XMLReader, which
-    /// must be supplied to the DOMBuilder.
-    {
-    public:
-        DOMBuilder(XMLReader & xmlReader, NamePool * pNamePool = 0);
-        /// Creates a DOMBuilder using the given XMLReader.
-        /// If a NamePool is given, it becomes the Document's NamePool.
+  virtual Document* parseMemoryNP(const char* xml, std::size_t size);
+  /// Parses an XML document from memory.
 
-        virtual ~DOMBuilder();
-        /// Destroys the DOMBuilder.
+ protected:
+  // DTDHandler
+  void notationDecl(const XMLString& name, const XMLString* publicId, const XMLString* systemId);
+  void unparsedEntityDecl(const XMLString& name, const XMLString* publicId, const XMLString& systemId, const XMLString& notationName);
 
-        virtual Document * parse(const XMLString & uri);
-        /// Parse an XML document from a location identified by an URI.
+  // ContentHandler
+  void setDocumentLocator(const Locator* loc);
+  void startDocument();
+  void endDocument();
+  void startElement(const XMLString& uri, const XMLString& localName, const XMLString& qname, const Attributes& attributes);
+  void endElement(const XMLString& uri, const XMLString& localName, const XMLString& qname);
+  void characters(const XMLChar ch[], int start, int length);
+  void ignorableWhitespace(const XMLChar ch[], int start, int length);
+  void processingInstruction(const XMLString& target, const XMLString& data);
+  void startPrefixMapping(const XMLString& prefix, const XMLString& uri);
+  void endPrefixMapping(const XMLString& prefix);
+  void skippedEntity(const XMLString& name);
 
-        virtual Document * parse(InputSource * pInputSource);
-        /// Parse an XML document from a location identified by an InputSource.
+  // LexicalHandler
+  void startDTD(const XMLString& name, const XMLString& publicId, const XMLString& systemId);
+  void endDTD();
+  void startEntity(const XMLString& name);
+  void endEntity(const XMLString& name);
+  void startCDATA();
+  void endCDATA();
+  void comment(const XMLChar ch[], int start, int length);
 
-        virtual Document * parseMemoryNP(const char * xml, std::size_t size);
-        /// Parses an XML document from memory.
+  void appendNode(AbstractNode* pNode);
 
-    protected:
-        // DTDHandler
-        void notationDecl(const XMLString & name, const XMLString * publicId, const XMLString * systemId);
-        void
-        unparsedEntityDecl(const XMLString & name, const XMLString * publicId, const XMLString & systemId, const XMLString & notationName);
+  void setupParse();
 
-        // ContentHandler
-        void setDocumentLocator(const Locator * loc);
-        void startDocument();
-        void endDocument();
-        void startElement(const XMLString & uri, const XMLString & localName, const XMLString & qname, const Attributes & attributes);
-        void endElement(const XMLString & uri, const XMLString & localName, const XMLString & qname);
-        void characters(const XMLChar ch[], int start, int length);
-        void ignorableWhitespace(const XMLChar ch[], int start, int length);
-        void processingInstruction(const XMLString & target, const XMLString & data);
-        void startPrefixMapping(const XMLString & prefix, const XMLString & uri);
-        void endPrefixMapping(const XMLString & prefix);
-        void skippedEntity(const XMLString & name);
+ private:
+  static const XMLString EMPTY_STRING;
 
-        // LexicalHandler
-        void startDTD(const XMLString & name, const XMLString & publicId, const XMLString & systemId);
-        void endDTD();
-        void startEntity(const XMLString & name);
-        void endEntity(const XMLString & name);
-        void startCDATA();
-        void endCDATA();
-        void comment(const XMLChar ch[], int start, int length);
+  XMLReader& _xmlReader;
+  NamePool* _pNamePool;
+  Document* _pDocument;
+  AbstractContainerNode* _pParent;
+  AbstractNode* _pPrevious;
+  bool _inCDATA;
+  bool _namespaces;
+};
 
-        void appendNode(AbstractNode * pNode);
+}  // namespace XML
+}  // namespace Poco
 
-        void setupParse();
-
-    private:
-        static const XMLString EMPTY_STRING;
-
-        XMLReader & _xmlReader;
-        NamePool * _pNamePool;
-        Document * _pDocument;
-        AbstractContainerNode * _pParent;
-        AbstractNode * _pPrevious;
-        bool _inCDATA;
-        bool _namespaces;
-    };
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // DOM_DOMBuilder_INCLUDED
+#endif  // DOM_DOMBuilder_INCLUDED

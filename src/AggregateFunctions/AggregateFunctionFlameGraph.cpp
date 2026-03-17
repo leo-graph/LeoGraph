@@ -1,474 +1,391 @@
 #include <AggregateFunctions/AggregateFunctionFactory.h>
 #include <AggregateFunctions/FactoryHelpers.h>
 #include <AggregateFunctions/IAggregateFunction.h>
+#include <Columns/ColumnArray.h>
+#include <Columns/ColumnsNumber.h>
+#include <Columns/ColumnString.h>
 #include <Common/HashTable/HashMap.h>
 #include <Common/SymbolIndex.h>
-#include <Core/Settings.h>
-#include <Columns/ColumnArray.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnsNumber.h>
-#include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <IO/Operators.h>
 #include <Common/UnorderedMapWithMemoryTracking.h>
 #include <Common/VectorWithMemoryTracking.h>
+#include <Core/Settings.h>
+#include <DataTypes/DataTypeArray.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeString.h>
+#include <IO/Operators.h>
 
-namespace DB
-{
-namespace Setting
-{
-    extern const SettingsBool allow_introspection_functions;
+namespace DB {
+namespace Setting {
+extern const SettingsBool allow_introspection_functions;
 }
 
+namespace ErrorCodes {
+extern const int FUNCTION_NOT_ALLOWED;
+extern const int NOT_IMPLEMENTED;
+extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+}  // namespace ErrorCodes
 
-namespace ErrorCodes
-{
-    extern const int FUNCTION_NOT_ALLOWED;
-    extern const int NOT_IMPLEMENTED;
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-}
+struct AggregateFunctionFlameGraphTree {
+  struct ListNode;
 
-struct AggregateFunctionFlameGraphTree
-{
-    struct ListNode;
+  struct TreeNode {
+    TreeNode *parent = nullptr;
+    ListNode *children = nullptr;
+    UInt64 ptr = 0;
+    size_t allocated = 0;
+  };
 
-    struct TreeNode
-    {
-        TreeNode * parent = nullptr;
-        ListNode * children = nullptr;
-        UInt64 ptr = 0;
-        size_t allocated = 0;
-    };
+  struct ListNode {
+    ListNode *next = nullptr;
+    TreeNode *child = nullptr;
+  };
 
-    struct ListNode
-    {
-        ListNode * next = nullptr;
-        TreeNode * child = nullptr;
-    };
+  TreeNode root;
 
-    TreeNode root;
+  static ListNode *createChild(TreeNode *parent, UInt64 ptr, Arena *arena) {
+    ListNode *list_node = reinterpret_cast<ListNode *>(arena->alloc(sizeof(ListNode)));
+    TreeNode *tree_node = reinterpret_cast<TreeNode *>(arena->alloc(sizeof(TreeNode)));
 
-    static ListNode * createChild(TreeNode * parent, UInt64 ptr, Arena * arena)
-    {
+    list_node->child = tree_node;
+    list_node->next = nullptr;
 
-        ListNode * list_node = reinterpret_cast<ListNode *>(arena->alloc(sizeof(ListNode)));
-        TreeNode * tree_node = reinterpret_cast<TreeNode *>(arena->alloc(sizeof(TreeNode)));
+    tree_node->parent = parent;
+    tree_node->children = nullptr;
+    tree_node->ptr = ptr;
+    tree_node->allocated = 0;
 
-        list_node->child = tree_node;
-        list_node->next = nullptr;
+    return list_node;
+  }
 
-        tree_node->parent =parent;
-        tree_node->children = nullptr;
-        tree_node->ptr = ptr;
-        tree_node->allocated = 0;
+  TreeNode *find(const UInt64 *stack, size_t stack_size, Arena *arena) {
+    TreeNode *node = &root;
+    for (size_t i = 0; i < stack_size; ++i) {
+      UInt64 ptr = stack[i];
+      if (ptr == 0) break;
 
-        return list_node;
-    }
+      if (!node->children) {
+        node->children = createChild(node, ptr, arena);
+        node = node->children->child;
+      } else {
+        ListNode *list = node->children;
+        while (list->child->ptr != ptr && list->next) list = list->next;
 
-    TreeNode * find(const UInt64 * stack, size_t stack_size, Arena * arena)
-    {
-        TreeNode * node = &root;
-        for (size_t i = 0; i < stack_size; ++i)
-        {
-            UInt64 ptr = stack[i];
-            if (ptr == 0)
-                break;
-
-            if (!node->children)
-            {
-                node->children = createChild(node, ptr, arena);
-                node = node->children->child;
-            }
-            else
-            {
-                ListNode * list = node->children;
-                while (list->child->ptr != ptr && list->next)
-                    list = list->next;
-
-                if (list->child->ptr != ptr)
-                {
-                    list->next = createChild(node, ptr, arena);
-                    list = list->next;
-                }
-
-                node = list->child;
-            }
+        if (list->child->ptr != ptr) {
+          list->next = createChild(node, ptr, arena);
+          list = list->next;
         }
 
-        return node;
+        node = list->child;
+      }
     }
 
-    static void append(PaddedPODArray<UInt64> & values, PaddedPODArray<UInt64> & offsets, VectorWithMemoryTracking<UInt64> & frame)
-    {
-        UInt64 prev = offsets.empty() ? 0 : offsets.back();
-        offsets.push_back(prev + frame.size());
-        for (UInt64 val : frame)
-            values.push_back(val);
-    }
+    return node;
+  }
 
-    struct Trace
-    {
-        using Frames = VectorWithMemoryTracking<UInt64>;
+  static void append(PaddedPODArray<UInt64> &values, PaddedPODArray<UInt64> &offsets, VectorWithMemoryTracking<UInt64> &frame) {
+    UInt64 prev = offsets.empty() ? 0 : offsets.back();
+    offsets.push_back(prev + frame.size());
+    for (UInt64 val : frame) values.push_back(val);
+  }
 
-        Frames frames;
+  struct Trace {
+    using Frames = VectorWithMemoryTracking<UInt64>;
 
-        /// The total number of bytes allocated for traces with the same prefix.
-        size_t allocated_total = 0;
-        /// This counter is relevant in case we want to filter some traces with small amount of bytes.
-        /// It shows the total number of bytes for *filtered* traces with the same prefix.
-        /// This is the value which is used in flamegraph.
-        size_t allocated_self = 0;
-    };
+    Frames frames;
 
-    using Traces = VectorWithMemoryTracking<Trace>;
+    /// The total number of bytes allocated for traces with the same prefix.
+    size_t allocated_total = 0;
+    /// This counter is relevant in case we want to filter some traces with small amount of bytes.
+    /// It shows the total number of bytes for *filtered* traces with the same prefix.
+    /// This is the value which is used in flamegraph.
+    size_t allocated_self = 0;
+  };
 
-    Traces dump(size_t max_depth, size_t min_bytes) const
-    {
-        Traces traces;
-        Trace::Frames frames;
-        VectorWithMemoryTracking<size_t> allocated_total;
-        VectorWithMemoryTracking<size_t> allocated_self;
-        VectorWithMemoryTracking<ListNode *> nodes;
+  using Traces = VectorWithMemoryTracking<Trace>;
 
-        nodes.push_back(root.children);
-        allocated_total.push_back(root.allocated);
-        allocated_self.push_back(root.allocated);
+  Traces dump(size_t max_depth, size_t min_bytes) const {
+    Traces traces;
+    Trace::Frames frames;
+    VectorWithMemoryTracking<size_t> allocated_total;
+    VectorWithMemoryTracking<size_t> allocated_self;
+    VectorWithMemoryTracking<ListNode *> nodes;
 
-        while (!nodes.empty())
-        {
-            if (nodes.back() == nullptr)
-            {
-                traces.push_back({frames, allocated_total.back(), allocated_self.back()});
+    nodes.push_back(root.children);
+    allocated_total.push_back(root.allocated);
+    allocated_self.push_back(root.allocated);
 
-                nodes.pop_back();
-                allocated_total.pop_back();
-                allocated_self.pop_back();
+    while (!nodes.empty()) {
+      if (nodes.back() == nullptr) {
+        traces.push_back({frames, allocated_total.back(), allocated_self.back()});
 
-                /// We don't have root's frame so framers are empty in the end.
-                if (!frames.empty())
-                    frames.pop_back();
+        nodes.pop_back();
+        allocated_total.pop_back();
+        allocated_self.pop_back();
 
-                continue;
-            }
+        /// We don't have root's frame so framers are empty in the end.
+        if (!frames.empty()) frames.pop_back();
 
-            TreeNode * current = nodes.back()->child;
-            nodes.back() = nodes.back()->next;
+        continue;
+      }
 
-            bool enough_bytes = current->allocated >= min_bytes;
-            bool enough_depth = max_depth == 0 || nodes.size() < max_depth;
+      TreeNode *current = nodes.back()->child;
+      nodes.back() = nodes.back()->next;
 
-            if (enough_bytes)
-            {
-                frames.push_back(current->ptr);
-                allocated_self.back() -= current->allocated;
+      bool enough_bytes = current->allocated >= min_bytes;
+      bool enough_depth = max_depth == 0 || nodes.size() < max_depth;
 
-                if (enough_depth)
-                {
-                    allocated_total.push_back(current->allocated);
-                    allocated_self.push_back(current->allocated);
-                    nodes.push_back(current->children);
-                }
-                else
-                {
-                    traces.push_back({frames, current->allocated, current->allocated});
-                    frames.pop_back();
-                }
-            }
+      if (enough_bytes) {
+        frames.push_back(current->ptr);
+        allocated_self.back() -= current->allocated;
+
+        if (enough_depth) {
+          allocated_total.push_back(current->allocated);
+          allocated_self.push_back(current->allocated);
+          nodes.push_back(current->children);
+        } else {
+          traces.push_back({frames, current->allocated, current->allocated});
+          frames.pop_back();
         }
-
-        return traces;
+      }
     }
+
+    return traces;
+  }
 };
 
-static void insertData(PaddedPODArray<UInt8> & chars, PaddedPODArray<UInt64> & offsets, const char * pos, size_t length)
-{
-    const size_t old_size = chars.size();
-    const size_t new_size = old_size + length;
+static void insertData(PaddedPODArray<UInt8> &chars, PaddedPODArray<UInt64> &offsets, const char *pos, size_t length) {
+  const size_t old_size = chars.size();
+  const size_t new_size = old_size + length;
 
-    chars.resize(new_size);
-    if (length)
-        memcpy(chars.data() + old_size, pos, length);
-    offsets.push_back(new_size);
+  chars.resize(new_size);
+  if (length) memcpy(chars.data() + old_size, pos, length);
+  offsets.push_back(new_size);
 }
 
 /// Split str by line feed and write as separate row to ColumnString.
-static void fillColumn(PaddedPODArray<UInt8> & chars, PaddedPODArray<UInt64> & offsets, const std::string & str)
-{
-    size_t start = 0;
-    size_t end = 0;
-    size_t size = str.size();
+static void fillColumn(PaddedPODArray<UInt8> &chars, PaddedPODArray<UInt64> &offsets, const std::string &str) {
+  size_t start = 0;
+  size_t end = 0;
+  size_t size = str.size();
 
-    while (end < size)
-    {
-        if (str[end] == '\n')
-        {
-            insertData(chars, offsets, str.data() + start, end - start);
-            start = end + 1;
-        }
-
-        ++end;
+  while (end < size) {
+    if (str[end] == '\n') {
+      insertData(chars, offsets, str.data() + start, end - start);
+      start = end + 1;
     }
 
-    if (start < end)
-        insertData(chars, offsets, str.data() + start, end - start);
+    ++end;
+  }
+
+  if (start < end) insertData(chars, offsets, str.data() + start, end - start);
 }
 
-static void dumpFlameGraphImpl(
-    const AggregateFunctionFlameGraphTree::Traces & traces,
-    PaddedPODArray<UInt8> & chars,
-    PaddedPODArray<UInt64> & offsets)
-{
-    WriteBufferFromOwnString out;
+static void dumpFlameGraphImpl(const AggregateFunctionFlameGraphTree::Traces &traces, PaddedPODArray<UInt8> &chars,
+                               PaddedPODArray<UInt64> &offsets) {
+  WriteBufferFromOwnString out;
 
-    UnorderedMapWithMemoryTracking<uintptr_t, size_t> mapping;
+  UnorderedMapWithMemoryTracking<uintptr_t, size_t> mapping;
 
 #if defined(__ELF__) && !defined(OS_FREEBSD)
-    const SymbolIndex & symbol_index = SymbolIndex::instance();
+  const SymbolIndex &symbol_index = SymbolIndex::instance();
 #endif
 
-    for (const auto & trace : traces)
-    {
-        if (trace.allocated_self == 0)
-            continue;
+  for (const auto &trace : traces) {
+    if (trace.allocated_self == 0) continue;
 
-        for (size_t i = 0; i < trace.frames.size(); ++i)
-        {
-            if (i)
-                out << ";";
+    for (size_t i = 0; i < trace.frames.size(); ++i) {
+      if (i) out << ";";
 
-            const void * ptr = reinterpret_cast<const void *>(trace.frames[i]);
+      const void *ptr = reinterpret_cast<const void *>(trace.frames[i]);
 
 #if defined(__ELF__) && !defined(OS_FREEBSD)
-            if (const auto * symbol = symbol_index.findSymbol(ptr))
-                writeString(demangle(symbol->name), out);
-            else
-                writePointerHex(ptr, out);
+      if (const auto *symbol = symbol_index.findSymbol(ptr))
+        writeString(demangle(symbol->name), out);
+      else
+        writePointerHex(ptr, out);
 #else
-            writePointerHex(ptr, out);
+      writePointerHex(ptr, out);
 #endif
-        }
-
-        out << ' ' << trace.allocated_self << "\n";
     }
 
-    fillColumn(chars, offsets, out.str());
+    out << ' ' << trace.allocated_self << "\n";
+  }
+
+  fillColumn(chars, offsets, out.str());
 }
 
-struct AggregateFunctionFlameGraphData
-{
-    struct Entry
-    {
-        AggregateFunctionFlameGraphTree::TreeNode * trace;
-        UInt64 size;
-        Entry * next = nullptr;
-    };
+struct AggregateFunctionFlameGraphData {
+  struct Entry {
+    AggregateFunctionFlameGraphTree::TreeNode *trace;
+    UInt64 size;
+    Entry *next = nullptr;
+  };
 
-    struct Pair
-    {
-        Entry * allocation = nullptr;
-        Entry * deallocation = nullptr;
-    };
+  struct Pair {
+    Entry *allocation = nullptr;
+    Entry *deallocation = nullptr;
+  };
 
-    using Entries = HashMap<UInt64, Pair>;
+  using Entries = HashMap<UInt64, Pair>;
 
-    Entries entries;
-    Entry * free_list = nullptr;
-    AggregateFunctionFlameGraphTree tree;
+  Entries entries;
+  Entry *free_list = nullptr;
+  AggregateFunctionFlameGraphTree tree;
 
-    Entry * alloc(Arena * arena)
-    {
-        if (free_list)
-        {
-            auto * res = free_list;
-            free_list = free_list->next;
-            return res;
-        }
-
-        return reinterpret_cast<Entry *>(arena->alloc(sizeof(Entry)));
+  Entry *alloc(Arena *arena) {
+    if (free_list) {
+      auto *res = free_list;
+      free_list = free_list->next;
+      return res;
     }
 
-    void release(Entry * entry)
-    {
-        entry->next = free_list;
-        free_list = entry;
+    return reinterpret_cast<Entry *>(arena->alloc(sizeof(Entry)));
+  }
+
+  void release(Entry *entry) {
+    entry->next = free_list;
+    free_list = entry;
+  }
+
+  static void track(Entry *allocation) {
+    auto *node = allocation->trace;
+    while (node) {
+      node->allocated += allocation->size;
+      node = node->parent;
+    }
+  }
+
+  static void untrack(Entry *allocation) {
+    auto *node = allocation->trace;
+    while (node) {
+      node->allocated -= allocation->size;
+      node = node->parent;
+    }
+  }
+
+  static Entry *tryFindMatchAndRemove(Entry *&list, UInt64 size) {
+    if (!list) return nullptr;
+
+    if (list->size == size) {
+      Entry *entry = list;
+      list = list->next;
+      return entry;
     }
 
-    static void track(Entry * allocation)
-    {
-        auto * node = allocation->trace;
-        while (node)
-        {
-            node->allocated += allocation->size;
-            node = node->parent;
-        }
+    Entry *parent = list;
+    while (parent->next && parent->next->size != size) parent = parent->next;
+
+    if (parent->next && parent->next->size == size) {
+      Entry *entry = parent->next;
+      parent->next = entry->next;
+      return entry;
     }
 
-    static void untrack(Entry * allocation)
-    {
-        auto * node = allocation->trace;
-        while (node)
-        {
-            node->allocated -= allocation->size;
-            node = node->parent;
-        }
+    return nullptr;
+  }
+
+  void add(UInt64 ptr, Int64 size, const UInt64 *stack, size_t stack_size, Arena *arena) {
+    /// In case if argument is nullptr, only track allocations.
+    if (ptr == 0) {
+      if (size > 0) {
+        auto *node = tree.find(stack, stack_size, arena);
+        Entry entry{.trace = node, .size = UInt64(size)};
+        track(&entry);
+      }
+
+      return;
     }
 
-    static Entry * tryFindMatchAndRemove(Entry *& list, UInt64 size)
-    {
-        if (!list)
-            return nullptr;
+    auto &place = entries[ptr];
+    if (size > 0) {
+      if (auto *deallocation = tryFindMatchAndRemove(place.deallocation, size)) {
+        release(deallocation);
+      } else {
+        auto *node = tree.find(stack, stack_size, arena);
 
-        if (list->size == size)
-        {
-            Entry * entry = list;
-            list = list->next;
-            return entry;
+        auto *allocation = alloc(arena);
+        allocation->size = UInt64(size);
+        allocation->trace = node;
+
+        track(allocation);
+
+        allocation->next = place.allocation;
+        place.allocation = allocation;
+      }
+    } else if (size < 0) {
+      UInt64 abs_size = -size;
+      if (auto *allocation = tryFindMatchAndRemove(place.allocation, abs_size)) {
+        untrack(allocation);
+        release(allocation);
+      } else {
+        auto *deallocation = alloc(arena);
+        deallocation->size = abs_size;
+
+        deallocation->next = place.deallocation;
+        place.deallocation = deallocation;
+      }
+    }
+  }
+
+  void merge(const AggregateFunctionFlameGraphTree &other_tree, Arena *arena) {
+    AggregateFunctionFlameGraphTree::Trace::Frames frames;
+    VectorWithMemoryTracking<AggregateFunctionFlameGraphTree::ListNode *> nodes;
+
+    nodes.push_back(other_tree.root.children);
+
+    while (!nodes.empty()) {
+      if (nodes.back() == nullptr) {
+        nodes.pop_back();
+
+        /// We don't have root's frame so framers are empty in the end.
+        if (!frames.empty()) frames.pop_back();
+
+        continue;
+      }
+
+      AggregateFunctionFlameGraphTree::TreeNode *current = nodes.back()->child;
+      nodes.back() = nodes.back()->next;
+
+      frames.push_back(current->ptr);
+
+      if (current->children)
+        nodes.push_back(current->children);
+      else {
+        if (current->allocated) add(0, current->allocated, frames.data(), frames.size(), arena);
+
+        frames.pop_back();
+      }
+    }
+  }
+
+  void merge(const AggregateFunctionFlameGraphData &other, Arena *arena) {
+    AggregateFunctionFlameGraphTree::Trace::Frames frames;
+    for (const auto &entry : other.entries) {
+      for (auto *allocation = entry.value.second.allocation; allocation; allocation = allocation->next) {
+        frames.clear();
+        const auto *node = allocation->trace;
+        while (node->ptr) {
+          frames.push_back(node->ptr);
+          node = node->parent;
         }
 
-        Entry * parent = list;
-        while (parent->next && parent->next->size != size)
-            parent = parent->next;
+        std::reverse(frames.begin(), frames.end());
+        add(entry.value.first, allocation->size, frames.data(), frames.size(), arena);
+        untrack(allocation);
+      }
 
-        if (parent->next && parent->next->size == size)
-        {
-            Entry * entry = parent->next;
-            parent->next = entry->next;
-            return entry;
-        }
-
-        return nullptr;
+      for (auto *deallocation = entry.value.second.deallocation; deallocation; deallocation = deallocation->next) {
+        add(entry.value.first, -Int64(deallocation->size), nullptr, 0, arena);
+      }
     }
 
-    void add(UInt64 ptr, Int64 size, const UInt64 * stack, size_t stack_size, Arena * arena)
-    {
-        /// In case if argument is nullptr, only track allocations.
-        if (ptr == 0)
-        {
-            if (size > 0)
-            {
-                auto * node = tree.find(stack, stack_size, arena);
-                Entry entry{.trace = node, .size = UInt64(size)};
-                track(&entry);
-            }
+    merge(other.tree, arena);
+  }
 
-            return;
-        }
-
-        auto & place = entries[ptr];
-        if (size > 0)
-        {
-            if (auto * deallocation = tryFindMatchAndRemove(place.deallocation, size))
-            {
-                release(deallocation);
-            }
-            else
-            {
-                auto * node = tree.find(stack, stack_size, arena);
-
-                auto * allocation = alloc(arena);
-                allocation->size = UInt64(size);
-                allocation->trace = node;
-
-                track(allocation);
-
-                allocation->next = place.allocation;
-                place.allocation = allocation;
-            }
-        }
-        else if (size < 0)
-        {
-            UInt64 abs_size = -size;
-            if (auto * allocation = tryFindMatchAndRemove(place.allocation, abs_size))
-            {
-                untrack(allocation);
-                release(allocation);
-            }
-            else
-            {
-                auto * deallocation = alloc(arena);
-                deallocation->size = abs_size;
-
-                deallocation->next = place.deallocation;
-                place.deallocation = deallocation;
-            }
-        }
-    }
-
-    void merge(const AggregateFunctionFlameGraphTree & other_tree, Arena * arena)
-    {
-        AggregateFunctionFlameGraphTree::Trace::Frames frames;
-        VectorWithMemoryTracking<AggregateFunctionFlameGraphTree::ListNode *> nodes;
-
-        nodes.push_back(other_tree.root.children);
-
-        while (!nodes.empty())
-        {
-            if (nodes.back() == nullptr)
-            {
-                nodes.pop_back();
-
-                /// We don't have root's frame so framers are empty in the end.
-                if (!frames.empty())
-                    frames.pop_back();
-
-                continue;
-            }
-
-            AggregateFunctionFlameGraphTree::TreeNode * current = nodes.back()->child;
-            nodes.back() = nodes.back()->next;
-
-            frames.push_back(current->ptr);
-
-            if (current->children)
-                nodes.push_back(current->children);
-            else
-            {
-                if (current->allocated)
-                    add(0, current->allocated, frames.data(), frames.size(), arena);
-
-                frames.pop_back();
-            }
-        }
-    }
-
-    void merge(const AggregateFunctionFlameGraphData & other, Arena * arena)
-    {
-        AggregateFunctionFlameGraphTree::Trace::Frames frames;
-        for (const auto & entry : other.entries)
-        {
-            for (auto * allocation = entry.value.second.allocation; allocation; allocation = allocation->next)
-            {
-                frames.clear();
-                const auto * node = allocation->trace;
-                while (node->ptr)
-                {
-                    frames.push_back(node->ptr);
-                    node = node->parent;
-                }
-
-                std::reverse(frames.begin(), frames.end());
-                add(entry.value.first, allocation->size, frames.data(), frames.size(), arena);
-                untrack(allocation);
-            }
-
-            for (auto * deallocation = entry.value.second.deallocation; deallocation; deallocation = deallocation->next)
-            {
-                add(entry.value.first, -Int64(deallocation->size), nullptr, 0, arena);
-            }
-        }
-
-        merge(other.tree, arena);
-    }
-
-    void dumpFlameGraph(
-        PaddedPODArray<UInt8> & chars,
-        PaddedPODArray<UInt64> & offsets,
-        size_t max_depth, size_t min_bytes) const
-    {
-        dumpFlameGraphImpl(tree.dump(max_depth, min_bytes), chars, offsets);
-    }
+  void dumpFlameGraph(PaddedPODArray<UInt8> &chars, PaddedPODArray<UInt64> &offsets, size_t max_depth, size_t min_bytes) const {
+    dumpFlameGraphImpl(tree.dump(max_depth, min_bytes), chars, offsets);
+  }
 };
 
 /// Aggregate function which builds a flamegraph using the list of stacktraces.
@@ -499,9 +416,10 @@ struct AggregateFunctionFlameGraphData
 ///     | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem.svg
 ///
 /// * Build a flamegraph based on memory query profiler, showing allocations which were not deallocated in query context
-/// set memory_profiler_sample_probability=1, max_untracked_memory=1, use_uncompressed_cache=1, merge_tree_max_rows_to_use_cache=100000000000, merge_tree_max_bytes_to_use_cache=1000000000000;
-/// SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
-/// clickhouse client --allow_introspection_functions=1
+/// set memory_profiler_sample_probability=1, max_untracked_memory=1, use_uncompressed_cache=1,
+/// merge_tree_max_rows_to_use_cache=100000000000, merge_tree_max_bytes_to_use_cache=1000000000000; SELECT SearchPhrase, COUNT(DISTINCT
+/// UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10; clickhouse client
+/// --allow_introspection_functions=1
 ///     -q "select arrayJoin(flameGraph(trace, size, ptr)) from system.trace_log where trace_type = 'MemorySample' and query_id = 'xxx'"
 ///     | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem_untracked.svg
 ///
@@ -509,138 +427,119 @@ struct AggregateFunctionFlameGraphData
 /// set memory_profiler_sample_probability=1, max_untracked_memory=1;
 /// SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
 /// 1. Memory usage per second
-/// select event_time, m, formatReadableSize(max(s) as m) from (select event_time, sum(size) over (order by event_time) as s from system.trace_log where query_id = 'xxx' and trace_type = 'MemorySample') group by event_time order by event_time;
+/// select event_time, m, formatReadableSize(max(s) as m) from (select event_time, sum(size) over (order by event_time) as s from
+/// system.trace_log where query_id = 'xxx' and trace_type = 'MemorySample') group by event_time order by event_time;
 /// 2. Find a time point with maximal memory usage
-/// select argMax(event_time, s), max(s) from (select event_time, sum(size) over (order by event_time) as s from system.trace_log where query_id = 'xxx' and trace_type = 'MemorySample');
+/// select argMax(event_time, s), max(s) from (select event_time, sum(size) over (order by event_time) as s from system.trace_log where
+/// query_id = 'xxx' and trace_type = 'MemorySample');
 /// 3. Fix active allocations at fixed point of time
 /// clickhouse client --allow_introspection_functions=1
-///      -q "select arrayJoin(flameGraph(trace, size, ptr)) from (select * from system.trace_log where trace_type = 'MemorySample' and query_id = 'xxx' and event_time <= 'yyy' order by event_time)"
-///      | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem_time_point_pos.svg
+///      -q "select arrayJoin(flameGraph(trace, size, ptr)) from (select * from system.trace_log where trace_type = 'MemorySample' and
+///      query_id = 'xxx' and event_time <= 'yyy' order by event_time)" | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem >
+///      flame_mem_time_point_pos.svg
 /// 4. Find deallocations at fixed point of time
 /// clickhouse client --allow_introspection_functions=1
-///      -q "select arrayJoin(flameGraph(trace, -size, ptr)) from (select * from system.trace_log where trace_type = 'MemorySample' and query_id = 'xxx' and event_time > 'yyy' order by event_time desc)"
-///      | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem_time_point_neg.svg
-class AggregateFunctionFlameGraph final : public IAggregateFunctionDataHelper<AggregateFunctionFlameGraphData, AggregateFunctionFlameGraph>
-{
-public:
-    explicit AggregateFunctionFlameGraph(const DataTypes & argument_types_)
-        : IAggregateFunctionDataHelper<AggregateFunctionFlameGraphData, AggregateFunctionFlameGraph>(argument_types_, {}, createResultType())
-    {}
+///      -q "select arrayJoin(flameGraph(trace, -size, ptr)) from (select * from system.trace_log where trace_type = 'MemorySample' and
+///      query_id = 'xxx' and event_time > 'yyy' order by event_time desc)" | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem >
+///      flame_mem_time_point_neg.svg
+class AggregateFunctionFlameGraph final
+    : public IAggregateFunctionDataHelper<AggregateFunctionFlameGraphData, AggregateFunctionFlameGraph> {
+ public:
+  explicit AggregateFunctionFlameGraph(const DataTypes &argument_types_)
+      : IAggregateFunctionDataHelper<AggregateFunctionFlameGraphData, AggregateFunctionFlameGraph>(argument_types_, {},
+                                                                                                   createResultType()) {}
 
-    String getName() const override { return "flameGraph"; }
+  String getName() const override { return "flameGraph"; }
 
-    static DataTypePtr createResultType()
-    {
-        return std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
+  static DataTypePtr createResultType() { return std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>()); }
+
+  bool allocatesMemoryInArena() const override { return true; }
+
+  void add(AggregateDataPtr __restrict place, const IColumn **columns, size_t row_num, Arena *arena) const override {
+    const auto &trace = assert_cast<const ColumnArray &>(*columns[0]);
+
+    const auto &trace_offsets = trace.getOffsets();
+    const auto &trace_values = assert_cast<const ColumnUInt64 &>(trace.getData()).getData();
+    UInt64 prev_offset = 0;
+    if (row_num) prev_offset = trace_offsets[row_num - 1];
+    UInt64 trace_size = trace_offsets[row_num] - prev_offset;
+
+    Int64 allocated = 1;
+    if (argument_types.size() >= 2) {
+      const auto &sizes = assert_cast<const ColumnInt64 &>(*columns[1]).getData();
+      allocated = sizes[row_num];
     }
 
-    bool allocatesMemoryInArena() const override { return true; }
-
-    void add(AggregateDataPtr __restrict place, const IColumn ** columns, size_t row_num, Arena * arena) const override
-    {
-        const auto & trace = assert_cast<const ColumnArray &>(*columns[0]);
-
-        const auto & trace_offsets = trace.getOffsets();
-        const auto & trace_values = assert_cast<const ColumnUInt64 &>(trace.getData()).getData();
-        UInt64 prev_offset = 0;
-        if (row_num)
-            prev_offset = trace_offsets[row_num - 1];
-        UInt64 trace_size = trace_offsets[row_num] - prev_offset;
-
-        Int64 allocated = 1;
-        if (argument_types.size() >= 2)
-        {
-            const auto & sizes = assert_cast<const ColumnInt64 &>(*columns[1]).getData();
-            allocated = sizes[row_num];
-        }
-
-        UInt64 ptr = 0;
-        if (argument_types.size() >= 3)
-        {
-            const auto & ptrs = assert_cast<const ColumnUInt64 &>(*columns[2]).getData();
-            ptr = ptrs[row_num];
-        }
-
-        data(place).add(ptr, allocated, trace_values.data() + prev_offset, trace_size, arena);
+    UInt64 ptr = 0;
+    if (argument_types.size() >= 3) {
+      const auto &ptrs = assert_cast<const ColumnUInt64 &>(*columns[2]).getData();
+      ptr = ptrs[row_num];
     }
 
-    void addManyDefaults(
-        AggregateDataPtr __restrict /*place*/,
-        const IColumn ** /*columns*/,
-        size_t /*length*/,
-        Arena * /*arena*/) const override
-    {
-    }
+    data(place).add(ptr, allocated, trace_values.data() + prev_offset, trace_size, arena);
+  }
 
-    void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs, Arena * arena) const override
-    {
-        data(place).merge(data(rhs), arena);
-    }
+  void addManyDefaults(AggregateDataPtr __restrict /*place*/, const IColumn ** /*columns*/, size_t /*length*/,
+                       Arena * /*arena*/) const override {}
 
-    void serialize(ConstAggregateDataPtr __restrict, WriteBuffer &, std::optional<size_t> /* version */) const override
-    {
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Serialization for function flameGraph is not implemented.");
-    }
+  void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs, Arena *arena) const override {
+    data(place).merge(data(rhs), arena);
+  }
 
-    void deserialize(AggregateDataPtr __restrict, ReadBuffer &, std::optional<size_t> /* version */, Arena *) const override
-    {
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Deserialization for function flameGraph is not implemented.");
-    }
+  void serialize(ConstAggregateDataPtr __restrict, WriteBuffer &, std::optional<size_t> /* version */) const override {
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Serialization for function flameGraph is not implemented.");
+  }
 
-    void insertResultInto(AggregateDataPtr __restrict place, IColumn & to, Arena *) const override
-    {
-        auto & array = assert_cast<ColumnArray &>(to);
-        auto & str = assert_cast<ColumnString &>(array.getData());
+  void deserialize(AggregateDataPtr __restrict, ReadBuffer &, std::optional<size_t> /* version */, Arena *) const override {
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Deserialization for function flameGraph is not implemented.");
+  }
 
-        data(place).dumpFlameGraph(str.getChars(), str.getOffsets(), 0, 0);
+  void insertResultInto(AggregateDataPtr __restrict place, IColumn &to, Arena *) const override {
+    auto &array = assert_cast<ColumnArray &>(to);
+    auto &str = assert_cast<ColumnString &>(array.getData());
 
-        array.getOffsets().push_back(str.size());
-    }
+    data(place).dumpFlameGraph(str.getChars(), str.getOffsets(), 0, 0);
+
+    array.getOffsets().push_back(str.size());
+  }
 };
 
-static void check(const std::string & name, const DataTypes & argument_types, const Array & params)
-{
-    assertNoParameters(name, params);
+static void check(const std::string &name, const DataTypes &argument_types, const Array &params) {
+  assertNoParameters(name, params);
 
-    if (argument_types.empty() || argument_types.size() > 3)
-        throw Exception(
-            ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-            "Aggregate function {} requires 1 to 3 arguments : trace, [size = 1], [ptr = 0]",
-            name);
+  if (argument_types.empty() || argument_types.size() > 3)
+    throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+                    "Aggregate function {} requires 1 to 3 arguments : trace, [size = 1], [ptr = 0]", name);
 
-    auto ptr_type = std::make_shared<DataTypeUInt64>();
-    auto trace_type = std::make_shared<DataTypeArray>(ptr_type);
-    auto size_type = std::make_shared<DataTypeInt64>();
+  auto ptr_type = std::make_shared<DataTypeUInt64>();
+  auto trace_type = std::make_shared<DataTypeArray>(ptr_type);
+  auto size_type = std::make_shared<DataTypeInt64>();
 
-    if (!argument_types[0]->equals(*trace_type))
-        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "First argument (trace) for function {} must be Array(UInt64), but it has type {}",
-            name, argument_types[0]->getName());
+  if (!argument_types[0]->equals(*trace_type))
+    throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                    "First argument (trace) for function {} must be Array(UInt64), but it has type {}", name, argument_types[0]->getName());
 
-    if (argument_types.size() >= 2 && !argument_types[1]->equals(*size_type))
-        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "Second argument (size) for function {} must be Int64, but it has type {}",
-            name, argument_types[1]->getName());
+  if (argument_types.size() >= 2 && !argument_types[1]->equals(*size_type))
+    throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Second argument (size) for function {} must be Int64, but it has type {}", name,
+                    argument_types[1]->getName());
 
-    if (argument_types.size() >= 3 && !argument_types[2]->equals(*ptr_type))
-        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-            "Third argument (ptr) for function {} must be UInt64, but it has type {}",
-            name, argument_types[2]->getName());
+  if (argument_types.size() >= 3 && !argument_types[2]->equals(*ptr_type))
+    throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Third argument (ptr) for function {} must be UInt64, but it has type {}", name,
+                    argument_types[2]->getName());
 }
 
-static AggregateFunctionPtr createAggregateFunctionFlameGraph(const std::string & name, const DataTypes & argument_types, const Array & params, const Settings * settings)
-{
-    if (!(*settings)[Setting::allow_introspection_functions])
-        throw Exception(ErrorCodes::FUNCTION_NOT_ALLOWED,
-        "Introspection functions are disabled, because setting 'allow_introspection_functions' is set to 0");
+static AggregateFunctionPtr createAggregateFunctionFlameGraph(const std::string &name, const DataTypes &argument_types, const Array &params,
+                                                              const Settings *settings) {
+  if (!(*settings)[Setting::allow_introspection_functions])
+    throw Exception(ErrorCodes::FUNCTION_NOT_ALLOWED,
+                    "Introspection functions are disabled, because setting 'allow_introspection_functions' is set to 0");
 
-    check(name, argument_types, params);
-    return std::make_shared<AggregateFunctionFlameGraph>(argument_types);
+  check(name, argument_types, params);
+  return std::make_shared<AggregateFunctionFlameGraph>(argument_types);
 }
 
-void registerAggregateFunctionFlameGraph(AggregateFunctionFactory & factory)
-{
-    FunctionDocumentation::Description description = R"(
+void registerAggregateFunctionFlameGraph(AggregateFunctionFactory &factory) {
+  FunctionDocumentation::Description description = R"(
 Builds a [flamegraph](https://www.brendangregg.com/flamegraphs.html) using the list of stacktraces.
 Outputs an array of strings which can be used by the [flamegraph.pl](https://github.com/brendangregg/FlameGraph) utility to render an SVG of the flamegraph.
 
@@ -650,48 +549,40 @@ Only allocations which were not freed are shown.
 Non mapped deallocations are ignored.
 :::
     )";
-    FunctionDocumentation::Syntax syntax = "flameGraph(traces[, size[, ptr]])";
-    FunctionDocumentation::Arguments arguments = {
-        {"traces", "A stacktrace.", {"Array(UInt64)"}},
-        {"size", "Optional. An allocation size for memory profiling (default 1).", {"UInt64"}},
-        {"ptr", "Optional. An allocation address (default 0).", {"UInt64"}}
-    };
-    FunctionDocumentation::Parameters parameters = {};
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns an array of strings for use with flamegraph.pl utility.", {"Array(String)"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Building a flamegraph based on a CPU query profiler",
-        R"(
+  FunctionDocumentation::Syntax syntax = "flameGraph(traces[, size[, ptr]])";
+  FunctionDocumentation::Arguments arguments = {{"traces", "A stacktrace.", {"Array(UInt64)"}},
+                                                {"size", "Optional. An allocation size for memory profiling (default 1).", {"UInt64"}},
+                                                {"ptr", "Optional. An allocation address (default 0).", {"UInt64"}}};
+  FunctionDocumentation::Parameters parameters = {};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns an array of strings for use with flamegraph.pl utility.",
+                                                         {"Array(String)"}};
+  FunctionDocumentation::Examples examples = {
+      {"Building a flamegraph based on a CPU query profiler",
+       R"(
 SET query_profiler_cpu_time_period_ns=10000000;
 SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
         )",
-        R"(
+       R"(
 clickhouse client --allow_introspection_functions=1 -q "select arrayJoin(flameGraph(arrayReverse(trace))) from system.trace_log where trace_type = 'CPU' and query_id = 'xxx'" | ~/dev/FlameGraph/flamegraph.pl  > flame_cpu.svg
-        )"
-    },
-    {
-        "Building a flamegraph based on a memory query profiler, showing all allocations",
-        R"(
+        )"},
+      {"Building a flamegraph based on a memory query profiler, showing all allocations",
+       R"(
 SET memory_profiler_sample_probability=1, max_untracked_memory=1;
 SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
         )",
-        R"(
+       R"(
 clickhouse client --allow_introspection_functions=1 -q "select arrayJoin(flameGraph(trace, size)) from system.trace_log where trace_type = 'MemorySample' and query_id = 'xxx'" | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem.svg
-        )"
-    },
-    {
-        "Building a flamegraph based on a memory query profiler, showing allocations which were not deallocated",
-        R"(
+        )"},
+      {"Building a flamegraph based on a memory query profiler, showing allocations which were not deallocated",
+       R"(
 SET memory_profiler_sample_probability=1, max_untracked_memory=1, use_uncompressed_cache=1, merge_tree_max_rows_to_use_cache=100000000000, merge_tree_max_bytes_to_use_cache=1000000000000;
 SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
         )",
-        R"(
+       R"(
 clickhouse client --allow_introspection_functions=1 -q "SELECT arrayJoin(flameGraph(trace, size, ptr)) FROM system.trace_log WHERE trace_type = 'MemorySample' AND query_id = 'xxx'" | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem_untracked.svg
-        )"
-    },
-    {
-        "Build a flamegraph based on memory query profiler, showing active allocations at a fixed point of time",
-        R"(
+        )"},
+      {"Build a flamegraph based on memory query profiler, showing active allocations at a fixed point of time",
+       R"(
 SET memory_profiler_sample_probability=1, max_untracked_memory=1;
 SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;
 
@@ -701,22 +592,20 @@ SELECT event_time, m, formatReadableSize(max(s) AS m) FROM (SELECT event_time, s
 -- 2. Find a time point with maximal memory usage
 SELECT argMax(event_time, s), max(s) FROM (SELECT event_time, sum(size) OVER (ORDER BY event_time) AS s FROM system.trace_log WHERE query_id = 'xxx' AND trace_type = 'MemorySample');
         )",
-        R"(
+       R"(
 -- 3. Fix active allocations at fixed point of time
 clickhouse client --allow_introspection_functions=1 -q "SELECT arrayJoin(flameGraph(trace, size, ptr)) FROM (SELECT * FROM system.trace_log WHERE trace_type = 'MemorySample' AND query_id = 'xxx' AND event_time <= 'yyy' ORDER BY event_time\)\" | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem_time_point_pos.svg
 
 -- 4. Find deallocations at fixed point of time
 clickhouse client --allow_introspection_functions=1 -q "SELECT arrayJoin(flameGraph(trace, -size, ptr)) FROM (SELECT * FROM system.trace_log WHERE trace_type = 'MemorySample' AND query_id = 'xxx' AND event_time > 'yyy' ORDER BY event_time desc\)\" | ~/dev/FlameGraph/flamegraph.pl --countname=bytes --color=mem > flame_mem_time_point_neg.svg
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {23, 8};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::AggregateFunction;
-    FunctionDocumentation documentation = {description, syntax, arguments, parameters, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {23, 8};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::AggregateFunction;
+  FunctionDocumentation documentation = {description, syntax, arguments, parameters, returned_value, examples, introduced_in, category};
 
-    AggregateFunctionProperties properties = { .returns_default_when_only_null = true, .is_order_dependent = true };
+  AggregateFunctionProperties properties = {.returns_default_when_only_null = true, .is_order_dependent = true};
 
-    factory.registerFunction("flameGraph", { createAggregateFunctionFlameGraph, documentation, properties });
+  factory.registerFunction("flameGraph", {createAggregateFunctionFlameGraph, documentation, properties});
 }
 
-}
+}  // namespace DB

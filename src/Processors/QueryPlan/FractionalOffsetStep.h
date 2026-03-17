@@ -1,33 +1,31 @@
 #pragma once
+#include <base/types.h>
 #include <Processors/QueryPlan/ITransformingStep.h>
 #include <QueryPipeline/SizeLimits.h>
-#include <base/types.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Executes Fractional OFFSET (without LIMIT). See FractionalOffsetTransform.
-class FractionalOffsetStep : public ITransformingStep
-{
-public:
-    FractionalOffsetStep(const SharedHeader & input_header_, Float64 fractional_offset_);
+class FractionalOffsetStep : public ITransformingStep {
+ public:
+  FractionalOffsetStep(const SharedHeader &input_header_, Float64 fractional_offset_);
 
-    String getName() const override { return "FractionalOffset"; }
+  String getName() const override { return "FractionalOffset"; }
 
-    void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override;
+  void transformPipeline(QueryPipelineBuilder &pipeline, const BuildQueryPipelineSettings &) override;
 
-    void describeActions(JSONBuilder::JSONMap & map) const override;
-    void describeActions(FormatSettings & settings) const override;
+  void describeActions(JSONBuilder::JSONMap &map) const override;
+  void describeActions(FormatSettings &settings) const override;
 
-    void serialize(Serialization & ctx) const override;
-    bool isSerializable() const override { return true; }
+  void serialize(Serialization &ctx) const override;
+  bool isSerializable() const override { return true; }
 
-    static QueryPlanStepPtr deserialize(Deserialization & ctx);
+  static QueryPlanStepPtr deserialize(Deserialization &ctx);
 
-private:
-    void updateOutputHeader() override { output_header = input_headers.front(); }
+ private:
+  void updateOutputHeader() override { output_header = input_headers.front(); }
 
-    Float64 fractional_offset;
+  Float64 fractional_offset;
 };
 
-}
+}  // namespace DB

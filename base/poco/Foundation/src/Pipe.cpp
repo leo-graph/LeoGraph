@@ -11,60 +11,38 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Pipe.h"
-
 
 namespace Poco {
 
+Pipe::Pipe() : _pImpl(new PipeImpl) {}
 
-Pipe::Pipe():
-	_pImpl(new PipeImpl)
-{
+Pipe::Pipe(const Pipe& pipe) : _pImpl(pipe._pImpl) { _pImpl->duplicate(); }
+
+Pipe::~Pipe() { _pImpl->release(); }
+
+Pipe& Pipe::operator=(const Pipe& pipe) {
+  if (this != &pipe) {
+    _pImpl->release();
+    _pImpl = pipe._pImpl;
+    _pImpl->duplicate();
+  }
+  return *this;
 }
 
-	
-Pipe::Pipe(const Pipe& pipe):
-	_pImpl(pipe._pImpl)
-{
-	_pImpl->duplicate();
+void Pipe::close(CloseMode mode) {
+  switch (mode) {
+    case CLOSE_READ:
+      _pImpl->closeRead();
+      break;
+    case CLOSE_WRITE:
+      _pImpl->closeWrite();
+      break;
+    default:
+      _pImpl->closeRead();
+      _pImpl->closeWrite();
+      break;
+  }
 }
 
-
-Pipe::~Pipe()
-{
-	_pImpl->release();
-}
-
-
-Pipe& Pipe::operator = (const Pipe& pipe)
-{
-	if (this != &pipe)
-	{
-		_pImpl->release();
-		_pImpl = pipe._pImpl;
-		_pImpl->duplicate();
-	}
-	return *this;
-}
-
-
-void Pipe::close(CloseMode mode)
-{
-	switch (mode)
-	{
-	case CLOSE_READ:
-		_pImpl->closeRead();
-		break;
-	case CLOSE_WRITE:
-		_pImpl->closeWrite();
-		break;
-	default:
-		_pImpl->closeRead();
-		_pImpl->closeWrite();
-		break;
-	}
-}
-
-
-} // namespace Poco
+}  // namespace Poco

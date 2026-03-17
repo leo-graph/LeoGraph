@@ -4,17 +4,15 @@
 
 #include <boost/noncopyable.hpp>
 
-namespace DB
-{
+namespace DB {
 
-class HTTPRequestHandlerFactory : private boost::noncopyable
-{
-public:
-    virtual ~HTTPRequestHandlerFactory() = default;
+class HTTPRequestHandlerFactory : private boost::noncopyable {
+ public:
+  virtual ~HTTPRequestHandlerFactory() = default;
 
-    virtual std::unique_ptr<HTTPRequestHandler> createRequestHandler(const HTTPServerRequest & request) = 0;
+  virtual std::unique_ptr<HTTPRequestHandler> createRequestHandler(const HTTPServerRequest& request) = 0;
 };
 
 using HTTPRequestHandlerFactoryPtr = std::shared_ptr<HTTPRequestHandlerFactory>;
 
-}
+}  // namespace DB

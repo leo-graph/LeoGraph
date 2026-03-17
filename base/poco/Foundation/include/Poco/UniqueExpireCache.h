@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_UniqueExpireCache_INCLUDED
 #define Foundation_UniqueExpireCache_INCLUDED
-
 
 #include "Poco/AbstractCache.h"
 #include "Poco/UniqueExpireStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TKey, class TValue, class TMutex = FastMutex, class TEventMutex = FastMutex>
 class UniqueExpireCache : public AbstractCache<TKey, TValue, UniqueExpireStrategy<TKey, TValue>, TMutex, TEventMutex>
@@ -46,21 +41,17 @@ class UniqueExpireCache : public AbstractCache<TKey, TValue, UniqueExpireStrateg
 /// the entry gets invalid, thus leading to an empty SharedPtr being returned
 /// when "get" is invoked.
 {
-public:
-    UniqueExpireCache()
-        : AbstractCache<TKey, TValue, UniqueExpireStrategy<TKey, TValue>, TMutex, TEventMutex>(UniqueExpireStrategy<TKey, TValue>())
-    {
-    }
+ public:
+  UniqueExpireCache()
+      : AbstractCache<TKey, TValue, UniqueExpireStrategy<TKey, TValue>, TMutex, TEventMutex>(UniqueExpireStrategy<TKey, TValue>()) {}
 
-    ~UniqueExpireCache() { }
+  ~UniqueExpireCache() {}
 
-private:
-    UniqueExpireCache(const UniqueExpireCache & aCache);
-    UniqueExpireCache & operator=(const UniqueExpireCache & aCache);
+ private:
+  UniqueExpireCache(const UniqueExpireCache& aCache);
+  UniqueExpireCache& operator=(const UniqueExpireCache& aCache);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_UniqueExpireCache_INCLUDED
+#endif  // Foundation_UniqueExpireCache_INCLUDED

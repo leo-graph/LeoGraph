@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NotificationCenter_INCLUDED
 #define Foundation_NotificationCenter_INCLUDED
-
 
 #include <cstddef>
 #include <vector>
@@ -25,13 +23,9 @@
 #include "Poco/Notification.h"
 #include "Poco/SharedPtr.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class AbstractObserver;
-
 
 class Foundation_API NotificationCenter
 /// A NotificationCenter is essentially a notification dispatcher.
@@ -79,62 +73,60 @@ class Foundation_API NotificationCenter
 ///         ...
 ///     }
 {
-public:
-    NotificationCenter();
-    /// Creates the NotificationCenter.
+ public:
+  NotificationCenter();
+  /// Creates the NotificationCenter.
 
-    ~NotificationCenter();
-    /// Destroys the NotificationCenter.
+  ~NotificationCenter();
+  /// Destroys the NotificationCenter.
 
-    void addObserver(const AbstractObserver & observer);
-    /// Registers an observer with the NotificationCenter.
-    /// Usage:
-    ///     Observer<MyClass, MyNotification> obs(*this, &MyClass::handleNotification);
-    ///     notificationCenter.addObserver(obs);
-    ///
-    /// Alternatively, the NObserver template class can be used instead of Observer.
+  void addObserver(const AbstractObserver& observer);
+  /// Registers an observer with the NotificationCenter.
+  /// Usage:
+  ///     Observer<MyClass, MyNotification> obs(*this, &MyClass::handleNotification);
+  ///     notificationCenter.addObserver(obs);
+  ///
+  /// Alternatively, the NObserver template class can be used instead of Observer.
 
-    void removeObserver(const AbstractObserver & observer);
-    /// Unregisters an observer with the NotificationCenter.
+  void removeObserver(const AbstractObserver& observer);
+  /// Unregisters an observer with the NotificationCenter.
 
-    bool hasObserver(const AbstractObserver & observer) const;
-    /// Returns true if the observer is registered with this NotificationCenter.
+  bool hasObserver(const AbstractObserver& observer) const;
+  /// Returns true if the observer is registered with this NotificationCenter.
 
-    void postNotification(Notification::Ptr pNotification);
-    /// Posts a notification to the NotificationCenter.
-    /// The NotificationCenter then delivers the notification
-    /// to all interested observers.
-    /// If an observer throws an exception, dispatching terminates
-    /// and the exception is rethrown to the caller.
-    /// Ownership of the notification object is claimed and the
-    /// notification is released before returning. Therefore,
-    /// a call like
-    ///    notificationCenter.postNotification(new MyNotification);
-    /// does not result in a memory leak.
+  void postNotification(Notification::Ptr pNotification);
+  /// Posts a notification to the NotificationCenter.
+  /// The NotificationCenter then delivers the notification
+  /// to all interested observers.
+  /// If an observer throws an exception, dispatching terminates
+  /// and the exception is rethrown to the caller.
+  /// Ownership of the notification object is claimed and the
+  /// notification is released before returning. Therefore,
+  /// a call like
+  ///    notificationCenter.postNotification(new MyNotification);
+  /// does not result in a memory leak.
 
-    bool hasObservers() const;
-    /// Returns true iff there is at least one registered observer.
-    ///
-    /// Can be used to improve performance if an expensive notification
-    /// shall only be created and posted if there are any observers.
+  bool hasObservers() const;
+  /// Returns true iff there is at least one registered observer.
+  ///
+  /// Can be used to improve performance if an expensive notification
+  /// shall only be created and posted if there are any observers.
 
-    std::size_t countObservers() const;
-    /// Returns the number of registered observers.
+  std::size_t countObservers() const;
+  /// Returns the number of registered observers.
 
-    static NotificationCenter & defaultCenter();
-    /// Returns a reference to the default
-    /// NotificationCenter.
+  static NotificationCenter& defaultCenter();
+  /// Returns a reference to the default
+  /// NotificationCenter.
 
-private:
-    typedef SharedPtr<AbstractObserver> AbstractObserverPtr;
-    typedef std::vector<AbstractObserverPtr> ObserverList;
+ private:
+  typedef SharedPtr<AbstractObserver> AbstractObserverPtr;
+  typedef std::vector<AbstractObserverPtr> ObserverList;
 
-    ObserverList _observers;
-    mutable Mutex _mutex;
+  ObserverList _observers;
+  mutable Mutex _mutex;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_NotificationCenter_INCLUDED
+#endif  // Foundation_NotificationCenter_INCLUDED

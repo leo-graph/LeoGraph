@@ -1,13 +1,12 @@
 #pragma once
 
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Poco/DOM/AutoPtr.h>
-#include <Poco/Util/XMLConfiguration.h>
-#include <Parsers/IAST_fwd.h>
 #include <Interpreters/Context_fwd.h>
+#include <Parsers/IAST_fwd.h>
+#include <Poco/DOM/AutoPtr.h>
+#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/Util/XMLConfiguration.h>
 
-namespace DB
-{
+namespace DB {
 
 using DiskConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
 
@@ -23,14 +22,14 @@ using DiskConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
  * Used in case disk configuration is passed via AST when creating
  * a disk object on-the-fly without any configuration file.
  */
-DiskConfigurationPtr getDiskConfigurationFromAST(const ASTs & disk_args, ContextPtr context);
+DiskConfigurationPtr getDiskConfigurationFromAST(const ASTs& disk_args, ContextPtr context);
 
 /// The same as above function, but return XML::Document for easier modification of result configuration.
-[[ maybe_unused ]] Poco::AutoPtr<Poco::XML::Document> getDiskConfigurationFromASTImpl(const ASTs & disk_args, ContextPtr context);
+[[maybe_unused]] Poco::AutoPtr<Poco::XML::Document> getDiskConfigurationFromASTImpl(const ASTs& disk_args, ContextPtr context);
 
 /*
  * A reverse function.
  */
-[[ maybe_unused ]] ASTs convertDiskConfigurationToAST(const Poco::Util::AbstractConfiguration & configuration, const std::string & config_path);
+[[maybe_unused]] ASTs convertDiskConfigurationToAST(const Poco::Util::AbstractConfiguration& configuration, const std::string& config_path);
 
-}
+}  // namespace DB

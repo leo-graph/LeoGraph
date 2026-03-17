@@ -1,30 +1,24 @@
-#include <Parsers/ASTNameTypePair.h>
 #include <Common/quoteString.h>
 #include <IO/Operators.h>
+#include <Parsers/ASTNameTypePair.h>
 
+namespace DB {
 
-namespace DB
-{
+ASTPtr ASTNameTypePair::clone() const {
+  auto res = make_intrusive<ASTNameTypePair>(*this);
+  res->children.clear();
 
-ASTPtr ASTNameTypePair::clone() const
-{
-    auto res = make_intrusive<ASTNameTypePair>(*this);
-    res->children.clear();
+  if (type) {
+    res->type = type->clone();
+    res->children.push_back(res->type);
+  }
 
-    if (type)
-    {
-        res->type = type->clone();
-        res->children.push_back(res->type);
-    }
-
-    return res;
+  return res;
 }
 
-
-void ASTNameTypePair::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    ostr << backQuoteIfNeed(name) << ' ';
-    type->format(ostr, settings, state, frame);
+void ASTNameTypePair::formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const {
+  ostr << backQuoteIfNeed(name) << ' ';
+  type->format(ostr, settings, state, frame);
 }
 
-}
+}  // namespace DB

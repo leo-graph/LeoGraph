@@ -2,21 +2,19 @@
 
 #include <Common/RWLock.h>
 
-namespace DB
-{
+namespace DB {
 
 using TableLockHolder = RWLockImpl::LockHolder;
 
 /// Table exclusive lock, holds both alter and drop locks. Useful for DROP-like
 /// queries.
-struct TableExclusiveLockHolder
-{
-    void release() { *this = TableExclusiveLockHolder(); }
+struct TableExclusiveLockHolder {
+  void release() { *this = TableExclusiveLockHolder(); }
 
-private:
-    friend class IStorage;
+ private:
+  friend class IStorage;
 
-    TableLockHolder drop_lock;
+  TableLockHolder drop_lock;
 };
 
-}
+}  // namespace DB

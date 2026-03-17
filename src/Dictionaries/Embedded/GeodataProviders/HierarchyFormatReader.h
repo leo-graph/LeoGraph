@@ -1,21 +1,19 @@
 #pragma once
 
-#include <IO/ReadBuffer.h>
 #include <Dictionaries/Embedded/GeodataProviders/IHierarchiesProvider.h>
+#include <IO/ReadBuffer.h>
 
-namespace DB
-{
+namespace DB {
 
 // Reads regions hierarchy in geoexport format
-class RegionsHierarchyFormatReader : public IRegionsHierarchyReader
-{
-private:
-    ReadBufferPtr input;
+class RegionsHierarchyFormatReader : public IRegionsHierarchyReader {
+ private:
+  ReadBufferPtr input;
 
-public:
-    explicit RegionsHierarchyFormatReader(ReadBufferPtr input_) : input(std::move(input_)) {}
+ public:
+  explicit RegionsHierarchyFormatReader(ReadBufferPtr input_) : input(std::move(input_)) {}
 
-    bool readNext(RegionEntry & entry) override;
+  bool readNext(RegionEntry& entry) override;
 };
 
-}
+}  // namespace DB

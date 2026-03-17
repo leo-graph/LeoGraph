@@ -1,82 +1,71 @@
 #pragma once
 
 #include <base/defines.h>
-#include <Parsers/IAST.h>
-#include <Parsers/ASTQueryWithOutput.h>
 #include <Core/UUID.h>
+#include <Parsers/ASTQueryWithOutput.h>
+#include <Parsers/IAST.h>
 
-
-namespace DB
-{
-
+namespace DB {
 
 /** Query specifying table name and, possibly, the database and the FORMAT section.
-  */
-class ASTQueryWithTableAndOutput : public ASTQueryWithOutput
-{
-    struct ASTQueryWithTableAndOutputFlags
-    {
-        using ParentFlags = ASTQueryWithOutput::ASTQueryWithOutputFlags;
-        static constexpr UInt32 RESERVED_BITS = ParentFlags::RESERVED_BITS + 1;
+ */
+class ASTQueryWithTableAndOutput : public ASTQueryWithOutput {
+  struct ASTQueryWithTableAndOutputFlags {
+    using ParentFlags = ASTQueryWithOutput::ASTQueryWithOutputFlags;
+    static constexpr UInt32 RESERVED_BITS = ParentFlags::RESERVED_BITS + 1;
 
-        UInt32 _parent_reserved : ParentFlags::RESERVED_BITS;
-        UInt32 is_temporary : 1;
-    };
-public:
-    ASTPtr database;
-    ASTPtr table;
-    UUID uuid = UUIDHelpers::Nil;
+    UInt32 _parent_reserved : ParentFlags::RESERVED_BITS;
+    UInt32 is_temporary : 1;
+  };
 
-    /// Note that flags are initialized to zero (false) by default
-    ASTQueryWithTableAndOutput() = default;
+ public:
+  ASTPtr database;
+  ASTPtr table;
+  UUID uuid = UUIDHelpers::Nil;
 
-    bool isTemporary() const { return flags<ASTQueryWithTableAndOutputFlags>().is_temporary; }
-    void setIsTemporary(bool value) { flags<ASTQueryWithTableAndOutputFlags>().is_temporary = value; }
+  /// Note that flags are initialized to zero (false) by default
+  ASTQueryWithTableAndOutput() = default;
 
-    String getDatabase() const;
-    String getTable() const;
+  bool isTemporary() const { return flags<ASTQueryWithTableAndOutputFlags>().is_temporary; }
+  void setIsTemporary(bool value) { flags<ASTQueryWithTableAndOutputFlags>().is_temporary = value; }
 
-    // Once database or table are set they cannot be assigned with empty value
-    void setDatabase(const String & name);
-    void setTable(const String & name);
+  String getDatabase() const;
+  String getTable() const;
 
-    void cloneTableOptions(ASTQueryWithTableAndOutput & cloned) const;
+  // Once database or table are set they cannot be assigned with empty value
+  void setDatabase(const String& name);
+  void setTable(const String& name);
+
+  void cloneTableOptions(ASTQueryWithTableAndOutput& cloned) const;
 };
-
 
 template <typename AstIDAndQueryNames>
-class ASTQueryWithTableAndOutputImpl : public ASTQueryWithTableAndOutput
-{
-public:
-    String getID(char delim) const override { return AstIDAndQueryNames::ID + (delim + getDatabase()) + delim + getTable(); }
+class ASTQueryWithTableAndOutputImpl : public ASTQueryWithTableAndOutput {
+ public:
+  String getID(char delim) const override { return AstIDAndQueryNames::ID + (delim + getDatabase()) + delim + getTable(); }
 
-    ASTPtr clone() const override
-    {
-        auto res = make_intrusive<ASTQueryWithTableAndOutputImpl<AstIDAndQueryNames>>(*this);
-        res->children.clear();
-        cloneOutputOptions(*res);
-        cloneTableOptions(*res);
-        return res;
+  ASTPtr clone() const override {
+    auto res = make_intrusive<ASTQueryWithTableAndOutputImpl<AstIDAndQueryNames>>(*this);
+    res->children.clear();
+    cloneOutputOptions(*res);
+    cloneTableOptions(*res);
+    return res;
+  }
+
+  QueryKind getQueryKind() const override { return QueryKind::Show; }
+
+ protected:
+  void formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override {
+    ostr << (isTemporary() ? AstIDAndQueryNames::QueryTemporary : AstIDAndQueryNames::Query) << " ";
+
+    if (database) {
+      database->format(ostr, settings, state, frame);
+      ostr << '.';
     }
 
-    QueryKind getQueryKind() const override { return QueryKind::Show; }
-
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
-    {
-        ostr
-            << (isTemporary() ? AstIDAndQueryNames::QueryTemporary : AstIDAndQueryNames::Query)
-            << " ";
-
-        if (database)
-        {
-            database->format(ostr, settings, state, frame);
-            ostr << '.';
-        }
-
-        chassert(table != nullptr, "Table is empty for the ASTQueryWithTableAndOutputImpl.");
-        table->format(ostr, settings, state, frame);
-    }
+    chassert(table != nullptr, "Table is empty for the ASTQueryWithTableAndOutputImpl.");
+    table->format(ostr, settings, state, frame);
+  }
 };
 
-}
+}  // namespace DB

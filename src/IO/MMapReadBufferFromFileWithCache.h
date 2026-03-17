@@ -1,31 +1,28 @@
 #pragma once
 
-#include <IO/ReadBufferFromFileBase.h>
 #include <IO/MMappedFileCache.h>
 #include <IO/MMapReadBufferFromFileDescriptor.h>
+#include <IO/ReadBufferFromFileBase.h>
 
+namespace DB {
 
-namespace DB
-{
+class MMapReadBufferFromFileWithCache : public ReadBufferFromFileBase {
+ public:
+  MMapReadBufferFromFileWithCache(MMappedFileCache& cache, const std::string& file_name, size_t offset, size_t length);
 
-class MMapReadBufferFromFileWithCache : public ReadBufferFromFileBase
-{
-public:
-    MMapReadBufferFromFileWithCache(MMappedFileCache & cache, const std::string & file_name, size_t offset, size_t length);
+  /// Map till end of file.
+  MMapReadBufferFromFileWithCache(MMappedFileCache& cache, const std::string& file_name, size_t offset);
 
-    /// Map till end of file.
-    MMapReadBufferFromFileWithCache(MMappedFileCache & cache, const std::string & file_name, size_t offset);
+  off_t getPosition() override;
+  std::string getFileName() const override;
+  off_t seek(off_t offset, int whence) override;
 
-    off_t getPosition() override;
-    std::string getFileName() const override;
-    off_t seek(off_t offset, int whence) override;
+  bool isRegularLocalFile(size_t* /* out_view_offset */) override { return true; }
 
-    bool isRegularLocalFile(size_t * /* out_view_offset */) override { return true; }
+ private:
+  MMappedFileCache::MappedPtr mapped;
 
-private:
-    MMappedFileCache::MappedPtr mapped;
-
-    void init();
+  void init();
 };
 
-}
+}  // namespace DB

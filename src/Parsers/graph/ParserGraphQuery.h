@@ -2,14 +2,12 @@
 
 #include <Parsers/IParserBase.h>
 
-namespace DB
-{
+namespace DB {
 
-class ParserGraphQuery : public IParserBase
-{
-protected:
-    const char * getName() const override { return "Graph query (GQL)"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+class ParserGraphQuery : public IParserBase {
+ protected:
+  const char* getName() const override { return "Graph query (GQL)"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace DB

@@ -5,24 +5,21 @@
 
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
-class ColumnPermuteTransform : public ISimpleTransform
-{
-public:
-    ColumnPermuteTransform(SharedHeader header_, const std::vector<size_t> & permutation_);
+class ColumnPermuteTransform : public ISimpleTransform {
+ public:
+  ColumnPermuteTransform(SharedHeader header_, const std::vector<size_t>& permutation_);
 
-    String getName() const override { return "ColumnPermuteTransform"; }
+  String getName() const override { return "ColumnPermuteTransform"; }
 
-    void transform(Chunk & chunk) override;
+  void transform(Chunk& chunk) override;
 
-    static Block permute(const Block & block, const std::vector<size_t> & permutation);
+  static Block permute(const Block& block, const std::vector<size_t>& permutation);
 
-private:
-    Names column_names;
-    std::vector<size_t> permutation;
+ private:
+  Names column_names;
+  std::vector<size_t> permutation;
 };
 
-
-}
+}  // namespace DB

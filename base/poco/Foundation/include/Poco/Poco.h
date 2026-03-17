@@ -13,12 +13,9 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Poco_INCLUDED
 #define Foundation_Poco_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-#endif // Foundation_Poco_INCLUDED
+#endif  // Foundation_Poco_INCLUDED

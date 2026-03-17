@@ -1,231 +1,209 @@
 #include <Parsers/ASTColumnsMatcher.h>
 
+#include <Common/quoteString.h>
+#include <Common/SipHash.h>
 #include <IO/Operators.h>
 #include <IO/WriteHelpers.h>
-#include <Common/SipHash.h>
-#include <Common/quoteString.h>
 
+namespace DB {
 
-namespace DB
-{
+ASTPtr ASTColumnsRegexpMatcher::clone() const {
+  auto clone = make_intrusive<ASTColumnsRegexpMatcher>(*this);
+  clone->children.clear();
 
-ASTPtr ASTColumnsRegexpMatcher::clone() const
-{
-    auto clone = make_intrusive<ASTColumnsRegexpMatcher>(*this);
-    clone->children.clear();
+  if (expression) {
+    clone->expression = expression->clone();
+    clone->children.push_back(clone->expression);
+  }
+  if (transformers) {
+    clone->transformers = transformers->clone();
+    clone->children.push_back(clone->transformers);
+  }
 
-    if (expression) { clone->expression = expression->clone(); clone->children.push_back(clone->expression); }
-    if (transformers) { clone->transformers = transformers->clone(); clone->children.push_back(clone->transformers); }
-
-    return clone;
+  return clone;
 }
 
-void ASTColumnsRegexpMatcher::appendColumnName(WriteBuffer & ostr) const
-{
-    if (expression)
-    {
-        expression->appendColumnName(ostr);
-        writeCString(".", ostr);
+void ASTColumnsRegexpMatcher::appendColumnName(WriteBuffer& ostr) const {
+  if (expression) {
+    expression->appendColumnName(ostr);
+    writeCString(".", ostr);
+  }
+  writeCString("COLUMNS(", ostr);
+  writeQuotedString(pattern, ostr);
+  writeChar(')', ostr);
+}
+
+void ASTColumnsRegexpMatcher::updateTreeHashImpl(SipHash& hash_state, bool ignore_aliases) const {
+  hash_state.update(pattern.size());
+  hash_state.update(pattern);
+  IAST::updateTreeHashImpl(hash_state, ignore_aliases);
+}
+
+void ASTColumnsRegexpMatcher::formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                         FormatStateStacked frame) const {
+  if (expression) {
+    expression->format(ostr, settings, state, frame);
+    ostr << ".";
+  }
+
+  ostr << "COLUMNS" << "(";
+  ostr << quoteString(pattern);
+  ostr << ")";
+
+  if (transformers) {
+    transformers->format(ostr, settings, state, frame);
+  }
+}
+
+void ASTColumnsRegexpMatcher::setPattern(String pattern_) { pattern = std::move(pattern_); }
+
+const String& ASTColumnsRegexpMatcher::getPattern() const { return pattern; }
+
+ASTPtr ASTColumnsListMatcher::clone() const {
+  auto clone = make_intrusive<ASTColumnsListMatcher>(*this);
+  clone->children.clear();
+
+  if (expression) {
+    clone->expression = expression->clone();
+    clone->children.push_back(clone->expression);
+  }
+  if (transformers) {
+    clone->transformers = transformers->clone();
+    clone->children.push_back(clone->transformers);
+  }
+
+  clone->column_list = column_list->clone();
+  clone->children.push_back(clone->column_list);
+
+  return clone;
+}
+
+void ASTColumnsListMatcher::appendColumnName(WriteBuffer& ostr) const {
+  if (expression) {
+    expression->appendColumnName(ostr);
+    writeCString(".", ostr);
+  }
+  writeCString("COLUMNS(", ostr);
+  for (auto it = column_list->children.begin(); it != column_list->children.end(); ++it) {
+    if (it != column_list->children.begin()) writeCString(", ", ostr);
+
+    (*it)->appendColumnName(ostr);
+  }
+  writeChar(')', ostr);
+}
+
+void ASTColumnsListMatcher::formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                       FormatStateStacked frame) const {
+  if (expression) {
+    expression->format(ostr, settings, state, frame);
+    ostr << ".";
+  }
+
+  ostr << "COLUMNS" << "(";
+
+  for (ASTs::const_iterator it = column_list->children.begin(); it != column_list->children.end(); ++it) {
+    if (it != column_list->children.begin()) {
+      ostr << ", ";
     }
-    writeCString("COLUMNS(", ostr);
-    writeQuotedString(pattern, ostr);
-    writeChar(')', ostr);
+    (*it)->format(ostr, settings, state, frame);
+  }
+  ostr << ")";
+
+  if (transformers) {
+    transformers->format(ostr, settings, state, frame);
+  }
 }
 
-void ASTColumnsRegexpMatcher::updateTreeHashImpl(SipHash & hash_state, bool ignore_aliases) const
-{
-    hash_state.update(pattern.size());
-    hash_state.update(pattern);
-    IAST::updateTreeHashImpl(hash_state, ignore_aliases);
+ASTPtr ASTQualifiedColumnsRegexpMatcher::clone() const {
+  auto clone = make_intrusive<ASTQualifiedColumnsRegexpMatcher>(*this);
+  clone->children.clear();
+
+  if (transformers) {
+    clone->transformers = transformers->clone();
+    clone->children.push_back(clone->transformers);
+  }
+
+  clone->qualifier = qualifier->clone();
+  clone->children.push_back(clone->qualifier);
+
+  return clone;
 }
 
-void ASTColumnsRegexpMatcher::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    if (expression)
-    {
-        expression->format(ostr, settings, state, frame);
-        ostr << ".";
-    }
-
-    ostr << "COLUMNS" << "(";
-    ostr << quoteString(pattern);
-    ostr << ")";
-
-    if (transformers)
-    {
-        transformers->format(ostr, settings, state, frame);
-    }
+void ASTQualifiedColumnsRegexpMatcher::appendColumnName(WriteBuffer& ostr) const {
+  qualifier->appendColumnName(ostr);
+  writeCString(".COLUMNS(", ostr);
+  writeQuotedString(pattern, ostr);
+  writeChar(')', ostr);
 }
 
-void ASTColumnsRegexpMatcher::setPattern(String pattern_)
-{
-    pattern = std::move(pattern_);
+void ASTQualifiedColumnsRegexpMatcher::setPattern(String pattern_) { pattern = std::move(pattern_); }
+
+const String& ASTQualifiedColumnsRegexpMatcher::getPattern() const { return pattern; }
+
+void ASTQualifiedColumnsRegexpMatcher::updateTreeHashImpl(SipHash& hash_state, bool ignore_aliases) const {
+  hash_state.update(pattern.size());
+  hash_state.update(pattern);
+  IAST::updateTreeHashImpl(hash_state, ignore_aliases);
 }
 
-const String & ASTColumnsRegexpMatcher::getPattern() const
-{
-    return pattern;
+void ASTQualifiedColumnsRegexpMatcher::formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                                  FormatStateStacked frame) const {
+  qualifier->format(ostr, settings, state, frame);
+
+  ostr << ".COLUMNS" << "(";
+  ostr << quoteString(pattern);
+  ostr << ")";
+
+  if (transformers) {
+    transformers->format(ostr, settings, state, frame);
+  }
 }
 
-ASTPtr ASTColumnsListMatcher::clone() const
-{
-    auto clone = make_intrusive<ASTColumnsListMatcher>(*this);
-    clone->children.clear();
+ASTPtr ASTQualifiedColumnsListMatcher::clone() const {
+  auto clone = make_intrusive<ASTQualifiedColumnsListMatcher>(*this);
+  clone->children.clear();
 
-    if (expression) { clone->expression = expression->clone(); clone->children.push_back(clone->expression); }
-    if (transformers) { clone->transformers = transformers->clone(); clone->children.push_back(clone->transformers); }
+  if (transformers) {
+    clone->transformers = transformers->clone();
+    clone->children.push_back(clone->transformers);
+  }
 
-    clone->column_list = column_list->clone();
-    clone->children.push_back(clone->column_list);
+  clone->qualifier = qualifier->clone();
+  clone->column_list = column_list->clone();
 
-    return clone;
+  clone->children.push_back(clone->qualifier);
+  clone->children.push_back(clone->column_list);
+
+  return clone;
 }
 
-void ASTColumnsListMatcher::appendColumnName(WriteBuffer & ostr) const
-{
-    if (expression)
-    {
-        expression->appendColumnName(ostr);
-        writeCString(".", ostr);
-    }
-    writeCString("COLUMNS(", ostr);
-    for (auto it = column_list->children.begin(); it != column_list->children.end(); ++it)
-    {
-        if (it != column_list->children.begin())
-            writeCString(", ", ostr);
+void ASTQualifiedColumnsListMatcher::appendColumnName(WriteBuffer& ostr) const {
+  qualifier->appendColumnName(ostr);
+  writeCString(".COLUMNS(", ostr);
 
-        (*it)->appendColumnName(ostr);
-    }
-    writeChar(')', ostr);
+  for (auto it = column_list->children.begin(); it != column_list->children.end(); ++it) {
+    if (it != column_list->children.begin()) writeCString(", ", ostr);
+
+    (*it)->appendColumnName(ostr);
+  }
+  writeChar(')', ostr);
 }
 
-void ASTColumnsListMatcher::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    if (expression)
-    {
-        expression->format(ostr, settings, state, frame);
-        ostr << ".";
-    }
+void ASTQualifiedColumnsListMatcher::formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                                FormatStateStacked frame) const {
+  qualifier->format(ostr, settings, state, frame);
+  ostr << ".COLUMNS" << "(";
 
-    ostr << "COLUMNS" << "(";
+  for (ASTs::const_iterator it = column_list->children.begin(); it != column_list->children.end(); ++it) {
+    if (it != column_list->children.begin()) ostr << ", ";
 
-    for (ASTs::const_iterator it = column_list->children.begin(); it != column_list->children.end(); ++it)
-    {
-        if (it != column_list->children.begin())
-        {
-            ostr << ", ";
-        }
-        (*it)->format(ostr, settings, state, frame);
-    }
-    ostr << ")";
+    (*it)->format(ostr, settings, state, frame);
+  }
+  ostr << ")";
 
-    if (transformers)
-    {
-        transformers->format(ostr, settings, state, frame);
-    }
+  if (transformers) {
+    transformers->format(ostr, settings, state, frame);
+  }
 }
 
-ASTPtr ASTQualifiedColumnsRegexpMatcher::clone() const
-{
-    auto clone = make_intrusive<ASTQualifiedColumnsRegexpMatcher>(*this);
-    clone->children.clear();
-
-    if (transformers) { clone->transformers = transformers->clone(); clone->children.push_back(clone->transformers); }
-
-    clone->qualifier = qualifier->clone();
-    clone->children.push_back(clone->qualifier);
-
-    return clone;
-}
-
-void ASTQualifiedColumnsRegexpMatcher::appendColumnName(WriteBuffer & ostr) const
-{
-    qualifier->appendColumnName(ostr);
-    writeCString(".COLUMNS(", ostr);
-    writeQuotedString(pattern, ostr);
-    writeChar(')', ostr);
-}
-
-void ASTQualifiedColumnsRegexpMatcher::setPattern(String pattern_)
-{
-    pattern = std::move(pattern_);
-}
-
-const String & ASTQualifiedColumnsRegexpMatcher::getPattern() const
-{
-    return pattern;
-}
-
-void ASTQualifiedColumnsRegexpMatcher::updateTreeHashImpl(SipHash & hash_state, bool ignore_aliases) const
-{
-    hash_state.update(pattern.size());
-    hash_state.update(pattern);
-    IAST::updateTreeHashImpl(hash_state, ignore_aliases);
-}
-
-void ASTQualifiedColumnsRegexpMatcher::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    qualifier->format(ostr, settings, state, frame);
-
-    ostr << ".COLUMNS" << "(";
-    ostr << quoteString(pattern);
-    ostr << ")";
-
-    if (transformers)
-    {
-        transformers->format(ostr, settings, state, frame);
-    }
-}
-
-ASTPtr ASTQualifiedColumnsListMatcher::clone() const
-{
-    auto clone = make_intrusive<ASTQualifiedColumnsListMatcher>(*this);
-    clone->children.clear();
-
-    if (transformers) { clone->transformers = transformers->clone(); clone->children.push_back(clone->transformers); }
-
-    clone->qualifier = qualifier->clone();
-    clone->column_list = column_list->clone();
-
-    clone->children.push_back(clone->qualifier);
-    clone->children.push_back(clone->column_list);
-
-    return clone;
-}
-
-void ASTQualifiedColumnsListMatcher::appendColumnName(WriteBuffer & ostr) const
-{
-    qualifier->appendColumnName(ostr);
-    writeCString(".COLUMNS(", ostr);
-
-    for (auto it = column_list->children.begin(); it != column_list->children.end(); ++it)
-    {
-        if (it != column_list->children.begin())
-            writeCString(", ", ostr);
-
-        (*it)->appendColumnName(ostr);
-    }
-    writeChar(')', ostr);
-}
-
-void ASTQualifiedColumnsListMatcher::formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    qualifier->format(ostr, settings, state, frame);
-    ostr << ".COLUMNS" << "(";
-
-    for (ASTs::const_iterator it = column_list->children.begin(); it != column_list->children.end(); ++it)
-    {
-        if (it != column_list->children.begin())
-            ostr << ", ";
-
-        (*it)->format(ostr, settings, state, frame);
-    }
-    ostr << ")";
-
-    if (transformers)
-    {
-        transformers->format(ostr, settings, state, frame);
-    }
-}
-
-}
+}  // namespace DB

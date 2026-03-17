@@ -1,13 +1,11 @@
 #include <Functions/FunctionsConversion.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace detail
-{
+namespace detail {
 
 template class FunctionConvert<DataTypeInt8, NameToInt8, ToNumberMonotonicity<Int8>>;
 
 }
 
-}
+}  // namespace DB

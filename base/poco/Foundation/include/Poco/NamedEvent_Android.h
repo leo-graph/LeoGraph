@@ -13,29 +13,21 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NamedEvent_Android_INCLUDED
 #define Foundation_NamedEvent_Android_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
+namespace Poco {
 
-namespace Poco
-{
-
-
-class Foundation_API NamedEventImpl
-{
-protected:
-    NamedEventImpl(const std::string & name);
-    ~NamedEventImpl();
-    void setImpl();
-    void waitImpl();
+class Foundation_API NamedEventImpl {
+ protected:
+  NamedEventImpl(const std::string& name);
+  ~NamedEventImpl();
+  void setImpl();
+  void waitImpl();
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_NamedEvent_Android_INCLUDED
+#endif  // Foundation_NamedEvent_Android_INCLUDED

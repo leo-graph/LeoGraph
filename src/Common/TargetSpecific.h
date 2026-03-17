@@ -1,8 +1,8 @@
 #pragma once
 
 #if defined(__clang__)
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wunused-macros"
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wunused-macros"
 #endif
 
 #include <base/defines.h>
@@ -76,41 +76,38 @@
  * see PerformanceAdaptors.h.
  */
 
-namespace DB
-{
+namespace DB {
 
 /// See https://en.wikipedia.org/wiki/X86-64#Microarchitecture_levels for more details on the instruction sets supported by each level.
-/// We use these levels as a convenient way to group related instruction sets and avoid long lists of features and many different instruction
-/// sets with small differences.
-enum class TargetArch : UInt32
-{
-    Default = 0,
-    x86_64_v2 = (1 << 0),
-    x86_64_v3 = (1 << 1),
-    x86_64_v4 = (1 << 2),
-    x86_64_icelake = (1 << 3),
-    x86_64_sapphirerapids = (1 << 4),
-    GenuineIntel = (1 << 5),          /// Not an instruction set, but a CPU vendor. Used for optimizations that are only applicable for Intel CPUs, like prefetching
+/// We use these levels as a convenient way to group related instruction sets and avoid long lists of features and many different
+/// instruction sets with small differences.
+enum class TargetArch : UInt32 {
+  Default = 0,
+  x86_64_v2 = (1 << 0),
+  x86_64_v3 = (1 << 1),
+  x86_64_v4 = (1 << 2),
+  x86_64_icelake = (1 << 3),
+  x86_64_sapphirerapids = (1 << 4),
+  GenuineIntel = (1 << 5),  /// Not an instruction set, but a CPU vendor. Used for optimizations that are only applicable for Intel CPUs,
+                            /// like prefetching
 };
 
 /// Runtime detection.
 UInt32 getSupportedArchs();
-inline ALWAYS_INLINE bool isArchSupported(TargetArch arch)
-{
-    static UInt32 arches = getSupportedArchs();
-    return arch == TargetArch::Default || (arches & static_cast<UInt32>(arch));
+inline ALWAYS_INLINE bool isArchSupported(TargetArch arch) {
+  static UInt32 arches = getSupportedArchs();
+  return arch == TargetArch::Default || (arches & static_cast<UInt32>(arch));
 }
 
 String toString(TargetArch arch);
 
 #ifndef ENABLE_MULTITARGET_CODE
-#   define ENABLE_MULTITARGET_CODE 0
+#  define ENABLE_MULTITARGET_CODE 0
 #endif
 
 #if ENABLE_MULTITARGET_CODE && defined(__GNUC__) && defined(__x86_64__)
 
-
-#define USE_MULTITARGET_CODE 1
+#  define USE_MULTITARGET_CODE 1
 
 /// Function-specific attributes using arch= for cleaner specification
 /// This matches -march= compiler flags and avoids long feature lists
@@ -124,163 +121,145 @@ String toString(TargetArch arch);
 /// - Newer CPUs (Ice Lake, Sapphire Rapids, AMD Zen 4/5) have minimal throttling
 ///
 /// We explicitly override with `no-prefer-256-bit` to enable 512-bit vectorization for AVX-512 targets.
-#define X86_64_V2_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v2")))
-#define X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v3")))
-#define X86_64_V4_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v4,no-prefer-256-bit")))
-#define X86_64_ICELAKE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=icelake-server,no-prefer-256-bit")))
-#define X86_64_SAPPHIRE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=sapphirerapids,no-prefer-256-bit")))
+#  define X86_64_V2_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v2")))
+#  define X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v3")))
+#  define X86_64_V4_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=x86-64-v4,no-prefer-256-bit")))
+#  define X86_64_ICELAKE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=icelake-server,no-prefer-256-bit")))
+#  define X86_64_SAPPHIRE_FUNCTION_SPECIFIC_ATTRIBUTE __attribute__((target("arch=sapphirerapids,no-prefer-256-bit")))
 
-#define DEFAULT_FUNCTION_SPECIFIC_ATTRIBUTE
+#  define DEFAULT_FUNCTION_SPECIFIC_ATTRIBUTE
 
 /// Begin target-specific code blocks using arch= for cleaner specification
-#define BEGIN_X86_64_V2_SPECIFIC_CODE \
-    _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v2\"))),apply_to=function)")
-#define BEGIN_X86_64_V3_SPECIFIC_CODE \
-    _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v3\"))),apply_to=function)")
-#define BEGIN_X86_64_V4_SPECIFIC_CODE \
+#  define BEGIN_X86_64_V2_SPECIFIC_CODE _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v2\"))),apply_to=function)")
+#  define BEGIN_X86_64_V3_SPECIFIC_CODE _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v3\"))),apply_to=function)")
+#  define BEGIN_X86_64_V4_SPECIFIC_CODE \
     _Pragma("clang attribute push(__attribute__((target(\"arch=x86-64-v4,no-prefer-256-bit\"))),apply_to=function)")
-#define BEGIN_X86_64_ICELAKE_SPECIFIC_CODE \
+#  define BEGIN_X86_64_ICELAKE_SPECIFIC_CODE \
     _Pragma("clang attribute push(__attribute__((target(\"arch=icelake-server,no-prefer-256-bit\"))),apply_to=function)")
-#define BEGIN_X86_64_SAPPHIRE_SPECIFIC_CODE \
+#  define BEGIN_X86_64_SAPPHIRE_SPECIFIC_CODE \
     _Pragma("clang attribute push(__attribute__((target(\"arch=sapphirerapids,no-prefer-256-bit\"))),apply_to=function)")
 
-#define END_TARGET_SPECIFIC_CODE \
-    _Pragma("clang attribute pop")
+#  define END_TARGET_SPECIFIC_CODE _Pragma("clang attribute pop")
 
 /* Clang shows warning when there aren't any objects to apply pragma.
  * To prevent this warning we define this function inside every macros with pragmas.
  */
-#   define DUMMY_FUNCTION_DEFINITION [[maybe_unused]] void _dummy_function_definition();
+#  define DUMMY_FUNCTION_DEFINITION [[maybe_unused]] void _dummy_function_definition();
 
-
-#define DECLARE_X86_64_V2_SPECIFIC_CODE(...) \
-BEGIN_X86_64_V2_SPECIFIC_CODE \
-namespace TargetSpecific::x86_64_v2 { \
-    DUMMY_FUNCTION_DEFINITION \
+#  define DECLARE_X86_64_V2_SPECIFIC_CODE(...)     \
+    BEGIN_X86_64_V2_SPECIFIC_CODE                  \
+    namespace TargetSpecific::x86_64_v2 {          \
+    DUMMY_FUNCTION_DEFINITION                      \
     using namespace DB::TargetSpecific::x86_64_v2; \
-    __VA_ARGS__ \
-} \
-END_TARGET_SPECIFIC_CODE
+    __VA_ARGS__                                    \
+    }                                              \
+    END_TARGET_SPECIFIC_CODE
 
-#define DECLARE_X86_64_V3_SPECIFIC_CODE(...) \
-BEGIN_X86_64_V3_SPECIFIC_CODE \
-namespace TargetSpecific::x86_64_v3 { \
-    DUMMY_FUNCTION_DEFINITION \
+#  define DECLARE_X86_64_V3_SPECIFIC_CODE(...)     \
+    BEGIN_X86_64_V3_SPECIFIC_CODE                  \
+    namespace TargetSpecific::x86_64_v3 {          \
+    DUMMY_FUNCTION_DEFINITION                      \
     using namespace DB::TargetSpecific::x86_64_v3; \
-    __VA_ARGS__ \
-} \
-END_TARGET_SPECIFIC_CODE
+    __VA_ARGS__                                    \
+    }                                              \
+    END_TARGET_SPECIFIC_CODE
 
-#define DECLARE_X86_64_V4_SPECIFIC_CODE(...) \
-BEGIN_X86_64_V4_SPECIFIC_CODE \
-namespace TargetSpecific::x86_64_v4 { \
-    DUMMY_FUNCTION_DEFINITION \
+#  define DECLARE_X86_64_V4_SPECIFIC_CODE(...)     \
+    BEGIN_X86_64_V4_SPECIFIC_CODE                  \
+    namespace TargetSpecific::x86_64_v4 {          \
+    DUMMY_FUNCTION_DEFINITION                      \
     using namespace DB::TargetSpecific::x86_64_v4; \
-    __VA_ARGS__ \
-} \
-END_TARGET_SPECIFIC_CODE
+    __VA_ARGS__                                    \
+    }                                              \
+    END_TARGET_SPECIFIC_CODE
 
-#define DECLARE_X86_ICELAKE_SPECIFIC_CODE(...) \
-BEGIN_X86_64_ICELAKE_SPECIFIC_CODE \
-namespace TargetSpecific::x86_64_icelake { \
-    DUMMY_FUNCTION_DEFINITION \
+#  define DECLARE_X86_ICELAKE_SPECIFIC_CODE(...)        \
+    BEGIN_X86_64_ICELAKE_SPECIFIC_CODE                  \
+    namespace TargetSpecific::x86_64_icelake {          \
+    DUMMY_FUNCTION_DEFINITION                           \
     using namespace DB::TargetSpecific::x86_64_icelake; \
-    __VA_ARGS__ \
-} \
-END_TARGET_SPECIFIC_CODE
+    __VA_ARGS__                                         \
+    }                                                   \
+    END_TARGET_SPECIFIC_CODE
 
-#define DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(...) \
-BEGIN_X86_64_SAPPHIRE_SPECIFIC_CODE \
-namespace TargetSpecific::x86_64_sapphirerapids { \
-    DUMMY_FUNCTION_DEFINITION \
+#  define DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(...)              \
+    BEGIN_X86_64_SAPPHIRE_SPECIFIC_CODE                        \
+    namespace TargetSpecific::x86_64_sapphirerapids {          \
+    DUMMY_FUNCTION_DEFINITION                                  \
     using namespace DB::TargetSpecific::x86_64_sapphirerapids; \
-    __VA_ARGS__ \
-} \
-END_TARGET_SPECIFIC_CODE
+    __VA_ARGS__                                                \
+    }                                                          \
+    END_TARGET_SPECIFIC_CODE
 
 #else
 
-#define USE_MULTITARGET_CODE 0
+#  define USE_MULTITARGET_CODE 0
 
 /* Multitarget code is disabled, just delete target-specific code.
  */
-#define DECLARE_X86_64_V2_SPECIFIC_CODE(...)
-#define DECLARE_X86_64_V3_SPECIFIC_CODE(...)
-#define DECLARE_X86_64_V4_SPECIFIC_CODE(...)
-#define DECLARE_X86_ICELAKE_SPECIFIC_CODE(...)
-#define DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(...)
+#  define DECLARE_X86_64_V2_SPECIFIC_CODE(...)
+#  define DECLARE_X86_64_V3_SPECIFIC_CODE(...)
+#  define DECLARE_X86_64_V4_SPECIFIC_CODE(...)
+#  define DECLARE_X86_ICELAKE_SPECIFIC_CODE(...)
+#  define DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(...)
 
 #endif
 
-#define DECLARE_DEFAULT_CODE(...) \
-namespace TargetSpecific::Default { \
-    using namespace DB::TargetSpecific::Default; \
-    __VA_ARGS__ \
-}
-
+#define DECLARE_DEFAULT_CODE(...)              \
+  namespace TargetSpecific::Default {          \
+  using namespace DB::TargetSpecific::Default; \
+  __VA_ARGS__                                  \
+  }
 
 /// Only enable extra v3 and v4 by default
-#define DECLARE_MULTITARGET_CODE(...) \
-DECLARE_DEFAULT_CODE         (__VA_ARGS__) \
-DECLARE_X86_64_V3_SPECIFIC_CODE    (__VA_ARGS__) \
-DECLARE_X86_64_V4_SPECIFIC_CODE   (__VA_ARGS__) \
+#define DECLARE_MULTITARGET_CODE(...)          \
+  DECLARE_DEFAULT_CODE(__VA_ARGS__)            \
+  DECLARE_X86_64_V3_SPECIFIC_CODE(__VA_ARGS__) \
+  DECLARE_X86_64_V4_SPECIFIC_CODE(__VA_ARGS__)
 
-DECLARE_DEFAULT_CODE(
-    constexpr auto BuildArch = TargetArch::Default;
-)
+DECLARE_DEFAULT_CODE(constexpr auto BuildArch = TargetArch::Default;)
 
-DECLARE_X86_64_V2_SPECIFIC_CODE(
-    constexpr auto BuildArch = TargetArch::x86_64_v2;
-)
+DECLARE_X86_64_V2_SPECIFIC_CODE(constexpr auto BuildArch = TargetArch::x86_64_v2;)
 
-DECLARE_X86_64_V3_SPECIFIC_CODE(
-    constexpr auto BuildArch = TargetArch::x86_64_v3;
-)
+DECLARE_X86_64_V3_SPECIFIC_CODE(constexpr auto BuildArch = TargetArch::x86_64_v3;)
 
-DECLARE_X86_64_V4_SPECIFIC_CODE(
-    constexpr auto BuildArch = TargetArch::x86_64_v4;
-)
+DECLARE_X86_64_V4_SPECIFIC_CODE(constexpr auto BuildArch = TargetArch::x86_64_v4;)
 
-DECLARE_X86_ICELAKE_SPECIFIC_CODE(
-    constexpr auto BuildArch = TargetArch::x86_64_icelake;
-)
+DECLARE_X86_ICELAKE_SPECIFIC_CODE(constexpr auto BuildArch = TargetArch::x86_64_icelake;)
 
-DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(
-    constexpr auto BuildArch = TargetArch::x86_64_sapphirerapids;
-)
-
+DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(constexpr auto BuildArch = TargetArch::x86_64_sapphirerapids;)
 
 /** Runtime Dispatch helpers for class members.
-  *
-  * Example of usage:
-  *
-  * class TestClass
-  * {
-  * public:
-  *     MULTITARGET_FUNCTION_X86_V4_V3(
-  *     MULTITARGET_FUNCTION_HEADER(int), testFunctionImpl, MULTITARGET_FUNCTION_BODY((int value)
-  *     {
-  *          return value;
-  *     })
-  *     )
-  *
-  *     void testFunction(int value) {
-  *         if (isArchSupported(TargetArch::x86_64_v4))
-  *         {
-  *             testFunctionImpl_x86_64_v4(value);
-  *         }
-  *         else if (isArchSupported(TargetArch::x86_64_v3))
-  *         {
-  *             testFunctionImpl_x86_64_v3(value);
-  *         }
-  *         else
-  *         {
-  *             testFunction(value);
-  *         }
-  *     }
-  *};
-  *
-  */
+ *
+ * Example of usage:
+ *
+ * class TestClass
+ * {
+ * public:
+ *     MULTITARGET_FUNCTION_X86_V4_V3(
+ *     MULTITARGET_FUNCTION_HEADER(int), testFunctionImpl, MULTITARGET_FUNCTION_BODY((int value)
+ *     {
+ *          return value;
+ *     })
+ *     )
+ *
+ *     void testFunction(int value) {
+ *         if (isArchSupported(TargetArch::x86_64_v4))
+ *         {
+ *             testFunctionImpl_x86_64_v4(value);
+ *         }
+ *         else if (isArchSupported(TargetArch::x86_64_v3))
+ *         {
+ *             testFunctionImpl_x86_64_v3(value);
+ *         }
+ *         else
+ *         {
+ *             testFunction(value);
+ *         }
+ *     }
+ *};
+ *
+ */
 
 /// Function header
 #define MULTITARGET_FUNCTION_HEADER(...) __VA_ARGS__
@@ -290,55 +269,46 @@ DECLARE_X86_SAPPHIRE_SPECIFIC_CODE(
 
 #if ENABLE_MULTITARGET_CODE && defined(__GNUC__) && defined(__x86_64__)
 
-#define MULTITARGET_FUNCTION_X86_V4_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
-    FUNCTION_HEADER \
-    \
-    X86_64_V4_FUNCTION_SPECIFIC_ATTRIBUTE \
-    name##_x86_64_v4 \
-    FUNCTION_BODY \
-    \
-    FUNCTION_HEADER \
-    \
-    X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE \
-    name##_x86_64_v3 \
-    FUNCTION_BODY \
-    \
-    FUNCTION_HEADER \
-    \
-    name \
-    FUNCTION_BODY \
+#  define MULTITARGET_FUNCTION_X86_V4_V3(FUNCTION_HEADER, name, FUNCTION_BODY)   \
+    FUNCTION_HEADER                                                              \
+                                                                                 \
+    X86_64_V4_FUNCTION_SPECIFIC_ATTRIBUTE                                        \
+    name##_x86_64_v4 FUNCTION_BODY                                               \
+                                                                                 \
+        FUNCTION_HEADER                                                          \
+                                                                                 \
+            X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE name##_x86_64_v3 FUNCTION_BODY \
+                                                                                 \
+                FUNCTION_HEADER                                                  \
+                                                                                 \
+                    name FUNCTION_BODY
 
-#define MULTITARGET_FUNCTION_X86_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
-    FUNCTION_HEADER \
-    \
-    X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE \
-    name##_x86_64_v3 \
-    FUNCTION_BODY \
-    \
-    FUNCTION_HEADER \
-    \
-    name \
-    FUNCTION_BODY \
-
+#  define MULTITARGET_FUNCTION_X86_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
+    FUNCTION_HEADER                                                         \
+                                                                            \
+    X86_64_V3_FUNCTION_SPECIFIC_ATTRIBUTE                                   \
+    name##_x86_64_v3 FUNCTION_BODY                                          \
+                                                                            \
+        FUNCTION_HEADER                                                     \
+                                                                            \
+            name FUNCTION_BODY
 
 #else
 
-#define MULTITARGET_FUNCTION_X86_V4_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
-    FUNCTION_HEADER \
-    \
-    name \
-    FUNCTION_BODY \
+#  define MULTITARGET_FUNCTION_X86_V4_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
+    FUNCTION_HEADER                                                            \
+                                                                               \
+    name FUNCTION_BODY
 
-#define MULTITARGET_FUNCTION_X86_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
-    FUNCTION_HEADER \
-    \
-    name \
-    FUNCTION_BODY \
+#  define MULTITARGET_FUNCTION_X86_V3(FUNCTION_HEADER, name, FUNCTION_BODY) \
+    FUNCTION_HEADER                                                         \
+                                                                            \
+    name FUNCTION_BODY
 
 #endif
 
-}
+}  // namespace DB
 
 #if defined(__clang__)
-#    pragma clang diagnostic pop
+#  pragma clang diagnostic pop
 #endif

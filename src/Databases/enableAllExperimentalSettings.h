@@ -1,8 +1,7 @@
 #pragma once
 #include <Interpreters/Context_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 /*
  * Enables all settings that allow the use of experimental, deprecated, or potentially unsafe features
@@ -12,4 +11,4 @@ namespace DB
 
 void enableAllExperimentalSettings(ContextMutablePtr context);
 
-}
+}  // namespace DB

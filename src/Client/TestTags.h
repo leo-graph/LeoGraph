@@ -2,8 +2,7 @@
 
 #include <Core/Types.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Returns the length of a text looking like
 /// -- Tags: x, y, z
@@ -13,6 +12,6 @@ namespace DB
 ///
 /// at the beginning of a multiline query.
 /// If there are no test tags in the multiline query the function returns 0.
-size_t getTestTagsLength(const String & multiline_query);
+size_t getTestTagsLength(const String& multiline_query);
 
-}
+}  // namespace DB

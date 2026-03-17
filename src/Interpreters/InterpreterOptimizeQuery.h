@@ -3,27 +3,24 @@
 #include <Interpreters/IInterpreter.h>
 #include <Parsers/IAST_fwd.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class AccessRightsElements;
 
 /** Just call method "optimize" for table.
-  */
-class InterpreterOptimizeQuery : public IInterpreter, WithContext
-{
-public:
-    InterpreterOptimizeQuery(const ASTPtr & query_ptr_, ContextPtr context_) : WithContext(context_), query_ptr(query_ptr_) {}
+ */
+class InterpreterOptimizeQuery : public IInterpreter, WithContext {
+ public:
+  InterpreterOptimizeQuery(const ASTPtr& query_ptr_, ContextPtr context_) : WithContext(context_), query_ptr(query_ptr_) {}
 
-    BlockIO execute() override;
+  BlockIO execute() override;
 
-    bool supportsTransactions() const override { return true; }
+  bool supportsTransactions() const override { return true; }
 
-private:
-    AccessRightsElements getRequiredAccess() const;
+ private:
+  AccessRightsElements getRequiredAccess() const;
 
-    ASTPtr query_ptr;
+  ASTPtr query_ptr;
 };
 
-}
+}  // namespace DB

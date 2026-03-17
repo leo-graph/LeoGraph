@@ -2,32 +2,30 @@
 
 #if USE_RDKAFKA
 
-#include <Access/ContextAccess.h>
-#include <Columns/ColumnNullable.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnsDateTime.h>
-#include <Columns/ColumnsNumber.h>
-#include <Common/checkStackSize.h>
-#include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypeDateTime.h>
-#include <DataTypes/DataTypeNullable.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypeUUID.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <Interpreters/Context.h>
-#include <Interpreters/DatabaseCatalog.h>
-#include <Storages/Kafka/StorageKafka.h>
-#include <Storages/Kafka/StorageKafka2.h>
-#include <Storages/StorageMaterializedView.h>
-#include <base/Decimal_fwd.h>
-#include <base/types.h>
+#  include <Access/ContextAccess.h>
+#  include <base/Decimal_fwd.h>
+#  include <base/types.h>
+#  include <Columns/ColumnNullable.h>
+#  include <Columns/ColumnsDateTime.h>
+#  include <Columns/ColumnsNumber.h>
+#  include <Columns/ColumnString.h>
+#  include <Common/checkStackSize.h>
+#  include <DataTypes/DataTypeArray.h>
+#  include <DataTypes/DataTypeDateTime.h>
+#  include <DataTypes/DataTypeNullable.h>
+#  include <DataTypes/DataTypesNumber.h>
+#  include <DataTypes/DataTypeString.h>
+#  include <DataTypes/DataTypeUUID.h>
+#  include <Interpreters/Context.h>
+#  include <Interpreters/DatabaseCatalog.h>
+#  include <Storages/Kafka/StorageKafka.h>
+#  include <Storages/Kafka/StorageKafka2.h>
+#  include <Storages/StorageMaterializedView.h>
 
-namespace DB
-{
+namespace DB {
 
-ColumnsDescription StorageSystemKafkaConsumers::getColumnsDescription()
-{
-    // clang-format off
+ColumnsDescription StorageSystemKafkaConsumers::getColumnsDescription() {
+  // clang-format off
     return ColumnsDescription{
         {"database", std::make_shared<DataTypeString>(), "Database of the table with Kafka Engine."},
         {"table", std::make_shared<DataTypeString>(), "Name of the table with Kafka Engine."},
@@ -51,235 +49,210 @@ ColumnsDescription StorageSystemKafkaConsumers::getColumnsDescription()
         {"dependencies", std::make_shared<DataTypeArray>(std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>())), "Transitive database dependencies."},
         {"missing_dependencies", std::make_shared<DataTypeArray>(std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>())), "Missing transitive database dependencies."},
     };
-    // clang-format on
+  // clang-format on
 }
 
-void StorageSystemKafkaConsumers::fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const
-{
-    auto tables_mark_dropped = DatabaseCatalog::instance().getTablesMarkedDropped();
+void StorageSystemKafkaConsumers::fillData(MutableColumns &res_columns, ContextPtr context, const ActionsDAG::Node *,
+                                           std::vector<UInt8>) const {
+  auto tables_mark_dropped = DatabaseCatalog::instance().getTablesMarkedDropped();
 
-    size_t index = 0;
+  size_t index = 0;
 
-    auto & database = assert_cast<ColumnString &>(*res_columns[index++]);
-    auto & table = assert_cast<ColumnString &>(*res_columns[index++]);
-    auto & consumer_id = assert_cast<ColumnString &>(*res_columns[index++]); //(number? or string? - single clickhouse table can have many consumers)
+  auto &database = assert_cast<ColumnString &>(*res_columns[index++]);
+  auto &table = assert_cast<ColumnString &>(*res_columns[index++]);
+  auto &consumer_id =
+      assert_cast<ColumnString &>(*res_columns[index++]);  //(number? or string? - single clickhouse table can have many consumers)
 
-    auto & assignments_topics = assert_cast<ColumnString &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
-    auto & assignments_topics_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
+  auto &assignments_topics = assert_cast<ColumnString &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
+  auto &assignments_topics_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
 
-    auto & assignments_partition_id = assert_cast<ColumnInt32 &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
-    auto & assignments_partition_id_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
+  auto &assignments_partition_id = assert_cast<ColumnInt32 &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
+  auto &assignments_partition_id_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
 
-    auto & assignments_current_offset = assert_cast<ColumnInt64 &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
-    auto & assignments_current_offset_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
+  auto &assignments_current_offset = assert_cast<ColumnInt64 &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
+  auto &assignments_current_offset_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
 
-    auto & assignments_intent_size = assert_cast<ColumnNullable &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
-    auto & assignments_intent_size_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
+  auto &assignments_intent_size = assert_cast<ColumnNullable &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
+  auto &assignments_intent_size_offsets = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
 
-    auto & exceptions_time = assert_cast<ColumnDateTime &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
-    auto & exceptions_time_offset = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
-    auto & exceptions_text = assert_cast<ColumnString &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
-    auto & exceptions_text_offset = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
-    auto & last_poll_time = assert_cast<ColumnDateTime &>(*res_columns[index++]);
-    auto & num_messages_read = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
-    auto & last_commit_time = assert_cast<ColumnDateTime &>(*res_columns[index++]);
-    auto & num_commits = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
-    auto & last_rebalance_time = assert_cast<ColumnDateTime &>(*res_columns[index++]);
-    auto & num_rebalance_revocations = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
-    auto & num_rebalance_assignments = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
-    auto & is_currently_used = assert_cast<ColumnUInt8 &>(*res_columns[index++]);
-    auto & last_used = assert_cast<ColumnDateTime64 &>(*res_columns[index++]);
-    auto & rdkafka_stat = assert_cast<ColumnString &>(*res_columns[index++]);
+  auto &exceptions_time = assert_cast<ColumnDateTime &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
+  auto &exceptions_time_offset = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
+  auto &exceptions_text = assert_cast<ColumnString &>(assert_cast<ColumnArray &>(*res_columns[index]).getData());
+  auto &exceptions_text_offset = assert_cast<ColumnArray &>(*res_columns[index++]).getOffsets();
+  auto &last_poll_time = assert_cast<ColumnDateTime &>(*res_columns[index++]);
+  auto &num_messages_read = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
+  auto &last_commit_time = assert_cast<ColumnDateTime &>(*res_columns[index++]);
+  auto &num_commits = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
+  auto &last_rebalance_time = assert_cast<ColumnDateTime &>(*res_columns[index++]);
+  auto &num_rebalance_revocations = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
+  auto &num_rebalance_assignments = assert_cast<ColumnUInt64 &>(*res_columns[index++]);
+  auto &is_currently_used = assert_cast<ColumnUInt8 &>(*res_columns[index++]);
+  auto &last_used = assert_cast<ColumnDateTime64 &>(*res_columns[index++]);
+  auto &rdkafka_stat = assert_cast<ColumnString &>(*res_columns[index++]);
 
-    auto & dependencies_outer_array_column = assert_cast<ColumnArray &>(*res_columns[index++]);
-    auto & dependencies_inner_array_column = assert_cast<ColumnArray &>(dependencies_outer_array_column.getData());
-    auto & dependencies_table = assert_cast<ColumnString &>(dependencies_inner_array_column.getData());
+  auto &dependencies_outer_array_column = assert_cast<ColumnArray &>(*res_columns[index++]);
+  auto &dependencies_inner_array_column = assert_cast<ColumnArray &>(dependencies_outer_array_column.getData());
+  auto &dependencies_table = assert_cast<ColumnString &>(dependencies_inner_array_column.getData());
 
-    auto & dependencies_table_outer_offset = dependencies_outer_array_column.getOffsets(); // Outer array boundaries
-    auto & dependencies_table_inner_offset = dependencies_inner_array_column.getOffsets(); // Inner array boundaries
+  auto &dependencies_table_outer_offset = dependencies_outer_array_column.getOffsets();  // Outer array boundaries
+  auto &dependencies_table_inner_offset = dependencies_inner_array_column.getOffsets();  // Inner array boundaries
 
+  auto &missing_dependencies_outer_array_column = assert_cast<ColumnArray &>(*res_columns[index++]);
+  auto &missing_dependencies_inner_array_column = assert_cast<ColumnArray &>(missing_dependencies_outer_array_column.getData());
+  auto &missing_dependencies_table = assert_cast<ColumnString &>(missing_dependencies_inner_array_column.getData());
 
-    auto & missing_dependencies_outer_array_column = assert_cast<ColumnArray &>(*res_columns[index++]);
-    auto & missing_dependencies_inner_array_column = assert_cast<ColumnArray &>(missing_dependencies_outer_array_column.getData());
-    auto & missing_dependencies_table = assert_cast<ColumnString &>(missing_dependencies_inner_array_column.getData());
+  auto &missing_dependencies_table_outer_offset = missing_dependencies_outer_array_column.getOffsets();  // Outer array boundaries
+  auto &missing_dependencies_table_inner_offset = missing_dependencies_inner_array_column.getOffsets();  // Inner array boundaries
 
-    auto & missing_dependencies_table_outer_offset = missing_dependencies_outer_array_column.getOffsets(); // Outer array boundaries
-    auto & missing_dependencies_table_inner_offset = missing_dependencies_inner_array_column.getOffsets(); // Inner array boundaries
+  const auto access = context->getAccess();
+  size_t last_assignment_num = 0;
+  size_t exceptions_num = 0;
 
+  size_t added_routes = 0;
+  size_t inner_elements = 0;
+  size_t missing_added_routes = 0;
+  size_t missing_inner_elements = 0;
 
-    const auto access = context->getAccess();
-    size_t last_assignment_num = 0;
-    size_t exceptions_num = 0;
+  auto add_rows = [&](const DatabaseTablesIteratorPtr &it, auto &storage_kafka) {
+    std::string database_str = it->databaseName();
+    std::string table_str = it->name();
 
-    size_t added_routes = 0;
-    size_t inner_elements = 0;
-    size_t missing_added_routes = 0;
-    size_t missing_inner_elements = 0;
+    // dependencies and missing_dependencies do not depend on a consumer
+    std::vector<std::vector<String>> dependencies;
+    std::vector<std::vector<String>> missing_dependencies;
 
-    auto add_rows = [&](const DatabaseTablesIteratorPtr & it, auto & storage_kafka)
-    {
-        std::string database_str = it->databaseName();
-        std::string table_str = it->name();
+    // traverse dependent views
+    // fill dependencies and missing_dependencies
+    auto check_a_table = [&](const auto &self_, StorageID storage_, const std::vector<String> &route_) -> void {
+      checkStackSize();
+      const auto view_ids = DatabaseCatalog::instance().getDependentViews(storage_);
+      if (view_ids.empty() && !route_.empty()) {
+        auto copy_route = route_;
+        copy_route.push_back(storage_.getFullNameNotQuoted());
+        dependencies.push_back(copy_route);
+      }
 
-        // dependencies and missing_dependencies do not depend on a consumer
-        std::vector<std::vector<String>> dependencies;
-        std::vector<std::vector<String>> missing_dependencies;
-
-        // traverse dependent views
-        // fill dependencies and missing_dependencies
-        auto check_a_table = [&](const auto & self_, StorageID storage_, const std::vector<String> & route_) -> void
-        {
-            checkStackSize();
-            const auto view_ids = DatabaseCatalog::instance().getDependentViews(storage_);
-            if (view_ids.empty() && !route_.empty())
-            {
-                auto copy_route = route_;
-                copy_route.push_back(storage_.getFullNameNotQuoted());
-                dependencies.push_back(copy_route);
+      for (const auto &view_id : view_ids) {
+        auto view = DatabaseCatalog::instance().tryGetTable(view_id, context);
+        if (view) {
+          auto *materialized_view = dynamic_cast<StorageMaterializedView *>(view.get());
+          if (materialized_view) {
+            auto target_table_ptr = materialized_view->tryGetTargetTable();
+            auto copy_route = route_;
+            if (!copy_route.empty()) copy_route.push_back(storage_.getFullNameNotQuoted());
+            copy_route.push_back(view_id.getFullNameNotQuoted());
+            if (!target_table_ptr) {
+              // missing target table - MV not ready
+              dependencies.push_back(copy_route);
+              missing_dependencies.push_back(copy_route);
+            } else {
+              // recursive call
+              self_(self_, target_table_ptr->getStorageID(), copy_route);
             }
-
-            for (const auto & view_id : view_ids)
-            {
-                auto view = DatabaseCatalog::instance().tryGetTable(view_id, context);
-                if (view)
-                {
-                    auto * materialized_view = dynamic_cast<StorageMaterializedView *>(view.get());
-                    if (materialized_view)
-                    {
-                        auto target_table_ptr = materialized_view->tryGetTargetTable();
-                        auto copy_route = route_;
-                        if (!copy_route.empty())
-                            copy_route.push_back(storage_.getFullNameNotQuoted());
-                        copy_route.push_back(view_id.getFullNameNotQuoted());
-                        if (!target_table_ptr)
-                        {
-                            // missing target table - MV not ready
-                            dependencies.push_back(copy_route);
-                            missing_dependencies.push_back(copy_route);
-                        }
-                        else
-                        {
-                            // recursive call
-                            self_(self_, target_table_ptr->getStorageID(), copy_route);
-                        }
-                    }
-                }
-            }
-        };
-
-        auto safe_consumers = storage_kafka.getSafeConsumers();
-
-        if (!safe_consumers.consumers.empty())
-        {
-            auto storage_id = StorageID(database_str, table_str);
-            std::vector<String> empty_route;
-            check_a_table(check_a_table, storage_id, empty_route);
+          }
         }
-
-        for (const auto & consumer : safe_consumers.consumers)
-        {
-            auto consumer_stat = consumer->getStat();
-
-            database.insertData(database_str.data(), database_str.size());
-            table.insertData(table_str.data(), table_str.size());
-
-            consumer_id.insertData(consumer_stat.consumer_id.data(), consumer_stat.consumer_id.size());
-
-            const auto num_assignments = consumer_stat.assignments.size();
-
-            for (size_t num = 0; num < num_assignments; ++num)
-            {
-                const auto & assign = consumer_stat.assignments[num];
-
-                assignments_topics.insertData(assign.topic_str.data(), assign.topic_str.size());
-
-                assignments_partition_id.insert(assign.partition_id);
-                assignments_current_offset.insert(assign.current_offset);
-                if (assign.intent_size.has_value())
-                    assignments_intent_size.insert(*assign.intent_size);
-                else
-                    assignments_intent_size.insertDefault();
-            }
-            last_assignment_num += num_assignments;
-
-            assignments_topics_offsets.push_back(last_assignment_num);
-            assignments_partition_id_offsets.push_back(last_assignment_num);
-            assignments_current_offset_offsets.push_back(last_assignment_num);
-            assignments_intent_size_offsets.push_back(last_assignment_num);
-
-            for (const auto & exc : consumer_stat.exceptions_buffer)
-            {
-                exceptions_text.insertData(exc.text.data(), exc.text.size());
-                exceptions_time.insert(exc.timestamp);
-            }
-            exceptions_num += consumer_stat.exceptions_buffer.size();
-            exceptions_text_offset.push_back(exceptions_num);
-            exceptions_time_offset.push_back(exceptions_num);
-
-
-            last_poll_time.insert(consumer_stat.last_poll_time);
-            num_messages_read.insert(consumer_stat.num_messages_read);
-            last_commit_time.insert(consumer_stat.last_commit_timestamp);
-            num_commits.insert(consumer_stat.num_commits);
-            last_rebalance_time.insert(consumer_stat.last_rebalance_timestamp);
-
-            num_rebalance_revocations.insert(consumer_stat.num_rebalance_revocations);
-            num_rebalance_assignments.insert(consumer_stat.num_rebalance_assignments);
-
-            is_currently_used.insert(consumer_stat.in_use);
-            last_used.insert(static_cast<Decimal64>(consumer_stat.last_used_usec));
-
-            rdkafka_stat.insertData(consumer_stat.rdkafka_stat.data(), consumer_stat.rdkafka_stat.size());
-
-            for (const auto & route : dependencies)
-            {
-                for (const auto & elem : route)
-                {
-                    dependencies_table.insertData(elem.data(), elem.size());
-                }
-                inner_elements += route.size();
-                dependencies_table_inner_offset.push_back(inner_elements);
-                added_routes++;
-            }
-            dependencies_table_outer_offset.push_back(added_routes);
-
-            for (const auto & route : missing_dependencies)
-            {
-                for (const auto & elem : route)
-                {
-                    missing_dependencies_table.insertData(elem.data(), elem.size());
-                }
-                missing_inner_elements += route.size();
-                missing_dependencies_table_inner_offset.push_back(missing_inner_elements);
-                missing_added_routes++;
-            }
-            missing_dependencies_table_outer_offset.push_back(missing_added_routes);
-
-        }
+      }
     };
 
-    const bool show_tables_granted = access->isGranted(AccessType::SHOW_TABLES);
+    auto safe_consumers = storage_kafka.getSafeConsumers();
 
-    auto handle_table = [&](DatabaseTablesIteratorPtr & it, auto & kafka_table)
-    {
-        if (!show_tables_granted && !access->isGranted(AccessType::SHOW_TABLES, it->databaseName(), it->name()))
-            return;
-        add_rows(it, kafka_table);
-    };
-    auto databases = DatabaseCatalog::instance().getDatabases(GetDatabasesOptions{.with_datalake_catalogs = false});
-    for (const auto & db : databases)
-    {
-        for (auto it = db.second->getTablesIterator(context); it->isValid(); it->next())
-        {
-            StoragePtr storage = it->table();
-            if (auto * kafka_table = dynamic_cast<StorageKafka *>(storage.get()))
-                handle_table(it, *kafka_table);
-            else if (auto * kafka_2_table = dynamic_cast<StorageKafka2 *>(storage.get()))
-                handle_table(it, *kafka_2_table);
-        }
+    if (!safe_consumers.consumers.empty()) {
+      auto storage_id = StorageID(database_str, table_str);
+      std::vector<String> empty_route;
+      check_a_table(check_a_table, storage_id, empty_route);
     }
+
+    for (const auto &consumer : safe_consumers.consumers) {
+      auto consumer_stat = consumer->getStat();
+
+      database.insertData(database_str.data(), database_str.size());
+      table.insertData(table_str.data(), table_str.size());
+
+      consumer_id.insertData(consumer_stat.consumer_id.data(), consumer_stat.consumer_id.size());
+
+      const auto num_assignments = consumer_stat.assignments.size();
+
+      for (size_t num = 0; num < num_assignments; ++num) {
+        const auto &assign = consumer_stat.assignments[num];
+
+        assignments_topics.insertData(assign.topic_str.data(), assign.topic_str.size());
+
+        assignments_partition_id.insert(assign.partition_id);
+        assignments_current_offset.insert(assign.current_offset);
+        if (assign.intent_size.has_value())
+          assignments_intent_size.insert(*assign.intent_size);
+        else
+          assignments_intent_size.insertDefault();
+      }
+      last_assignment_num += num_assignments;
+
+      assignments_topics_offsets.push_back(last_assignment_num);
+      assignments_partition_id_offsets.push_back(last_assignment_num);
+      assignments_current_offset_offsets.push_back(last_assignment_num);
+      assignments_intent_size_offsets.push_back(last_assignment_num);
+
+      for (const auto &exc : consumer_stat.exceptions_buffer) {
+        exceptions_text.insertData(exc.text.data(), exc.text.size());
+        exceptions_time.insert(exc.timestamp);
+      }
+      exceptions_num += consumer_stat.exceptions_buffer.size();
+      exceptions_text_offset.push_back(exceptions_num);
+      exceptions_time_offset.push_back(exceptions_num);
+
+      last_poll_time.insert(consumer_stat.last_poll_time);
+      num_messages_read.insert(consumer_stat.num_messages_read);
+      last_commit_time.insert(consumer_stat.last_commit_timestamp);
+      num_commits.insert(consumer_stat.num_commits);
+      last_rebalance_time.insert(consumer_stat.last_rebalance_timestamp);
+
+      num_rebalance_revocations.insert(consumer_stat.num_rebalance_revocations);
+      num_rebalance_assignments.insert(consumer_stat.num_rebalance_assignments);
+
+      is_currently_used.insert(consumer_stat.in_use);
+      last_used.insert(static_cast<Decimal64>(consumer_stat.last_used_usec));
+
+      rdkafka_stat.insertData(consumer_stat.rdkafka_stat.data(), consumer_stat.rdkafka_stat.size());
+
+      for (const auto &route : dependencies) {
+        for (const auto &elem : route) {
+          dependencies_table.insertData(elem.data(), elem.size());
+        }
+        inner_elements += route.size();
+        dependencies_table_inner_offset.push_back(inner_elements);
+        added_routes++;
+      }
+      dependencies_table_outer_offset.push_back(added_routes);
+
+      for (const auto &route : missing_dependencies) {
+        for (const auto &elem : route) {
+          missing_dependencies_table.insertData(elem.data(), elem.size());
+        }
+        missing_inner_elements += route.size();
+        missing_dependencies_table_inner_offset.push_back(missing_inner_elements);
+        missing_added_routes++;
+      }
+      missing_dependencies_table_outer_offset.push_back(missing_added_routes);
+    }
+  };
+
+  const bool show_tables_granted = access->isGranted(AccessType::SHOW_TABLES);
+
+  auto handle_table = [&](DatabaseTablesIteratorPtr &it, auto &kafka_table) {
+    if (!show_tables_granted && !access->isGranted(AccessType::SHOW_TABLES, it->databaseName(), it->name())) return;
+    add_rows(it, kafka_table);
+  };
+  auto databases = DatabaseCatalog::instance().getDatabases(GetDatabasesOptions{.with_datalake_catalogs = false});
+  for (const auto &db : databases) {
+    for (auto it = db.second->getTablesIterator(context); it->isValid(); it->next()) {
+      StoragePtr storage = it->table();
+      if (auto *kafka_table = dynamic_cast<StorageKafka *>(storage.get()))
+        handle_table(it, *kafka_table);
+      else if (auto *kafka_2_table = dynamic_cast<StorageKafka2 *>(storage.get()))
+        handle_table(it, *kafka_2_table);
+    }
+  }
 }
 
-}
+}  // namespace DB
 
 #endif

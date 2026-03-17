@@ -13,46 +13,38 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_DatagramSocketImpl_INCLUDED
 #define Net_DatagramSocketImpl_INCLUDED
-
 
 #include "Poco/Net/Net.h"
 #include "Poco/Net/SocketImpl.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API DatagramSocketImpl : public SocketImpl
+/// This class implements an UDP socket.
 {
-namespace Net
-{
+ public:
+  DatagramSocketImpl();
+  /// Creates an unconnected, unbound datagram socket.
 
+  explicit DatagramSocketImpl(SocketAddress::Family family);
+  /// Creates an unconnected datagram socket.
+  ///
+  /// The socket will be created for the
+  /// given address family.
 
-    class Net_API DatagramSocketImpl : public SocketImpl
-    /// This class implements an UDP socket.
-    {
-    public:
-        DatagramSocketImpl();
-        /// Creates an unconnected, unbound datagram socket.
+  DatagramSocketImpl(poco_socket_t sockfd);
+  /// Creates a StreamSocketImpl using the given native socket.
 
-        explicit DatagramSocketImpl(SocketAddress::Family family);
-        /// Creates an unconnected datagram socket.
-        ///
-        /// The socket will be created for the
-        /// given address family.
+ protected:
+  void init(int af);
 
-        DatagramSocketImpl(poco_socket_t sockfd);
-        /// Creates a StreamSocketImpl using the given native socket.
+  ~DatagramSocketImpl();
+};
 
-    protected:
-        void init(int af);
+}  // namespace Net
+}  // namespace Poco
 
-        ~DatagramSocketImpl();
-    };
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_DatagramSocketImpl_INCLUDED
+#endif  // Net_DatagramSocketImpl_INCLUDED

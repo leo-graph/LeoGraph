@@ -1,91 +1,83 @@
 #pragma once
 
-#include <queue>
 #include <Core/SortDescription.h>
 #include <Processors/Chunk.h>
 #include <Processors/IProcessor.h>
 #include <Processors/RowsBeforeStepCounter.h>
+#include <queue>
 
-namespace DB
-{
+namespace DB {
 
 /// Implementation for OFFSET -N (without limit) (drop last N)
 /// This processor support multiple inputs and outputs (the same number).
 /// The output ports are interchangeable, chunks can be pushed to any available output.
 
 /// Streams by keeping a tail buffer of size N (in rows) across all input ports.
-class NegativeOffsetTransform final : public IProcessor
-{
-private:
-    UInt64 offset;
+class NegativeOffsetTransform final : public IProcessor {
+ private:
+  UInt64 offset;
 
-    /// Total rows currently queued across all inputs.
-    UInt64 queued_row_count = 0;
+  /// Total rows currently queued across all inputs.
+  UInt64 queued_row_count = 0;
 
-    RowsBeforeStepCounterPtr rows_before_limit_at_least;
+  RowsBeforeStepCounterPtr rows_before_limit_at_least;
 
-    /// State of port's pair.
-    struct PortsData
-    {
-        InputPort * input_port = nullptr;
-        OutputPort * output_port = nullptr;
-        bool is_input_port_finished = false;
-    };
+  /// State of port's pair.
+  struct PortsData {
+    InputPort* input_port = nullptr;
+    OutputPort* output_port = nullptr;
+    bool is_input_port_finished = false;
+  };
 
-    UInt64 num_input_ports_finished = 0;
+  UInt64 num_input_ports_finished = 0;
 
-    std::vector<PortsData> ports_data;
+  std::vector<PortsData> ports_data;
 
-    /// `Pull` stage: it ends when all input ports are closed.
-    /// `Push` stage: it starts immediately after the `Pull` stage and it ends
-    ///               when all queued full/partial chunks are pushed to output ports excluding the offset.
-    enum class Stage : uint8_t
-    {
-        Pull = 0,
-        Push
-    };
+  /// `Pull` stage: it ends when all input ports are closed.
+  /// `Push` stage: it starts immediately after the `Pull` stage and it ends
+  ///               when all queued full/partial chunks are pushed to output ports excluding the offset.
+  enum class Stage : uint8_t { Pull = 0, Push };
 
-    Stage stage = Stage::Pull;
+  Stage stage = Stage::Pull;
 
-    struct ChunkWithPort
-    {
-        Chunk chunk;
-    };
+  struct ChunkWithPort {
+    Chunk chunk;
+  };
 
-    size_t next_output_port = 0;
+  size_t next_output_port = 0;
 
-    /// Stores the pending chunks which are not yet confirmed whether they are
-    /// full outside the offset or not. Once we can be sure that a chunk is fully
-    /// outside the offset, it is pushed to the output port and popped from the queue.
-    std::queue<ChunkWithPort> queue;
+  /// Stores the pending chunks which are not yet confirmed whether they are
+  /// full outside the offset or not. Once we can be sure that a chunk is fully
+  /// outside the offset, it is pushed to the output port and popped from the queue.
+  std::queue<ChunkWithPort> queue;
 
-public:
-    NegativeOffsetTransform(const Block & header_, UInt64 offset_, size_t num_streams = 1);
+ public:
+  NegativeOffsetTransform(const Block& header_, UInt64 offset_, size_t num_streams = 1);
 
-    String getName() const override { return "NegativeOffset"; }
+  String getName() const override { return "NegativeOffset"; }
 
-    Status prepare() override;
+  Status prepare() override;
 
-    InputPort & getInputPort() { return inputs.front(); }
-    OutputPort & getOutputPort() { return outputs.front(); }
+  InputPort& getInputPort() { return inputs.front(); }
+  OutputPort& getOutputPort() { return outputs.front(); }
 
-    void setRowsBeforeLimitCounter(RowsBeforeStepCounterPtr counter) override { rows_before_limit_at_least.swap(counter); }
+  void setRowsBeforeLimitCounter(RowsBeforeStepCounterPtr counter) override { rows_before_limit_at_least.swap(counter); }
 
-private:
-    /// Process a single input port, populates `queue`.
-    Status advancePort(PortsData & data);
+ private:
+  /// Process a single input port, populates `queue`.
+  Status advancePort(PortsData& data);
 
-    /// Does not do anything if the front chunk is not fully outside the offset.
-    Status tryPushWholeFrontChunk();
+  /// Does not do anything if the front chunk is not fully outside the offset.
+  Status tryPushWholeFrontChunk();
 
-    /// Find an output port that can accept data at the moment.
-    OutputPort * getAvailableOutputPort();
+  /// Find an output port that can accept data at the moment.
+  OutputPort* getAvailableOutputPort();
 
-    bool allOutputsFinished() const;
+  bool allOutputsFinished() const;
 
-    /// This should only be called when we know that the front chunk is NOT
-    /// fully outside the offset.
-    Status tryPushRemainingChunkPrefix();
+  /// This should only be called when we know that the front chunk is NOT
+  /// fully outside the offset.
+  Status tryPushRemainingChunkPrefix();
 };
 
-}
+}  // namespace DB

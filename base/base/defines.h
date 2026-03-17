@@ -1,14 +1,16 @@
 #pragma once
 
-#if !defined(__x86_64__) && !defined(__aarch64__) && !defined(__PPC__) && !defined(__s390x__) && !(defined(__loongarch64)) && !(defined(__riscv) && (__riscv_xlen == 64)) && !defined(__e2k__)
-#    error "The only supported platforms are x86_64 and AArch64, PowerPC (work in progress), s390x (work in progress), loongarch64 (experimental), RISC-V 64 (experimental) and E2K (experimental, work in progress)"
+#if !defined(__x86_64__) && !defined(__aarch64__) && !defined(__PPC__) && !defined(__s390x__) && !(defined(__loongarch64)) && \
+    !(defined(__riscv) && (__riscv_xlen == 64)) && !defined(__e2k__)
+#  error \
+      "The only supported platforms are x86_64 and AArch64, PowerPC (work in progress), s390x (work in progress), loongarch64 (experimental), RISC-V 64 (experimental) and E2K (experimental, work in progress)"
 #endif
 
 #if !defined(likely)
-#    define likely(x)   (__builtin_expect(!!(x), 1))
+#  define likely(x) (__builtin_expect(!!(x), 1))
 #endif
 #if !defined(unlikely)
-#    define unlikely(x) (__builtin_expect(!!(x), 0))
+#  define unlikely(x) (__builtin_expect(!!(x), 0))
 #endif
 
 // more aliases: https://mailman.videolan.org/pipermail/x264-devel/2014-May/010660.html
@@ -27,8 +29,8 @@
 /// Also it makes sense to call abort() instead of __builtin_unreachable() in debug builds,
 /// because SIGABRT is easier to debug than SIGTRAP (the second one makes gdb crazy)
 #if !defined(chassert)
-#    if defined(DEBUG_OR_SANITIZER_BUILD)
-        // clang-format off
+#  if defined(DEBUG_OR_SANITIZER_BUILD)
+// clang-format off
         #include <base/types.h>
         #include <stdlib.h>
         namespace DB

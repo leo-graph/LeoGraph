@@ -2,8 +2,7 @@
 
 #include <Analyzer/IQueryTreePass.h>
 
-namespace DB
-{
+namespace DB {
 
 /**
  * This pass tries to do optimizations on logical expression:
@@ -136,18 +135,16 @@ namespace DB
  * -------------------------------
  */
 
-class LogicalExpressionOptimizerPass final : public IQueryTreePass
-{
-public:
-    String getName() override { return "LogicalExpressionOptimizer"; }
+class LogicalExpressionOptimizerPass final : public IQueryTreePass {
+ public:
+  String getName() override { return "LogicalExpressionOptimizer"; }
 
-    String getDescription() override
-    {
-        return "Transforms chains of logical expressions if possible, i.e. "
-            "replace chains of equality functions inside an OR with a single IN operator";
-    }
+  String getDescription() override {
+    return "Transforms chains of logical expressions if possible, i.e. "
+           "replace chains of equality functions inside an OR with a single IN operator";
+  }
 
-    void run(QueryTreeNodePtr & query_tree_node, ContextPtr context) override;
+  void run(QueryTreeNodePtr& query_tree_node, ContextPtr context) override;
 };
 
-}
+}  // namespace DB

@@ -11,17 +11,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/NetException.h"
 #include <typeinfo>
 
-
 using Poco::IOException;
-
 
 namespace Poco {
 namespace Net {
-
 
 POCO_IMPLEMENT_EXCEPTION(NetException, IOException, "Net Exception")
 POCO_IMPLEMENT_EXCEPTION(InvalidAddressException, NetException, "Invalid address")
@@ -45,5 +41,5 @@ POCO_IMPLEMENT_EXCEPTION(WebSocketException, NetException, "WebSocket Exception"
 POCO_IMPLEMENT_EXCEPTION(UnsupportedFamilyException, NetException, "Unknown or unsupported socket family")
 POCO_IMPLEMENT_EXCEPTION(AddressFamilyMismatchException, NetException, "Address family mismatch")
 
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

@@ -1,47 +1,44 @@
 #pragma once
 
-#include <IO/ReadBufferFromFileBase.h>
 #include <IO/MMappedFileDescriptor.h>
+#include <IO/ReadBufferFromFileBase.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** MMap range in a file and represent it as a ReadBuffer.
-  * Please note that mmap is not always the optimal way to read file.
-  * Also you cannot control whether and how long actual IO take place,
-  *  so this method is not manageable and not recommended for anything except benchmarks.
-  */
-class MMapReadBufferFromFileDescriptor : public ReadBufferFromFileBase
-{
-public:
-    off_t seek(off_t off, int whence) override;
+ * Please note that mmap is not always the optimal way to read file.
+ * Also you cannot control whether and how long actual IO take place,
+ *  so this method is not manageable and not recommended for anything except benchmarks.
+ */
+class MMapReadBufferFromFileDescriptor : public ReadBufferFromFileBase {
+ public:
+  off_t seek(off_t off, int whence) override;
 
-protected:
-    MMapReadBufferFromFileDescriptor() = default;
-    void init();
+ protected:
+  MMapReadBufferFromFileDescriptor() = default;
+  void init();
 
-    MMappedFileDescriptor mapped;
+  MMappedFileDescriptor mapped;
 
-public:
-    MMapReadBufferFromFileDescriptor(int fd_, size_t offset_, size_t length_);
+ public:
+  MMapReadBufferFromFileDescriptor(int fd_, size_t offset_, size_t length_);
 
-    /// Map till end of file.
-    MMapReadBufferFromFileDescriptor(int fd_, size_t offset_);
+  /// Map till end of file.
+  MMapReadBufferFromFileDescriptor(int fd_, size_t offset_);
 
-    /// unmap memory before call to destructor
-    void finish();
+  /// unmap memory before call to destructor
+  void finish();
 
-    off_t getPosition() override;
+  off_t getPosition() override;
 
-    std::string getFileName() const override;
+  std::string getFileName() const override;
 
-    int getFD() const;
+  int getFD() const;
 
-    std::optional<size_t> tryGetFileSize() override;
+  std::optional<size_t> tryGetFileSize() override;
 
-    size_t readBigAt(char * to, size_t n, size_t offset, const std::function<bool(size_t)> &) const override;
-    bool supportsReadAt() override { return true; }
+  size_t readBigAt(char *to, size_t n, size_t offset, const std::function<bool(size_t)> &) const override;
+  bool supportsReadAt() override { return true; }
 };
 
-}
+}  // namespace DB

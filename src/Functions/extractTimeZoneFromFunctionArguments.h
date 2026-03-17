@@ -5,13 +5,11 @@
 
 #include <string>
 
-
-namespace DB
-{
+namespace DB {
 
 class Block;
 
-std::string extractTimeZoneNameFromColumn(const IColumn * column, const String & column_name);
+std::string extractTimeZoneNameFromColumn(const IColumn* column, const String& column_name);
 
 /// Determine working timezone either from optional argument with time zone name or from time zone in DateTime type of argument.
 /// Returns empty string if default time zone should be used.
@@ -21,12 +19,13 @@ std::string extractTimeZoneNameFromColumn(const IColumn * column, const String &
 /// results.
 /// - For new functions, set allow_nonconst_timezone_arguments = false.
 /// - For existing functions
-///    - which disallow non-const timezone arguments anyways (e.g. getArgumentsThatAreAlwaysConstant()), set allow_nonconst_timezone_arguments = false,
+///    - which disallow non-const timezone arguments anyways (e.g. getArgumentsThatAreAlwaysConstant()), set
+///    allow_nonconst_timezone_arguments = false,
 ///    - which allow non-const timezone arguments, set allow_nonconst_timezone_arguments according to the corresponding setting.
-std::string extractTimeZoneNameFromFunctionArguments(
-    const ColumnsWithTypeAndName & arguments, size_t time_zone_arg_num, size_t datetime_arg_num, bool allow_nonconst_timezone_arguments);
+std::string extractTimeZoneNameFromFunctionArguments(const ColumnsWithTypeAndName& arguments, size_t time_zone_arg_num,
+                                                     size_t datetime_arg_num, bool allow_nonconst_timezone_arguments);
 
-const DateLUTImpl & extractTimeZoneFromFunctionArguments(
-    const ColumnsWithTypeAndName & arguments, size_t time_zone_arg_num, size_t datetime_arg_num);
+const DateLUTImpl& extractTimeZoneFromFunctionArguments(const ColumnsWithTypeAndName& arguments, size_t time_zone_arg_num,
+                                                        size_t datetime_arg_num);
 
-}
+}  // namespace DB

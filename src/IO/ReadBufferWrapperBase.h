@@ -2,14 +2,12 @@
 
 #include <IO/ReadBuffer.h>
 
-namespace DB
-{
+namespace DB {
 
-class ReadBufferWrapperBase
-{
-public:
-    virtual const ReadBuffer & getWrappedReadBuffer() const = 0;
-    virtual ~ReadBufferWrapperBase() = default;
+class ReadBufferWrapperBase {
+ public:
+  virtual const ReadBuffer& getWrappedReadBuffer() const = 0;
+  virtual ~ReadBufferWrapperBase() = default;
 };
 
-}
+}  // namespace DB

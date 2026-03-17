@@ -9,29 +9,22 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef EXPAT_CONFIG_H
 #define EXPAT_CONFIG_H
 
-
 #include "Poco/Platform.h"
 
-
-#    include <memory.h>
+#include <memory.h>
 #include <string.h>
-
 
 #define XML_CONTEXT_BYTES 1024
 
-
 #if defined POCO_ARCH_LITTLE_ENDIAN
-#    define BYTEORDER 1234
+#  define BYTEORDER 1234
 #else
-#    define BYTEORDER 4321
+#  define BYTEORDER 4321
 #endif
 
-
 #define HAVE_MEMMOVE
-
 
 #endif /* EXPAT_CONFIG_H */

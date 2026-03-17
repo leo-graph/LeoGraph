@@ -2,20 +2,17 @@
 
 #include <Parsers/ASTQueryWithOutput.h>
 
+namespace DB {
 
-namespace DB
-{
+class ASTDescribeCacheQuery : public ASTQueryWithOutput {
+ public:
+  String cache_name;
 
-class ASTDescribeCacheQuery : public ASTQueryWithOutput
-{
-public:
-    String cache_name;
+  String getID(char) const override;
+  ASTPtr clone() const override;
 
-    String getID(char) const override;
-    ASTPtr clone() const override;
-
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatQueryImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
 
-}
+}  // namespace DB

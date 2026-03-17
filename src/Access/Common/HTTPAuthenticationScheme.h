@@ -2,15 +2,12 @@
 
 #include <base/types.h>
 
-namespace DB
-{
+namespace DB {
 
-enum class HTTPAuthenticationScheme
-{
-    BASIC,
+enum class HTTPAuthenticationScheme {
+  BASIC,
 };
 
-
 String toString(HTTPAuthenticationScheme scheme);
-HTTPAuthenticationScheme parseHTTPAuthenticationScheme(const String & scheme_str);
-}
+HTTPAuthenticationScheme parseHTTPAuthenticationScheme(const String& scheme_str);
+}  // namespace DB

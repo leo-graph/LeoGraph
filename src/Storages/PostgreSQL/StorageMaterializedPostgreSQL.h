@@ -3,19 +3,17 @@
 #include "config.h"
 
 #if USE_LIBPQXX
-#include <Storages/PostgreSQL/PostgreSQLReplicationHandler.h>
+#  include <Storages/PostgreSQL/PostgreSQLReplicationHandler.h>
 
-#include <Parsers/IAST_fwd.h>
-#include <Parsers/ASTCreateQuery.h>
-#include <Parsers/ASTColumnDeclaration.h>
-#include <Interpreters/evaluateConstantExpression.h>
-#include <Interpreters/InterpreterCreateQuery.h>
-#include <Interpreters/ExpressionAnalyzer.h>
-#include <memory>
+#  include <Interpreters/evaluateConstantExpression.h>
+#  include <Interpreters/ExpressionAnalyzer.h>
+#  include <Interpreters/InterpreterCreateQuery.h>
+#  include <Parsers/ASTColumnDeclaration.h>
+#  include <Parsers/ASTCreateQuery.h>
+#  include <Parsers/IAST_fwd.h>
+#  include <memory>
 
-
-namespace DB
-{
+namespace DB {
 struct MaterializedPostgreSQLSettings;
 
 /** TODO list:
@@ -33,8 +31,7 @@ struct MaterializedPostgreSQLSettings;
  * Main point: Both tables exist on disk; database engine interacts only with the main table and main table takes
  * total ownershot over nested table. Nested table has name `main_table_uuid` + NESTED_SUFFIX.
  *
-**/
-
+ **/
 
 /** Case of MaterializedPostgreSQL database engine.
  *
@@ -58,127 +55,113 @@ struct MaterializedPostgreSQLSettings;
  * structure will still serve read requests. When data is loaded, nested tables will be swapped, metadata of materialized table will be
  * updated according to nested table.
  *
-**/
+ **/
 
-class StorageMaterializedPostgreSQL final : public IStorage, WithContext
-{
-public:
-    static constexpr auto NESTED_TABLE_SUFFIX = "_nested";
-    static constexpr auto TMP_SUFFIX = "_tmp";
+class StorageMaterializedPostgreSQL final : public IStorage, WithContext {
+ public:
+  static constexpr auto NESTED_TABLE_SUFFIX = "_nested";
+  static constexpr auto TMP_SUFFIX = "_tmp";
 
-    StorageMaterializedPostgreSQL(const StorageID & table_id_, ContextPtr context_,
-                                const String & postgres_database_name, const String & postgres_table_name);
+  StorageMaterializedPostgreSQL(const StorageID& table_id_, ContextPtr context_, const String& postgres_database_name,
+                                const String& postgres_table_name);
 
-    StorageMaterializedPostgreSQL(StoragePtr nested_storage_, ContextPtr context_,
-                                const String & postgres_database_name, const String & postgres_table_name);
+  StorageMaterializedPostgreSQL(StoragePtr nested_storage_, ContextPtr context_, const String& postgres_database_name,
+                                const String& postgres_table_name);
 
-    StorageMaterializedPostgreSQL(
-        const StorageID & table_id_,
-        LoadingStrictnessLevel mode,
-        const String & remote_database_name,
-        const String & remote_table_name,
-        const postgres::ConnectionInfo & connection_info,
-        const StorageInMemoryMetadata & storage_metadata,
-        ContextPtr context_,
-        std::unique_ptr<MaterializedPostgreSQLSettings> replication_settings);
+  StorageMaterializedPostgreSQL(const StorageID& table_id_, LoadingStrictnessLevel mode, const String& remote_database_name,
+                                const String& remote_table_name, const postgres::ConnectionInfo& connection_info,
+                                const StorageInMemoryMetadata& storage_metadata, ContextPtr context_,
+                                std::unique_ptr<MaterializedPostgreSQLSettings> replication_settings);
 
-    String getName() const override { return "MaterializedPostgreSQL"; }
+  String getName() const override { return "MaterializedPostgreSQL"; }
 
-    void shutdown(bool is_drop) override;
+  void shutdown(bool is_drop) override;
 
-    /// Used only for single MaterializedPostgreSQL storage.
-    void dropInnerTableIfAny(bool sync, ContextPtr local_context) override;
+  /// Used only for single MaterializedPostgreSQL storage.
+  void dropInnerTableIfAny(bool sync, ContextPtr local_context) override;
 
-    bool needRewriteQueryWithFinal(const Names & column_names) const override;
+  bool needRewriteQueryWithFinal(const Names& column_names) const override;
 
-    void read(
-        QueryPlan & query_plan,
-        const Names & column_names,
-        const StorageSnapshotPtr & storage_snapshot,
-        SelectQueryInfo & query_info,
-        ContextPtr context_,
-        QueryProcessingStage::Enum processed_stage,
-        size_t max_block_size,
-        size_t num_streams) override;
+  void read(QueryPlan& query_plan, const Names& column_names, const StorageSnapshotPtr& storage_snapshot, SelectQueryInfo& query_info,
+            ContextPtr context_, QueryProcessingStage::Enum processed_stage, size_t max_block_size, size_t num_streams) override;
 
-    /// This method is called only from MateriaizePostgreSQL database engine, because it needs to maintain
-    /// an invariant: a table exists only if its nested table exists. This atomic variable is set to _true_
-    /// only once - when nested table is successfully created and is never changed afterwards.
-    bool hasNested() { return has_nested.load(); }
+  /// This method is called only from MateriaizePostgreSQL database engine, because it needs to maintain
+  /// an invariant: a table exists only if its nested table exists. This atomic variable is set to _true_
+  /// only once - when nested table is successfully created and is never changed afterwards.
+  bool hasNested() { return has_nested.load(); }
 
-    void createNestedIfNeeded(PostgreSQLTableStructurePtr table_structure, const ASTTableOverride * table_override);
+  void createNestedIfNeeded(PostgreSQLTableStructurePtr table_structure, const ASTTableOverride* table_override);
 
-    ASTPtr getCreateNestedTableQuery(PostgreSQLTableStructurePtr table_structure, const ASTTableOverride * table_override);
+  ASTPtr getCreateNestedTableQuery(PostgreSQLTableStructurePtr table_structure, const ASTTableOverride* table_override);
 
-    boost::intrusive_ptr<ASTExpressionList> getColumnsExpressionList(
-        const NamesAndTypesList & columns, std::unordered_map<std::string, ASTPtr> defaults = {}) const;
+  boost::intrusive_ptr<ASTExpressionList> getColumnsExpressionList(const NamesAndTypesList& columns,
+                                                                   std::unordered_map<std::string, ASTPtr> defaults = {}) const;
 
-    StoragePtr getNested() const;
+  StoragePtr getNested() const;
 
-    StoragePtr tryGetNested() const;
+  StoragePtr tryGetNested() const;
 
-    /// Create a temporary MaterializedPostgreSQL table with current_table_name + TMP_SUFFIX.
-    /// An empty wrapper is returned - it does not have inMemory metadata, just acts as an empty wrapper over
-    /// temporary nested, which will be created shortly after.
-    StoragePtr createTemporary() const;
+  /// Create a temporary MaterializedPostgreSQL table with current_table_name + TMP_SUFFIX.
+  /// An empty wrapper is returned - it does not have inMemory metadata, just acts as an empty wrapper over
+  /// temporary nested, which will be created shortly after.
+  StoragePtr createTemporary() const;
 
-    ContextMutablePtr getNestedTableContext() const { return nested_context; }
+  ContextMutablePtr getNestedTableContext() const { return nested_context; }
 
-    StorageID getNestedStorageID() const;
+  StorageID getNestedStorageID() const;
 
-    void set(StoragePtr nested_storage);
+  void set(StoragePtr nested_storage);
 
-    static std::shared_ptr<Context> makeNestedTableContext(ContextPtr from_context);
+  static std::shared_ptr<Context> makeNestedTableContext(ContextPtr from_context);
 
-    bool supportsFinal() const override { return true; }
+  bool supportsFinal() const override { return true; }
 
-private:
-    static boost::intrusive_ptr<ASTColumnDeclaration> getMaterializedColumnsDeclaration(
-            String name, String type, UInt64 default_value);
+ private:
+  static boost::intrusive_ptr<ASTColumnDeclaration> getMaterializedColumnsDeclaration(String name, String type, UInt64 default_value);
 
-    static VirtualColumnsDescription createVirtuals();
+  static VirtualColumnsDescription createVirtuals();
 
-    ASTPtr getColumnDeclaration(const DataTypePtr & data_type) const;
+  ASTPtr getColumnDeclaration(const DataTypePtr& data_type) const;
 
-    String getNestedTableName() const;
+  String getNestedTableName() const;
 
-    LoggerPtr log;
+  LoggerPtr log;
 
-    /// Not nullptr only for single MaterializedPostgreSQL storage, because for MaterializedPostgreSQL
-    /// database engine there is one replication handler for all tables.
-    std::unique_ptr<PostgreSQLReplicationHandler> replication_handler;
+  /// Not nullptr only for single MaterializedPostgreSQL storage, because for MaterializedPostgreSQL
+  /// database engine there is one replication handler for all tables.
+  std::unique_ptr<PostgreSQLReplicationHandler> replication_handler;
 
-    /// Distinguish between single MaterilizePostgreSQL table engine and MaterializedPostgreSQL database engine,
-    /// because table with engine MaterilizePostgreSQL acts differently in each case.
-    bool is_materialized_postgresql_database = false;
+  /// Distinguish between single MaterilizePostgreSQL table engine and MaterializedPostgreSQL database engine,
+  /// because table with engine MaterilizePostgreSQL acts differently in each case.
+  bool is_materialized_postgresql_database = false;
 
-    /// Will be set to `true` only once - when nested table was loaded by replication thread.
-    /// After that, it will never be changed. Needed for MaterializedPostgreSQL database engine
-    /// because there is an invariant - table exists only if its nested table exists, but nested
-    /// table is not loaded immediately. It is made atomic, because it is accessed only by database engine,
-    /// and updated by replication handler (only once).
-    std::atomic<bool> has_nested = false;
+  /// Will be set to `true` only once - when nested table was loaded by replication thread.
+  /// After that, it will never be changed. Needed for MaterializedPostgreSQL database engine
+  /// because there is an invariant - table exists only if its nested table exists, but nested
+  /// table is not loaded immediately. It is made atomic, because it is accessed only by database engine,
+  /// and updated by replication handler (only once).
+  std::atomic<bool> has_nested = false;
 
-    /// Nested table context is a copy of global context, but modified to answer isInternalQuery() == true.
-    /// This is needed to let database engine know whether to access nested table or a wrapper over nested (materialized table).
-    ContextMutablePtr nested_context;
+  /// Nested table context is a copy of global context, but modified to answer isInternalQuery() == true.
+  /// This is needed to let database engine know whether to access nested table or a wrapper over nested (materialized table).
+  ContextMutablePtr nested_context;
 
-    /// Save nested storageID to be able to fetch it. It is set once nested is created and will be
-    /// updated only when nested is reloaded or renamed.
-    std::optional<StorageID> nested_table_id;
+  /// Save nested storageID to be able to fetch it. It is set once nested is created and will be
+  /// updated only when nested is reloaded or renamed.
+  std::optional<StorageID> nested_table_id;
 
-    /// Needed only for the case of single MaterializedPostgreSQL storage - in order to make
-    /// delayed storage forwarding into replication handler.
-    String remote_table_name;
+  /// Needed only for the case of single MaterializedPostgreSQL storage - in order to make
+  /// delayed storage forwarding into replication handler.
+  String remote_table_name;
 
-    /// Needed only for the case of single MaterializedPostgreSQL storage, because in case of create
-    /// query (not attach) initial setup will be done immediately and error message is thrown at once.
-    /// It results in the fact: single MaterializedPostgreSQL storage is created only if its nested table is created.
-    /// In case of attach - this setup will be done in a separate thread in the background. It will also
-    /// be checked for nested table and attempted to load it if it does not exist for some reason.
-    bool is_attach = true;
+  /// Needed only for the case of single MaterializedPostgreSQL storage, because in case of create
+  /// query (not attach) initial setup will be done immediately and error message is thrown at once.
+  /// It results in the fact: single MaterializedPostgreSQL storage is created only if its nested table is created.
+  /// In case of attach - this setup will be done in a separate thread in the background. It will also
+  /// be checked for nested table and attempted to load it if it does not exist for some reason.
+  bool is_attach = true;
 };
 
-}
+}  // namespace DB
 
 #endif

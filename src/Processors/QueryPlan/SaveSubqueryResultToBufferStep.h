@@ -4,8 +4,7 @@
 #include <Processors/Chunk.h>
 #include <Processors/QueryPlan/ITransformingStep.h>
 
-namespace DB
-{
+namespace DB {
 
 class IStorage;
 using StoragePtr = std::shared_ptr<IStorage>;
@@ -17,28 +16,21 @@ struct ChunkBuffer;
 using ChunkBufferPtr = std::shared_ptr<ChunkBuffer>;
 
 /** Save data to ChunkBuffer to be read later by ReadFromCommonBufferStep.
-  * Used to implement result buffering for common subplan.
-  */
-class SaveSubqueryResultToBufferStep : public ITransformingStep
-{
-public:
-    SaveSubqueryResultToBufferStep(
-        const SharedHeader & header_,
-        ColumnIdentifiers columns_to_save_,
-        ChunkBufferPtr chunk_buffer_);
+ * Used to implement result buffering for common subplan.
+ */
+class SaveSubqueryResultToBufferStep : public ITransformingStep {
+ public:
+  SaveSubqueryResultToBufferStep(const SharedHeader& header_, ColumnIdentifiers columns_to_save_, ChunkBufferPtr chunk_buffer_);
 
-    String getName() const override { return "SaveSubqueryResultToBuffer"; }
+  String getName() const override { return "SaveSubqueryResultToBuffer"; }
 
-    void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & settings) override;
+  void transformPipeline(QueryPipelineBuilder& pipeline, const BuildQueryPipelineSettings& settings) override;
 
-    void updateOutputHeader() override
-    {
-        output_header = input_headers.front();
-    }
+  void updateOutputHeader() override { output_header = input_headers.front(); }
 
-private:
-    ColumnIdentifiers columns_to_save;
-    ChunkBufferPtr chunk_buffer;
+ private:
+  ColumnIdentifiers columns_to_save;
+  ChunkBufferPtr chunk_buffer;
 };
 
-}
+}  // namespace DB

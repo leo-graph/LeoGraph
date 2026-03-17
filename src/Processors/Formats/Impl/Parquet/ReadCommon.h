@@ -3,62 +3,55 @@
 #include <Common/threadPoolCallbackRunner.h>
 #include <Formats/FormatSettings.h>
 
-namespace DB
-{
+namespace DB {
 struct FormatParserSharedResources;
 using FormatParserSharedResourcesPtr = std::shared_ptr<FormatParserSharedResources>;
 struct FormatFilterInfo;
 using FormatFilterInfoPtr = std::shared_ptr<FormatFilterInfo>;
 class KeyCondition;
-}
+}  // namespace DB
 
-namespace DB::Parquet
-{
+namespace DB::Parquet {
 
-struct ReadOptions
-{
-    FormatSettings format;
+struct ReadOptions {
+  FormatSettings format;
 
-    bool seekable_read = true;
+  bool seekable_read = true;
 
-    bool schema_inference_force_nullable = false;
-    bool schema_inference_force_not_nullable = false;
+  bool schema_inference_force_nullable = false;
+  bool schema_inference_force_not_nullable = false;
 
-    /// Not implemented.
-    /// Use dictionary filter if dictionary page is smaller than this (and all values in the column
-    /// chunk are dictionary-encoded). This takes precedence over bloom filter. 0 to disable.
-    size_t dictionary_filter_limit_bytes = 0;
+  /// Not implemented.
+  /// Use dictionary filter if dictionary page is smaller than this (and all values in the column
+  /// chunk are dictionary-encoded). This takes precedence over bloom filter. 0 to disable.
+  size_t dictionary_filter_limit_bytes = 0;
 
-    size_t min_bytes_for_seek = 64 << 10;
-    size_t bytes_per_read_task = 4 << 20;
+  size_t min_bytes_for_seek = 64 << 10;
+  size_t bytes_per_read_task = 4 << 20;
 
-    /// Don't use bloom filter for `x IN (...)` if the set `(...)` is has more than this many
-    /// elements. There's no point using bloom filter for big sets because false positive
-    /// probability becomes very high. E.g. if bloom filter has 1% false positive probability,
-    /// searching for 100 elements would have 63% false positive probability.
-    size_t bloom_filter_max_set_size = 100;
+  /// Don't use bloom filter for `x IN (...)` if the set `(...)` is has more than this many
+  /// elements. There's no point using bloom filter for big sets because false positive
+  /// probability becomes very high. E.g. if bloom filter has 1% false positive probability,
+  /// searching for 100 elements would have 63% false positive probability.
+  size_t bloom_filter_max_set_size = 100;
 };
 
-struct SharedResourcesExt
-{
-    size_t total_memory_low_watermark = 0;
-    size_t total_memory_high_watermark = 0;
+struct SharedResourcesExt {
+  size_t total_memory_low_watermark = 0;
+  size_t total_memory_high_watermark = 0;
 
-    struct Limits
-    {
-        size_t memory_low_watermark;
-        size_t memory_high_watermark;
-        size_t parsing_threads;
-    };
+  struct Limits {
+    size_t memory_low_watermark;
+    size_t memory_high_watermark;
+    size_t parsing_threads;
+  };
 
-    static Limits getLimitsPerReader(const FormatParserSharedResources & parser_shared_resources, double fraction);
+  static Limits getLimitsPerReader(const FormatParserSharedResources &parser_shared_resources, double fraction);
 };
 
-struct FilterInfoExt
-{
-    std::vector<std::pair</*column_idx*/ size_t, std::shared_ptr<KeyCondition>>> column_conditions;
+struct FilterInfoExt {
+  std::vector<std::pair</*column_idx*/ size_t, std::shared_ptr<KeyCondition>>> column_conditions;
 };
-
 
 /// Each column chunk goes through some subsequence of these stages, in order.
 ///
@@ -85,22 +78,20 @@ struct FilterInfoExt
 /// Memory is attributed to the stage that allocated it. E.g. ReadManager::read() (Deliver stage)
 /// may release a column that was allocated by PrewhereData stage, reducing PrewhereData's memory
 /// usage and potentially kicking off more PrewhereData read tasks.
-enum class ReadStage
-{
-    NotStarted = 0,
+enum class ReadStage {
+  NotStarted = 0,
 
-    BloomFilterHeader,
-    BloomFilterBlocksOrDictionary,
-    ColumnIndexAndOffsetIndex,
+  BloomFilterHeader,
+  BloomFilterBlocksOrDictionary,
+  ColumnIndexAndOffsetIndex,
 
-    OffsetIndex,
-    ColumnData,
+  OffsetIndex,
+  ColumnData,
 
-    Deliver,
+  Deliver,
 
-    Deallocated,
+  Deallocated,
 };
-
 
 /// We track approximate current memory usage per ReadStage that allocated the memory (*).
 /// This struct aggregates how much memory was allocated by some operation.
@@ -112,127 +103,99 @@ enum class ReadStage
 /// for stages that use little memory (e.g. prefetch small bloom filters and indexes for lots of row
 /// groups in parallel, but read large column data for few row groups to not run out of memory).
 /// TODO [parquet]: Try using thread-locals instead of manually error-pronely passing this everywhere.
-struct MemoryUsageDiff
-{
-    ReadStage cur_stage;
-    std::array<ssize_t, size_t(ReadStage::Deallocated)> by_stage {};
-    /// Bit mask saying which ReadStage-s may have new tasks that can be scheduled to thread pool.
-    UInt64 stages_to_schedule = 0;
-    bool finalized = false;
+struct MemoryUsageDiff {
+  ReadStage cur_stage;
+  std::array<ssize_t, size_t(ReadStage::Deallocated)> by_stage{};
+  /// Bit mask saying which ReadStage-s may have new tasks that can be scheduled to thread pool.
+  UInt64 stages_to_schedule = 0;
+  bool finalized = false;
 
-    explicit MemoryUsageDiff(ReadStage cur_stage_) : cur_stage(cur_stage_) {}
-    MemoryUsageDiff() = delete;
-    MemoryUsageDiff(const MemoryUsageDiff &) = delete;
-    MemoryUsageDiff & operator=(const MemoryUsageDiff &) = delete;
+  explicit MemoryUsageDiff(ReadStage cur_stage_) : cur_stage(cur_stage_) {}
+  MemoryUsageDiff() = delete;
+  MemoryUsageDiff(const MemoryUsageDiff &) = delete;
+  MemoryUsageDiff &operator=(const MemoryUsageDiff &) = delete;
 
-    ~MemoryUsageDiff()
-    {
-        chassert(finalized || std::uncaught_exceptions() > 0);
-    }
+  ~MemoryUsageDiff() { chassert(finalized || std::uncaught_exceptions() > 0); }
 
-    void allocated(size_t amount)
-    {
-        chassert(cur_stage > ReadStage::NotStarted);
-        chassert(cur_stage < ReadStage::Deliver);
-        chassert(!finalized);
-        by_stage.at(size_t(cur_stage)) += ssize_t(amount);
-    }
-    void deallocated(size_t amount, ReadStage stage)
-    {
-        chassert(!finalized);
-        by_stage.at(size_t(stage)) -= ssize_t(amount);
-    }
+  void allocated(size_t amount) {
+    chassert(cur_stage > ReadStage::NotStarted);
+    chassert(cur_stage < ReadStage::Deliver);
+    chassert(!finalized);
+    by_stage.at(size_t(cur_stage)) += ssize_t(amount);
+  }
+  void deallocated(size_t amount, ReadStage stage) {
+    chassert(!finalized);
+    by_stage.at(size_t(stage)) -= ssize_t(amount);
+  }
 
-    void scheduleAllStages()
-    {
-        stages_to_schedule = ~0ul;
-    }
-    void scheduleStage(ReadStage stage)
-    {
-        stages_to_schedule |= 1ul << size_t(stage);
-    }
+  void scheduleAllStages() { stages_to_schedule = ~0ul; }
+  void scheduleStage(ReadStage stage) { stages_to_schedule |= 1ul << size_t(stage); }
 };
 
 /// Remembers the ReadStage and size of a memory allocation.
 /// Not RAII, you have to call reset to update the stat.
-class MemoryUsageToken
-{
-public:
-    MemoryUsageToken() = default;
-    MemoryUsageToken(size_t val_, MemoryUsageDiff * diff)
-        : alloc_stage(diff->cur_stage), val(val_)
-    {
-        diff->allocated(val);
-    }
-    MemoryUsageToken(MemoryUsageToken && rhs) noexcept
-    {
-        *this = std::move(rhs);
-    }
-    MemoryUsageToken & operator=(MemoryUsageToken && rhs) noexcept
-    {
-        chassert(!val);
-        alloc_stage = std::exchange(rhs.alloc_stage, ReadStage::Deallocated);
-        val = std::exchange(rhs.val, 0);
-        return *this;
-    }
+class MemoryUsageToken {
+ public:
+  MemoryUsageToken() = default;
+  MemoryUsageToken(size_t val_, MemoryUsageDiff *diff) : alloc_stage(diff->cur_stage), val(val_) { diff->allocated(val); }
+  MemoryUsageToken(MemoryUsageToken &&rhs) noexcept { *this = std::move(rhs); }
+  MemoryUsageToken &operator=(MemoryUsageToken &&rhs) noexcept {
+    chassert(!val);
+    alloc_stage = std::exchange(rhs.alloc_stage, ReadStage::Deallocated);
+    val = std::exchange(rhs.val, 0);
+    return *this;
+  }
 
-    explicit operator bool() const { return alloc_stage != ReadStage::Deallocated; }
+  explicit operator bool() const { return alloc_stage != ReadStage::Deallocated; }
 
-    void reset(MemoryUsageDiff * diff)
-    {
-        if (val)
-            diff->deallocated(val, alloc_stage);
-        val = 0;
-        alloc_stage = ReadStage::Deallocated;
-    }
-    void add(size_t amount, MemoryUsageDiff * diff)
-    {
-        chassert(diff->cur_stage == alloc_stage);
-        diff->allocated(amount);
-        val += amount;
-    }
+  void reset(MemoryUsageDiff *diff) {
+    if (val) diff->deallocated(val, alloc_stage);
+    val = 0;
+    alloc_stage = ReadStage::Deallocated;
+  }
+  void add(size_t amount, MemoryUsageDiff *diff) {
+    chassert(diff->cur_stage == alloc_stage);
+    diff->allocated(amount);
+    val += amount;
+  }
 
-private:
-    ReadStage alloc_stage = ReadStage::Deallocated;
-    size_t val = 0;
+ private:
+  ReadStage alloc_stage = ReadStage::Deallocated;
+  size_t val = 0;
 };
-
 
 #ifdef OS_LINUX
 
-class CompletionNotification
-{
-private:
-    enum State : UInt32
-    {
-        EMPTY,
-        WAITING,
-        NOTIFIED,
-    };
+class CompletionNotification {
+ private:
+  enum State : UInt32 {
+    EMPTY,
+    WAITING,
+    NOTIFIED,
+  };
 
-    std::atomic<UInt32> val {0};
+  std::atomic<UInt32> val{0};
 
-public:
-    bool check() const;
-    void wait();
-    void notify();
+ public:
+  bool check() const;
+  void wait();
+  void notify();
 };
 
 #else
 
-class CompletionNotification
-{
-private:
-    std::promise<void> promise;
-    std::future<void> future = promise.get_future();
-    std::atomic<bool> notified {false};
+class CompletionNotification {
+ private:
+  std::promise<void> promise;
+  std::future<void> future = promise.get_future();
+  std::atomic<bool> notified{false};
 
-public:
-    bool check() const;
-    void wait();
-    void notify();
+ public:
+  bool check() const;
+  void wait();
+  void notify();
 };
 
 #endif
 
-}
+}  // namespace DB::Parquet

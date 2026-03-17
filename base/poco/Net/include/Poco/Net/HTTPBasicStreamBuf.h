@@ -13,26 +13,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPBasicStreamBuf_INCLUDED
 #define Net_HTTPBasicStreamBuf_INCLUDED
-
 
 #include "Poco/BufferedStreamBuf.h"
 #include "Poco/Net/Net.h"
 
+namespace Poco {
+namespace Net {
+constexpr size_t HTTP_DEFAULT_BUFFER_SIZE = 8 * 1024;
 
-namespace Poco
-{
-namespace Net
-{
-    constexpr size_t HTTP_DEFAULT_BUFFER_SIZE = 8 * 1024;
+typedef Poco::BasicBufferedStreamBuf<char, std::char_traits<char>> HTTPBasicStreamBuf;
 
-    typedef Poco::BasicBufferedStreamBuf<char, std::char_traits<char>> HTTPBasicStreamBuf;
+}  // namespace Net
+}  // namespace Poco
 
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPBasicStreamBuf_INCLUDED
+#endif  // Net_HTTPBasicStreamBuf_INCLUDED

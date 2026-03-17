@@ -1,13 +1,10 @@
 #pragma once
 
-
-namespace DB
-{
+namespace DB {
 
 /// Label names with special meaning.
-struct TimeSeriesTagNames
-{
-    static constexpr const char * MetricName = "__name__";
+struct TimeSeriesTagNames {
+  static constexpr const char* MetricName = "__name__";
 };
 
-}
+}  // namespace DB

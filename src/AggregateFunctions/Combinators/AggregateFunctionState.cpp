@@ -4,38 +4,26 @@
 
 #include <DataTypes/DataTypeAggregateFunction.h>
 
+namespace DB {
 
-namespace DB
-{
+namespace {
 
-namespace
-{
+class AggregateFunctionCombinatorState final : public IAggregateFunctionCombinator {
+ public:
+  String getName() const override { return "State"; }
 
-class AggregateFunctionCombinatorState final : public IAggregateFunctionCombinator
-{
-public:
-    String getName() const override { return "State"; }
+  DataTypes transformArguments(const DataTypes &arguments) const override { return arguments; }
 
-    DataTypes transformArguments(const DataTypes & arguments) const override
-    {
-        return arguments;
-    }
-
-    AggregateFunctionPtr transformAggregateFunction(
-        const AggregateFunctionPtr & nested_function,
-        const AggregateFunctionProperties &,
-        const DataTypes & arguments,
-        const Array & params) const override
-    {
-        return std::make_shared<AggregateFunctionState>(nested_function, arguments, params);
-    }
+  AggregateFunctionPtr transformAggregateFunction(const AggregateFunctionPtr &nested_function, const AggregateFunctionProperties &,
+                                                  const DataTypes &arguments, const Array &params) const override {
+    return std::make_shared<AggregateFunctionState>(nested_function, arguments, params);
+  }
 };
 
+}  // namespace
+
+void registerAggregateFunctionCombinatorState(AggregateFunctionCombinatorFactory &factory) {
+  factory.registerCombinator(std::make_shared<AggregateFunctionCombinatorState>());
 }
 
-void registerAggregateFunctionCombinatorState(AggregateFunctionCombinatorFactory & factory)
-{
-    factory.registerCombinator(std::make_shared<AggregateFunctionCombinatorState>());
-}
-
-}
+}  // namespace DB

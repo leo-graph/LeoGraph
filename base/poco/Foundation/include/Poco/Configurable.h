@@ -13,17 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Configurable_INCLUDED
 #define Foundation_Configurable_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API Configurable
 /// A simple interface that defines
@@ -46,26 +41,24 @@ class Foundation_API Configurable
 ///   - pattern (Channel)
 ///   - formatter (Channel)
 {
-public:
-    Configurable();
-    /// Creates the Configurable.
+ public:
+  Configurable();
+  /// Creates the Configurable.
 
-    virtual ~Configurable();
-    /// Destroys the Configurable.
+  virtual ~Configurable();
+  /// Destroys the Configurable.
 
-    virtual void setProperty(const std::string & name, const std::string & value) = 0;
-    /// Sets the property with the given name to the given value.
-    /// If a property with the given name is not supported, a
-    /// PropertyNotSupportedException is thrown.
+  virtual void setProperty(const std::string& name, const std::string& value) = 0;
+  /// Sets the property with the given name to the given value.
+  /// If a property with the given name is not supported, a
+  /// PropertyNotSupportedException is thrown.
 
-    virtual std::string getProperty(const std::string & name) const = 0;
-    /// Returns the value of the property with the given name.
-    /// If a property with the given name is not supported, a
-    /// PropertyNotSupportedException is thrown.
+  virtual std::string getProperty(const std::string& name) const = 0;
+  /// Returns the value of the property with the given name.
+  /// If a property with the given name is not supported, a
+  /// PropertyNotSupportedException is thrown.
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Configurable_INCLUDED
+#endif  // Foundation_Configurable_INCLUDED

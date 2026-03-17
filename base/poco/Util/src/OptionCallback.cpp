@@ -11,27 +11,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Util/OptionCallback.h"
-
 
 namespace Poco {
 namespace Util {
 
+AbstractOptionCallback::AbstractOptionCallback() {}
 
-AbstractOptionCallback::AbstractOptionCallback()
-{
-}
+AbstractOptionCallback::AbstractOptionCallback(const AbstractOptionCallback&) {}
 
+AbstractOptionCallback::~AbstractOptionCallback() {}
 
-AbstractOptionCallback::AbstractOptionCallback(const AbstractOptionCallback&)
-{
-}
-
-
-AbstractOptionCallback::~AbstractOptionCallback()
-{
-}
-
-
-} } // namespace Poco::Util
+}  // namespace Util
+}  // namespace Poco

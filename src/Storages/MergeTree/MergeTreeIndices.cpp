@@ -1,202 +1,157 @@
 #include <Storages/MergeTree/MergeTreeDataPartChecksum.h>
-#include <Storages/MergeTree/MergeTreeIndices.h>
 #include <Storages/MergeTree/MergeTreeIndexLegacyHypothesis.h>
+#include <Storages/MergeTree/MergeTreeIndices.h>
 
 #include <Columns/IColumn.h>
-#include <Interpreters/ExpressionActions.h>
-#include <Storages/MergeTree/IDataPartStorage.h>
 #include <Common/escapeForFileName.h>
 #include <Common/SipHash.h>
+#include <Interpreters/ExpressionActions.h>
+#include <Storages/MergeTree/IDataPartStorage.h>
 
 #include <numeric>
 
-namespace DB
-{
+namespace DB {
 
 constexpr auto INDEX_FILE_PREFIX = "skp_idx_";
 
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-    extern const int INCORRECT_QUERY;
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
+extern const int INCORRECT_QUERY;
+}  // namespace ErrorCodes
+
+bool indexFileExistsInChecksums(const MergeTreeDataPartChecksums& checksums, const std::string& path_prefix, const std::string& extension) {
+  if (checksums.files.contains(path_prefix + extension)) return true;
+
+  /// Also check for hashed version of the filename
+  auto hash = sipHash128String(path_prefix);
+  return checksums.files.contains(hash + extension);
 }
 
-bool indexFileExistsInChecksums(
-    const MergeTreeDataPartChecksums & checksums,
-    const std::string & path_prefix,
-    const std::string & extension)
-{
-    if (checksums.files.contains(path_prefix + extension))
-        return true;
-
-    /// Also check for hashed version of the filename
-    auto hash = sipHash128String(path_prefix);
-    return checksums.files.contains(hash + extension);
+String getIndexFileName(const String& index_name, bool escape_filename) {
+  if (escape_filename) return escapeForFileName(INDEX_FILE_PREFIX + index_name);
+  return INDEX_FILE_PREFIX + index_name;
 }
 
-String getIndexFileName(const String & index_name, bool escape_filename)
-{
-    if (escape_filename)
-        return escapeForFileName(INDEX_FILE_PREFIX + index_name);
-    return INDEX_FILE_PREFIX + index_name;
+String IMergeTreeIndex::getFileName() const { return getIndexFileName(index.name, index.escape_filenames); }
+
+Names IMergeTreeIndex::getColumnsRequiredForIndexCalc() const { return index.expression->getRequiredColumns(); }
+
+MergeTreeIndexFormat IMergeTreeIndex::getDeserializedFormat(const MergeTreeDataPartChecksums& checksums,
+                                                            const std::string& relative_path_prefix) const {
+  if (indexFileExistsInChecksums(checksums, relative_path_prefix, ".idx"))
+    return {1, {{MergeTreeIndexSubstream::Type::Regular, "", ".idx"}}};
+
+  return {0 /*unknown*/, {}};
 }
 
-String IMergeTreeIndex::getFileName() const
-{
-    return getIndexFileName(index.name, index.escape_filenames);
+void IMergeTreeIndexGranule::serializeBinaryWithMultipleStreams(MergeTreeIndexOutputStreams& streams) const {
+  auto* stream = streams.at(MergeTreeIndexSubstream::Type::Regular);
+  serializeBinary(stream->compressed_hashing);
 }
 
-Names IMergeTreeIndex::getColumnsRequiredForIndexCalc() const
-{
-    return index.expression->getRequiredColumns();
+void MergeTreeIndexFactory::registerCreator(const std::string& index_type, Creator creator) {
+  if (!creators.emplace(index_type, std::move(creator)).second)
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "MergeTreeIndexFactory: the Index creator name '{}' is not unique", index_type);
+}
+void MergeTreeIndexFactory::registerValidator(const std::string& index_type, Validator validator) {
+  if (!validators.emplace(index_type, std::move(validator)).second)
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "MergeTreeIndexFactory: the Index validator name '{}' is not unique", index_type);
 }
 
-MergeTreeIndexFormat IMergeTreeIndex::getDeserializedFormat(const MergeTreeDataPartChecksums & checksums, const std::string & relative_path_prefix) const
-{
-    if (indexFileExistsInChecksums(checksums, relative_path_prefix, ".idx"))
-        return {1, {{MergeTreeIndexSubstream::Type::Regular, "", ".idx"}}};
-
-    return {0 /*unknown*/, {}};
+void IMergeTreeIndexGranule::deserializeBinaryWithMultipleStreams(MergeTreeIndexInputStreams& streams,
+                                                                  MergeTreeIndexDeserializationState& state) {
+  auto* stream = streams.at(MergeTreeIndexSubstream::Type::Regular);
+  deserializeBinary(*stream->getDataBuffer(), state.version);
 }
 
-void IMergeTreeIndexGranule::serializeBinaryWithMultipleStreams(MergeTreeIndexOutputStreams & streams) const
-{
-    auto * stream = streams.at(MergeTreeIndexSubstream::Type::Regular);
-    serializeBinary(stream->compressed_hashing);
+MergeTreeIndexPtr MergeTreeIndexFactory::get(const IndexDescription& index) const {
+  auto it = creators.find(index.type);
+  if (it == creators.end()) {
+    throw Exception(ErrorCodes::INCORRECT_QUERY, "Unknown Index type '{}'. Available index types: {}", index.type,
+                    std::accumulate(creators.cbegin(), creators.cend(), std::string{}, [](auto&& left, const auto& right) -> std::string {
+                      if (left.empty()) return right.first;
+                      return left + ", " + right.first;
+                    }));
+  }
+
+  return it->second(index);
 }
 
-void MergeTreeIndexFactory::registerCreator(const std::string & index_type, Creator creator)
-{
-    if (!creators.emplace(index_type, std::move(creator)).second)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "MergeTreeIndexFactory: the Index creator name '{}' is not unique",
-                        index_type);
-}
-void MergeTreeIndexFactory::registerValidator(const std::string & index_type, Validator validator)
-{
-    if (!validators.emplace(index_type, std::move(validator)).second)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "MergeTreeIndexFactory: the Index validator name '{}' is not unique", index_type);
+MergeTreeIndices MergeTreeIndexFactory::getMany(const std::vector<IndexDescription>& indices) const {
+  MergeTreeIndices result;
+  for (const auto& index : indices) result.emplace_back(get(index));
+  return result;
 }
 
-void IMergeTreeIndexGranule::deserializeBinaryWithMultipleStreams(MergeTreeIndexInputStreams & streams, MergeTreeIndexDeserializationState & state)
-{
-    auto * stream = streams.at(MergeTreeIndexSubstream::Type::Regular);
-    deserializeBinary(*stream->getDataBuffer(), state.version);
-}
+void MergeTreeIndexFactory::validate(const IndexDescription& index, bool attach) const {
+  /// Do not allow constant and non-deterministic expressions.
+  /// Do not throw on attach for compatibility.
+  if (!attach) {
+    if (index.expression->hasArrayJoin())
+      throw Exception(ErrorCodes::INCORRECT_QUERY, "Secondary index '{}' cannot contain array joins", index.name);
 
-MergeTreeIndexPtr MergeTreeIndexFactory::get(
-    const IndexDescription & index) const
-{
-    auto it = creators.find(index.type);
-    if (it == creators.end())
-    {
-        throw Exception(ErrorCodes::INCORRECT_QUERY,
-                "Unknown Index type '{}'. Available index types: {}", index.type,
-                std::accumulate(creators.cbegin(), creators.cend(), std::string{},
-                        [] (auto && left, const auto & right) -> std::string
-                        {
-                            if (left.empty())
-                                return right.first;
-                            return left + ", " + right.first;
-                        })
-                );
+    try {
+      index.expression->assertDeterministic();
+    } catch (Exception& e) {
+      e.addMessage(fmt::format("for secondary index '{}'", index.name));
+      throw;
     }
 
-    return it->second(index);
+    for (const auto& elem : index.sample_block)
+      if (elem.column && (isColumnConst(*elem.column) || elem.column->isDummy()))
+        throw Exception(ErrorCodes::INCORRECT_QUERY, "Secondary index '{}' cannot contain constants", index.name);
+  }
+
+  auto it = validators.find(index.type);
+  if (it == validators.end()) {
+    throw Exception(
+        ErrorCodes::INCORRECT_QUERY, "Unknown Index type '{}'. Available index types: {}", index.type,
+        std::accumulate(validators.cbegin(), validators.cend(), std::string{}, [](auto&& left, const auto& right) -> std::string {
+          if (left.empty()) return right.first;
+          return left + ", " + right.first;
+        }));
+  }
+
+  it->second(index, attach);
 }
 
+MergeTreeIndexFactory::MergeTreeIndexFactory() {
+  registerCreator("minmax", minmaxIndexCreator);
+  registerValidator("minmax", minmaxIndexValidator);
 
-MergeTreeIndices MergeTreeIndexFactory::getMany(const std::vector<IndexDescription> & indices) const
-{
-    MergeTreeIndices result;
-    for (const auto & index : indices)
-        result.emplace_back(get(index));
-    return result;
-}
+  registerCreator("set", setIndexCreator);
+  registerValidator("set", setIndexValidator);
 
-void MergeTreeIndexFactory::validate(const IndexDescription & index, bool attach) const
-{
-    /// Do not allow constant and non-deterministic expressions.
-    /// Do not throw on attach for compatibility.
-    if (!attach)
-    {
-        if (index.expression->hasArrayJoin())
-            throw Exception(ErrorCodes::INCORRECT_QUERY, "Secondary index '{}' cannot contain array joins", index.name);
+  registerCreator("ngrambf_v1", bloomFilterIndexTextCreator);
+  registerValidator("ngrambf_v1", bloomFilterIndexTextValidator);
 
-        try
-        {
-            index.expression->assertDeterministic();
-        }
-        catch (Exception & e)
-        {
-            e.addMessage(fmt::format("for secondary index '{}'", index.name));
-            throw;
-        }
+  registerCreator("tokenbf_v1", bloomFilterIndexTextCreator);
+  registerValidator("tokenbf_v1", bloomFilterIndexTextValidator);
 
-        for (const auto & elem : index.sample_block)
-            if (elem.column && (isColumnConst(*elem.column) || elem.column->isDummy()))
-                throw Exception(ErrorCodes::INCORRECT_QUERY, "Secondary index '{}' cannot contain constants", index.name);
-    }
+  registerCreator("sparse_grams", bloomFilterIndexTextCreator);
+  registerValidator("sparse_grams", bloomFilterIndexTextValidator);
 
-    auto it = validators.find(index.type);
-    if (it == validators.end())
-    {
-        throw Exception(ErrorCodes::INCORRECT_QUERY,
-            "Unknown Index type '{}'. Available index types: {}", index.type,
-                std::accumulate(
-                    validators.cbegin(),
-                    validators.cend(),
-                    std::string{},
-                    [](auto && left, const auto & right) -> std::string
-                    {
-                        if (left.empty())
-                            return right.first;
-                        return left + ", " + right.first;
-                    })
-            );
-    }
-
-    it->second(index, attach);
-}
-
-MergeTreeIndexFactory::MergeTreeIndexFactory()
-{
-    registerCreator("minmax", minmaxIndexCreator);
-    registerValidator("minmax", minmaxIndexValidator);
-
-    registerCreator("set", setIndexCreator);
-    registerValidator("set", setIndexValidator);
-
-    registerCreator("ngrambf_v1", bloomFilterIndexTextCreator);
-    registerValidator("ngrambf_v1", bloomFilterIndexTextValidator);
-
-    registerCreator("tokenbf_v1", bloomFilterIndexTextCreator);
-    registerValidator("tokenbf_v1", bloomFilterIndexTextValidator);
-
-    registerCreator("sparse_grams", bloomFilterIndexTextCreator);
-    registerValidator("sparse_grams", bloomFilterIndexTextValidator);
-
-    registerCreator("bloom_filter", bloomFilterIndexCreator);
-    registerValidator("bloom_filter", bloomFilterIndexValidator);
+  registerCreator("bloom_filter", bloomFilterIndexCreator);
+  registerValidator("bloom_filter", bloomFilterIndexValidator);
 
 #if USE_USEARCH
-    registerCreator("vector_similarity", vectorSimilarityIndexCreator);
-    registerValidator("vector_similarity", vectorSimilarityIndexValidator);
+  registerCreator("vector_similarity", vectorSimilarityIndexCreator);
+  registerValidator("vector_similarity", vectorSimilarityIndexValidator);
 #endif
 
-    registerCreator("text", textIndexCreator);
-    registerValidator("text", textIndexValidator);
+  registerCreator("text", textIndexCreator);
+  registerValidator("text", textIndexValidator);
 
-    /// Index type 'hypothesis' is no longer supported.
-    /// To allow loading tables with old indexes, register a dummy index which allows attach but
-    /// throws an exception when the user attempts to create or use it.
-    registerCreator("hypothesis", legacyHypothesisIndexCreator);
-    registerValidator("hypothesis", legacyHypothesisIndexValidator);
+  /// Index type 'hypothesis' is no longer supported.
+  /// To allow loading tables with old indexes, register a dummy index which allows attach but
+  /// throws an exception when the user attempts to create or use it.
+  registerCreator("hypothesis", legacyHypothesisIndexCreator);
+  registerValidator("hypothesis", legacyHypothesisIndexValidator);
 }
 
-MergeTreeIndexFactory & MergeTreeIndexFactory::instance()
-{
-    static MergeTreeIndexFactory instance;
-    return instance;
+MergeTreeIndexFactory& MergeTreeIndexFactory::instance() {
+  static MergeTreeIndexFactory instance;
+  return instance;
 }
 
-}
+}  // namespace DB

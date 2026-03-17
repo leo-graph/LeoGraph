@@ -1,114 +1,96 @@
+#include <Common/intExp10.h>
 #include <IO/ReadHelpers.h>
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/ParserSampleRatio.h>
-#include <Common/intExp10.h>
 
+namespace DB {
 
-namespace DB
-{
+static bool parseDecimal(const char *pos, const char *end, ASTSampleRatio::Rational &res) {
+  UInt64 num_before = 0;
+  UInt64 num_after = 0;
+  Int32 exponent = 0;
 
+  const char *pos_after_first_num = tryReadIntText(num_before, pos, end);
 
-static bool parseDecimal(const char * pos, const char * end, ASTSampleRatio::Rational & res)
-{
-    UInt64 num_before = 0;
-    UInt64 num_after = 0;
-    Int32 exponent = 0;
+  bool has_num_before_point = pos_after_first_num > pos;
+  pos = pos_after_first_num;
+  bool has_point = pos < end && *pos == '.';
 
-    const char * pos_after_first_num = tryReadIntText(num_before, pos, end);
+  if (has_point) ++pos;
 
-    bool has_num_before_point = pos_after_first_num > pos;
-    pos = pos_after_first_num;
-    bool has_point = pos < end && *pos == '.';
+  if (!has_num_before_point && !has_point) return false;
 
-    if (has_point)
-        ++pos;
+  int number_of_digits_after_point = 0;
 
-    if (!has_num_before_point && !has_point)
-        return false;
+  if (has_point) {
+    const char *pos_after_second_num = tryReadIntText(num_after, pos, end);
+    number_of_digits_after_point = static_cast<int>(pos_after_second_num - pos);
+    pos = pos_after_second_num;
+  }
 
-    int number_of_digits_after_point = 0;
+  bool has_exponent = pos < end && (*pos == 'e' || *pos == 'E');
 
-    if (has_point)
-    {
-        const char * pos_after_second_num = tryReadIntText(num_after, pos, end);
-        number_of_digits_after_point = static_cast<int>(pos_after_second_num - pos);
-        pos = pos_after_second_num;
-    }
+  if (has_exponent) {
+    ++pos;
+    const char *pos_after_exponent = tryReadIntText(exponent, pos, end);
 
-    bool has_exponent = pos < end && (*pos == 'e' || *pos == 'E');
+    if (pos_after_exponent == pos) return false;
+  }
 
-    if (has_exponent)
-    {
-        ++pos;
-        const char * pos_after_exponent = tryReadIntText(exponent, pos, end);
+  res.numerator = num_before * intExp10(number_of_digits_after_point) + num_after;
+  res.denominator = intExp10(number_of_digits_after_point);
 
-        if (pos_after_exponent == pos)
-            return false;
-    }
+  if (exponent > 0) res.numerator *= intExp10(exponent);
+  if (exponent < 0) res.denominator *= intExp10(-exponent);
 
-    res.numerator = num_before * intExp10(number_of_digits_after_point) + num_after;
-    res.denominator = intExp10(number_of_digits_after_point);
-
-    if (exponent > 0)
-        res.numerator *= intExp10(exponent);
-    if (exponent < 0)
-        res.denominator *= intExp10(-exponent);
-
-    /// NOTE You do not need to remove the common power of ten from the numerator and denominator.
-    return true;
+  /// NOTE You do not need to remove the common power of ten from the numerator and denominator.
+  return true;
 }
-
 
 /** Possible options:
-  *
-  * 12345
-  * - an integer
-  *
-  * 0.12345
-  * .12345
-  * 0.
-  * - fraction in ordinary decimal notation
-  *
-  * 1.23e-1
-  * - fraction in scientific decimal notation
-  *
-  * 123 / 456
-  * - fraction with an ordinary denominator
-  *
-  * Just in case, in the numerator and denominator of the fraction, we support the previous cases.
-  * Example:
-  * 123.0 / 456e0
-  */
-bool ParserSampleRatio::parseImpl(Pos & pos, ASTPtr & node, Expected &)
-{
-    ASTSampleRatio::Rational numerator;
-    ASTSampleRatio::Rational denominator;
-    ASTSampleRatio::Rational res;
+ *
+ * 12345
+ * - an integer
+ *
+ * 0.12345
+ * .12345
+ * 0.
+ * - fraction in ordinary decimal notation
+ *
+ * 1.23e-1
+ * - fraction in scientific decimal notation
+ *
+ * 123 / 456
+ * - fraction with an ordinary denominator
+ *
+ * Just in case, in the numerator and denominator of the fraction, we support the previous cases.
+ * Example:
+ * 123.0 / 456e0
+ */
+bool ParserSampleRatio::parseImpl(Pos &pos, ASTPtr &node, Expected &) {
+  ASTSampleRatio::Rational numerator;
+  ASTSampleRatio::Rational denominator;
+  ASTSampleRatio::Rational res;
 
-    if (!parseDecimal(pos->begin, pos->end, numerator))
-        return false;
+  if (!parseDecimal(pos->begin, pos->end, numerator)) return false;
+  ++pos;
+
+  bool has_slash = pos->type == TokenType::Slash;
+
+  if (has_slash) {
     ++pos;
 
-    bool has_slash = pos->type == TokenType::Slash;
+    if (!parseDecimal(pos->begin, pos->end, denominator)) return false;
+    ++pos;
 
-    if (has_slash)
-    {
-        ++pos;
+    res.numerator = numerator.numerator * denominator.denominator;
+    res.denominator = numerator.denominator * denominator.numerator;
+  } else {
+    res = numerator;
+  }
 
-        if (!parseDecimal(pos->begin, pos->end, denominator))
-            return false;
-        ++pos;
-
-        res.numerator = numerator.numerator * denominator.denominator;
-        res.denominator = numerator.denominator * denominator.numerator;
-    }
-    else
-    {
-        res = numerator;
-    }
-
-    node = make_intrusive<ASTSampleRatio>(res);
-    return true;
+  node = make_intrusive<ASTSampleRatio>(res);
+  return true;
 }
 
-}
+}  // namespace DB

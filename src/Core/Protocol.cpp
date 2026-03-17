@@ -1,27 +1,18 @@
-#include <Core/Protocol.h>
 #include <base/EnumReflection.h>
+#include <Core/Protocol.h>
 
-namespace DB::Protocol
-{
+namespace DB::Protocol {
 
-namespace Server
-{
+namespace Server {
 
-std::string_view toString(UInt64 packet)
-{
-    return magic_enum::enum_name(Enum(packet));
-}
+std::string_view toString(UInt64 packet) { return magic_enum::enum_name(Enum(packet)); }
 
-}
+}  // namespace Server
 
-namespace Client
-{
+namespace Client {
 
-std::string_view toString(UInt64 packet)
-{
-    return magic_enum::enum_name(Enum(packet));
-}
+std::string_view toString(UInt64 packet) { return magic_enum::enum_name(Enum(packet)); }
 
-}
+}  // namespace Client
 
-}
+}  // namespace DB::Protocol

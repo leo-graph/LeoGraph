@@ -1,98 +1,99 @@
 #pragma once
 
-#include <Storages/IStorage.h>
 #include <Common/CurrentMetrics.h>
+#include <Storages/IStorage.h>
 
 #include <list>
 
-namespace DB
-{
+namespace DB {
 
 class RefreshTask;
 using RefreshTaskPtr = std::shared_ptr<RefreshTask>;
 using RefreshTaskList = std::list<RefreshTaskPtr>;
 
 /// Set of refreshable views
-class RefreshSet
-{
-public:
-    /// RAII thing that unregisters a task and its dependencies in destructor. Not thread safe.
-    class Handle
-    {
-        friend class RefreshSet;
-    public:
-        Handle() = default;
+class RefreshSet {
+ public:
+  /// RAII thing that unregisters a task and its dependencies in destructor. Not thread safe.
+  class Handle {
+    friend class RefreshSet;
 
-        Handle(Handle &&) noexcept;
-        Handle & operator=(Handle &&) noexcept;
+   public:
+    Handle() = default;
 
-        ~Handle();
+    Handle(Handle &&) noexcept;
+    Handle &operator=(Handle &&) noexcept;
 
-        void rename(StorageID new_id, std::optional<StorageID> new_inner_table_id);
-        void changeDependencies(std::vector<StorageID> deps);
+    ~Handle();
 
-        void reset();
+    void rename(StorageID new_id, std::optional<StorageID> new_inner_table_id);
+    void changeDependencies(std::vector<StorageID> deps);
 
-        explicit operator bool() const { return parent_set != nullptr; }
+    void reset();
 
-        const StorageID & getID() const { return id; }
-        const std::vector<StorageID> & getDependencies() const { return dependencies; }
+    explicit operator bool() const { return parent_set != nullptr; }
 
-    private:
-        RefreshSet * parent_set = nullptr;
-        StorageID id = StorageID::createEmpty();
-        std::optional<StorageID> inner_table_id;
-        std::vector<StorageID> dependencies;
-        RefreshTaskList::iterator iter; // in parent_set->tasks[id]
-        RefreshTaskList::iterator inner_table_iter; // in parent_set->inner_tables[inner_table_id]
-        std::optional<CurrentMetrics::Increment> metric_increment;
+    const StorageID &getID() const { return id; }
+    const std::vector<StorageID> &getDependencies() const { return dependencies; }
 
-        Handle(RefreshSet * parent_set_, StorageID id_, std::optional<StorageID> inner_table_id, RefreshTaskList::iterator iter_, RefreshTaskList::iterator inner_table_iter_, std::vector<StorageID> dependencies_);
-    };
+   private:
+    RefreshSet *parent_set = nullptr;
+    StorageID id = StorageID::createEmpty();
+    std::optional<StorageID> inner_table_id;
+    std::vector<StorageID> dependencies;
+    RefreshTaskList::iterator iter;              // in parent_set->tasks[id]
+    RefreshTaskList::iterator inner_table_iter;  // in parent_set->inner_tables[inner_table_id]
+    std::optional<CurrentMetrics::Increment> metric_increment;
 
-    RefreshSet();
+    Handle(RefreshSet *parent_set_, StorageID id_, std::optional<StorageID> inner_table_id, RefreshTaskList::iterator iter_,
+           RefreshTaskList::iterator inner_table_iter_, std::vector<StorageID> dependencies_);
+  };
 
-    void emplace(StorageID id, std::optional<StorageID> inner_table_id, const std::vector<StorageID> & dependencies, RefreshTaskPtr task);
+  RefreshSet();
 
-    /// Finds active refreshable view(s) by database and table name.
-    /// Normally there's at most one, but we allow name collisions here, just in case.
-    RefreshTaskList findTasks(const StorageID & id) const;
-    std::vector<RefreshTaskPtr> getTasks() const;
+  void emplace(StorageID id, std::optional<StorageID> inner_table_id, const std::vector<StorageID> &dependencies, RefreshTaskPtr task);
 
-    RefreshTaskPtr tryGetTaskForInnerTable(const StorageID & inner_table_id) const;
+  /// Finds active refreshable view(s) by database and table name.
+  /// Normally there's at most one, but we allow name collisions here, just in case.
+  RefreshTaskList findTasks(const StorageID &id) const;
+  std::vector<RefreshTaskPtr> getTasks() const;
 
-    /// Calls notify() on all tasks that depend on `id`.
-    void notifyDependents(const StorageID & id) const;
+  RefreshTaskPtr tryGetTaskForInnerTable(const StorageID &inner_table_id) const;
 
-    void setRefreshesStopped(bool stopped);
-    bool refreshesStopped() const;
+  /// Calls notify() on all tasks that depend on `id`.
+  void notifyDependents(const StorageID &id) const;
 
-    /// Called during shutdown, after setRefreshesStopped(true).
-    /// Returns false if some tasks are still running after deadline.
-    bool joinBackgroundTasks(std::chrono::steady_clock::time_point deadline);
+  void setRefreshesStopped(bool stopped);
+  bool refreshesStopped() const;
 
-private:
-    using TaskMap = std::unordered_map<StorageID, RefreshTaskList, StorageID::DatabaseAndTableNameHash, StorageID::DatabaseAndTableNameEqual>;
-    using DependentsMap = std::unordered_map<StorageID, std::unordered_set<RefreshTaskPtr>, StorageID::DatabaseAndTableNameHash, StorageID::DatabaseAndTableNameEqual>;
-    using InnerTableMap = std::unordered_map<StorageID, RefreshTaskList, StorageID::DatabaseAndTableNameHash, StorageID::DatabaseAndTableNameEqual>;
+  /// Called during shutdown, after setRefreshesStopped(true).
+  /// Returns false if some tasks are still running after deadline.
+  bool joinBackgroundTasks(std::chrono::steady_clock::time_point deadline);
 
-    /// Protects the two maps below, not locked for any nontrivial operations (e.g. operations that
-    /// block or lock other mutexes).
-    mutable std::mutex mutex;
+ private:
+  using TaskMap = std::unordered_map<StorageID, RefreshTaskList, StorageID::DatabaseAndTableNameHash, StorageID::DatabaseAndTableNameEqual>;
+  using DependentsMap = std::unordered_map<StorageID, std::unordered_set<RefreshTaskPtr>, StorageID::DatabaseAndTableNameHash,
+                                           StorageID::DatabaseAndTableNameEqual>;
+  using InnerTableMap =
+      std::unordered_map<StorageID, RefreshTaskList, StorageID::DatabaseAndTableNameHash, StorageID::DatabaseAndTableNameEqual>;
 
-    TaskMap tasks;
-    DependentsMap dependents;
-    InnerTableMap inner_tables;
+  /// Protects the two maps below, not locked for any nontrivial operations (e.g. operations that
+  /// block or lock other mutexes).
+  mutable std::mutex mutex;
 
-    std::atomic<bool> refreshes_stopped {false};
-    std::chrono::steady_clock::time_point refreshes_stopped_at;
+  TaskMap tasks;
+  DependentsMap dependents;
+  InnerTableMap inner_tables;
 
-    RefreshTaskList::iterator addTaskLocked(StorageID id, RefreshTaskPtr task);
-    void removeTaskLocked(StorageID id, RefreshTaskList::iterator iter);
-    RefreshTaskList::iterator addInnerTableLocked(StorageID inner_table_id, RefreshTaskPtr task);
-    void removeInnerTableLocked(StorageID inner_table_id, RefreshTaskList::iterator inner_table_iter);
-    void addDependenciesLocked(RefreshTaskPtr task, const std::vector<StorageID> & dependencies);
-    void removeDependenciesLocked(RefreshTaskPtr task, const std::vector<StorageID> & dependencies);
+  std::atomic<bool> refreshes_stopped{false};
+  std::chrono::steady_clock::time_point refreshes_stopped_at;
+
+  RefreshTaskList::iterator addTaskLocked(StorageID id, RefreshTaskPtr task);
+  void removeTaskLocked(StorageID id, RefreshTaskList::iterator iter);
+  RefreshTaskList::iterator addInnerTableLocked(StorageID inner_table_id, RefreshTaskPtr task);
+  void removeInnerTableLocked(StorageID inner_table_id, RefreshTaskList::iterator inner_table_iter);
+  void addDependenciesLocked(RefreshTaskPtr task, const std::vector<StorageID> &dependencies);
+  void removeDependenciesLocked(RefreshTaskPtr task, const std::vector<StorageID> &dependencies);
 };
 
-}
+}  // namespace DB

@@ -3,25 +3,23 @@
 #include <Processors/ISimpleTransform.h>
 #include <Processors/Sinks/SinkToStorage.h>
 
-namespace DB
-{
+namespace DB {
 
-class ApplySquashingTransform : public ExceptionKeepingTransform
-{
-public:
-    explicit ApplySquashingTransform(SharedHeader header);
+class ApplySquashingTransform : public ExceptionKeepingTransform {
+ public:
+  explicit ApplySquashingTransform(SharedHeader header);
 
-    String getName() const override { return "ApplySquashingTransform"; }
+  String getName() const override { return "ApplySquashingTransform"; }
 
-    void work() override;
+  void work() override;
 
-protected:
-    void onConsume(Chunk chunk) override;
+ protected:
+  void onConsume(Chunk chunk) override;
 
-    GenerateResult onGenerate() override;
+  GenerateResult onGenerate() override;
 
-private:
-    Chunk cur_chunk;
+ private:
+  Chunk cur_chunk;
 };
 
-}
+}  // namespace DB

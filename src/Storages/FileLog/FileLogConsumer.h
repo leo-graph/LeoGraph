@@ -1,78 +1,69 @@
 #pragma once
 
+#include <Common/AllocatorWithMemoryTracking.h>
+#include <Common/StringWithMemoryTracking.h>
 #include <Core/BackgroundSchedulePoolTaskHolder.h>
 #include <IO/ReadBuffer.h>
 #include <Storages/FileLog/StorageFileLog.h>
-#include <Common/AllocatorWithMemoryTracking.h>
-#include <Common/StringWithMemoryTracking.h>
 
-namespace DB
-{
-class FileLogConsumer
-{
-public:
-    FileLogConsumer(
-        StorageFileLog & storage_,
-        size_t max_batch_size,
-        size_t poll_timeout_,
-        ContextPtr context_,
-        size_t stream_number_,
-        size_t max_streams_number_);
+namespace DB {
+class FileLogConsumer {
+ public:
+  FileLogConsumer(StorageFileLog& storage_, size_t max_batch_size, size_t poll_timeout_, ContextPtr context_, size_t stream_number_,
+                  size_t max_streams_number_);
 
-    auto pollTimeout() const { return poll_timeout; }
+  auto pollTimeout() const { return poll_timeout; }
 
-    bool hasMorePolledRecords() const { return current != records.end(); }
+  bool hasMorePolledRecords() const { return current != records.end(); }
 
-    ReadBufferPtr consume();
+  ReadBufferPtr consume();
 
-    bool noRecords() { return buffer_status == BufferStatus::NO_RECORD_RETURNED; }
+  bool noRecords() { return buffer_status == BufferStatus::NO_RECORD_RETURNED; }
 
-    auto getFileName() const { return current[-1].file_name; }
-    auto getOffset() const { return current[-1].offset; }
-    const auto & getCurrentRecord() const { return current[-1].data; }
+  auto getFileName() const { return current[-1].file_name; }
+  auto getOffset() const { return current[-1].offset; }
+  const auto& getCurrentRecord() const { return current[-1].data; }
 
-private:
-    enum class BufferStatus : uint8_t
-    {
-        INIT,
-        NO_RECORD_RETURNED,
-        POLLED_OK,
-    };
+ private:
+  enum class BufferStatus : uint8_t {
+    INIT,
+    NO_RECORD_RETURNED,
+    POLLED_OK,
+  };
 
-    BufferStatus buffer_status = BufferStatus::INIT;
+  BufferStatus buffer_status = BufferStatus::INIT;
 
-    LoggerPtr log;
+  LoggerPtr log;
 
-    StorageFileLog & storage;
+  StorageFileLog& storage;
 
-    bool stream_out = false;
+  bool stream_out = false;
 
-    size_t batch_size;
-    size_t poll_timeout;
+  size_t batch_size;
+  size_t poll_timeout;
 
-    ContextPtr context;
+  ContextPtr context;
 
-    size_t stream_number;
-    size_t max_streams_number;
+  size_t stream_number;
+  size_t max_streams_number;
 
-    struct Record
-    {
-        StringWithMemoryTracking data;
-        std::string file_name;
-        /// Offset is the start of a row, which is needed for virtual columns.
-        UInt64 offset;
-    };
-    using Records = std::vector<Record, AllocatorWithMemoryTracking<Record>>;
+  struct Record {
+    StringWithMemoryTracking data;
+    std::string file_name;
+    /// Offset is the start of a row, which is needed for virtual columns.
+    UInt64 offset;
+  };
+  using Records = std::vector<Record, AllocatorWithMemoryTracking<Record>>;
 
-    Records records;
-    Records::const_iterator current;
+  Records records;
+  Records::const_iterator current;
 
-    using TaskThread = BackgroundSchedulePoolTaskHolder;
+  using TaskThread = BackgroundSchedulePoolTaskHolder;
 
-    Records pollBatch(size_t batch_size_);
+  Records pollBatch(size_t batch_size_);
 
-    void readNewRecords(Records & new_records, size_t batch_size_);
+  void readNewRecords(Records& new_records, size_t batch_size_);
 
-    ReadBufferPtr getNextRecord();
+  ReadBufferPtr getNextRecord();
 };
-}
+}  // namespace DB

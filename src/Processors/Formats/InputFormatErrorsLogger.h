@@ -1,65 +1,60 @@
 #pragma once
 
-#include <IO/WriteBufferFromFile.h>
 #include <Interpreters/Context_fwd.h>
+#include <IO/WriteBufferFromFile.h>
 
 #include <Core/Block.h>
 
 #include <mutex>
 
-
-namespace DB
-{
+namespace DB {
 
 class IOutputFormat;
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 
-class InputFormatErrorsLogger
-{
-public:
-    struct ErrorEntry
-    {
-        time_t time;
-        size_t offset;
-        String reason;
-        String raw_data;
-    };
+class InputFormatErrorsLogger {
+ public:
+  struct ErrorEntry {
+    time_t time;
+    size_t offset;
+    String reason;
+    String raw_data;
+  };
 
-    explicit InputFormatErrorsLogger(const ContextPtr & context);
+  explicit InputFormatErrorsLogger(const ContextPtr& context);
 
-    virtual ~InputFormatErrorsLogger();
+  virtual ~InputFormatErrorsLogger();
 
-    virtual void logError(ErrorEntry entry);
-    void logErrorImpl(ErrorEntry entry);
-    void writeErrors();
+  virtual void logError(ErrorEntry entry);
+  void logErrorImpl(ErrorEntry entry);
+  void writeErrors();
 
-private:
-    Block header;
+ private:
+  Block header;
 
-    String errors_file_path;
-    std::shared_ptr<WriteBufferFromFile> write_buf;
-    OutputFormatPtr writer;
+  String errors_file_path;
+  std::shared_ptr<WriteBufferFromFile> write_buf;
+  OutputFormatPtr writer;
 
-    String database;
-    String table;
+  String database;
+  String table;
 
-    MutableColumns errors_columns;
-    size_t max_block_size;
+  MutableColumns errors_columns;
+  size_t max_block_size;
 };
 
 using InputFormatErrorsLoggerPtr = std::shared_ptr<InputFormatErrorsLogger>;
 
-class ParallelInputFormatErrorsLogger : public InputFormatErrorsLogger
-{
-public:
-    explicit ParallelInputFormatErrorsLogger(const ContextPtr & context) : InputFormatErrorsLogger(context) { }
+class ParallelInputFormatErrorsLogger : public InputFormatErrorsLogger {
+ public:
+  explicit ParallelInputFormatErrorsLogger(const ContextPtr& context) : InputFormatErrorsLogger(context) {}
 
-    ~ParallelInputFormatErrorsLogger() override;
+  ~ParallelInputFormatErrorsLogger() override;
 
-    void logError(ErrorEntry entry) override;
+  void logError(ErrorEntry entry) override;
 
-private:
-    std::mutex write_mutex;
+ private:
+  std::mutex write_mutex;
 };
 
-}
+}  // namespace DB

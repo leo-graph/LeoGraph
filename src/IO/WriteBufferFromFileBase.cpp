@@ -1,11 +1,8 @@
 #include <IO/WriteBufferFromFileBase.h>
 
-namespace DB
-{
+namespace DB {
 
-WriteBufferFromFileBase::WriteBufferFromFileBase(size_t buf_size, char * existing_memory, size_t alignment)
-    : BufferWithOwnMemory<WriteBuffer>(buf_size, existing_memory, alignment)
-{
-}
+WriteBufferFromFileBase::WriteBufferFromFileBase(size_t buf_size, char* existing_memory, size_t alignment)
+    : BufferWithOwnMemory<WriteBuffer>(buf_size, existing_memory, alignment) {}
 
-}
+}  // namespace DB

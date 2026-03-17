@@ -1,72 +1,68 @@
 #pragma once
 
+#include <base/EnumReflection.h>
 #include <cstdint>
 #include <limits>
 #include <string_view>
-#include <base/EnumReflection.h>
 
-
-namespace Coordination
-{
+namespace Coordination {
 
 using XID = int64_t;
 
 static constexpr XID WATCH_XID = -1;
-static constexpr XID PING_XID  = -2;
-static constexpr XID AUTH_XID  = -4;
+static constexpr XID PING_XID = -2;
+static constexpr XID AUTH_XID = -4;
 static constexpr XID CLOSE_XID = std::numeric_limits<int32_t>::max();
 static constexpr XID CLOSE_XID_64 = std::numeric_limits<int64_t>::max();
 
-enum class OpNum : int32_t
-{
-    Close = -11,
-    Error = -1,
-    Create = 1,
-    Remove = 2,
-    Exists = 3,
-    Get = 4,
-    Set = 5,
-    GetACL = 6,
-    SetACL = 7,
-    SimpleList = 8,
-    Sync = 9,
-    Heartbeat = 11,
-    List = 12,
-    Check = 13,
-    Multi = 14,
-    Create2 = 15,
-    Reconfig = 16,
-    CheckWatch = 17,
-    RemoveWatch = 18,
-    MultiRead = 22,
-    Auth = 100,
-    SetWatch = 101,
-    SetWatch2 = 105,
-    AddWatch = 106,
+enum class OpNum : int32_t {
+  Close = -11,
+  Error = -1,
+  Create = 1,
+  Remove = 2,
+  Exists = 3,
+  Get = 4,
+  Set = 5,
+  GetACL = 6,
+  SetACL = 7,
+  SimpleList = 8,
+  Sync = 9,
+  Heartbeat = 11,
+  List = 12,
+  Check = 13,
+  Multi = 14,
+  Create2 = 15,
+  Reconfig = 16,
+  CheckWatch = 17,
+  RemoveWatch = 18,
+  MultiRead = 22,
+  Auth = 100,
+  SetWatch = 101,
+  SetWatch2 = 105,
+  AddWatch = 106,
 
-    // CH Keeper specific operations
-    FilteredList = 500,
-    CheckNotExists = 501,
-    CreateIfNotExists = 502,
-    RemoveRecursive = 503,
-    CheckStat = 504,
-    TryRemove = 505,
-    FilteredListWithStatsAndData = 506,
+  // CH Keeper specific operations
+  FilteredList = 500,
+  CheckNotExists = 501,
+  CreateIfNotExists = 502,
+  RemoveRecursive = 503,
+  CheckStat = 504,
+  TryRemove = 505,
+  FilteredListWithStatsAndData = 506,
 
-    SessionID = 997, /// Special internal request
+  SessionID = 997,  /// Special internal request
 };
 
-}
+}  // namespace Coordination
 
 /// OpNum has values from -11 to 997, which is outside the default magic_enum range [-128, 127].
-template <> struct magic_enum::customize::enum_range<Coordination::OpNum>
-{
-    static constexpr int min = -20;
-    static constexpr int max = 1000;
+template <>
+struct magic_enum::customize::enum_range<Coordination::OpNum> {
+  static constexpr int min = -20;
+  static constexpr int max = 1000;
 };
 
-namespace Coordination
-{
+namespace Coordination {
 
 OpNum getOpNum(int32_t raw_op_num);
 
@@ -74,7 +70,7 @@ OpNum getOpNum(int32_t raw_op_num);
 std::string_view opNumToString(OpNum op_num);
 
 /// Returns operation type for use in metric labels (e.g., OpNum::Get -> "readonly", OpNum::Set -> "write")
-const char * toOperationTypeMetricLabel(OpNum op_num);
+const char* toOperationTypeMetricLabel(OpNum op_num);
 
 static constexpr int32_t ZOOKEEPER_PROTOCOL_VERSION = 0;
 static constexpr int32_t ZOOKEEPER_PROTOCOL_VERSION_WITH_COMPRESSION = 10;
@@ -96,4 +92,4 @@ static constexpr int32_t DEFAULT_MAX_SESSION_TIMEOUT_MS = 100000;
 static constexpr int32_t DEFAULT_OPERATION_TIMEOUT_MS = 10000;
 static constexpr int32_t DEFAULT_CONNECTION_TIMEOUT_MS = 1000;
 
-}
+}  // namespace Coordination

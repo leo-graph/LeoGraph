@@ -4,23 +4,19 @@
 
 #if USE_SSL
 
-#include <Server/HTTP/HTTPRequestHandler.h>
+#  include <Server/HTTP/HTTPRequestHandler.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class IServer;
 
 /// Response for ACME challenges.
-class ACMERequestHandler : public HTTPRequestHandler
-{
-
-public:
-    explicit ACMERequestHandler(IServer &) {}
-    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response, const ProfileEvents::Event & write_event) override;
+class ACMERequestHandler : public HTTPRequestHandler {
+ public:
+  explicit ACMERequestHandler(IServer &) {}
+  void handleRequest(HTTPServerRequest &request, HTTPServerResponse &response, const ProfileEvents::Event &write_event) override;
 };
 
-}
+}  // namespace DB
 
 #endif

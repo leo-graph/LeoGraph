@@ -4,102 +4,92 @@
 
 #if USE_LIBPQXX
 
-#include <Storages/PostgreSQL/PostgreSQLReplicationHandler.h>
+#  include <Storages/PostgreSQL/PostgreSQLReplicationHandler.h>
 
-#include <Databases/DatabasesCommon.h>
-#include <Core/BackgroundSchedulePoolTaskHolder.h>
-#include <Parsers/ASTCreateQuery.h>
-#include <Databases/IDatabase.h>
-#include <Databases/DatabaseOnDisk.h>
-#include <Databases/DatabaseAtomic.h>
+#  include <Core/BackgroundSchedulePoolTaskHolder.h>
+#  include <Databases/DatabaseAtomic.h>
+#  include <Databases/DatabaseOnDisk.h>
+#  include <Databases/DatabasesCommon.h>
+#  include <Databases/IDatabase.h>
+#  include <Parsers/ASTCreateQuery.h>
 
-#include <atomic>
+#  include <atomic>
 
-
-namespace DB
-{
+namespace DB {
 
 struct MaterializedPostgreSQLSettings;
 class PostgreSQLConnection;
 using PostgreSQLConnectionPtr = std::shared_ptr<PostgreSQLConnection>;
 
+class DatabaseMaterializedPostgreSQL : public DatabaseAtomic {
+ public:
+  DatabaseMaterializedPostgreSQL(ContextPtr context_, const String& metadata_path_, UUID uuid_, bool is_attach_,
+                                 const String& database_name_, const String& postgres_database_name,
+                                 const postgres::ConnectionInfo& connection_info,
+                                 std::unique_ptr<MaterializedPostgreSQLSettings> settings_);
 
-class DatabaseMaterializedPostgreSQL : public DatabaseAtomic
-{
+  String getEngineName() const override { return "MaterializedPostgreSQL"; }
 
-public:
-    DatabaseMaterializedPostgreSQL(
-        ContextPtr context_,
-        const String & metadata_path_,
-        UUID uuid_,
-        bool is_attach_,
-        const String & database_name_,
-        const String & postgres_database_name,
-        const postgres::ConnectionInfo & connection_info,
-        std::unique_ptr<MaterializedPostgreSQLSettings> settings_);
+  String getMetadataPath() const override { return metadata_path; }
 
-    String getEngineName() const override { return "MaterializedPostgreSQL"; }
+  LoadTaskPtr startupDatabaseAsync(AsyncLoader& async_loader, LoadJobSet startup_after, LoadingStrictnessLevel mode) override;
+  void waitDatabaseStarted() const override;
+  void stopLoading() override;
 
-    String getMetadataPath() const override { return metadata_path; }
+  DatabaseTablesIteratorPtr getTablesIterator(ContextPtr context, const DatabaseOnDisk::FilterByNameFunction& filter_by_table_name,
+                                              bool skip_not_loaded) const override;
 
-    LoadTaskPtr startupDatabaseAsync(AsyncLoader & async_loader, LoadJobSet startup_after, LoadingStrictnessLevel mode) override;
-    void waitDatabaseStarted() const override;
-    void stopLoading() override;
+  StoragePtr tryGetTable(const String& name, ContextPtr context) const override;
 
-    DatabaseTablesIteratorPtr
-    getTablesIterator(ContextPtr context, const DatabaseOnDisk::FilterByNameFunction & filter_by_table_name, bool skip_not_loaded) const override;
+  void createTable(ContextPtr context, const String& table_name, const StoragePtr& table, const ASTPtr& query) override;
 
-    StoragePtr tryGetTable(const String & name, ContextPtr context) const override;
+  void attachTable(ContextPtr context, const String& table_name, const StoragePtr& table, const String& relative_table_path) override;
 
-    void createTable(ContextPtr context, const String & table_name, const StoragePtr & table, const ASTPtr & query) override;
+  void detachTablePermanently(ContextPtr context, const String& table_name) override;
 
-    void attachTable(ContextPtr context, const String & table_name, const StoragePtr & table, const String & relative_table_path) override;
+  StoragePtr detachTable(ContextPtr context, const String& table_name) override;
 
-    void detachTablePermanently(ContextPtr context, const String & table_name) override;
+  void dropTable(ContextPtr local_context, const String& name, bool sync) override;
 
-    StoragePtr detachTable(ContextPtr context, const String & table_name) override;
+  void drop(ContextPtr local_context) override;
 
-    void dropTable(ContextPtr local_context, const String & name, bool sync) override;
+  bool hasReplicationThread() const override { return true; }
 
-    void drop(ContextPtr local_context) override;
+  void stopReplication() override;
 
-    bool hasReplicationThread() const override { return true; }
+  void applySettingsChanges(const SettingsChanges& settings_changes, ContextPtr query_context) override;
 
-    void stopReplication() override;
+  void shutdown() override;
 
-    void applySettingsChanges(const SettingsChanges & settings_changes, ContextPtr query_context) override;
+  String getPostgreSQLDatabaseName() const { return remote_database_name; }
 
-    void shutdown() override;
+ protected:
+  ASTPtr getCreateTableQueryImpl(const String& table_name, ContextPtr local_context, bool throw_on_error) const override;
 
-    String getPostgreSQLDatabaseName() const { return remote_database_name; }
+ private:
+  void tryStartSynchronization();
+  void startSynchronization();
 
-protected:
-    ASTPtr getCreateTableQueryImpl(const String & table_name, ContextPtr local_context, bool throw_on_error) const override;
+  ASTPtr createAlterSettingsQuery(const SettingChange& new_setting);
 
-private:
-    void tryStartSynchronization();
-    void startSynchronization();
+  String getFormattedTablesList(const String& except = {}) const;
 
-    ASTPtr createAlterSettingsQuery(const SettingChange & new_setting);
+  bool is_attach;
+  String remote_database_name;
+  postgres::ConnectionInfo connection_info;
+  std::unique_ptr<MaterializedPostgreSQLSettings> settings;
 
-    String getFormattedTablesList(const String & except = {}) const;
+  std::shared_ptr<PostgreSQLReplicationHandler> replication_handler;
+  std::map<std::string, StoragePtr> materialized_tables;
+  mutable std::mutex tables_mutex;
+  mutable std::mutex handler_mutex;
 
-    bool is_attach;
-    String remote_database_name;
-    postgres::ConnectionInfo connection_info;
-    std::unique_ptr<MaterializedPostgreSQLSettings> settings;
+  BackgroundSchedulePoolTaskHolder startup_task;
+  std::atomic<bool> shutdown_called = false;
 
-    std::shared_ptr<PostgreSQLReplicationHandler> replication_handler;
-    std::map<std::string, StoragePtr> materialized_tables;
-    mutable std::mutex tables_mutex;
-    mutable std::mutex handler_mutex;
-
-    BackgroundSchedulePoolTaskHolder startup_task;
-    std::atomic<bool> shutdown_called = false;
-
-    LoadTaskPtr startup_postgresql_database_task TSA_GUARDED_BY(mutex);
+  LoadTaskPtr startup_postgresql_database_task TSA_GUARDED_BY(mutex);
 };
 
-}
+}  // namespace DB
 
 #endif

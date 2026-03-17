@@ -3,18 +3,12 @@
 
 #include <libnuraft/nuraft.hxx>
 
-namespace DB
-{
+namespace DB {
 
-class ReadBufferFromNuraftBuffer : public ReadBufferFromMemory
-{
-public:
-    explicit ReadBufferFromNuraftBuffer(nuraft::ptr<nuraft::buffer> buffer)
-        : ReadBufferFromMemory(buffer->data_begin(), buffer->size())
-    {}
-    explicit ReadBufferFromNuraftBuffer(nuraft::buffer & buffer)
-        : ReadBufferFromMemory(buffer.data_begin(), buffer.size())
-    {}
+class ReadBufferFromNuraftBuffer : public ReadBufferFromMemory {
+ public:
+  explicit ReadBufferFromNuraftBuffer(nuraft::ptr<nuraft::buffer> buffer) : ReadBufferFromMemory(buffer->data_begin(), buffer->size()) {}
+  explicit ReadBufferFromNuraftBuffer(nuraft::buffer& buffer) : ReadBufferFromMemory(buffer.data_begin(), buffer.size()) {}
 };
 
-}
+}  // namespace DB

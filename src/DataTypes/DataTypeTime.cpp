@@ -1,37 +1,25 @@
-#include <DataTypes/DataTypeTime.h>
 #include <Common/Exception.h>
+#include <DataTypes/DataTypeTime.h>
 #include <DataTypes/Serializations/SerializationDateTime.h>
 
 #include <Common/SipHash.h>
 #include <IO/Operators.h>
 #include <IO/WriteBufferFromString.h>
 
-namespace DB
-{
+namespace DB {
 
-String DataTypeTime::doGetName() const
-{
-    return "Time";
+String DataTypeTime::doGetName() const { return "Time"; }
+
+void DataTypeTime::updateHashImpl(SipHash & /*hash*/) const {
+  // Time type has no additional parameters to hash
 }
 
-void DataTypeTime::updateHashImpl(SipHash & /*hash*/) const
-{
-    // Time type has no additional parameters to hash
+bool DataTypeTime::equals(const IDataType &rhs) const { return typeid(rhs) == typeid(*this); }
+
+SerializationPtr DataTypeTime::doGetSerialization(const SerializationInfoSettings &) const {
+  return std::make_shared<SerializationTime>(*this);
 }
 
-bool DataTypeTime::equals(const IDataType & rhs) const
-{
-    return typeid(rhs) == typeid(*this);
-}
+const DateLUTImpl &DataTypeTime::getTimeZone() const { return DateLUT::instance(); }
 
-SerializationPtr DataTypeTime::doGetSerialization(const SerializationInfoSettings &) const
-{
-    return std::make_shared<SerializationTime>(*this);
-}
-
-const DateLUTImpl & DataTypeTime::getTimeZone() const
-{
-    return DateLUT::instance();
-}
-
-}
+}  // namespace DB

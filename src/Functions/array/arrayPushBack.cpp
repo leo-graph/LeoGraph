@@ -1,25 +1,21 @@
 #include <Functions/array/arrayPush.h>
 #include <Functions/FunctionFactory.h>
 
+namespace DB {
 
-namespace DB
-{
-
-class FunctionArrayPushBack : public FunctionArrayPush
-{
-public:
-    static constexpr auto name = "arrayPushBack";
-    static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionArrayPushBack>(); }
-    FunctionArrayPushBack() : FunctionArrayPush(false, name) {}
+class FunctionArrayPushBack : public FunctionArrayPush {
+ public:
+  static constexpr auto name = "arrayPushBack";
+  static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionArrayPushBack>(); }
+  FunctionArrayPushBack() : FunctionArrayPush(false, name) {}
 };
 
-REGISTER_FUNCTION(ArrayPushBack)
-{
-    FunctionDocumentation::Description description = "Adds one item to the end of the array.";
-    FunctionDocumentation::Syntax syntax = "arrayPushBack(arr, x)";
-    FunctionDocumentation::Arguments arguments = {
-        {"arr", "The array for which to add value `x` to the end of.", {"Array(T)"}},
-        {"x", R"(
+REGISTER_FUNCTION(ArrayPushBack) {
+  FunctionDocumentation::Description description = "Adds one item to the end of the array.";
+  FunctionDocumentation::Syntax syntax = "arrayPushBack(arr, x)";
+  FunctionDocumentation::Arguments arguments = {
+      {"arr", "The array for which to add value `x` to the end of.", {"Array(T)"}},
+      {"x", R"(
 - Single value to add to the end of the array. [`Array(T)`](/sql-reference/data-types/array).
 
 :::note
@@ -30,14 +26,15 @@ REGISTER_FUNCTION(ArrayPushBack)
 For more information about the types of data in ClickHouse, see [Data types](/sql-reference/data-types).
 :::
     )"},
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns an array identical to `arr` but with an additional value `x` at the end of the array", {"Array(T)"}};
-    FunctionDocumentation::Examples examples = {{"Usage example", "SELECT arrayPushBack(['a'], 'b') AS res;", "['a','b']"}};
-    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+  };
+  FunctionDocumentation::ReturnedValue returned_value = {
+      "Returns an array identical to `arr` but with an additional value `x` at the end of the array", {"Array(T)"}};
+  FunctionDocumentation::Examples examples = {{"Usage example", "SELECT arrayPushBack(['a'], 'b') AS res;", "['a','b']"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionArrayPushBack>(documentation);
+  factory.registerFunction<FunctionArrayPushBack>(documentation);
 }
 
-}
+}  // namespace DB

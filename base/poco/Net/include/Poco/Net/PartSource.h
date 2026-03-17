@@ -13,101 +13,81 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_PartSource_INCLUDED
 #define Net_PartSource_INCLUDED
-
 
 #include <istream>
 #include "Poco/Net/MessageHeader.h"
 #include "Poco/Net/Net.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API PartSource
+/// This abstract class is used for adding parts or attachments
+/// to mail messages, as well as for uploading files as part of a HTML form.
 {
-namespace Net
-{
+ public:
+  virtual std::istream &stream() = 0;
+  /// Returns an input stream for reading the
+  /// part data.
+  ///
+  /// Subclasses must override this method.
 
+  virtual const std::string &filename() const;
+  /// Returns the filename for the part or attachment.
+  ///
+  /// May be overridden by subclasses. The default
+  /// implementation returns an empty string.
 
-    class Net_API PartSource
-    /// This abstract class is used for adding parts or attachments
-    /// to mail messages, as well as for uploading files as part of a HTML form.
-    {
-    public:
-        virtual std::istream & stream() = 0;
-        /// Returns an input stream for reading the
-        /// part data.
-        ///
-        /// Subclasses must override this method.
+  const std::string &mediaType() const;
+  /// Returns the MIME media type for this part or attachment.
 
-        virtual const std::string & filename() const;
-        /// Returns the filename for the part or attachment.
-        ///
-        /// May be overridden by subclasses. The default
-        /// implementation returns an empty string.
+  MessageHeader &headers();
+  /// Returns a MessageHeader containing additional header
+  /// fields for the part.
 
-        const std::string & mediaType() const;
-        /// Returns the MIME media type for this part or attachment.
+  const MessageHeader &headers() const;
+  /// Returns a MessageHeader containing additional header
+  /// fields for the part.
 
-        MessageHeader & headers();
-        /// Returns a MessageHeader containing additional header
-        /// fields for the part.
+  virtual std::streamsize getContentLength() const;
+  /// Returns the content length for this part
+  /// which may be UNKNOWN_CONTENT_LENGTH if
+  /// not available.
 
-        const MessageHeader & headers() const;
-        /// Returns a MessageHeader containing additional header
-        /// fields for the part.
+  virtual ~PartSource();
+  /// Destroys the PartSource.
 
-        virtual std::streamsize getContentLength() const;
-        /// Returns the content length for this part
-        /// which may be UNKNOWN_CONTENT_LENGTH if
-        /// not available.
+  static const int UNKNOWN_CONTENT_LENGTH;
 
-        virtual ~PartSource();
-        /// Destroys the PartSource.
+ protected:
+  PartSource();
+  /// Creates the PartSource, using
+  /// the application/octet-stream MIME type.
 
-        static const int UNKNOWN_CONTENT_LENGTH;
+  PartSource(const std::string &mediaType);
+  /// Creates the PartSource, using the
+  /// given MIME type.
 
-    protected:
-        PartSource();
-        /// Creates the PartSource, using
-        /// the application/octet-stream MIME type.
+ private:
+  PartSource(const PartSource &);
+  PartSource &operator=(const PartSource &);
 
-        PartSource(const std::string & mediaType);
-        /// Creates the PartSource, using the
-        /// given MIME type.
+  std::string _mediaType;
+  MessageHeader _headers;
+};
 
-    private:
-        PartSource(const PartSource &);
-        PartSource & operator=(const PartSource &);
+//
+// inlines
+//
+inline const std::string &PartSource::mediaType() const { return _mediaType; }
 
-        std::string _mediaType;
-        MessageHeader _headers;
-    };
+inline MessageHeader &PartSource::headers() { return _headers; }
 
+inline const MessageHeader &PartSource::headers() const { return _headers; }
 
-    //
-    // inlines
-    //
-    inline const std::string & PartSource::mediaType() const
-    {
-        return _mediaType;
-    }
+}  // namespace Net
+}  // namespace Poco
 
-
-    inline MessageHeader & PartSource::headers()
-    {
-        return _headers;
-    }
-
-
-    inline const MessageHeader & PartSource::headers() const
-    {
-        return _headers;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_PartSource_INCLUDED
+#endif  // Net_PartSource_INCLUDED

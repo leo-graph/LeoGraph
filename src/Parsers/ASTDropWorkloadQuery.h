@@ -1,29 +1,28 @@
 #pragma once
 
-#include <Parsers/IAST.h>
 #include <Parsers/ASTQueryWithOnCluster.h>
+#include <Parsers/IAST.h>
 
+namespace DB {
 
-namespace DB
-{
+class ASTDropWorkloadQuery : public IAST, public ASTQueryWithOnCluster {
+ public:
+  String workload_name;
 
-class ASTDropWorkloadQuery : public IAST, public ASTQueryWithOnCluster
-{
-public:
-    String workload_name;
+  bool if_exists = false;
 
-    bool if_exists = false;
+  String getID(char) const override { return "DropWorkloadQuery"; }
 
-    String getID(char) const override { return "DropWorkloadQuery"; }
+  ASTPtr clone() const override;
 
-    ASTPtr clone() const override;
+  ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams &) const override {
+    return removeOnCluster<ASTDropWorkloadQuery>(clone());
+  }
 
-    ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams &) const override { return removeOnCluster<ASTDropWorkloadQuery>(clone()); }
+  QueryKind getQueryKind() const override { return QueryKind::Drop; }
 
-    QueryKind getQueryKind() const override { return QueryKind::Drop; }
-
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & s, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &s, FormatState &state, FormatStateStacked frame) const override;
 };
 
-}
+}  // namespace DB

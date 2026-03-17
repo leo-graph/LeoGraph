@@ -2,12 +2,10 @@
 
 #include <Interpreters/Context_fwd.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class IUserDefinedSQLObjectsStorage;
 
-std::unique_ptr<IUserDefinedSQLObjectsStorage> createUserDefinedSQLObjectsStorage(const ContextMutablePtr & global_context);
+std::unique_ptr<IUserDefinedSQLObjectsStorage> createUserDefinedSQLObjectsStorage(const ContextMutablePtr& global_context);
 
-}
+}  // namespace DB

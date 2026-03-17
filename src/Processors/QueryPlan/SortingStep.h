@@ -1,176 +1,137 @@
 #pragma once
+#include <Core/SortDescription.h>
+#include <Interpreters/TemporaryDataOnDisk.h>
 #include <Processors/QueryPlan/ITransformingStep.h>
 #include <Processors/TopKThresholdTracker.h>
-#include <Core/SortDescription.h>
 #include <QueryPipeline/SizeLimits.h>
-#include <Interpreters/TemporaryDataOnDisk.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Sort data stream
-class SortingStep : public ITransformingStep
-{
-public:
-    enum class Type : uint8_t
-    {
-        /// Performs a complete sorting operation and returns a single fully ordered data stream
-        Full,
+class SortingStep : public ITransformingStep {
+ public:
+  enum class Type : uint8_t {
+    /// Performs a complete sorting operation and returns a single fully ordered data stream
+    Full,
 
-        /// Completes the sorting process for partially sorted data.
-        FinishSorting,
+    /// Completes the sorting process for partially sorted data.
+    FinishSorting,
 
-        /// Applies FinishSorting for partitioned partially sorted data.
-        /// The sorting is applied within each partition separately without merging them.
-        PartitionedFinishSorting,
+    /// Applies FinishSorting for partitioned partially sorted data.
+    /// The sorting is applied within each partition separately without merging them.
+    PartitionedFinishSorting,
 
-        /// Merges multiple sorted streams into a single sorted output.
-        MergingSorted,
-    };
+    /// Merges multiple sorted streams into a single sorted output.
+    MergingSorted,
+  };
 
-    struct Settings
-    {
-        size_t max_block_size;
-        SizeLimits size_limits;
-        size_t max_bytes_before_remerge = 0;
-        float remerge_lowered_memory_bytes_ratio = 0;
+  struct Settings {
+    size_t max_block_size;
+    SizeLimits size_limits;
+    size_t max_bytes_before_remerge = 0;
+    float remerge_lowered_memory_bytes_ratio = 0;
 
-        double max_bytes_ratio_before_external_sort = 0.;
-        size_t max_bytes_in_block_before_external_sort = 0;
-        size_t max_bytes_in_query_before_external_sort = 0;
+    double max_bytes_ratio_before_external_sort = 0.;
+    size_t max_bytes_in_block_before_external_sort = 0;
+    size_t max_bytes_in_query_before_external_sort = 0;
 
-        size_t min_free_disk_space = 0;
-        size_t max_block_bytes = 0;
-        size_t read_in_order_use_buffering = 0;
-        size_t temporary_files_buffer_size = 0;
-        String temporary_files_codec = {};
+    size_t min_free_disk_space = 0;
+    size_t max_block_bytes = 0;
+    size_t read_in_order_use_buffering = 0;
+    size_t temporary_files_buffer_size = 0;
+    String temporary_files_codec = {};
 
-        explicit Settings(const DB::Settings & settings);
-        explicit Settings(size_t max_block_size_);
-        explicit Settings(const QueryPlanSerializationSettings & settings);
+    explicit Settings(const DB::Settings& settings);
+    explicit Settings(size_t max_block_size_);
+    explicit Settings(const QueryPlanSerializationSettings& settings);
 
-        void updatePlanSettings(QueryPlanSerializationSettings & settings) const;
+    void updatePlanSettings(QueryPlanSerializationSettings& settings) const;
 
-        bool operator==(const Settings & other) const = default;
-    };
+    bool operator==(const Settings& other) const = default;
+  };
 
-    /// Full
-    SortingStep(
-        const SharedHeader & input_header,
-        SortDescription description_,
-        UInt64 limit_,
-        const Settings & settings_,
-        bool is_sorting_for_merge_join_ = false);
+  /// Full
+  SortingStep(const SharedHeader& input_header, SortDescription description_, UInt64 limit_, const Settings& settings_,
+              bool is_sorting_for_merge_join_ = false);
 
-    /// Full with partitioning
-    SortingStep(
-        const SharedHeader & input_header,
-        const SortDescription & description_,
-        const SortDescription & partition_by_description_,
-        UInt64 limit_,
-        const Settings & settings_);
+  /// Full with partitioning
+  SortingStep(const SharedHeader& input_header, const SortDescription& description_, const SortDescription& partition_by_description_,
+              UInt64 limit_, const Settings& settings_);
 
-    /// FinishSorting
-    SortingStep(
-        const SharedHeader & input_header,
-        SortDescription prefix_description_,
-        SortDescription result_description_,
-        size_t max_block_size_,
-        UInt64 limit_);
+  /// FinishSorting
+  SortingStep(const SharedHeader& input_header, SortDescription prefix_description_, SortDescription result_description_,
+              size_t max_block_size_, UInt64 limit_);
 
-    /// MergingSorted
-    SortingStep(
-        const SharedHeader & input_header,
-        SortDescription sort_description_,
-        size_t max_block_size_,
-        UInt64 limit_ = 0,
-        bool always_read_till_end_ = false
-    );
+  /// MergingSorted
+  SortingStep(const SharedHeader& input_header, SortDescription sort_description_, size_t max_block_size_, UInt64 limit_ = 0,
+              bool always_read_till_end_ = false);
 
-    String getName() const override { return "Sorting"; }
+  String getName() const override { return "Sorting"; }
 
-    void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override;
+  void transformPipeline(QueryPipelineBuilder& pipeline, const BuildQueryPipelineSettings&) override;
 
-    void describeActions(JSONBuilder::JSONMap & map) const override;
-    void describeActions(FormatSettings & settings) const override;
+  void describeActions(JSONBuilder::JSONMap& map) const override;
+  void describeActions(FormatSettings& settings) const override;
 
-    UInt64 getLimit() const { return limit; }
-    /// Add limit or change it to lower value.
-    void updateLimit(size_t limit_);
+  UInt64 getLimit() const { return limit; }
+  /// Add limit or change it to lower value.
+  void updateLimit(size_t limit_);
 
-    const SortDescription & getSortDescription() const override { return result_description; }
+  const SortDescription& getSortDescription() const override { return result_description; }
 
-    bool hasPartitions() const { return !partition_by_description.empty(); }
+  bool hasPartitions() const { return !partition_by_description.empty(); }
 
-    bool isSortingForMergeJoin() const { return is_sorting_for_merge_join; }
+  bool isSortingForMergeJoin() const { return is_sorting_for_merge_join; }
 
-    void convertToFinishSorting(SortDescription prefix_description, bool use_buffering_, bool apply_virtual_row_conversions_);
+  void convertToFinishSorting(SortDescription prefix_description, bool use_buffering_, bool apply_virtual_row_conversions_);
 
-    Type getType() const { return type; }
-    const Settings & getSettings() const { return sort_settings; }
+  Type getType() const { return type; }
+  const Settings& getSettings() const { return sort_settings; }
 
-    void convertToPartitionedFinishSorting() { type = Type::PartitionedFinishSorting; }
+  void convertToPartitionedFinishSorting() { type = Type::PartitionedFinishSorting; }
 
-    static void fullSortStreams(
-        QueryPipelineBuilder & pipeline,
-        const Settings & sort_settings,
-        const SortDescription & result_sort_desc,
-        UInt64 limit_,
-        bool skip_partial_sort = false,
-        TopKThresholdTrackerPtr threshold_tracker = nullptr);
+  static void fullSortStreams(QueryPipelineBuilder& pipeline, const Settings& sort_settings, const SortDescription& result_sort_desc,
+                              UInt64 limit_, bool skip_partial_sort = false, TopKThresholdTrackerPtr threshold_tracker = nullptr);
 
-    void serializeSettings(QueryPlanSerializationSettings & settings) const override;
-    void serialize(Serialization & ctx) const override;
-    bool isSerializable() const override { return type == Type::Full && partition_by_description.empty(); }
+  void serializeSettings(QueryPlanSerializationSettings& settings) const override;
+  void serialize(Serialization& ctx) const override;
+  bool isSerializable() const override { return type == Type::Full && partition_by_description.empty(); }
 
-    static QueryPlanStepPtr deserialize(Deserialization & ctx);
+  static QueryPlanStepPtr deserialize(Deserialization& ctx);
 
-    bool supportsDataflowStatisticsCollection() const override { return true; }
-    void setTopKThresholdTracker(TopKThresholdTrackerPtr threshold_tracker_) { threshold_tracker = threshold_tracker_; }
+  bool supportsDataflowStatisticsCollection() const override { return true; }
+  void setTopKThresholdTracker(TopKThresholdTrackerPtr threshold_tracker_) { threshold_tracker = threshold_tracker_; }
 
-private:
-    void scatterByPartitionIfNeeded(QueryPipelineBuilder& pipeline);
-    void updateOutputHeader() override;
+ private:
+  void scatterByPartitionIfNeeded(QueryPipelineBuilder& pipeline);
+  void updateOutputHeader() override;
 
-    static void mergeSorting(
-        QueryPipelineBuilder & pipeline,
-        const Settings & sort_settings,
-        const SortDescription & result_sort_desc,
-        UInt64 limit_, TopKThresholdTrackerPtr threshold_tracker);
+  static void mergeSorting(QueryPipelineBuilder& pipeline, const Settings& sort_settings, const SortDescription& result_sort_desc,
+                           UInt64 limit_, TopKThresholdTrackerPtr threshold_tracker);
 
-    void mergingSorted(
-        QueryPipelineBuilder & pipeline,
-        const SortDescription & result_sort_desc,
-        UInt64 limit_);
-    void finishSorting(
-        QueryPipelineBuilder & pipeline,
-        const SortDescription & input_sort_desc,
-        const SortDescription & result_sort_desc,
-        UInt64 limit_);
-    void fullSort(
-        QueryPipelineBuilder & pipeline,
-        const SortDescription & result_sort_desc,
-        UInt64 limit_,
-        bool skip_partial_sort = false);
+  void mergingSorted(QueryPipelineBuilder& pipeline, const SortDescription& result_sort_desc, UInt64 limit_);
+  void finishSorting(QueryPipelineBuilder& pipeline, const SortDescription& input_sort_desc, const SortDescription& result_sort_desc,
+                     UInt64 limit_);
+  void fullSort(QueryPipelineBuilder& pipeline, const SortDescription& result_sort_desc, UInt64 limit_, bool skip_partial_sort = false);
 
-    Type type;
+  Type type;
 
-    SortDescription prefix_description;
-    const SortDescription result_description;
+  SortDescription prefix_description;
+  const SortDescription result_description;
 
-    SortDescription partition_by_description;
+  SortDescription partition_by_description;
 
-    /// See `findQueryForParallelReplicas`
-    bool is_sorting_for_merge_join = false;
+  /// See `findQueryForParallelReplicas`
+  bool is_sorting_for_merge_join = false;
 
-    UInt64 limit;
-    bool always_read_till_end = false;
-    bool use_buffering = false;
-    bool apply_virtual_row_conversions = false;
+  UInt64 limit;
+  bool always_read_till_end = false;
+  bool use_buffering = false;
+  bool apply_virtual_row_conversions = false;
 
-    TopKThresholdTrackerPtr threshold_tracker;
+  TopKThresholdTrackerPtr threshold_tracker;
 
-    Settings sort_settings;
+  Settings sort_settings;
 };
 
-}
+}  // namespace DB

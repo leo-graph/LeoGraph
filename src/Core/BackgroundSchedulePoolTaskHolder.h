@@ -3,70 +3,67 @@
 #include <memory>
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 
 class BackgroundSchedulePoolTaskInfo;
 
 using BackgroundSchedulePoolTaskInfoPtr = std::shared_ptr<BackgroundSchedulePoolTaskInfo>;
 
-class BackgroundSchedulePoolTaskHolder
-{
-public:
-    BackgroundSchedulePoolTaskHolder();
-    explicit BackgroundSchedulePoolTaskHolder(const BackgroundSchedulePoolTaskInfoPtr & task_info_);
-    BackgroundSchedulePoolTaskHolder(const BackgroundSchedulePoolTaskHolder & other) = delete;
-    BackgroundSchedulePoolTaskHolder(BackgroundSchedulePoolTaskHolder && other) noexcept;
-    BackgroundSchedulePoolTaskHolder & operator=(const BackgroundSchedulePoolTaskHolder & other) noexcept = delete;
-    BackgroundSchedulePoolTaskHolder & operator=(BackgroundSchedulePoolTaskHolder && other) noexcept;
+class BackgroundSchedulePoolTaskHolder {
+ public:
+  BackgroundSchedulePoolTaskHolder();
+  explicit BackgroundSchedulePoolTaskHolder(const BackgroundSchedulePoolTaskInfoPtr &task_info_);
+  BackgroundSchedulePoolTaskHolder(const BackgroundSchedulePoolTaskHolder &other) = delete;
+  BackgroundSchedulePoolTaskHolder(BackgroundSchedulePoolTaskHolder &&other) noexcept;
+  BackgroundSchedulePoolTaskHolder &operator=(const BackgroundSchedulePoolTaskHolder &other) noexcept = delete;
+  BackgroundSchedulePoolTaskHolder &operator=(BackgroundSchedulePoolTaskHolder &&other) noexcept;
 
-    ~BackgroundSchedulePoolTaskHolder();
+  ~BackgroundSchedulePoolTaskHolder();
 
-    explicit operator bool() const;
+  explicit operator bool() const;
 
-    BackgroundSchedulePoolTaskInfo * operator->();
-    const BackgroundSchedulePoolTaskInfo * operator->() const;
+  BackgroundSchedulePoolTaskInfo *operator->();
+  const BackgroundSchedulePoolTaskInfo *operator->() const;
 
-    /// Get the shared pointer to the task info.
-    /// Useful when you need to extend the lifetime of the task.
-    BackgroundSchedulePoolTaskInfoPtr getTaskInfoPtr() const;
+  /// Get the shared pointer to the task info.
+  /// Useful when you need to extend the lifetime of the task.
+  BackgroundSchedulePoolTaskInfoPtr getTaskInfoPtr() const;
 
-private:
-    BackgroundSchedulePoolTaskInfoPtr task_info;
+ private:
+  BackgroundSchedulePoolTaskInfoPtr task_info;
 };
 
 /// RAII guard that pauses parts check and reactivates it on destruction.
 /// Safe to destroy from any thread.
-class BackgroundSchedulePoolPausableTask
-{
-public:
-    struct PauseHolder
-    {
-        explicit PauseHolder(BackgroundSchedulePoolPausableTask & task_);
-        ~PauseHolder();
+class BackgroundSchedulePoolPausableTask {
+ public:
+  struct PauseHolder {
+    explicit PauseHolder(BackgroundSchedulePoolPausableTask &task_);
+    ~PauseHolder();
 
-    private:
-        BackgroundSchedulePoolPausableTask & task;
-    };
+   private:
+    BackgroundSchedulePoolPausableTask &task;
+  };
 
-    using PauseHolderPtr = std::unique_ptr<PauseHolder>;
-    explicit BackgroundSchedulePoolPausableTask(BackgroundSchedulePoolTaskHolder task_);
+  using PauseHolderPtr = std::unique_ptr<PauseHolder>;
+  explicit BackgroundSchedulePoolPausableTask(BackgroundSchedulePoolTaskHolder task_);
 
-    BackgroundSchedulePoolPausableTask(const BackgroundSchedulePoolPausableTask &) = delete;
-    BackgroundSchedulePoolPausableTask & operator=(const BackgroundSchedulePoolPausableTask &) = delete;
-    BackgroundSchedulePoolPausableTask(BackgroundSchedulePoolPausableTask &&) = delete;
-    BackgroundSchedulePoolPausableTask & operator=(BackgroundSchedulePoolPausableTask &&) = delete;
+  BackgroundSchedulePoolPausableTask(const BackgroundSchedulePoolPausableTask &) = delete;
+  BackgroundSchedulePoolPausableTask &operator=(const BackgroundSchedulePoolPausableTask &) = delete;
+  BackgroundSchedulePoolPausableTask(BackgroundSchedulePoolPausableTask &&) = delete;
+  BackgroundSchedulePoolPausableTask &operator=(BackgroundSchedulePoolPausableTask &&) = delete;
 
-    BackgroundSchedulePoolTaskHolder & getTask();
+  BackgroundSchedulePoolTaskHolder &getTask();
 
-    [[nodiscard]] PauseHolderPtr pause();
-private:
-    void pauseImpl();
-    void resumeImpl();
+  [[nodiscard]] PauseHolderPtr pause();
 
-    std::mutex pause_mutex;
-    size_t pause_count = 0;
-    BackgroundSchedulePoolTaskHolder task;
+ private:
+  void pauseImpl();
+  void resumeImpl();
+
+  std::mutex pause_mutex;
+  size_t pause_count = 0;
+  BackgroundSchedulePoolTaskHolder task;
 };
 
-}
+}  // namespace DB

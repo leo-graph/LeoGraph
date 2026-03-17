@@ -36,61 +36,49 @@
 // documentation and/or software.
 //
 
-
 #ifndef Foundation_MD5Engine_INCLUDED
 #define Foundation_MD5Engine_INCLUDED
-
 
 #include "Poco/DigestEngine.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API MD5Engine : public DigestEngine
 /// This class implements the MD5 message digest algorithm,
 /// described in RFC 1321.
 {
-public:
-    enum
-    {
-        BLOCK_SIZE = 64,
-        DIGEST_SIZE = 16
-    };
+ public:
+  enum { BLOCK_SIZE = 64, DIGEST_SIZE = 16 };
 
-    MD5Engine();
-    ~MD5Engine();
+  MD5Engine();
+  ~MD5Engine();
 
-    std::size_t digestLength() const;
-    void reset();
-    const DigestEngine::Digest & digest();
+  std::size_t digestLength() const;
+  void reset();
+  const DigestEngine::Digest &digest();
 
-protected:
-    void updateImpl(const void * data, std::size_t length);
+ protected:
+  void updateImpl(const void *data, std::size_t length);
 
-private:
-    static void transform(UInt32 state[4], const unsigned char block[64]);
-    static void encode(unsigned char * output, const UInt32 * input, std::size_t len);
-    static void decode(UInt32 * output, const unsigned char * input, std::size_t len);
+ private:
+  static void transform(UInt32 state[4], const unsigned char block[64]);
+  static void encode(unsigned char *output, const UInt32 *input, std::size_t len);
+  static void decode(UInt32 *output, const unsigned char *input, std::size_t len);
 
-    struct Context
-    {
-        UInt32 state[4]; // state (ABCD)
-        UInt32 count[2]; // number of bits, modulo 2^64 (lsb first)
-        unsigned char buffer[64]; // input buffer
-    };
+  struct Context {
+    UInt32 state[4];           // state (ABCD)
+    UInt32 count[2];           // number of bits, modulo 2^64 (lsb first)
+    unsigned char buffer[64];  // input buffer
+  };
 
-    Context _context;
-    DigestEngine::Digest _digest;
+  Context _context;
+  DigestEngine::Digest _digest;
 
-    MD5Engine(const MD5Engine &);
-    MD5Engine & operator=(const MD5Engine &);
+  MD5Engine(const MD5Engine &);
+  MD5Engine &operator=(const MD5Engine &);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_MD5Engine_INCLUDED
+#endif  // Foundation_MD5Engine_INCLUDED

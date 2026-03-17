@@ -1,83 +1,80 @@
 #include <TableFunctions/registerTableFunctions.h>
 #include <TableFunctions/TableFunctionFactory.h>
 
-namespace DB
-{
-void registerTableFunctions()
-{
-    auto & factory = TableFunctionFactory::instance();
+namespace DB {
+void registerTableFunctions() {
+  auto& factory = TableFunctionFactory::instance();
 
-    registerTableFunctionMerge(factory);
-    registerTableFunctionRemote(factory);
-    registerTableFunctionNumbers(factory);
-    registerTableFunctionPrimes(factory);
-    registerTableFunctionLoop(factory);
-    registerTableFunctionGenerateSeries(factory);
-    registerTableFunctionNull(factory);
-    registerTableFunctionZeros(factory);
-    registerTableFunctionExecutable(factory);
-    registerTableFunctionFile(factory);
-    registerTableFunctionFileCluster(factory);
-    registerTableFunctionURL(factory);
-    registerTableFunctionURLCluster(factory);
-    registerTableFunctionValues(factory);
-    registerTableFunctionInput(factory);
-    registerTableFunctionGenerate(factory);
+  registerTableFunctionMerge(factory);
+  registerTableFunctionRemote(factory);
+  registerTableFunctionNumbers(factory);
+  registerTableFunctionPrimes(factory);
+  registerTableFunctionLoop(factory);
+  registerTableFunctionGenerateSeries(factory);
+  registerTableFunctionNull(factory);
+  registerTableFunctionZeros(factory);
+  registerTableFunctionExecutable(factory);
+  registerTableFunctionFile(factory);
+  registerTableFunctionFileCluster(factory);
+  registerTableFunctionURL(factory);
+  registerTableFunctionURLCluster(factory);
+  registerTableFunctionValues(factory);
+  registerTableFunctionInput(factory);
+  registerTableFunctionGenerate(factory);
 #if USE_MONGODB
-    registerTableFunctionMongoDB(factory);
+  registerTableFunctionMongoDB(factory);
 #endif
-    registerTableFunctionRedis(factory);
+  registerTableFunctionRedis(factory);
 
 #if USE_ARROWFLIGHT
-    registerTableFunctionArrowFlight(factory);
+  registerTableFunctionArrowFlight(factory);
 #endif
 
-    registerTableFunctionMergeTreeIndex(factory);
-    registerTableFunctionMergeTreeAnalyzeIndexes(factory);
-    registerTableFunctionMergeTreeProjection(factory);
-    registerTableFunctionMergeTreeTextIndex(factory);
-    registerTableFunctionFuzzQuery(factory);
+  registerTableFunctionMergeTreeIndex(factory);
+  registerTableFunctionMergeTreeAnalyzeIndexes(factory);
+  registerTableFunctionMergeTreeProjection(factory);
+  registerTableFunctionMergeTreeTextIndex(factory);
+  registerTableFunctionFuzzQuery(factory);
 #if USE_RAPIDJSON || USE_SIMDJSON
-    registerTableFunctionFuzzJSON(factory);
+  registerTableFunctionFuzzJSON(factory);
 #endif
 
 #if USE_HIVE
-    registerTableFunctionHive(factory);
+  registerTableFunctionHive(factory);
 #endif
 
-    registerTableFunctionODBC(factory);
-    registerTableFunctionJDBC(factory);
+  registerTableFunctionODBC(factory);
+  registerTableFunctionJDBC(factory);
 
-    registerTableFunctionView(factory);
-    registerTableFunctionViewIfPermitted(factory);
+  registerTableFunctionView(factory);
+  registerTableFunctionViewIfPermitted(factory);
 
 #if USE_MYSQL
-    registerTableFunctionMySQL(factory);
+  registerTableFunctionMySQL(factory);
 #endif
 
 #if USE_LIBPQXX
-    registerTableFunctionPostgreSQL(factory);
+  registerTableFunctionPostgreSQL(factory);
 #endif
 
 #if USE_SQLITE
-    registerTableFunctionSQLite(factory);
+  registerTableFunctionSQLite(factory);
 #endif
 
-    registerTableFunctionDictionary(factory);
+  registerTableFunctionDictionary(factory);
 
-    registerTableFunctionFormat(factory);
-    registerTableFunctionExplain(factory);
-    registerTableFunctionTimeSeries(factory);
+  registerTableFunctionFormat(factory);
+  registerTableFunctionExplain(factory);
+  registerTableFunctionTimeSeries(factory);
 
-    registerTableFunctionObjectStorage(factory);
-    registerTableFunctionObjectStorageCluster(factory);
-    registerDataLakeTableFunctions(factory);
-    registerDataLakeClusterTableFunctions(factory);
+  registerTableFunctionObjectStorage(factory);
+  registerTableFunctionObjectStorageCluster(factory);
+  registerDataLakeTableFunctions(factory);
+  registerDataLakeClusterTableFunctions(factory);
 
 #if USE_YTSAURUS
-    registerTableFunctionYTsaurus(factory);
+  registerTableFunctionYTsaurus(factory);
 #endif
-
 }
 
-}
+}  // namespace DB

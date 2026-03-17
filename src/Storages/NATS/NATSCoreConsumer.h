@@ -2,20 +2,17 @@
 
 #include <Storages/NATS/INATSConsumer.h>
 
-namespace Poco
-{
+namespace Poco {
 class Logger;
 }
 
-namespace DB
-{
+namespace DB {
 
-class NATSCoreConsumer : public INATSConsumer
-{
-public:
-    using INATSConsumer::INATSConsumer;
+class NATSCoreConsumer : public INATSConsumer {
+ public:
+  using INATSConsumer::INATSConsumer;
 
-    void subscribe() override;
+  void subscribe() override;
 };
 
-}
+}  // namespace DB

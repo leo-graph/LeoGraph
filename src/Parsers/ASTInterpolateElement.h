@@ -2,22 +2,19 @@
 
 #include <Parsers/IAST.h>
 
+namespace DB {
 
-namespace DB
-{
+class ASTInterpolateElement : public IAST {
+ public:
+  String column;
+  ASTPtr expr;
 
-class ASTInterpolateElement : public IAST
-{
-public:
-    String column;
-    ASTPtr expr;
+  String getID(char delim) const override { return String("InterpolateElement") + delim + "(column " + column + ")"; }
 
-    String getID(char delim) const override { return String("InterpolateElement") + delim + "(column " + column + ")"; }
+  ASTPtr clone() const override;
 
-    ASTPtr clone() const override;
-
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override;
 };
 
-}
+}  // namespace DB

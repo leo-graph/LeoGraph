@@ -13,18 +13,15 @@ limitations under the License. */
 
 #include <Parsers/IParserBase.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Query like this:
-  * WATCH [db.]table EVENTS
-  */
-class ParserWatchQuery : public IParserBase
-{
-protected:
-    const char * getName() const override { return "WATCH query"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+ * WATCH [db.]table EVENTS
+ */
+class ParserWatchQuery : public IParserBase {
+ protected:
+  const char* getName() const override { return "WATCH query"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace DB

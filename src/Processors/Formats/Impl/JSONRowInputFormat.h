@@ -1,59 +1,46 @@
 #pragma once
 
-#include <Processors/Formats/ISchemaReader.h>
 #include <Processors/Formats/Impl/JSONEachRowRowInputFormat.h>
+#include <Processors/Formats/ISchemaReader.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class ReadBuffer;
 
+class JSONRowInputFormat final : public JSONEachRowRowInputFormat {
+ public:
+  JSONRowInputFormat(ReadBuffer& in_, SharedHeader header_, Params params_, const FormatSettings& format_settings_);
 
-class JSONRowInputFormat final : public JSONEachRowRowInputFormat
-{
-public:
-    JSONRowInputFormat(
-        ReadBuffer & in_,
-        SharedHeader header_,
-        Params params_,
-        const FormatSettings & format_settings_);
+  String getName() const override { return "JSONRowInputFormat"; }
 
-    String getName() const override { return "JSONRowInputFormat"; }
+  void setReadBuffer(ReadBuffer& in_) override;
+  void resetReadBuffer() override;
 
-    void setReadBuffer(ReadBuffer & in_) override;
-    void resetReadBuffer() override;
+ private:
+  JSONRowInputFormat(std::unique_ptr<PeekableReadBuffer> buf, SharedHeader header_, Params params_, const FormatSettings& format_settings_);
 
-private:
-    JSONRowInputFormat(
-        std::unique_ptr<PeekableReadBuffer> buf,
-        SharedHeader header_,
-        Params params_,
-        const FormatSettings & format_settings_);
+  void readPrefix() override;
+  void readSuffix() override;
 
-    void readPrefix() override;
-    void readSuffix() override;
-
-    const bool validate_types_from_metadata;
-    bool parse_as_json_each_row = false;
-    std::unique_ptr<PeekableReadBuffer> peekable_buf;
-    std::exception_ptr reading_metadata_exception;
+  const bool validate_types_from_metadata;
+  bool parse_as_json_each_row = false;
+  std::unique_ptr<PeekableReadBuffer> peekable_buf;
+  std::exception_ptr reading_metadata_exception;
 };
 
-class JSONRowSchemaReader : public JSONEachRowSchemaReader
-{
-public:
-    JSONRowSchemaReader(ReadBuffer & in_, const FormatSettings & format_settings_, bool fallback_to_json_each_row_);
+class JSONRowSchemaReader : public JSONEachRowSchemaReader {
+ public:
+  JSONRowSchemaReader(ReadBuffer& in_, const FormatSettings& format_settings_, bool fallback_to_json_each_row_);
 
-    NamesAndTypesList readSchema() override;
+  NamesAndTypesList readSchema() override;
 
-    bool hasStrictOrderOfColumns() const override { return false; }
+  bool hasStrictOrderOfColumns() const override { return false; }
 
-private:
-    JSONRowSchemaReader(std::unique_ptr<PeekableReadBuffer> buf, const FormatSettings & format_settings_, bool fallback_to_json_each_row_);
+ private:
+  JSONRowSchemaReader(std::unique_ptr<PeekableReadBuffer> buf, const FormatSettings& format_settings_, bool fallback_to_json_each_row_);
 
-    std::unique_ptr<PeekableReadBuffer> peekable_buf;
-    bool fallback_to_json_each_row;
+  std::unique_ptr<PeekableReadBuffer> peekable_buf;
+  bool fallback_to_json_each_row;
 };
 
-}
+}  // namespace DB

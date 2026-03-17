@@ -4,8 +4,7 @@
 
 #include <cstddef>
 
-namespace DB::Jemalloc
-{
+namespace DB::Jemalloc {
 
 constexpr bool default_enable_global_profiler = false;
 constexpr bool default_enable_background_threads = true;
@@ -20,27 +19,25 @@ constexpr auto config_max_background_threads_num = "jemalloc_max_background_thre
 constexpr auto config_collect_global_profile_samples_in_trace_log = "jemalloc_collect_global_profile_samples_in_trace_log";
 constexpr auto config_profiler_sampling_rate = "jemalloc_profiler_sampling_rate";
 
-}
+}  // namespace DB::Jemalloc
 
 #if USE_JEMALLOC
 
-#include <string_view>
-#include <Common/logger_useful.h>
-#include <jemalloc/jemalloc.h>
+#  include <Common/logger_useful.h>
+#  include <jemalloc/jemalloc.h>
+#  include <string_view>
 
-namespace DB
-{
+namespace DB {
 
 struct ServerSettings;
 
-namespace Jemalloc
-{
+namespace Jemalloc {
 
 void purgeArenas();
 
 void checkProfilingEnabled();
 
-std::string_view flushProfile(const char * file_prefix);
+std::string_view flushProfile(const char* file_prefix);
 
 void setBackgroundThreads(bool enabled);
 
@@ -49,82 +46,60 @@ void setProfileSamplingRate(size_t lg_prof_sample);
 void setMaxBackgroundThreads(size_t max_threads);
 
 template <typename T>
-void setValue(const char * name, T value)
-{
-    mallctl(name, nullptr, nullptr, reinterpret_cast<void*>(&value), sizeof(T));
+void setValue(const char* name, T value) {
+  mallctl(name, nullptr, nullptr, reinterpret_cast<void*>(&value), sizeof(T));
 }
 
 template <typename T>
-T getValue(const char * name)
-{
-    T value;
-    size_t value_size = sizeof(T);
-    mallctl(name, &value, &value_size, nullptr, 0);
-    return value;
+T getValue(const char* name) {
+  T value;
+  size_t value_size = sizeof(T);
+  mallctl(name, &value, &value_size, nullptr, 0);
+  return value;
 }
 
-void setup(
-    bool enable_global_profiler,
-    bool enable_background_threads,
-    size_t max_background_threads_num,
-    bool collect_global_profile_samples_in_trace_log,
-    size_t profiler_sampling_rate);
+void setup(bool enable_global_profiler, bool enable_background_threads, size_t max_background_threads_num,
+           bool collect_global_profile_samples_in_trace_log, size_t profiler_sampling_rate);
 
 /// Verify that the current jemalloc settings match the expected values.
 /// Called from Server/Keeper after `setup` was already called in `BaseDaemon::initialize`
 /// (and re-applied after the watchdog fork). Fires `chassert` on mismatch.
-void verifySetup(
-    bool enable_global_profiler,
-    bool enable_background_threads,
-    size_t max_background_threads_num,
-    bool collect_global_profile_samples_in_trace_log,
-    size_t profiler_sampling_rate);
+void verifySetup(bool enable_global_profiler, bool enable_background_threads, size_t max_background_threads_num,
+                 bool collect_global_profile_samples_in_trace_log, size_t profiler_sampling_rate);
 
 /// Each mallctl call consists of string name lookup which can be expensive.
 /// This can be avoided by translating name to "Management Information Base" (MIB)
 /// and using it in mallctlbymib calls
 template <typename T>
-struct MibCache
-{
-    explicit MibCache(const char * name)
-    {
-        mallctlnametomib(name, mib, &mib_length);
-    }
+struct MibCache {
+  explicit MibCache(const char* name) { mallctlnametomib(name, mib, &mib_length); }
 
-    void setValue(T value) const
-    {
-        mallctlbymib(mib, mib_length, nullptr, nullptr, reinterpret_cast<void*>(&value), sizeof(T));
-    }
+  void setValue(T value) const { mallctlbymib(mib, mib_length, nullptr, nullptr, reinterpret_cast<void*>(&value), sizeof(T)); }
 
-    T getValue() const
-    {
-        T value;
-        size_t value_size = sizeof(T);
-        mallctlbymib(mib, mib_length, &value, &value_size, nullptr, 0);
-        return value;
-    }
+  T getValue() const {
+    T value;
+    size_t value_size = sizeof(T);
+    mallctlbymib(mib, mib_length, &value, &value_size, nullptr, 0);
+    return value;
+  }
 
-    void run() const
-    {
-        mallctlbymib(mib, mib_length, nullptr, nullptr, nullptr, 0);
-    }
+  void run() const { mallctlbymib(mib, mib_length, nullptr, nullptr, nullptr, 0); }
 
-private:
-    static constexpr size_t max_mib_length = 4;
-    size_t mib[max_mib_length];
-    size_t mib_length = max_mib_length;
+ private:
+  static constexpr size_t max_mib_length = 4;
+  size_t mib[max_mib_length];
+  size_t mib_length = max_mib_length;
 };
 
-const MibCache<bool> & getThreadProfileActiveMib();
-const MibCache<bool> & getThreadProfileInitMib();
+const MibCache<bool>& getThreadProfileActiveMib();
+const MibCache<bool>& getThreadProfileInitMib();
 
 void setCollectLocalProfileSamplesInTraceLog(bool value);
 
 std::string_view getLastFlushProfileForThread();
 
+}  // namespace Jemalloc
 
-}
-
-}
+}  // namespace DB
 
 #endif

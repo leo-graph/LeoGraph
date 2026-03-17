@@ -4,9 +4,8 @@
 
 #include <gtest/gtest.h>
 
-TEST(Common, ConfigHostValidation)
-{
-    std::string xml(R"CONFIG(<clickhouse>
+TEST(Common, ConfigHostValidation) {
+  std::string xml(R"CONFIG(<clickhouse>
     <IPv4_1>0.0.0.0</IPv4_1>
     <IPv4_2>192.168.0.1</IPv4_2>
     <IPv4_3>127.0.0.1</IPv4_3>
@@ -33,37 +32,37 @@ TEST(Common, ConfigHostValidation)
     <Domain_Invalid_4>exa_mple.com</Domain_Invalid_4>
 </clickhouse>)CONFIG");
 
-    Poco::XML::DOMParser dom_parser;
-    Poco::AutoPtr<Poco::XML::Document> document = dom_parser.parseString(xml);
-    Poco::AutoPtr<Poco::Util::XMLConfiguration> config = new Poco::Util::XMLConfiguration(document);
+  Poco::XML::DOMParser dom_parser;
+  Poco::AutoPtr<Poco::XML::Document> document = dom_parser.parseString(xml);
+  Poco::AutoPtr<Poco::Util::XMLConfiguration> config = new Poco::Util::XMLConfiguration(document);
 
-    EXPECT_NO_THROW(config->getHost("IPv4_1"));
-    EXPECT_NO_THROW(config->getHost("IPv4_2"));
-    EXPECT_NO_THROW(config->getHost("IPv4_3"));
-    EXPECT_NO_THROW(config->getHost("IPv4_4"));
+  EXPECT_NO_THROW(config->getHost("IPv4_1"));
+  EXPECT_NO_THROW(config->getHost("IPv4_2"));
+  EXPECT_NO_THROW(config->getHost("IPv4_3"));
+  EXPECT_NO_THROW(config->getHost("IPv4_4"));
 
-    EXPECT_NO_THROW(config->getHost("IPv6_1"));
-    EXPECT_NO_THROW(config->getHost("IPv6_2"));
-    EXPECT_NO_THROW(config->getHost("IPv6_3"));
-    EXPECT_NO_THROW(config->getHost("IPv6_4"));
+  EXPECT_NO_THROW(config->getHost("IPv6_1"));
+  EXPECT_NO_THROW(config->getHost("IPv6_2"));
+  EXPECT_NO_THROW(config->getHost("IPv6_3"));
+  EXPECT_NO_THROW(config->getHost("IPv6_4"));
 
-    EXPECT_NO_THROW(config->getHost("Domain_1"));
-    EXPECT_NO_THROW(config->getHost("Domain_2"));
-    EXPECT_NO_THROW(config->getHost("Domain_3"));
-    EXPECT_NO_THROW(config->getHost("Domain_4"));
+  EXPECT_NO_THROW(config->getHost("Domain_1"));
+  EXPECT_NO_THROW(config->getHost("Domain_2"));
+  EXPECT_NO_THROW(config->getHost("Domain_3"));
+  EXPECT_NO_THROW(config->getHost("Domain_4"));
 
-    EXPECT_THROW(config->getHost("IPv4_Invalid_1"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("IPv4_Invalid_2"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("IPv4_Invalid_3"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("IPv4_Invalid_4"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv4_Invalid_1"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv4_Invalid_2"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv4_Invalid_3"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv4_Invalid_4"), Poco::SyntaxException);
 
-    EXPECT_THROW(config->getHost("IPv6_Invalid_1"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("IPv6_Invalid_2"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("IPv6_Invalid_3"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("IPv6_Invalid_4"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv6_Invalid_1"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv6_Invalid_2"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv6_Invalid_3"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("IPv6_Invalid_4"), Poco::SyntaxException);
 
-    EXPECT_THROW(config->getHost("Domain_Invalid_1"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("Domain_Invalid_2"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("Domain_Invalid_3"), Poco::SyntaxException);
-    EXPECT_THROW(config->getHost("Domain_Invalid_4"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("Domain_Invalid_1"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("Domain_Invalid_2"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("Domain_Invalid_3"), Poco::SyntaxException);
+  EXPECT_THROW(config->getHost("Domain_Invalid_4"), Poco::SyntaxException);
 }

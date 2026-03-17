@@ -13,19 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef XML_XMLString_INCLUDED
 #define XML_XMLString_INCLUDED
 
-
 #include "Poco/XML/XML.h"
 
-
-namespace Poco
-{
-namespace XML
-{
-
+namespace Poco {
+namespace XML {
 
 //
 // The XML parser uses the string classes provided by the C++
@@ -44,47 +38,39 @@ namespace XML
 //
 #if defined(XML_UNICODE_WCHAR_T)
 
-    // Unicode - use wchar_t
-    using XMLChar = wchar_t;
-    using XMLString = std::wstring;
+// Unicode - use wchar_t
+using XMLChar = wchar_t;
+using XMLString = std::wstring;
 
-    std::string fromXMLString(const XMLString & str);
-    /// Converts an XMLString into an UTF-8 encoded
-    /// string.
+std::string fromXMLString(const XMLString& str);
+/// Converts an XMLString into an UTF-8 encoded
+/// string.
 
-    XMLString toXMLString(const std::string & str);
-    /// Converts an UTF-8 encoded string into an
-    /// XMLString
+XMLString toXMLString(const std::string& str);
+/// Converts an UTF-8 encoded string into an
+/// XMLString
 
-#    define XML_LIT(lit) L##lit
+#  define XML_LIT(lit) L##lit
 
 #elif defined(XML_UNICODE)
 
-    // not supported - leave XMLString undefined
+// not supported - leave XMLString undefined
 
 #else
 
-    // Characters are UTF-8 encoded
-    using XMLChar = char;
-    using XMLString = std::string;
+// Characters are UTF-8 encoded
+using XMLChar = char;
+using XMLString = std::string;
 
-    inline const std::string & fromXMLString(const XMLString & str)
-    {
-        return str;
-    }
+inline const std::string& fromXMLString(const XMLString& str) { return str; }
 
-    inline const XMLString & toXMLString(const std::string & str)
-    {
-        return str;
-    }
+inline const XMLString& toXMLString(const std::string& str) { return str; }
 
-#    define XML_LIT(lit) lit
+#  define XML_LIT(lit) lit
 
 #endif
 
+}  // namespace XML
+}  // namespace Poco
 
-}
-} // namespace Poco::XML
-
-
-#endif // XML_XMLString_INCLUDED
+#endif  // XML_XMLString_INCLUDED

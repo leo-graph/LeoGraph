@@ -2,34 +2,29 @@
 #include <string>
 
 #include <IO/parseDateTimeBestEffort.h>
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
 #include <IO/ReadBufferFromFileDescriptor.h>
+#include <IO/ReadHelpers.h>
 #include <IO/WriteBufferFromFileDescriptor.h>
-
+#include <IO/WriteHelpers.h>
 
 using namespace DB;
 
-int main(int, char **)
-try
-{
-    const DateLUTImpl & local_time_zone = DateLUT::instance();
-    const DateLUTImpl & utc_time_zone = DateLUT::instance("UTC");
+int main(int, char **) try {
+  const DateLUTImpl &local_time_zone = DateLUT::instance();
+  const DateLUTImpl &utc_time_zone = DateLUT::instance("UTC");
 
-    ReadBufferFromFileDescriptor in(STDIN_FILENO);
-    WriteBufferFromFileDescriptor out(STDOUT_FILENO);
+  ReadBufferFromFileDescriptor in(STDIN_FILENO);
+  WriteBufferFromFileDescriptor out(STDOUT_FILENO);
 
-    time_t res;
-    parseDateTimeBestEffort(res, in, local_time_zone, utc_time_zone);
-    writeDateTimeText(res, out);
-    writeChar('\n', out);
+  time_t res;
+  parseDateTimeBestEffort(res, in, local_time_zone, utc_time_zone);
+  writeDateTimeText(res, out);
+  writeChar('\n', out);
 
-    out.finalize();
+  out.finalize();
 
-    return 0;
-}
-catch (const Exception &)
-{
-    std::cerr << getCurrentExceptionMessage(true) << std::endl;
-    return 1;
+  return 0;
+} catch (const Exception &) {
+  std::cerr << getCurrentExceptionMessage(true) << std::endl;
+  return 1;
 }

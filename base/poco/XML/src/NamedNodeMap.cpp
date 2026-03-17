@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/NamedNodeMap.h"
-
 
 namespace Poco {
 namespace XML {
 
+NamedNodeMap::~NamedNodeMap() {}
 
-NamedNodeMap::~NamedNodeMap()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

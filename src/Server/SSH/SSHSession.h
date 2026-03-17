@@ -4,58 +4,56 @@
 
 #if USE_SSH && defined(OS_LINUX)
 
-#include <memory>
-#include <mutex>
-#include <base/types.h>
+#  include <base/types.h>
+#  include <memory>
+#  include <mutex>
 
 struct ssh_session_struct;
 
-namespace ssh
-{
+namespace ssh {
 
 // Wrapper around libssh's ssh_session
-class SSHSession
-{
-public:
-    SSHSession();
-    ~SSHSession();
-    SSHSession(SSHSession &&) noexcept;
-    SSHSession & operator=(SSHSession &&) noexcept;
+class SSHSession {
+ public:
+  SSHSession();
+  ~SSHSession();
+  SSHSession(SSHSession &&) noexcept;
+  SSHSession &operator=(SSHSession &&) noexcept;
 
-    SSHSession(const SSHSession &) = delete;
-    SSHSession & operator=(const SSHSession &) = delete;
+  SSHSession(const SSHSession &) = delete;
+  SSHSession &operator=(const SSHSession &) = delete;
 
-    using SessionPtr = ssh_session_struct *;
-    /// Get raw pointer from libssh to be able to pass it to other objects
-    SessionPtr getInternalPtr() const;
+  using SessionPtr = ssh_session_struct *;
+  /// Get raw pointer from libssh to be able to pass it to other objects
+  SessionPtr getInternalPtr() const;
 
-    /// Disable reading default libssh configuration
-    void disableDefaultConfig();
+  /// Disable reading default libssh configuration
+  void disableDefaultConfig();
 
-    /// Connect / disconnect
-    void connect();
-    void disconnect();
+  /// Connect / disconnect
+  void connect();
+  void disconnect();
 
-    /// Configure session
-    void setPeerHost(const String & host);
-    // Pass ready socket to session
-    void setFd(int fd);
-    void setTimeout(int timeout, int timeout_usec);
+  /// Configure session
+  void setPeerHost(const String &host);
+  // Pass ready socket to session
+  void setFd(int fd);
+  void setTimeout(int timeout, int timeout_usec);
 
-    void handleKeyExchange();
+  void handleKeyExchange();
 
-    /// Error handling
-    String getError();
+  /// Error handling
+  String getError();
 
-    // Check that session was closed
-    bool hasFinished();
+  // Check that session was closed
+  bool hasFinished();
 
-private:
-    SessionPtr session = nullptr;
-    bool disconnected = false;
-    std::mutex disconnect_mutex;
+ private:
+  SessionPtr session = nullptr;
+  bool disconnected = false;
+  std::mutex disconnect_mutex;
 };
 
-}
+}  // namespace ssh
 
 #endif

@@ -4,8 +4,7 @@
 
 #include <Common/ZooKeeper/ZooKeeper.h>
 
-namespace zkutil
-{
+namespace zkutil {
 
 using GetZooKeeper = std::function<ZooKeeperPtr()>;
 

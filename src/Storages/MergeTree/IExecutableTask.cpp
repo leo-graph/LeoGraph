@@ -1,18 +1,14 @@
 #include <Common/Exception.h>
 #include <Storages/MergeTree/IExecutableTask.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
+namespace ErrorCodes {
 extern const int LOGICAL_ERROR;
 }
 
-
-Priority ExecutableLambdaAdapter::getPriority() const
-{
-    throw Exception(ErrorCodes::LOGICAL_ERROR, "getPriority() method is not supported by LambdaAdapter");
+Priority ExecutableLambdaAdapter::getPriority() const {
+  throw Exception(ErrorCodes::LOGICAL_ERROR, "getPriority() method is not supported by LambdaAdapter");
 }
 
-}
+}  // namespace DB

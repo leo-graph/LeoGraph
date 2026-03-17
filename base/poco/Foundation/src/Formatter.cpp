@@ -11,34 +11,17 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Formatter.h"
 #include "Poco/Exception.h"
 
-
 namespace Poco {
 
+Formatter::Formatter() {}
 
-Formatter::Formatter()
-{
-}
+Formatter::~Formatter() {}
 
+void Formatter::setProperty(const std::string& name, const std::string& value) { throw PropertyNotSupportedException(); }
 
-Formatter::~Formatter()
-{
-}
+std::string Formatter::getProperty(const std::string& name) const { throw PropertyNotSupportedException(); }
 
-
-void Formatter::setProperty(const std::string& name, const std::string& value)
-{
-	throw PropertyNotSupportedException();
-}
-
-
-std::string Formatter::getProperty(const std::string& name) const
-{
-	throw PropertyNotSupportedException();
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -11,32 +11,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Void.h"
-
 
 namespace Poco {
 
+Void::Void() {}
 
-Void::Void()
-{
-}
+Void::Void(const Void&) {}
 
+Void::~Void() {}
 
-Void::Void(const Void&)
-{
-}
+Void& Void::operator=(const Void&) { return *this; }
 
-
-Void::~Void()
-{
-}
-
-
-Void& Void::operator = (const Void&)
-{
-	return *this;
-}
-
-
-} // namespace Poco
+}  // namespace Poco

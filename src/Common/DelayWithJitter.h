@@ -2,19 +2,17 @@
 
 #include <cstdint>
 
-namespace DB
-{
+namespace DB {
 
-class DelayWithJitter
-{
-public:
-    explicit DelayWithJitter(int64_t delay_);
+class DelayWithJitter {
+ public:
+  explicit DelayWithJitter(int64_t delay_);
 
-    uint64_t getDelay() const;
-    uint64_t getDelayWithJitter(int64_t min_deviation, int64_t max_deviation) const;
+  uint64_t getDelay() const;
+  uint64_t getDelayWithJitter(int64_t min_deviation, int64_t max_deviation) const;
 
-private:
-    uint64_t delay = 0;
+ private:
+  uint64_t delay = 0;
 };
 
-}
+}  // namespace DB

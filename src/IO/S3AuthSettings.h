@@ -6,26 +6,23 @@
 #include <IO/HTTPHeaderEntries.h>
 #include <IO/S3/Client.h>
 
-namespace Poco::Util
-{
+namespace Poco::Util {
 class AbstractConfiguration;
 };
 
-namespace DB
-{
+namespace DB {
 struct Settings;
 struct S3AuthSettingsImpl;
 
 /// List of available types supported in the Settings object
 #define S3AUTH_SETTINGS_SUPPORTED_TYPES(CLASS_NAME, M) \
-    M(CLASS_NAME, Bool) \
-    M(CLASS_NAME, UInt64) \
-    M(CLASS_NAME, String)
+  M(CLASS_NAME, Bool)                                  \
+  M(CLASS_NAME, UInt64)                                \
+  M(CLASS_NAME, String)
 
 S3AUTH_SETTINGS_SUPPORTED_TYPES(S3AuthSettings, DECLARE_SETTING_TRAIT)
 
-namespace S3
-{
+namespace S3 {
 
 /// We use s3 settings for DiskS3, StorageS3 (StorageS3Cluster, S3Queue, etc), BackupIO_S3, etc.
 /// 1. For DiskS3 we usually have configuration in disk section in configuration file.
@@ -37,39 +34,38 @@ namespace S3
 /// 2. For StorageS3 and similar - we look up to "s3." config section (again - settings there do not have "s3_" prefix).
 ///    If some setting is absent from there, we look up for it in Users config.
 
-struct S3AuthSettings
-{
-    S3AuthSettings();
-    S3AuthSettings(const S3AuthSettings & settings);
-    S3AuthSettings(S3AuthSettings && settings) noexcept;
-    S3AuthSettings(const Poco::Util::AbstractConfiguration & config, const DB::Settings & settings, const std::string & config_prefix);
-    explicit S3AuthSettings(const DB::Settings & settings);
-    ~S3AuthSettings();
+struct S3AuthSettings {
+  S3AuthSettings();
+  S3AuthSettings(const S3AuthSettings& settings);
+  S3AuthSettings(S3AuthSettings&& settings) noexcept;
+  S3AuthSettings(const Poco::Util::AbstractConfiguration& config, const DB::Settings& settings, const std::string& config_prefix);
+  explicit S3AuthSettings(const DB::Settings& settings);
+  ~S3AuthSettings();
 
-    S3AuthSettings & operator=(S3AuthSettings && settings) noexcept;
-    bool operator==(const S3AuthSettings & right);
+  S3AuthSettings& operator=(S3AuthSettings&& settings) noexcept;
+  bool operator==(const S3AuthSettings& right);
 
-    S3AUTH_SETTINGS_SUPPORTED_TYPES(S3AuthSettings, DECLARE_SETTING_SUBSCRIPT_OPERATOR)
+  S3AUTH_SETTINGS_SUPPORTED_TYPES(S3AuthSettings, DECLARE_SETTING_SUBSCRIPT_OPERATOR)
 
-    void updateFromSettings(const DB::Settings & settings, bool if_changed);
-    bool hasUpdates(const S3AuthSettings & other) const;
-    void updateIfChanged(const S3AuthSettings & settings);
-    bool canBeUsedByUser(const String & user) const { return users.empty() || users.contains(user); }
-    HTTPHeaderEntries getHeaders() const;
+  void updateFromSettings(const DB::Settings& settings, bool if_changed);
+  bool hasUpdates(const S3AuthSettings& other) const;
+  void updateIfChanged(const S3AuthSettings& settings);
+  bool canBeUsedByUser(const String& user) const { return users.empty() || users.contains(user); }
+  HTTPHeaderEntries getHeaders() const;
 
-    HTTPHeaderEntries headers;
-    HTTPHeaderEntries access_headers;
+  HTTPHeaderEntries headers;
+  HTTPHeaderEntries access_headers;
 
-    std::unordered_set<std::string> users;
-    ServerSideEncryptionKMSConfig server_side_encryption_kms_config;
+  std::unordered_set<std::string> users;
+  ServerSideEncryptionKMSConfig server_side_encryption_kms_config;
 
-    void serialize(WriteBuffer & out, ContextPtr context) const;
-    static S3AuthSettings deserialize(ReadBuffer & in, ContextPtr context);
+  void serialize(WriteBuffer& out, ContextPtr context) const;
+  static S3AuthSettings deserialize(ReadBuffer& in, ContextPtr context);
 
-private:
-    std::unique_ptr<S3AuthSettingsImpl> impl;
+ private:
+  std::unique_ptr<S3AuthSettingsImpl> impl;
 };
 
-}
+}  // namespace S3
 
-}
+}  // namespace DB

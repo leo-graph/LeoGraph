@@ -2,9 +2,8 @@
 
 #include <Analyzer/IQueryTreeNode.h>
 
-namespace DB
-{
+namespace DB {
 
-void removeGroupingFunctionSpecializations(QueryTreeNodePtr & node);
+void removeGroupingFunctionSpecializations(QueryTreeNodePtr& node);
 
 }

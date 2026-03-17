@@ -10,128 +10,110 @@
 #include "config.h"
 
 #if USE_SIMDJSON
-#    include <Common/JSONParsers/SimdJSONParser.h>
+#  include <Common/JSONParsers/SimdJSONParser.h>
 #elif USE_RAPIDJSON
-#    include <Common/JSONParsers/RapidJSONParser.h>
+#  include <Common/JSONParsers/RapidJSONParser.h>
 #else
-#    include <Common/JSONParsers/DummyJSONParser.h>
+#  include <Common/JSONParsers/DummyJSONParser.h>
 #endif
 
-
-namespace DB
-{
-namespace ErrorCodes
-{
-    extern const int ILLEGAL_COLUMN;
+namespace DB {
+namespace ErrorCodes {
+extern const int ILLEGAL_COLUMN;
 }
 
-namespace
-{
-    /// JSONArrayLength(json)
-    class FunctionJSONArrayLength : public IFunction
-    {
-    public:
-        static constexpr auto name = "JSONArrayLength";
-        static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionJSONArrayLength>(); }
+namespace {
+/// JSONArrayLength(json)
+class FunctionJSONArrayLength : public IFunction {
+ public:
+  static constexpr auto name = "JSONArrayLength";
+  static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionJSONArrayLength>(); }
 
-        String getName() const override { return name; }
+  String getName() const override { return name; }
 
-        bool isVariadic() const override { return false; }
-        bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+  bool isVariadic() const override { return false; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
 
-        size_t getNumberOfArguments() const override { return 1; }
-        bool useDefaultImplementationForConstants() const override { return true; }
+  size_t getNumberOfArguments() const override { return 1; }
+  bool useDefaultImplementationForConstants() const override { return true; }
 
-        DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
-        {
-            auto args = FunctionArgumentDescriptors{
-                {"json", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isString), nullptr, "String"},
-            };
-
-            validateFunctionArguments(*this, arguments, args);
-            return std::make_shared<DataTypeNullable>(std::make_shared<DataTypeUInt64>());
-        }
-
-        ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
-        {
-            const ColumnPtr column = arguments[0].column;
-            const ColumnString * col = typeid_cast<const ColumnString *>(column.get());
-            if (!col)
-                throw Exception(ErrorCodes::ILLEGAL_COLUMN, "First argument of function {} must be string", getName());
-
-            auto null_map = ColumnUInt8::create();
-            auto data = ColumnUInt64::create();
-            null_map->reserve(input_rows_count);
-            data->reserve(input_rows_count);
-
-#if USE_SIMDJSON
-            SimdJSONParser parser;
-            SimdJSONParser::Element element;
-#elif USE_RAPIDJSON
-            RapidJSONParser parser;
-            RapidJSONParser::Element element;
-#else
-            DummyJSONParser parser;
-            DummyJSONParser::Element element;
-#endif
-
-            for (size_t i = 0; i < input_rows_count; ++i)
-            {
-                auto str_view = col->getDataAt(i);
-                bool ok = parser.parse(std::move(str_view), element);
-                if (!ok || !element.isArray())
-                {
-                    null_map->insertValue(1);
-                    data->insertDefault();
-                }
-                else
-                {
-                    auto array = element.getArray();
-                    null_map->insertValue(0);
-                    data->insertValue(array.size());
-                }
-            }
-            return ColumnNullable::create(std::move(data), std::move(null_map));
-        }
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName &arguments) const override {
+    auto args = FunctionArgumentDescriptors{
+        {"json", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isString), nullptr, "String"},
     };
 
-}
+    validateFunctionArguments(*this, arguments, args);
+    return std::make_shared<DataTypeNullable>(std::make_shared<DataTypeUInt64>());
+  }
 
-REGISTER_FUNCTION(JSONArrayLength)
-{
-    /// JSONArrayLength documentation
-    FunctionDocumentation::Description description = R"(
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t input_rows_count) const override {
+    const ColumnPtr column = arguments[0].column;
+    const ColumnString *col = typeid_cast<const ColumnString *>(column.get());
+    if (!col) throw Exception(ErrorCodes::ILLEGAL_COLUMN, "First argument of function {} must be string", getName());
+
+    auto null_map = ColumnUInt8::create();
+    auto data = ColumnUInt64::create();
+    null_map->reserve(input_rows_count);
+    data->reserve(input_rows_count);
+
+#if USE_SIMDJSON
+    SimdJSONParser parser;
+    SimdJSONParser::Element element;
+#elif USE_RAPIDJSON
+    RapidJSONParser parser;
+    RapidJSONParser::Element element;
+#else
+    DummyJSONParser parser;
+    DummyJSONParser::Element element;
+#endif
+
+    for (size_t i = 0; i < input_rows_count; ++i) {
+      auto str_view = col->getDataAt(i);
+      bool ok = parser.parse(std::move(str_view), element);
+      if (!ok || !element.isArray()) {
+        null_map->insertValue(1);
+        data->insertDefault();
+      } else {
+        auto array = element.getArray();
+        null_map->insertValue(0);
+        data->insertValue(array.size());
+      }
+    }
+    return ColumnNullable::create(std::move(data), std::move(null_map));
+  }
+};
+
+}  // namespace
+
+REGISTER_FUNCTION(JSONArrayLength) {
+  /// JSONArrayLength documentation
+  FunctionDocumentation::Description description = R"(
 Returns the number of elements in the outermost JSON array.
 The function returns `NULL` if input JSON string is invalid.
     )";
-    FunctionDocumentation::Syntax syntax = "JSONArrayLength(json)";
-    FunctionDocumentation::Arguments arguments = {
-        {"json", "String with valid JSON.", {"String"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns the number of array elements if `json` is a valid JSON array string, otherwise returns `NULL`.", {"Nullable(UInt64)"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "JSONArrayLength(json)";
+  FunctionDocumentation::Arguments arguments = {{"json", "String with valid JSON.", {"String"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {
+      "Returns the number of array elements if `json` is a valid JSON array string, otherwise returns `NULL`.", {"Nullable(UInt64)"}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 SELECT
     JSONArrayLength(''),
     JSONArrayLength('[1,2,3]');
         )",
-        R"(
+                                               R"(
 ┌─JSONArrayLength('')─┬─JSONArrayLength('[1,2,3]')─┐
 │                ᴺᵁᴸᴸ │                          3 │
 └─────────────────────┴────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {23, 2};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::JSON;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {23, 2};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::JSON;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionJSONArrayLength>(documentation);
+  factory.registerFunction<FunctionJSONArrayLength>(documentation);
 
-    /// For Spark compatibility.
-    factory.registerAlias("JSON_ARRAY_LENGTH", "JSONArrayLength", FunctionFactory::Case::Insensitive);
+  /// For Spark compatibility.
+  factory.registerAlias("JSON_ARRAY_LENGTH", "JSONArrayLength", FunctionFactory::Case::Insensitive);
 }
 
-}
+}  // namespace DB

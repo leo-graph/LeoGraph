@@ -1,57 +1,52 @@
 #include <Access/AccessControl.h>
+#include <base/types.h>
 #include <Columns/IColumn.h>
+#include <Common/Config/ConfigReloader.h>
 #include <Common/Jemalloc.h>
+#include <Common/MemoryTracker.h>
 #include <Core/BaseSettings.h>
 #include <Core/BaseSettingsFwdMacrosImpl.h>
 #include <Core/ServerSettings.h>
-#include <IO/MMappedFileCache.h>
 #include <Interpreters/Cache/QueryConditionCache.h>
-#include <IO/UncompressedCache.h>
-#include <IO/SharedThreadPools.h>
-#include <IO/S3Defines.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
+#include <IO/MMappedFileCache.h>
+#include <IO/S3Defines.h>
+#include <IO/SharedThreadPools.h>
+#include <IO/UncompressedCache.h>
 #include <Storages/MarkCache.h>
 #include <Storages/MergeTree/MergeTreeBackgroundExecutor.h>
 #include <Storages/MergeTree/PrimaryIndexCache.h>
 #include <Storages/MergeTree/VectorSimilarityIndexCache.h>
 #include <Storages/System/ServerSettingColumnsParams.h>
-#include <base/types.h>
-#include <Common/Config/ConfigReloader.h>
-#include <Common/MemoryTracker.h>
 
 #include <Common/DNSResolver.h>
 
 #include <Poco/Util/AbstractConfiguration.h>
 
-
-namespace CurrentMetrics
-{
+namespace CurrentMetrics {
 extern const Metric BackgroundSchedulePoolSize;
 extern const Metric BackgroundBufferFlushSchedulePoolSize;
 extern const Metric BackgroundDistributedSchedulePoolSize;
 extern const Metric BackgroundMessageBrokerSchedulePoolSize;
-}
+}  // namespace CurrentMetrics
 
-namespace DB
-{
+namespace DB {
 
-
-namespace
-{
-    constexpr int getDefaultOomScore() {
+namespace {
+constexpr int getDefaultOomScore() {
 #if defined(OS_LINUX) && !defined(NDEBUG)
-        /// In debug version on Linux, increase oom score so that clickhouse is killed
-        /// first, instead of some service. Use a carefully chosen random score of 555:
-        /// the maximum is 1000, and chromium uses 300 for its tab processes. Ignore
-        /// whatever errors that occur, because it's just a debugging aid and we don't
-        /// care if it breaks.
-        return 555;
+  /// In debug version on Linux, increase oom score so that clickhouse is killed
+  /// first, instead of some service. Use a carefully chosen random score of 555:
+  /// the maximum is 1000, and chromium uses 300 for its tab processes. Ignore
+  /// whatever errors that occur, because it's just a debugging aid and we don't
+  /// care if it breaks.
+  return 555;
 #else
-        return 0;
+  return 0;
 #endif
-    }
 }
+}  // namespace
 
 // clang-format off
 
@@ -1592,247 +1587,255 @@ The policy on how to perform a scheduling of CPU slots specified by `concurrent_
 DECLARE_SETTINGS_TRAITS_WITH_PATH(ServerSettingsTraits, LIST_OF_SERVER_SETTINGS_WITHOUT_PATH, LIST_OF_SERVER_SETTINGS_WITH_PATH)
 IMPLEMENT_SETTINGS_TRAITS_WITH_PATH(ServerSettingsTraits, LIST_OF_SERVER_SETTINGS_WITHOUT_PATH, LIST_OF_SERVER_SETTINGS_WITH_PATH)
 
-#define LIST_OF_SERVER_SETTINGS(DECLARE, ALIAS) \
-    LIST_OF_SERVER_SETTINGS_WITHOUT_PATH(DECLARE, ALIAS) \
-    LIST_OF_SERVER_SETTINGS_WITH_PATH(DECLARE, ALIAS) \
+#define LIST_OF_SERVER_SETTINGS(DECLARE, ALIAS)        \
+  LIST_OF_SERVER_SETTINGS_WITHOUT_PATH(DECLARE, ALIAS) \
+  LIST_OF_SERVER_SETTINGS_WITH_PATH(DECLARE, ALIAS)
 
-struct ServerSettingsImpl : public BaseSettings<ServerSettingsTraits>
-{
-    void loadSettingsFromConfig(const Poco::Util::AbstractConfiguration & config);
+struct ServerSettingsImpl : public BaseSettings<ServerSettingsTraits> {
+  void loadSettingsFromConfig(const Poco::Util::AbstractConfiguration& config);
 };
 
-void ServerSettingsImpl::loadSettingsFromConfig(const Poco::Util::AbstractConfiguration & config)
-{
-    // settings which can be loaded from the the default profile, see also MAKE_DEPRECATED_BY_SERVER_CONFIG in src/Core/Settings.h
-    std::unordered_set<std::string> settings_from_profile_allowlist = {
-        "background_pool_size",
-        "background_merges_mutations_concurrency_ratio",
-        "background_merges_mutations_scheduling_policy",
-        "background_move_pool_size",
-        "background_fetches_pool_size",
-        "background_common_pool_size",
-        "background_buffer_flush_schedule_pool_size",
-        "background_schedule_pool_size",
-        "background_message_broker_schedule_pool_size",
-        "background_distributed_schedule_pool_size",
+void ServerSettingsImpl::loadSettingsFromConfig(const Poco::Util::AbstractConfiguration& config) {
+  // settings which can be loaded from the the default profile, see also MAKE_DEPRECATED_BY_SERVER_CONFIG in src/Core/Settings.h
+  std::unordered_set<std::string> settings_from_profile_allowlist = {
+      "background_pool_size",
+      "background_merges_mutations_concurrency_ratio",
+      "background_merges_mutations_scheduling_policy",
+      "background_move_pool_size",
+      "background_fetches_pool_size",
+      "background_common_pool_size",
+      "background_buffer_flush_schedule_pool_size",
+      "background_schedule_pool_size",
+      "background_message_broker_schedule_pool_size",
+      "background_distributed_schedule_pool_size",
 
-        "max_remote_read_network_bandwidth_for_server",
-        "max_remote_write_network_bandwidth_for_server",
-        "max_local_read_bandwidth_for_server",
-        "max_local_write_bandwidth_for_server",
-    };
+      "max_remote_read_network_bandwidth_for_server",
+      "max_remote_write_network_bandwidth_for_server",
+      "max_local_read_bandwidth_for_server",
+      "max_local_write_bandwidth_for_server",
+  };
 
-    for (const auto & setting : all())
-    {
-        const auto & name = setting.getName();
-        String path {setting.getPath()};
-        const String * path_or_name = path.empty() ? &name : &path;
-        try
-        {
-            if (config.has(*path_or_name))
-                set(name, config.getString(*path_or_name));
-            else if (settings_from_profile_allowlist.contains(name) && config.has("profiles.default." + *path_or_name))
-                set(name, config.getString("profiles.default." + *path_or_name));
-        }
-        catch (Exception & e)
-        {
-            e.addMessage("while parsing setting '{}' value", name);
-            throw;
-        }
+  for (const auto& setting : all()) {
+    const auto& name = setting.getName();
+    String path{setting.getPath()};
+    const String* path_or_name = path.empty() ? &name : &path;
+    try {
+      if (config.has(*path_or_name))
+        set(name, config.getString(*path_or_name));
+      else if (settings_from_profile_allowlist.contains(name) && config.has("profiles.default." + *path_or_name))
+        set(name, config.getString("profiles.default." + *path_or_name));
+    } catch (Exception& e) {
+      e.addMessage("while parsing setting '{}' value", name);
+      throw;
     }
+  }
 }
-
 
 #define INITIALIZE_SETTING_EXTERN(TYPE, NAME, DEFAULT, DESCRIPTION, FLAGS, ...) ServerSettings##TYPE NAME = &ServerSettingsImpl ::NAME;
 
-namespace ServerSetting
-{
+namespace ServerSetting {
 LIST_OF_SERVER_SETTINGS(INITIALIZE_SETTING_EXTERN, INITIALIZE_SETTING_EXTERN)
 }
 
 #undef INITIALIZE_SETTING_EXTERN
 
-ServerSettings::ServerSettings() : impl(std::make_unique<ServerSettingsImpl>())
-{
-}
+ServerSettings::ServerSettings() : impl(std::make_unique<ServerSettingsImpl>()) {}
 
-ServerSettings::ServerSettings(const ServerSettings & settings) : impl(std::make_unique<ServerSettingsImpl>(*settings.impl))
-{
-}
+ServerSettings::ServerSettings(const ServerSettings& settings) : impl(std::make_unique<ServerSettingsImpl>(*settings.impl)) {}
 
 ServerSettings::~ServerSettings() = default;
 
 SERVER_SETTINGS_SUPPORTED_TYPES(ServerSettings, IMPLEMENT_SETTING_SUBSCRIPT_OPERATOR)
 
-Field ServerSettings::get(std::string_view name) const
-{
-    return impl->get(name);
+Field ServerSettings::get(std::string_view name) const { return impl->get(name); }
+
+void ServerSettings::set(std::string_view name, const Field& value) { impl->set(name, value); }
+
+void ServerSettings::loadSettingsFromConfig(const Poco::Util::AbstractConfiguration& config) { impl->loadSettingsFromConfig(config); }
+
+void ServerSettings::dumpToSystemServerSettingsColumns(ServerSettingColumnsParams& params) const {
+  MutableColumns& res_columns = params.res_columns;
+  ContextPtr context = params.context;
+
+  /// When the server configuration file is periodically re-loaded from disk, the server components (e.g. memory tracking) are updated
+  /// with new the setting values but the settings themselves are not stored between re-loads. As a result, if one wants to know the
+  /// current setting values, one needs to ask the components directly.
+  std::unordered_map<String, std::pair<String, ChangeableWithoutRestart>> changeable_settings = {
+      {"max_server_memory_usage", {std::to_string(total_memory_tracker.getHardLimit()), ChangeableWithoutRestart::Yes}},
+
+      {"max_table_size_to_drop", {std::to_string(context->getMaxTableSizeToDrop()), ChangeableWithoutRestart::Yes}},
+      {"max_named_collection_num_to_warn", {std::to_string(context->getMaxNamedCollectionNumToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_table_num_to_warn", {std::to_string(context->getMaxTableNumToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_view_num_to_warn", {std::to_string(context->getMaxViewNumToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_dictionary_num_to_warn", {std::to_string(context->getMaxDictionaryNumToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_database_num_to_warn", {std::to_string(context->getMaxDatabaseNumToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_part_num_to_warn", {std::to_string(context->getMaxPartNumToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_pending_mutations_to_warn", {std::to_string(context->getMaxPendingMutationsToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_pending_mutations_execution_time_to_warn",
+       {std::to_string(context->getMaxPendingMutationsExecutionTimeToWarn()), ChangeableWithoutRestart::Yes}},
+      {"max_partition_size_to_drop", {std::to_string(context->getMaxPartitionSizeToDrop()), ChangeableWithoutRestart::Yes}},
+
+      {"min_os_cpu_wait_time_ratio_to_drop_connection",
+       {std::to_string(context->getMinOSCPUWaitTimeRatioToDropConnection()), ChangeableWithoutRestart::Yes}},
+      {"max_os_cpu_wait_time_ratio_to_drop_connection",
+       {std::to_string(context->getMaxOSCPUWaitTimeRatioToDropConnection()), ChangeableWithoutRestart::Yes}},
+
+      {"max_concurrent_queries", {std::to_string(context->getProcessList().getMaxSize()), ChangeableWithoutRestart::Yes}},
+      {"max_concurrent_insert_queries",
+       {std::to_string(context->getProcessList().getMaxInsertQueriesAmount()), ChangeableWithoutRestart::Yes}},
+      {"max_concurrent_select_queries",
+       {std::to_string(context->getProcessList().getMaxSelectQueriesAmount()), ChangeableWithoutRestart::Yes}},
+      {"max_waiting_queries", {std::to_string(context->getProcessList().getMaxWaitingQueriesAmount()), ChangeableWithoutRestart::Yes}},
+      {"concurrent_threads_soft_limit_num", {std::to_string(context->getConcurrentThreadsSoftLimitNum()), ChangeableWithoutRestart::Yes}},
+      {"concurrent_threads_soft_limit_ratio_to_cores",
+       {std::to_string(context->getConcurrentThreadsSoftLimitRatioToCores()), ChangeableWithoutRestart::Yes}},
+      {"concurrent_threads_scheduler", {context->getConcurrentThreadsScheduler(), ChangeableWithoutRestart::Yes}},
+
+      {"background_buffer_flush_schedule_pool_size",
+       {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundBufferFlushSchedulePoolSize)),
+        ChangeableWithoutRestart::IncreaseOnly}},
+      {"background_schedule_pool_size",
+       {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundSchedulePoolSize)), ChangeableWithoutRestart::IncreaseOnly}},
+      {"background_message_broker_schedule_pool_size",
+       {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundMessageBrokerSchedulePoolSize)),
+        ChangeableWithoutRestart::IncreaseOnly}},
+      {"background_distributed_schedule_pool_size",
+       {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundDistributedSchedulePoolSize)),
+        ChangeableWithoutRestart::IncreaseOnly}},
+
+      {"mark_cache_size", {std::to_string(context->getMarkCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"uncompressed_cache_size", {std::to_string(context->getUncompressedCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"index_mark_cache_size", {std::to_string(context->getIndexMarkCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"index_uncompressed_cache_size",
+       {std::to_string(context->getIndexUncompressedCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"mmap_cache_size", {std::to_string(context->getMMappedFileCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"query_condition_cache_size", {std::to_string(context->getQueryConditionCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"primary_index_cache_size", {std::to_string(context->getPrimaryIndexCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+      {"vector_similarity_index_cache_size",
+       {std::to_string(context->getVectorSimilarityIndexCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
+
+      {"merge_workload", {context->getMergeWorkload(), ChangeableWithoutRestart::Yes}},
+      {"mutation_workload", {context->getMutationWorkload(), ChangeableWithoutRestart::Yes}},
+      {"throw_on_unknown_workload", {std::to_string(context->getThrowOnUnknownWorkload()), ChangeableWithoutRestart::Yes}},
+      {"cpu_slot_preemption", {std::to_string(context->getCPUSlotPreemption()), ChangeableWithoutRestart::Yes}},
+      {"cpu_slot_quantum_ns", {std::to_string(context->getCPUSlotQuantum()), ChangeableWithoutRestart::Yes}},
+      {"cpu_slot_preemption_timeout_ms", {std::to_string(context->getCPUSlotPreemptionTimeout()), ChangeableWithoutRestart::Yes}},
+      {"config_reload_interval_ms", {std::to_string(context->getConfigReloaderInterval()), ChangeableWithoutRestart::Yes}},
+
+      {"allow_feature_tier", {std::to_string(context->getAccessControl().getAllowTierSettings()), ChangeableWithoutRestart::Yes}},
+      {"s3queue_disable_streaming", {"0", ChangeableWithoutRestart::Yes}},
+
+      {"max_remote_read_network_bandwidth_for_server",
+       {context->getRemoteReadThrottler() ? std::to_string(context->getRemoteReadThrottler()->getMaxSpeed()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_remote_write_network_bandwidth_for_server",
+       {context->getRemoteWriteThrottler() ? std::to_string(context->getRemoteWriteThrottler()->getMaxSpeed()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_local_read_bandwidth_for_server",
+       {context->getLocalReadThrottler() ? std::to_string(context->getLocalReadThrottler()->getMaxSpeed()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_local_write_bandwidth_for_server",
+       {context->getLocalWriteThrottler() ? std::to_string(context->getLocalWriteThrottler()->getMaxSpeed()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_distributed_cache_read_bandwidth_for_server",
+       {context->getDistributedCacheReadThrottler() ? std::to_string(context->getDistributedCacheReadThrottler()->getMaxSpeed()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_distributed_cache_write_bandwidth_for_server",
+       {context->getDistributedCacheWriteThrottler() ? std::to_string(context->getDistributedCacheWriteThrottler()->getMaxSpeed()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_io_thread_pool_size",
+       {getIOThreadPool().isInitialized() ? std::to_string(getIOThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
+      {"max_io_thread_pool_free_size",
+       {getIOThreadPool().isInitialized() ? std::to_string(getIOThreadPool().get().getMaxFreeThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"io_thread_pool_queue_size",
+       {getIOThreadPool().isInitialized() ? std::to_string(getIOThreadPool().get().getQueueSize()) : "0", ChangeableWithoutRestart::Yes}},
+      {"max_backups_io_thread_pool_size",
+       {getBackupsIOThreadPool().isInitialized() ? std::to_string(getBackupsIOThreadPool().get().getMaxThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_backups_io_thread_pool_free_size",
+       {getBackupsIOThreadPool().isInitialized() ? std::to_string(getBackupsIOThreadPool().get().getMaxFreeThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"backups_io_thread_pool_queue_size",
+       {getBackupsIOThreadPool().isInitialized() ? std::to_string(getBackupsIOThreadPool().get().getQueueSize()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_fetch_partition_thread_pool_size",
+       {getFetchPartitionThreadPool().isInitialized() ? std::to_string(getFetchPartitionThreadPool().get().getMaxThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_active_parts_loading_thread_pool_size",
+       {getActivePartsLoadingThreadPool().isInitialized() ? std::to_string(getActivePartsLoadingThreadPool().get().getMaxThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_snapshot_commit_thread_pool_size",
+       {getSnapshotCommitThreadPool().isInitialized() ? std::to_string(getSnapshotCommitThreadPool().get().getMaxThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_snapshot_commit_thread_pool_free_size",
+       {getSnapshotCommitThreadPool().isInitialized() ? std::to_string(getSnapshotCommitThreadPool().get().getMaxFreeThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_outdated_parts_loading_thread_pool_size",
+       {getOutdatedPartsLoadingThreadPool().isInitialized() ? std::to_string(getOutdatedPartsLoadingThreadPool().get().getMaxThreads())
+                                                            : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_parts_cleaning_thread_pool_size",
+       {getPartsCleaningThreadPool().isInitialized() ? std::to_string(getPartsCleaningThreadPool().get().getMaxThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_prefixes_deserialization_thread_pool_size",
+       {getMergeTreePrefixesDeserializationThreadPool().isInitialized()
+            ? std::to_string(getMergeTreePrefixesDeserializationThreadPool().get().getMaxThreads())
+            : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_prefixes_deserialization_thread_pool_free_size",
+       {getMergeTreePrefixesDeserializationThreadPool().isInitialized()
+            ? std::to_string(getMergeTreePrefixesDeserializationThreadPool().get().getMaxFreeThreads())
+            : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"prefixes_deserialization_thread_pool_thread_pool_queue_size",
+       {getMergeTreePrefixesDeserializationThreadPool().isInitialized()
+            ? std::to_string(getMergeTreePrefixesDeserializationThreadPool().get().getQueueSize())
+            : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_format_parsing_thread_pool_size",
+       {getFormatParsingThreadPool().isInitialized() ? std::to_string(getFormatParsingThreadPool().get().getMaxThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"max_format_parsing_thread_pool_free_size",
+       {getFormatParsingThreadPool().isInitialized() ? std::to_string(getFormatParsingThreadPool().get().getMaxFreeThreads()) : "0",
+        ChangeableWithoutRestart::Yes}},
+      {"format_parsing_thread_pool_queue_size",
+       {getFormatParsingThreadPool().isInitialized() ? std::to_string(getFormatParsingThreadPool().get().getQueueSize()) : "0",
+        ChangeableWithoutRestart::Yes}},
+
+      {"abort_on_logical_error", {std::to_string(DB::abort_on_logical_error), ChangeableWithoutRestart::Yes}},
+
+      {"dns_allow_resolve_names_to_ipv4", {std::to_string(DNSResolver::instance().getFilterIPv4()), ChangeableWithoutRestart::Yes}},
+      {"dns_allow_resolve_names_to_ipv6", {std::to_string(DNSResolver::instance().getFilterIPv6()), ChangeableWithoutRestart::Yes}},
+  };
+
+  if (context->areBackgroundExecutorsInitialized()) {
+    changeable_settings.insert(
+        {"background_pool_size",
+         {std::to_string(context->getMergeMutateExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
+    changeable_settings.insert({"background_move_pool_size",
+                                {std::to_string(context->getMovesExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
+    changeable_settings.insert({"background_fetches_pool_size",
+                                {std::to_string(context->getFetchesExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
+    changeable_settings.insert({"background_common_pool_size",
+                                {std::to_string(context->getCommonExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
+  }
+
+  for (const auto& setting : impl->all()) {
+    const auto& setting_name = setting.getName();
+    String setting_path{setting.getPath()};
+
+    const auto& changeable_settings_it = changeable_settings.find(setting_name);
+    const bool is_changeable = (changeable_settings_it != changeable_settings.end());
+
+    res_columns[0]->insert(setting_path.empty() ? setting_name : setting_path);
+    res_columns[1]->insert(is_changeable ? changeable_settings_it->second.first : setting.getValueString());
+    res_columns[2]->insert(setting.getDefaultValueString());
+    res_columns[3]->insert(setting.isValueChanged());
+    res_columns[4]->insert(setting.getDescription());
+    res_columns[5]->insert(setting.getTypeName());
+    res_columns[6]->insert(is_changeable ? changeable_settings_it->second.second : ChangeableWithoutRestart::No);
+    res_columns[7]->insert(setting.getTier() == SettingsTierType::OBSOLETE);
+  }
 }
-
-void ServerSettings::set(std::string_view name, const Field & value)
-{
-    impl->set(name, value);
-}
-
-void ServerSettings::loadSettingsFromConfig(const Poco::Util::AbstractConfiguration & config)
-{
-    impl->loadSettingsFromConfig(config);
-}
-
-
-void ServerSettings::dumpToSystemServerSettingsColumns(ServerSettingColumnsParams & params) const
-{
-    MutableColumns & res_columns = params.res_columns;
-    ContextPtr context = params.context;
-
-    /// When the server configuration file is periodically re-loaded from disk, the server components (e.g. memory tracking) are updated
-    /// with new the setting values but the settings themselves are not stored between re-loads. As a result, if one wants to know the
-    /// current setting values, one needs to ask the components directly.
-    std::unordered_map<String, std::pair<String, ChangeableWithoutRestart>> changeable_settings
-        = {
-            {"max_server_memory_usage", {std::to_string(total_memory_tracker.getHardLimit()), ChangeableWithoutRestart::Yes}},
-
-            {"max_table_size_to_drop", {std::to_string(context->getMaxTableSizeToDrop()), ChangeableWithoutRestart::Yes}},
-            {"max_named_collection_num_to_warn", {std::to_string(context->getMaxNamedCollectionNumToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_table_num_to_warn", {std::to_string(context->getMaxTableNumToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_view_num_to_warn", {std::to_string(context->getMaxViewNumToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_dictionary_num_to_warn", {std::to_string(context->getMaxDictionaryNumToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_database_num_to_warn", {std::to_string(context->getMaxDatabaseNumToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_part_num_to_warn", {std::to_string(context->getMaxPartNumToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_pending_mutations_to_warn", {std::to_string(context->getMaxPendingMutationsToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_pending_mutations_execution_time_to_warn", {std::to_string(context->getMaxPendingMutationsExecutionTimeToWarn()), ChangeableWithoutRestart::Yes}},
-            {"max_partition_size_to_drop", {std::to_string(context->getMaxPartitionSizeToDrop()), ChangeableWithoutRestart::Yes}},
-
-            {"min_os_cpu_wait_time_ratio_to_drop_connection", {std::to_string(context->getMinOSCPUWaitTimeRatioToDropConnection()), ChangeableWithoutRestart::Yes}},
-            {"max_os_cpu_wait_time_ratio_to_drop_connection", {std::to_string(context->getMaxOSCPUWaitTimeRatioToDropConnection()), ChangeableWithoutRestart::Yes}},
-
-            {"max_concurrent_queries", {std::to_string(context->getProcessList().getMaxSize()), ChangeableWithoutRestart::Yes}},
-            {"max_concurrent_insert_queries",
-            {std::to_string(context->getProcessList().getMaxInsertQueriesAmount()), ChangeableWithoutRestart::Yes}},
-            {"max_concurrent_select_queries",
-            {std::to_string(context->getProcessList().getMaxSelectQueriesAmount()), ChangeableWithoutRestart::Yes}},
-            {"max_waiting_queries", {std::to_string(context->getProcessList().getMaxWaitingQueriesAmount()), ChangeableWithoutRestart::Yes}},
-            {"concurrent_threads_soft_limit_num", {std::to_string(context->getConcurrentThreadsSoftLimitNum()), ChangeableWithoutRestart::Yes}},
-            {"concurrent_threads_soft_limit_ratio_to_cores", {std::to_string(context->getConcurrentThreadsSoftLimitRatioToCores()), ChangeableWithoutRestart::Yes}},
-            {"concurrent_threads_scheduler", {context->getConcurrentThreadsScheduler(), ChangeableWithoutRestart::Yes}},
-
-            {"background_buffer_flush_schedule_pool_size",
-                {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundBufferFlushSchedulePoolSize)), ChangeableWithoutRestart::IncreaseOnly}},
-            {"background_schedule_pool_size",
-                {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundSchedulePoolSize)), ChangeableWithoutRestart::IncreaseOnly}},
-            {"background_message_broker_schedule_pool_size",
-                {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundMessageBrokerSchedulePoolSize)), ChangeableWithoutRestart::IncreaseOnly}},
-            {"background_distributed_schedule_pool_size",
-                {std::to_string(CurrentMetrics::get(CurrentMetrics::BackgroundDistributedSchedulePoolSize)), ChangeableWithoutRestart::IncreaseOnly}},
-
-            {"mark_cache_size", {std::to_string(context->getMarkCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"uncompressed_cache_size", {std::to_string(context->getUncompressedCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"index_mark_cache_size", {std::to_string(context->getIndexMarkCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"index_uncompressed_cache_size", {std::to_string(context->getIndexUncompressedCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"mmap_cache_size", {std::to_string(context->getMMappedFileCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"query_condition_cache_size", {std::to_string(context->getQueryConditionCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"primary_index_cache_size", {std::to_string(context->getPrimaryIndexCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-            {"vector_similarity_index_cache_size", {std::to_string(context->getVectorSimilarityIndexCache()->maxSizeInBytes()), ChangeableWithoutRestart::Yes}},
-
-            {"merge_workload", {context->getMergeWorkload(), ChangeableWithoutRestart::Yes}},
-            {"mutation_workload", {context->getMutationWorkload(), ChangeableWithoutRestart::Yes}},
-            {"throw_on_unknown_workload", {std::to_string(context->getThrowOnUnknownWorkload()), ChangeableWithoutRestart::Yes}},
-            {"cpu_slot_preemption", {std::to_string(context->getCPUSlotPreemption()), ChangeableWithoutRestart::Yes}},
-            {"cpu_slot_quantum_ns", {std::to_string(context->getCPUSlotQuantum()), ChangeableWithoutRestart::Yes}},
-            {"cpu_slot_preemption_timeout_ms", {std::to_string(context->getCPUSlotPreemptionTimeout()), ChangeableWithoutRestart::Yes}},
-            {"config_reload_interval_ms", {std::to_string(context->getConfigReloaderInterval()), ChangeableWithoutRestart::Yes}},
-
-            {"allow_feature_tier",
-                {std::to_string(context->getAccessControl().getAllowTierSettings()), ChangeableWithoutRestart::Yes}},
-            {"s3queue_disable_streaming", {"0", ChangeableWithoutRestart::Yes}},
-
-            {"max_remote_read_network_bandwidth_for_server",
-             {context->getRemoteReadThrottler() ? std::to_string(context->getRemoteReadThrottler()->getMaxSpeed()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_remote_write_network_bandwidth_for_server",
-             {context->getRemoteWriteThrottler() ? std::to_string(context->getRemoteWriteThrottler()->getMaxSpeed()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_local_read_bandwidth_for_server",
-             {context->getLocalReadThrottler() ? std::to_string(context->getLocalReadThrottler()->getMaxSpeed()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_local_write_bandwidth_for_server",
-             {context->getLocalWriteThrottler() ? std::to_string(context->getLocalWriteThrottler()->getMaxSpeed()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_distributed_cache_read_bandwidth_for_server",
-             {context->getDistributedCacheReadThrottler() ? std::to_string(context->getDistributedCacheReadThrottler()->getMaxSpeed()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_distributed_cache_write_bandwidth_for_server",
-             {context->getDistributedCacheWriteThrottler() ? std::to_string(context->getDistributedCacheWriteThrottler()->getMaxSpeed()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_io_thread_pool_size",
-             {getIOThreadPool().isInitialized() ? std::to_string(getIOThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_io_thread_pool_free_size",
-             {getIOThreadPool().isInitialized() ? std::to_string(getIOThreadPool().get().getMaxFreeThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"io_thread_pool_queue_size",
-             {getIOThreadPool().isInitialized() ? std::to_string(getIOThreadPool().get().getQueueSize()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_backups_io_thread_pool_size",
-             {getBackupsIOThreadPool().isInitialized() ? std::to_string(getBackupsIOThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_backups_io_thread_pool_free_size",
-             {getBackupsIOThreadPool().isInitialized() ? std::to_string(getBackupsIOThreadPool().get().getMaxFreeThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"backups_io_thread_pool_queue_size",
-             {getBackupsIOThreadPool().isInitialized() ? std::to_string(getBackupsIOThreadPool().get().getQueueSize()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_fetch_partition_thread_pool_size",
-             {getFetchPartitionThreadPool().isInitialized() ? std::to_string(getFetchPartitionThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_active_parts_loading_thread_pool_size",
-             {getActivePartsLoadingThreadPool().isInitialized() ? std::to_string(getActivePartsLoadingThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_snapshot_commit_thread_pool_size",
-             {getSnapshotCommitThreadPool().isInitialized() ? std::to_string(getSnapshotCommitThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_snapshot_commit_thread_pool_free_size",
-             {getSnapshotCommitThreadPool().isInitialized() ? std::to_string(getSnapshotCommitThreadPool().get().getMaxFreeThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_outdated_parts_loading_thread_pool_size",
-             {getOutdatedPartsLoadingThreadPool().isInitialized() ? std::to_string(getOutdatedPartsLoadingThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_parts_cleaning_thread_pool_size",
-             {getPartsCleaningThreadPool().isInitialized() ? std::to_string(getPartsCleaningThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_prefixes_deserialization_thread_pool_size",
-             {getMergeTreePrefixesDeserializationThreadPool().isInitialized() ? std::to_string(getMergeTreePrefixesDeserializationThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_prefixes_deserialization_thread_pool_free_size",
-             {getMergeTreePrefixesDeserializationThreadPool().isInitialized() ? std::to_string(getMergeTreePrefixesDeserializationThreadPool().get().getMaxFreeThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"prefixes_deserialization_thread_pool_thread_pool_queue_size",
-             {getMergeTreePrefixesDeserializationThreadPool().isInitialized() ? std::to_string(getMergeTreePrefixesDeserializationThreadPool().get().getQueueSize()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_format_parsing_thread_pool_size",
-             {getFormatParsingThreadPool().isInitialized() ? std::to_string(getFormatParsingThreadPool().get().getMaxThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"max_format_parsing_thread_pool_free_size",
-             {getFormatParsingThreadPool().isInitialized() ? std::to_string(getFormatParsingThreadPool().get().getMaxFreeThreads()) : "0", ChangeableWithoutRestart::Yes}},
-            {"format_parsing_thread_pool_queue_size",
-             {getFormatParsingThreadPool().isInitialized() ? std::to_string(getFormatParsingThreadPool().get().getQueueSize()) : "0", ChangeableWithoutRestart::Yes}},
-
-            {"abort_on_logical_error", {std::to_string(DB::abort_on_logical_error), ChangeableWithoutRestart::Yes}},
-
-            {"dns_allow_resolve_names_to_ipv4", {std::to_string(DNSResolver::instance().getFilterIPv4()), ChangeableWithoutRestart::Yes}},
-            {"dns_allow_resolve_names_to_ipv6", {std::to_string(DNSResolver::instance().getFilterIPv6()), ChangeableWithoutRestart::Yes}},
-    };
-
-    if (context->areBackgroundExecutorsInitialized())
-    {
-        changeable_settings.insert(
-            {"background_pool_size",
-             {std::to_string(context->getMergeMutateExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
-        changeable_settings.insert(
-            {"background_move_pool_size",
-             {std::to_string(context->getMovesExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
-        changeable_settings.insert(
-            {"background_fetches_pool_size",
-             {std::to_string(context->getFetchesExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
-        changeable_settings.insert(
-            {"background_common_pool_size",
-             {std::to_string(context->getCommonExecutor()->getMaxThreads()), ChangeableWithoutRestart::IncreaseOnly}});
-    }
-
-    for (const auto & setting : impl->all())
-    {
-        const auto & setting_name = setting.getName();
-        String setting_path {setting.getPath()};
-
-        const auto & changeable_settings_it = changeable_settings.find(setting_name);
-        const bool is_changeable = (changeable_settings_it != changeable_settings.end());
-
-        res_columns[0]->insert(setting_path.empty() ? setting_name : setting_path);
-        res_columns[1]->insert(is_changeable ? changeable_settings_it->second.first : setting.getValueString());
-        res_columns[2]->insert(setting.getDefaultValueString());
-        res_columns[3]->insert(setting.isValueChanged());
-        res_columns[4]->insert(setting.getDescription());
-        res_columns[5]->insert(setting.getTypeName());
-        res_columns[6]->insert(is_changeable ? changeable_settings_it->second.second : ChangeableWithoutRestart::No);
-        res_columns[7]->insert(setting.getTier() == SettingsTierType::OBSOLETE);
-    }
-}
-}
+}  // namespace DB

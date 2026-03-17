@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/ContentHandler.h"
-
 
 namespace Poco {
 namespace XML {
 
+ContentHandler::~ContentHandler() {}
 
-ContentHandler::~ContentHandler()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

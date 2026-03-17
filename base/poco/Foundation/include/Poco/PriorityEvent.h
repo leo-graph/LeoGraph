@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_PriorityEvent_INCLUDED
 #define Foundation_PriorityEvent_INCLUDED
-
 
 #include "Poco/AbstractEvent.h"
 #include "Poco/AbstractPriorityDelegate.h"
 #include "Poco/PriorityStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TArgs, class TMutex = FastMutex>
 class PriorityEvent
@@ -37,18 +32,16 @@ class PriorityEvent
 /// two delegates have the same priority, they are invoked in
 /// an arbitrary manner.
 {
-public:
-    PriorityEvent() { }
+ public:
+  PriorityEvent() {}
 
-    ~PriorityEvent() { }
+  ~PriorityEvent() {}
 
-private:
-    PriorityEvent(const PriorityEvent &);
-    PriorityEvent & operator=(const PriorityEvent &);
+ private:
+  PriorityEvent(const PriorityEvent &);
+  PriorityEvent &operator=(const PriorityEvent &);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_PriorityEvent_INCLUDED
+#endif  // Foundation_PriorityEvent_INCLUDED

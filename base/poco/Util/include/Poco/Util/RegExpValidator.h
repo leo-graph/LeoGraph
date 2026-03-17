@@ -13,45 +13,37 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Util_RegExpValidator_INCLUDED
 #define Util_RegExpValidator_INCLUDED
-
 
 #include "Poco/Util/Util.h"
 #include "Poco/Util/Validator.h"
 
+namespace Poco {
+namespace Util {
 
-namespace Poco
+class Util_API RegExpValidator : public Validator
+/// This validator matches the option value against
+/// a regular expression.
 {
-namespace Util
-{
+ public:
+  RegExpValidator(const std::string& regexp);
+  /// Creates the RegExpValidator, using the given regular expression.
 
+  ~RegExpValidator();
+  /// Destroys the RegExpValidator.
 
-    class Util_API RegExpValidator : public Validator
-    /// This validator matches the option value against
-    /// a regular expression.
-    {
-    public:
-        RegExpValidator(const std::string & regexp);
-        /// Creates the RegExpValidator, using the given regular expression.
+  void validate(const Option& option, const std::string& value);
+  /// Validates the value for the given option by
+  /// matching it with the regular expression.
 
-        ~RegExpValidator();
-        /// Destroys the RegExpValidator.
+ private:
+  RegExpValidator();
 
-        void validate(const Option & option, const std::string & value);
-        /// Validates the value for the given option by
-        /// matching it with the regular expression.
+  std::string _regexp;
+};
 
-    private:
-        RegExpValidator();
+}  // namespace Util
+}  // namespace Poco
 
-        std::string _regexp;
-    };
-
-
-}
-} // namespace Poco::Util
-
-
-#endif // Util_RegExpValidator_INCLUDED
+#endif  // Util_RegExpValidator_INCLUDED

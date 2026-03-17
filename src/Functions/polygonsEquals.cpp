@@ -8,144 +8,107 @@
 #include <Common/logger_useful.h>
 
 #include <Columns/ColumnArray.h>
-#include <Columns/ColumnTuple.h>
 #include <Columns/ColumnConst.h>
 #include <Columns/ColumnsNumber.h>
-#include <DataTypes/DataTypesNumber.h>
+#include <Columns/ColumnTuple.h>
 #include <DataTypes/DataTypeArray.h>
-#include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/DataTypeCustomGeo.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/DataTypeTuple.h>
 
 #include <memory>
 #include <utility>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+namespace ErrorCodes {
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
 }
 
-namespace
-{
+namespace {
 
 template <typename Point>
-class FunctionPolygonsEquals : public IFunction
-{
-public:
-    static const char * name;
+class FunctionPolygonsEquals : public IFunction {
+ public:
+  static const char *name;
 
-    explicit FunctionPolygonsEquals() = default;
+  explicit FunctionPolygonsEquals() = default;
 
-    static FunctionPtr create(ContextPtr)
-    {
-        return std::make_shared<FunctionPolygonsEquals>();
-    }
+  static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionPolygonsEquals>(); }
 
-    String getName() const override
-    {
-        return name;
-    }
+  String getName() const override { return name; }
 
-    bool isVariadic() const override
-    {
-        return false;
-    }
+  bool isVariadic() const override { return false; }
 
-    size_t getNumberOfArguments() const override
-    {
-        return 2;
-    }
+  size_t getNumberOfArguments() const override { return 2; }
 
-    DataTypePtr getReturnTypeImpl(const DataTypes &) const override
-    {
-        return std::make_shared<DataTypeUInt8>();
-    }
+  DataTypePtr getReturnTypeImpl(const DataTypes &) const override { return std::make_shared<DataTypeUInt8>(); }
 
-    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
-    {
-        return std::make_shared<DataTypeUInt8>();
-    }
+  DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override { return std::make_shared<DataTypeUInt8>(); }
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & /*result_type*/, size_t input_rows_count) const override
-    {
-        auto res_column = ColumnUInt8::create();
-        auto & res_data = res_column->getData();
-        res_data.reserve(input_rows_count);
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr & /*result_type*/,
+                        size_t input_rows_count) const override {
+    auto res_column = ColumnUInt8::create();
+    auto &res_data = res_column->getData();
+    res_data.reserve(input_rows_count);
 
-        callOnTwoGeometryDataTypes<Point>(arguments[0].type, arguments[1].type, [&](const auto & left_type, const auto & right_type)
-        {
-            using LeftConverterType = std::decay_t<decltype(left_type)>;
-            using RightConverterType = std::decay_t<decltype(right_type)>;
+    callOnTwoGeometryDataTypes<Point>(arguments[0].type, arguments[1].type, [&](const auto &left_type, const auto &right_type) {
+      using LeftConverterType = std::decay_t<decltype(left_type)>;
+      using RightConverterType = std::decay_t<decltype(right_type)>;
 
-            using LeftConverter = typename LeftConverterType::Type;
-            using RightConverter = typename RightConverterType::Type;
+      using LeftConverter = typename LeftConverterType::Type;
+      using RightConverter = typename RightConverterType::Type;
 
-            if constexpr (std::is_same_v<ColumnToPointsConverter<Point>, LeftConverter> || std::is_same_v<ColumnToPointsConverter<Point>, RightConverter>)
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Any argument of function {} must not be Point", getName());
-            else
-            {
-                auto first = LeftConverter::convert(arguments[0].column->convertToFullColumnIfConst());
-                auto second = RightConverter::convert(arguments[1].column->convertToFullColumnIfConst());
+      if constexpr (std::is_same_v<ColumnToPointsConverter<Point>, LeftConverter> ||
+                    std::is_same_v<ColumnToPointsConverter<Point>, RightConverter>)
+        throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Any argument of function {} must not be Point", getName());
+      else {
+        auto first = LeftConverter::convert(arguments[0].column->convertToFullColumnIfConst());
+        auto second = RightConverter::convert(arguments[1].column->convertToFullColumnIfConst());
 
-                for (size_t i = 0; i < input_rows_count; ++i)
-                {
-                    boost::geometry::correct(first[i]);
-                    boost::geometry::correct(second[i]);
+        for (size_t i = 0; i < input_rows_count; ++i) {
+          boost::geometry::correct(first[i]);
+          boost::geometry::correct(second[i]);
 
-                    /// Main work here.
-                    res_data.emplace_back(boost::geometry::equals(first[i], second[i]));
-                }
-            }
+          /// Main work here.
+          res_data.emplace_back(boost::geometry::equals(first[i], second[i]));
         }
-        );
+      }
+    });
 
-        return res_column;
-    }
+    return res_column;
+  }
 
-    bool useDefaultImplementationForConstants() const override
-    {
-        return true;
-    }
+  bool useDefaultImplementationForConstants() const override { return true; }
 };
 
 template <>
-const char * FunctionPolygonsEquals<CartesianPoint>::name = "polygonsEqualsCartesian";
+const char *FunctionPolygonsEquals<CartesianPoint>::name = "polygonsEqualsCartesian";
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(PolygonsEquals)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(PolygonsEquals) {
+  FunctionDocumentation::Description description = R"(
 Returns true if two polygons are equal.
     )";
-    FunctionDocumentation::Syntax syntax = "polygonsEqualsCartesian(polygon1, polygon2)";
-    FunctionDocumentation::Arguments arguments = {
-        {"polygon1", "The first Polygon.", {"Polygon"}},
-        {"polygon2", "The second Polygon.", {"Polygon"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns `1` if equal, otherwise `0`.", {"UInt8"}};
-    FunctionDocumentation::Examples examples =
-    {
-    {
-        "Equality check example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "polygonsEqualsCartesian(polygon1, polygon2)";
+  FunctionDocumentation::Arguments arguments = {{"polygon1", "The first Polygon.", {"Polygon"}},
+                                                {"polygon2", "The second Polygon.", {"Polygon"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns `1` if equal, otherwise `0`.", {"UInt8"}};
+  FunctionDocumentation::Examples examples = {{"Equality check example",
+                                               R"(
 SELECT polygonsEqualsCartesian([[[(1., 1.), (1., 4.), (4., 4.), (4., 1.)]]], [[[(1., 1.), (1., 4.), (4., 4.), (4., 1.), (1., 1.)]]])
         )",
-        R"(
+                                               R"(
 1
-    )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {21, 4};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::GeoPolygon;
-    FunctionDocumentation function_documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+    )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {21, 4};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::GeoPolygon;
+  FunctionDocumentation function_documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionPolygonsEquals<CartesianPoint>>(function_documentation);
+  factory.registerFunction<FunctionPolygonsEquals<CartesianPoint>>(function_documentation);
 }
 
-}
+}  // namespace DB

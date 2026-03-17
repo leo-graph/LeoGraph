@@ -13,46 +13,38 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef DOM_ChildNodesList_INCLUDED
 #define DOM_ChildNodesList_INCLUDED
-
 
 #include "Poco/DOM/NodeList.h"
 #include "Poco/XML/XML.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class XML_API ChildNodesList : public NodeList
+// This implementation of NodeList is returned
+// by Node::getChildNodes().
 {
-namespace XML
-{
+ public:
+  Node* item(unsigned long index) const;
+  unsigned long length() const;
 
+  void autoRelease();
 
-    class XML_API ChildNodesList : public NodeList
-    // This implementation of NodeList is returned
-    // by Node::getChildNodes().
-    {
-    public:
-        Node * item(unsigned long index) const;
-        unsigned long length() const;
+ protected:
+  ChildNodesList(const Node* pParent);
+  ~ChildNodesList();
 
-        void autoRelease();
+ private:
+  ChildNodesList();
 
-    protected:
-        ChildNodesList(const Node * pParent);
-        ~ChildNodesList();
+  const Node* _pParent;
 
-    private:
-        ChildNodesList();
+  friend class AbstractNode;
+};
 
-        const Node * _pParent;
+}  // namespace XML
+}  // namespace Poco
 
-        friend class AbstractNode;
-    };
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // DOM_ChildNodesList_INCLUDED
+#endif  // DOM_ChildNodesList_INCLUDED

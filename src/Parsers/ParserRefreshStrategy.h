@@ -2,15 +2,13 @@
 
 #include <Parsers/IParserBase.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Parser for ASTRefreshStrategy
-class ParserRefreshStrategy : public IParserBase
-{
-protected:
-    const char * getName() const override { return "refresh strategy"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+class ParserRefreshStrategy : public IParserBase {
+ protected:
+  const char* getName() const override { return "refresh strategy"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace DB

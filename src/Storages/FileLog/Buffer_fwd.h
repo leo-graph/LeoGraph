@@ -2,9 +2,8 @@
 
 #include <memory>
 
-namespace DB
-{
+namespace DB {
 class FileLogConsumer;
 
 using ReadBufferFromFileLogPtr = std::shared_ptr<FileLogConsumer>;
-}
+}  // namespace DB

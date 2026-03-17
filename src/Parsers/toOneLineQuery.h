@@ -2,8 +2,7 @@
 
 #include <base/types.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Removes new lines from query.
 ///
@@ -11,6 +10,6 @@ namespace DB
 /// - don't join lines inside non-whitespace tokens (e.g. multiline string literals)
 /// - don't join line after comment (because it can be single-line comment).
 /// All other whitespaces replaced to a single whitespace.
-String toOneLineQuery(const String & query);
+String toOneLineQuery(const String& query);
 
-}
+}  // namespace DB

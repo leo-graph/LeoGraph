@@ -7,49 +7,47 @@
 #include <optional>
 #include <string>
 
-namespace DB
-{
+namespace DB {
 class OwnSplitChannelBase;
 
 using AsyncLogQueueSize = std::pair<std::string, size_t>;
 using AsyncLogQueueSizes = std::vector<AsyncLogQueueSize>;
+}  // namespace DB
+
+namespace Poco::Util {
+class AbstractConfiguration;
 }
 
-namespace Poco::Util
-{
-    class AbstractConfiguration;
-}
+class Loggers {
+ public:
+  void buildLoggers(Poco::Util::AbstractConfiguration& config, Poco::Logger& logger, const std::string& cmd_name = "");
 
-class Loggers
-{
-public:
-    void buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Logger & logger, const std::string & cmd_name = "");
+  void updateLevels(Poco::Util::AbstractConfiguration& config, Poco::Logger& logger);
 
-    void updateLevels(Poco::Util::AbstractConfiguration & config, Poco::Logger & logger);
+  /// Close log files. On next log write files will be reopened.
+  void closeLogs(Poco::Logger& logger);
 
-    /// Close log files. On next log write files will be reopened.
-    void closeLogs(Poco::Logger & logger);
+  DB::AsyncLogQueueSizes getAsynchronousMetricsFromAsyncLogs();
+  void flushTextLogs();
 
-    DB::AsyncLogQueueSizes getAsynchronousMetricsFromAsyncLogs();
-    void flushTextLogs();
+  virtual ~Loggers() = default;
 
-    virtual ~Loggers() = default;
+  void stopLogging();
 
-    void stopLogging();
+ protected:
+  virtual bool allowTextLog() const { return true; }
 
-protected:
-    virtual bool allowTextLog() const { return true; }
+ private:
+  Poco::AutoPtr<Poco::FileChannel> log_file;
+  Poco::AutoPtr<Poco::FileChannel> error_log_file;
+  Poco::AutoPtr<Poco::Channel> syslog_channel;
 
-private:
-    Poco::AutoPtr<Poco::FileChannel> log_file;
-    Poco::AutoPtr<Poco::FileChannel> error_log_file;
-    Poco::AutoPtr<Poco::Channel> syslog_channel;
+  /// Previous value of logger element in config. It is used to reinitialize loggers whenever the value changed.
+  std::optional<std::string> config_logger;
 
-    /// Previous value of logger element in config. It is used to reinitialize loggers whenever the value changed.
-    std::optional<std::string> config_logger;
-
-    Poco::AutoPtr<DB::OwnSplitChannelBase> split;
+  Poco::AutoPtr<DB::OwnSplitChannelBase> split;
 };
 
 class OwnPatternFormatter;
-Poco::AutoPtr<OwnPatternFormatter> getFormatForChannel(Poco::Util::AbstractConfiguration & config, const std::string & channel, bool color = false);
+Poco::AutoPtr<OwnPatternFormatter> getFormatForChannel(Poco::Util::AbstractConfiguration& config, const std::string& channel,
+                                                       bool color = false);

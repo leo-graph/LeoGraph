@@ -1,13 +1,12 @@
 #pragma once
 
-#include <boost/intrusive/list.hpp>
 #include <base/types.h>
 #include <array>
-#include <limits>
+#include <boost/intrusive/list.hpp>
 #include <exception>
+#include <limits>
 
-namespace DB
-{
+namespace DB {
 
 // Forward declarations
 class ISchedulerQueue;
@@ -46,56 +45,50 @@ constexpr size_t ResourceMaxConstraints = 8;
  * Returning false means it is too late for request to be canceled. It should be processed in a regular way.
  * Returning true means successful cancel and therefore steps (4) and (5) are not going to happen.
  */
-class ResourceRequest : public boost::intrusive::list_base_hook<>
-{
-public:
-    /// Cost of request execution; should be filled before request enqueueing and remain constant until `finish()`.
-    /// NOTE: If cost is not known in advance, ResourceBudget should be used (note that every ISchedulerQueue has it)
-    ResourceCost cost;
+class ResourceRequest : public boost::intrusive::list_base_hook<> {
+ public:
+  /// Cost of request execution; should be filled before request enqueueing and remain constant until `finish()`.
+  /// NOTE: If cost is not known in advance, ResourceBudget should be used (note that every ISchedulerQueue has it)
+  ResourceCost cost;
 
-    /// If true, request is not throttled by the scheduler
-    /// This is used for special requests that should not be throttled, e.g. for CPUSlotsAllocation
-    bool ignore_throttling = false;
+  /// If true, request is not throttled by the scheduler
+  /// This is used for special requests that should not be throttled, e.g. for CPUSlotsAllocation
+  bool ignore_throttling = false;
 
-    /// Scheduler nodes to be notified on consumption finish
-    /// Auto-filled during request dequeue
-    /// Vector is not used to avoid allocations in the scheduler thread
-    std::array<ISchedulerConstraint *, ResourceMaxConstraints> constraints;
+  /// Scheduler nodes to be notified on consumption finish
+  /// Auto-filled during request dequeue
+  /// Vector is not used to avoid allocations in the scheduler thread
+  std::array<ISchedulerConstraint *, ResourceMaxConstraints> constraints;
 
-    explicit ResourceRequest(ResourceCost cost_ = 1)
-    {
-        reset(cost_);
-    }
+  explicit ResourceRequest(ResourceCost cost_ = 1) { reset(cost_); }
 
-    /// ResourceRequest object may be reused again after reset()
-    void reset(ResourceCost cost_)
-    {
-        cost = cost_;
-        for (auto & constraint : constraints)
-            constraint = nullptr;
-        // Note that list_base_hook should be reset independently (by intrusive list)
-    }
+  /// ResourceRequest object may be reused again after reset()
+  void reset(ResourceCost cost_) {
+    cost = cost_;
+    for (auto &constraint : constraints) constraint = nullptr;
+    // Note that list_base_hook should be reset independently (by intrusive list)
+  }
 
-    virtual ~ResourceRequest() = default;
+  virtual ~ResourceRequest() = default;
 
-    /// Callback to trigger resource consumption.
-    /// IMPORTANT: it is called from scheduler thread and must be fast,
-    /// just triggering start of a consumption, not doing the consumption itself
-    /// (e.g. setting an std::promise or creating a job in a thread pool)
-    virtual void execute() = 0;
+  /// Callback to trigger resource consumption.
+  /// IMPORTANT: it is called from scheduler thread and must be fast,
+  /// just triggering start of a consumption, not doing the consumption itself
+  /// (e.g. setting an std::promise or creating a job in a thread pool)
+  virtual void execute() = 0;
 
-    /// Callback to trigger an error in case if resource is unavailable.
-    virtual void failed(const std::exception_ptr & ptr) = 0;
+  /// Callback to trigger an error in case if resource is unavailable.
+  virtual void failed(const std::exception_ptr &ptr) = 0;
 
-    /// Stop resource consumption and notify resource scheduler.
-    /// Should be called when resource consumption is finished by consumer.
-    /// ResourceRequest should not be destructed or reset before calling to `finish()`.
-    /// It is okay to call finish() even for failed and canceled requests (it will be no-op)
-    void finish();
+  /// Stop resource consumption and notify resource scheduler.
+  /// Should be called when resource consumption is finished by consumer.
+  /// ResourceRequest should not be destructed or reset before calling to `finish()`.
+  /// It is okay to call finish() even for failed and canceled requests (it will be no-op)
+  void finish();
 
-    /// Is called from the scheduler thread to fill `constraints` chain
-    /// Returns `true` iff constraint was added successfully
-    bool addConstraint(ISchedulerConstraint * new_constraint);
+  /// Is called from the scheduler thread to fill `constraints` chain
+  /// Returns `true` iff constraint was added successfully
+  bool addConstraint(ISchedulerConstraint *new_constraint);
 };
 
-}
+}  // namespace DB

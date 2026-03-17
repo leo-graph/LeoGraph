@@ -2,22 +2,16 @@
 #include <Common/thread_local_rng.h>
 #include <random>
 
-namespace DB
-{
+namespace DB {
 
-String getRandomASCIIString(size_t length)
-{
-    return getRandomASCIIString(length, thread_local_rng);
+String getRandomASCIIString(size_t length) { return getRandomASCIIString(length, thread_local_rng); }
+
+String getRandomASCIIString(size_t length, pcg64& rng) {
+  std::uniform_int_distribution<int> distribution('a', 'z');
+  String res;
+  res.resize(length);
+  for (auto& c : res) c = static_cast<char>(distribution(rng));
+  return res;
 }
 
-String getRandomASCIIString(size_t length, pcg64 & rng)
-{
-    std::uniform_int_distribution<int> distribution('a', 'z');
-    String res;
-    res.resize(length);
-    for (auto & c : res)
-        c = static_cast<char>(distribution(rng));
-    return res;
-}
-
-}
+}  // namespace DB

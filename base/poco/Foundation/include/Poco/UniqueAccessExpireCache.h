@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_UniqueAccessExpireCache_INCLUDED
 #define Foundation_UniqueAccessExpireCache_INCLUDED
-
 
 #include "Poco/AbstractCache.h"
 #include "Poco/UniqueAccessExpireStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TKey, class TValue, class TMutex = FastMutex, class TEventMutex = FastMutex>
 class UniqueAccessExpireCache : public AbstractCache<TKey, TValue, UniqueAccessExpireStrategy<TKey, TValue>, TMutex, TEventMutex>
@@ -47,22 +42,18 @@ class UniqueAccessExpireCache : public AbstractCache<TKey, TValue, UniqueAccessE
 /// the entry gets invalid, thus leading to an empty SharedPtr being returned
 /// when "get" is invoked.
 {
-public:
-    UniqueAccessExpireCache()
-        : AbstractCache<TKey, TValue, UniqueAccessExpireStrategy<TKey, TValue>, TMutex, TEventMutex>(
-            UniqueAccessExpireStrategy<TKey, TValue>())
-    {
-    }
+ public:
+  UniqueAccessExpireCache()
+      : AbstractCache<TKey, TValue, UniqueAccessExpireStrategy<TKey, TValue>, TMutex, TEventMutex>(
+            UniqueAccessExpireStrategy<TKey, TValue>()) {}
 
-    ~UniqueAccessExpireCache() { }
+  ~UniqueAccessExpireCache() {}
 
-private:
-    UniqueAccessExpireCache(const UniqueAccessExpireCache & aCache);
-    UniqueAccessExpireCache & operator=(const UniqueAccessExpireCache & aCache);
+ private:
+  UniqueAccessExpireCache(const UniqueAccessExpireCache& aCache);
+  UniqueAccessExpireCache& operator=(const UniqueAccessExpireCache& aCache);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_UniqueAccessExpireCache_INCLUDED
+#endif  // Foundation_UniqueAccessExpireCache_INCLUDED

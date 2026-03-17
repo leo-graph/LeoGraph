@@ -1,24 +1,19 @@
-#include <Parsers/ASTDropWorkloadQuery.h>
 #include <Common/quoteString.h>
 #include <IO/Operators.h>
+#include <Parsers/ASTDropWorkloadQuery.h>
 
-namespace DB
-{
+namespace DB {
 
-ASTPtr ASTDropWorkloadQuery::clone() const
-{
-    return make_intrusive<ASTDropWorkloadQuery>(*this);
+ASTPtr ASTDropWorkloadQuery::clone() const { return make_intrusive<ASTDropWorkloadQuery>(*this); }
+
+void ASTDropWorkloadQuery::formatImpl(WriteBuffer &ostr, const IAST::FormatSettings &settings, IAST::FormatState &,
+                                      IAST::FormatStateStacked) const {
+  ostr << "DROP WORKLOAD ";
+
+  if (if_exists) ostr << "IF EXISTS ";
+
+  ostr << backQuoteIfNeed(workload_name);
+  formatOnCluster(ostr, settings);
 }
 
-void ASTDropWorkloadQuery::formatImpl(WriteBuffer & ostr, const IAST::FormatSettings & settings, IAST::FormatState &, IAST::FormatStateStacked) const
-{
-    ostr << "DROP WORKLOAD ";
-
-    if (if_exists)
-        ostr << "IF EXISTS ";
-
-    ostr << backQuoteIfNeed(workload_name);
-    formatOnCluster(ostr, settings);
-}
-
-}
+}  // namespace DB

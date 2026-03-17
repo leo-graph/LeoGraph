@@ -2,15 +2,12 @@
 
 #include <Parsers/IParserBase.h>
 
-namespace DB
-{
+namespace DB {
 
-
-class ParserSelectWithUnionQuery : public IParserBase
-{
-protected:
-    const char * getName() const override { return "SELECT query, possibly with UNION"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+class ParserSelectWithUnionQuery : public IParserBase {
+ protected:
+  const char* getName() const override { return "SELECT query, possibly with UNION"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-}
+}  // namespace DB

@@ -13,32 +13,25 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Error_INCLUDED
 #define Foundation_Error_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API Error
 /// The Error class provides utility functions
 /// for error reporting.
 {
-public:
-    static int last();
-    /// Utility function returning the last error.
+ public:
+  static int last();
+  /// Utility function returning the last error.
 
-    static std::string getMessage(int errorCode);
-    /// Utility function translating numeric error code to string.
+  static std::string getMessage(int errorCode);
+  /// Utility function translating numeric error code to string.
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Error_INCLUDED
+#endif  // Foundation_Error_INCLUDED

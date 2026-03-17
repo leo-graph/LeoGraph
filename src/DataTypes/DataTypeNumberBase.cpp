@@ -1,38 +1,31 @@
-#include <type_traits>
-#include <DataTypes/DataTypeNumberBase.h>
 #include <Columns/ColumnVector.h>
+#include <DataTypes/DataTypeNumberBase.h>
+#include <type_traits>
 
-
-namespace DB
-{
+namespace DB {
 
 template <typename T>
-Field DataTypeNumberBase<T>::getDefault() const
-{
-    return NearestFieldType<FieldType>();
+Field DataTypeNumberBase<T>::getDefault() const {
+  return NearestFieldType<FieldType>();
 }
 template <typename T>
-MutableColumnPtr DataTypeNumberBase<T>::createColumn() const
-{
-    return ColumnVector<T>::create();
+MutableColumnPtr DataTypeNumberBase<T>::createColumn() const {
+  return ColumnVector<T>::create();
 }
 
 template <typename T>
-MutableColumnPtr DataTypeNumberBase<T>::createUninitializedColumnWithSize(size_t size) const
-{
-    return ColumnVector<T>::create(size);
+MutableColumnPtr DataTypeNumberBase<T>::createUninitializedColumnWithSize(size_t size) const {
+  return ColumnVector<T>::create(size);
 }
 
 template <typename T>
-bool DataTypeNumberBase<T>::isValueRepresentedByInteger() const
-{
-    return is_integer<T>;
+bool DataTypeNumberBase<T>::isValueRepresentedByInteger() const {
+  return is_integer<T>;
 }
 
 template <typename T>
-bool DataTypeNumberBase<T>::isValueRepresentedByUnsignedInteger() const
-{
-    return is_integer<T> && is_unsigned_v<T>;
+bool DataTypeNumberBase<T>::isValueRepresentedByUnsignedInteger() const {
+  return is_integer<T> && is_unsigned_v<T>;
 }
 
 /// Explicit template instantiations - to avoid code bloat in headers.
@@ -52,4 +45,4 @@ template class DataTypeNumberBase<BFloat16>;
 template class DataTypeNumberBase<Float32>;
 template class DataTypeNumberBase<Float64>;
 
-}
+}  // namespace DB

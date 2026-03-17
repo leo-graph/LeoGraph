@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NObserver_INCLUDED
 #define Foundation_NObserver_INCLUDED
-
 
 #include "Poco/AbstractObserver.h"
 #include "Poco/Foundation.h"
 #include "Poco/Mutex.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class C, class N>
 class NObserver : public AbstractObserver
@@ -43,68 +38,59 @@ class NObserver : public AbstractObserver
 /// instead of a plain pointer as argument, thus simplifying memory
 /// management.
 {
-public:
-    typedef AutoPtr<N> NotificationPtr;
-    typedef void (C::*Callback)(const NotificationPtr &);
+ public:
+  typedef AutoPtr<N> NotificationPtr;
+  typedef void (C::*Callback)(const NotificationPtr &);
 
-    NObserver(C & object, Callback method) : _pObject(&object), _method(method) { }
+  NObserver(C &object, Callback method) : _pObject(&object), _method(method) {}
 
-    NObserver(const NObserver & observer) : AbstractObserver(observer), _pObject(observer._pObject), _method(observer._method) { }
+  NObserver(const NObserver &observer) : AbstractObserver(observer), _pObject(observer._pObject), _method(observer._method) {}
 
-    ~NObserver() { }
+  ~NObserver() {}
 
-    NObserver & operator=(const NObserver & observer)
-    {
-        if (&observer != this)
-        {
-            _pObject = observer._pObject;
-            _method = observer._method;
-        }
-        return *this;
+  NObserver &operator=(const NObserver &observer) {
+    if (&observer != this) {
+      _pObject = observer._pObject;
+      _method = observer._method;
     }
+    return *this;
+  }
 
-    void notify(Notification * pNf) const
-    {
-        Poco::Mutex::ScopedLock lock(_mutex);
+  void notify(Notification *pNf) const {
+    Poco::Mutex::ScopedLock lock(_mutex);
 
-        if (_pObject)
-        {
-            N * pCastNf = dynamic_cast<N *>(pNf);
-            if (pCastNf)
-            {
-                NotificationPtr ptr(pCastNf, true);
-                (_pObject->*_method)(ptr);
-            }
-        }
+    if (_pObject) {
+      N *pCastNf = dynamic_cast<N *>(pNf);
+      if (pCastNf) {
+        NotificationPtr ptr(pCastNf, true);
+        (_pObject->*_method)(ptr);
+      }
     }
+  }
 
-    bool equals(const AbstractObserver & abstractObserver) const
-    {
-        const NObserver * pObs = dynamic_cast<const NObserver *>(&abstractObserver);
-        return pObs && pObs->_pObject == _pObject && pObs->_method == _method;
-    }
+  bool equals(const AbstractObserver &abstractObserver) const {
+    const NObserver *pObs = dynamic_cast<const NObserver *>(&abstractObserver);
+    return pObs && pObs->_pObject == _pObject && pObs->_method == _method;
+  }
 
-    bool accepts(Notification * pNf) const { return dynamic_cast<N *>(pNf) != 0; }
+  bool accepts(Notification *pNf) const { return dynamic_cast<N *>(pNf) != 0; }
 
-    AbstractObserver * clone() const { return new NObserver(*this); }
+  AbstractObserver *clone() const { return new NObserver(*this); }
 
-    void disable()
-    {
-        Poco::Mutex::ScopedLock lock(_mutex);
+  void disable() {
+    Poco::Mutex::ScopedLock lock(_mutex);
 
-        _pObject = 0;
-    }
+    _pObject = 0;
+  }
 
-private:
-    NObserver();
+ private:
+  NObserver();
 
-    C * _pObject;
-    Callback _method;
-    mutable Poco::Mutex _mutex;
+  C *_pObject;
+  Callback _method;
+  mutable Poco::Mutex _mutex;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_NObserver_INCLUDED
+#endif  // Foundation_NObserver_INCLUDED

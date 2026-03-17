@@ -2,36 +2,34 @@
 
 #include <IO/WriteBufferFromFileBase.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Delegates all writes to underlying buffer. Doesn't have own memory.
-class WriteBufferFromFileDecorator : public WriteBufferFromFileBase
-{
-public:
-    explicit WriteBufferFromFileDecorator(std::unique_ptr<WriteBuffer> impl_);
+class WriteBufferFromFileDecorator : public WriteBufferFromFileBase {
+ public:
+  explicit WriteBufferFromFileDecorator(std::unique_ptr<WriteBuffer> impl_);
 
-    ~WriteBufferFromFileDecorator() override;
+  ~WriteBufferFromFileDecorator() override;
 
-    void sync() override;
+  void sync() override;
 
-    std::string getFileName() const override;
+  std::string getFileName() const override;
 
-    void preFinalize() override;
+  void preFinalize() override;
 
-    const WriteBuffer & getImpl() const { return *impl; }
+  const WriteBuffer& getImpl() const { return *impl; }
 
-protected:
-    void finalizeImpl() override;
+ protected:
+  void finalizeImpl() override;
 
-    void cancelImpl() noexcept override;
+  void cancelImpl() noexcept override;
 
-    std::unique_ptr<WriteBuffer> impl;
+  std::unique_ptr<WriteBuffer> impl;
 
-private:
-    void nextImpl() override;
+ private:
+  void nextImpl() override;
 
-    bool is_prefinalized = false;
+  bool is_prefinalized = false;
 };
 
-}
+}  // namespace DB

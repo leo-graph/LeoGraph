@@ -1,16 +1,15 @@
-#include <Common/Exception.h>
 #include <Common/ErrnoException.h>
-#include <IO/ReadHelpers.h>
+#include <Common/Exception.h>
 #include <fmt/format.h>
+#include <IO/ReadHelpers.h>
 
 #include <iostream>
 #include <vector>
 
+#include <grp.h>
+#include <pwd.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <pwd.h>
-#include <grp.h>
-
 
 /// "su" means "set user"
 /// In fact, this program can set Unix user and group.
@@ -34,128 +33,106 @@
 /// ClickHouse has no dependencies, it is packaged and distributed in single binary.
 /// There is no reason to use Docker unless you are already running all your software in Docker.
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int BAD_ARGUMENTS;
-    extern const int SYSTEM_ERROR;
+namespace ErrorCodes {
+extern const int BAD_ARGUMENTS;
+extern const int SYSTEM_ERROR;
+}  // namespace ErrorCodes
+
+static void setUserAndGroup(std::string arg_uid, std::string arg_gid) {
+  static constexpr size_t buf_size = 16384;  /// Linux man page says it is enough. Nevertheless, we will check if it's not enough and throw.
+  std::unique_ptr<char[]> buf(new char[buf_size]);
+
+  /// Set the group first, because if we set user, the privileges will be already dropped and we will not be able to set the group later.
+
+  if (!arg_gid.empty()) {
+    gid_t gid = 0;
+    if (!tryParse(gid, arg_gid) || gid == 0) {
+      group entry{};
+      group *result{};
+
+      if (0 != getgrnam_r(arg_gid.data(), &entry, buf.get(), buf_size, &result))
+        throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getgrnam_r' to obtain gid from group name ({})", arg_gid);
+
+      if (!result) {
+        if (0 != getgrgid_r(gid, &entry, buf.get(), buf_size, &result))
+          throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getgrnam_r' to obtain gid from group name ({})", arg_gid);
+
+        if (!result) throw Exception(ErrorCodes::BAD_ARGUMENTS, "Group {} is not found in the system", arg_gid);
+      }
+
+      gid = entry.gr_gid;
+    }
+
+    if (gid == 0 && getgid() != 0)
+      throw Exception(ErrorCodes::BAD_ARGUMENTS, "Group has id 0, but dropping privileges to gid 0 does not make sense");
+
+    if (0 != setgid(gid)) throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'setgid' to user ({})", arg_gid);
+  }
+
+  if (!arg_uid.empty()) {
+    /// Is it numeric id or name?
+    uid_t uid = 0;
+    if (!tryParse(uid, arg_uid) || uid == 0) {
+      passwd entry{};
+      passwd *result{};
+
+      if (0 != getpwnam_r(arg_uid.data(), &entry, buf.get(), buf_size, &result))
+        throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getpwnam_r' to obtain uid from user name ({})", arg_uid);
+
+      if (!result) {
+        if (0 != getpwuid_r(uid, &entry, buf.get(), buf_size, &result))
+          throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getpwuid_r' to obtain uid from user name ({})", uid);
+
+        if (!result) throw Exception(ErrorCodes::BAD_ARGUMENTS, "User {} is not found in the system", arg_uid);
+      }
+
+      uid = entry.pw_uid;
+    }
+
+    if (uid == 0 && getuid() != 0)
+      throw Exception(ErrorCodes::BAD_ARGUMENTS, "User has id 0, but dropping privileges to uid 0 does not make sense");
+
+    if (0 != setuid(uid)) throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'setuid' to user ({})", arg_uid);
+  }
 }
 
-static void setUserAndGroup(std::string arg_uid, std::string arg_gid)
-{
-    static constexpr size_t buf_size = 16384; /// Linux man page says it is enough. Nevertheless, we will check if it's not enough and throw.
-    std::unique_ptr<char[]> buf(new char[buf_size]);
+}  // namespace DB
 
-    /// Set the group first, because if we set user, the privileges will be already dropped and we will not be able to set the group later.
+int mainEntryClickHouseSU(int argc, char **argv) try {
+  using namespace DB;
 
-    if (!arg_gid.empty())
-    {
-        gid_t gid = 0;
-        if (!tryParse(gid, arg_gid) || gid == 0)
-        {
-            group entry{};
-            group * result{};
+  if (argc < 3) {
+    std::cout << "A tool similar to 'su'" << std::endl;
+    std::cout << "Usage: ./clickhouse su user:group ..." << std::endl;
+    exit(0);  // NOLINT(concurrency-mt-unsafe)
+  }
 
-            if (0 != getgrnam_r(arg_gid.data(), &entry, buf.get(), buf_size, &result))
-                throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getgrnam_r' to obtain gid from group name ({})", arg_gid);
+  std::string_view user_and_group = argv[1];
 
-            if (!result)
-            {
-                if (0 != getgrgid_r(gid, &entry, buf.get(), buf_size, &result))
-                    throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getgrnam_r' to obtain gid from group name ({})", arg_gid);
+  std::string user;
+  std::string group;
 
-                if (!result)
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Group {} is not found in the system", arg_gid);
-            }
+  auto pos = user_and_group.find(':');
+  if (pos == std::string_view::npos) {
+    user = user_and_group;
+  } else {
+    user = user_and_group.substr(0, pos);
+    group = user_and_group.substr(pos + 1);
+  }
 
-            gid = entry.gr_gid;
-        }
+  setUserAndGroup(std::move(user), std::move(group));
 
-        if (gid == 0 && getgid() != 0)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Group has id 0, but dropping privileges to gid 0 does not make sense");
+  std::vector<char *> new_argv;
+  new_argv.reserve(argc - 1);
+  new_argv.insert(new_argv.begin(), argv + 2, argv + argc);
+  new_argv.push_back(nullptr);
 
-        if (0 != setgid(gid))
-            throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'setgid' to user ({})", arg_gid);
-    }
+  execvp(new_argv.front(), new_argv.data());
 
-    if (!arg_uid.empty())
-    {
-        /// Is it numeric id or name?
-        uid_t uid = 0;
-        if (!tryParse(uid, arg_uid) || uid == 0)
-        {
-            passwd entry{};
-            passwd * result{};
-
-            if (0 != getpwnam_r(arg_uid.data(), &entry, buf.get(), buf_size, &result))
-                throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getpwnam_r' to obtain uid from user name ({})", arg_uid);
-
-            if (!result)
-            {
-                if (0 != getpwuid_r(uid, &entry, buf.get(), buf_size, &result))
-                    throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'getpwuid_r' to obtain uid from user name ({})", uid);
-
-                if (!result)
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "User {} is not found in the system", arg_uid);
-            }
-
-            uid = entry.pw_uid;
-        }
-
-        if (uid == 0 && getuid() != 0)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "User has id 0, but dropping privileges to uid 0 does not make sense");
-
-        if (0 != setuid(uid))
-            throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot do 'setuid' to user ({})", arg_uid);
-    }
-}
-
-}
-
-
-int mainEntryClickHouseSU(int argc, char ** argv)
-try
-{
-    using namespace DB;
-
-    if (argc < 3)
-    {
-        std::cout << "A tool similar to 'su'" << std::endl;
-        std::cout << "Usage: ./clickhouse su user:group ..." << std::endl;
-        exit(0); // NOLINT(concurrency-mt-unsafe)
-    }
-
-    std::string_view user_and_group = argv[1];
-
-    std::string user;
-    std::string group;
-
-    auto pos = user_and_group.find(':');
-    if (pos == std::string_view::npos)
-    {
-        user = user_and_group;
-    }
-    else
-    {
-        user = user_and_group.substr(0, pos);
-        group = user_and_group.substr(pos + 1);
-    }
-
-    setUserAndGroup(std::move(user), std::move(group));
-
-    std::vector<char *> new_argv;
-    new_argv.reserve(argc - 1);
-    new_argv.insert(new_argv.begin(), argv + 2, argv + argc);
-    new_argv.push_back(nullptr);
-
-    execvp(new_argv.front(), new_argv.data());
-
-    throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot execvp");
-}
-catch (...)
-{
-    std::cerr << DB::getCurrentExceptionMessage(false) << '\n';
-    return 1;
+  throw ErrnoException(ErrorCodes::SYSTEM_ERROR, "Cannot execvp");
+} catch (...) {
+  std::cerr << DB::getCurrentExceptionMessage(false) << '\n';
+  return 1;
 }

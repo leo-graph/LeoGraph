@@ -13,25 +13,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NamedMutex_INCLUDED
 #define Foundation_NamedMutex_INCLUDED
-
 
 #include "Poco/Foundation.h"
 #include "Poco/ScopedLock.h"
 
-
-#if   POCO_OS == POCO_OS_ANDROID
-#    include "Poco/NamedMutex_Android.h"
+#if POCO_OS == POCO_OS_ANDROID
+#  include "Poco/NamedMutex_Android.h"
 #elif defined(POCO_OS_FAMILY_UNIX)
-#    include "Poco/NamedMutex_UNIX.h"
+#  include "Poco/NamedMutex_UNIX.h"
 #endif
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API NamedMutex : private NamedMutexImpl
 /// A NamedMutex (mutual exclusion) is a global synchronization
@@ -51,57 +45,43 @@ class Foundation_API NamedMutex : private NamedMutexImpl
 /// a given name in a process. Otherwise, the instances may
 /// interfere with each other.
 {
-public:
-    typedef Poco::ScopedLock<NamedMutex> ScopedLock;
+ public:
+  typedef Poco::ScopedLock<NamedMutex> ScopedLock;
 
-    NamedMutex(const std::string & name);
-    /// creates the Mutex.
+  NamedMutex(const std::string &name);
+  /// creates the Mutex.
 
-    ~NamedMutex();
-    /// destroys the Mutex.
+  ~NamedMutex();
+  /// destroys the Mutex.
 
-    void lock();
-    /// Locks the mutex. Blocks if the mutex
-    /// is held by another process or thread.
+  void lock();
+  /// Locks the mutex. Blocks if the mutex
+  /// is held by another process or thread.
 
-    bool tryLock();
-    /// Tries to lock the mutex. Returns false immediately
-    /// if the mutex is already held by another process or thread.
-    /// Returns true if the mutex was successfully locked.
+  bool tryLock();
+  /// Tries to lock the mutex. Returns false immediately
+  /// if the mutex is already held by another process or thread.
+  /// Returns true if the mutex was successfully locked.
 
-    void unlock();
-    /// Unlocks the mutex so that it can be acquired by
-    /// other threads.
+  void unlock();
+  /// Unlocks the mutex so that it can be acquired by
+  /// other threads.
 
-private:
-    NamedMutex();
-    NamedMutex(const NamedMutex &);
-    NamedMutex & operator=(const NamedMutex &);
+ private:
+  NamedMutex();
+  NamedMutex(const NamedMutex &);
+  NamedMutex &operator=(const NamedMutex &);
 };
-
 
 //
 // inlines
 //
-inline void NamedMutex::lock()
-{
-    lockImpl();
-}
+inline void NamedMutex::lock() { lockImpl(); }
 
+inline bool NamedMutex::tryLock() { return tryLockImpl(); }
 
-inline bool NamedMutex::tryLock()
-{
-    return tryLockImpl();
-}
+inline void NamedMutex::unlock() { unlockImpl(); }
 
+}  // namespace Poco
 
-inline void NamedMutex::unlock()
-{
-    unlockImpl();
-}
-
-
-} // namespace Poco
-
-
-#endif // Foundation_NamedMutex_INCLUDED
+#endif  // Foundation_NamedMutex_INCLUDED

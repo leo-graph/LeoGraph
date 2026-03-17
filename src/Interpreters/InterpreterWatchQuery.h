@@ -12,30 +12,28 @@ See the License for the specific language governing permissions and
 limitations under the License. */
 
 #include <Core/QueryProcessingStage.h>
-#include <QueryPipeline/BlockIO.h>
 #include <Interpreters/IInterpreter.h>
 #include <Parsers/IAST_fwd.h>
+#include <QueryPipeline/BlockIO.h>
 #include <Storages/IStorage_fwd.h>
 #include <Storages/SelectQueryInfo.h>
 
-namespace DB
-{
+namespace DB {
 
 using StoragePtr = std::shared_ptr<IStorage>;
 
-class InterpreterWatchQuery : public IInterpreter, WithContext
-{
-public:
-    InterpreterWatchQuery(const ASTPtr & query_ptr_, ContextPtr context_) : WithContext(context_), query_ptr(query_ptr_) {}
+class InterpreterWatchQuery : public IInterpreter, WithContext {
+ public:
+  InterpreterWatchQuery(const ASTPtr& query_ptr_, ContextPtr context_) : WithContext(context_), query_ptr(query_ptr_) {}
 
-    BlockIO execute() override;
-    QueryPipelineBuilder buildQueryPipeline();
+  BlockIO execute() override;
+  QueryPipelineBuilder buildQueryPipeline();
 
-private:
-    ASTPtr query_ptr;
+ private:
+  ASTPtr query_ptr;
 
-    /// Table from where to read data, if not subquery.
-    StoragePtr storage;
+  /// Table from where to read data, if not subquery.
+  StoragePtr storage;
 };
 
-}
+}  // namespace DB

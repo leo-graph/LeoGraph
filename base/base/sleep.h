@@ -3,9 +3,9 @@
 #include <cstdint>
 
 /**
-  * Sleep functions tolerant to signal interruptions (which can happen
-  * when query profiler is turned on for example)
-  */
+ * Sleep functions tolerant to signal interruptions (which can happen
+ * when query profiler is turned on for example)
+ */
 
 void sleepForNanoseconds(uint64_t nanoseconds);
 

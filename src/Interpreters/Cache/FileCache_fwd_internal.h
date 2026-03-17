@@ -1,8 +1,7 @@
 #pragma once
 #include <list>
 
-namespace DB
-{
+namespace DB {
 
 class FileCache;
 using FileCachePtr = std::shared_ptr<FileCache>;
@@ -23,4 +22,4 @@ using LockedKeyPtr = std::shared_ptr<LockedKey>;
 struct KeyMetadata;
 using KeyMetadataPtr = std::shared_ptr<KeyMetadata>;
 
-}
+}  // namespace DB

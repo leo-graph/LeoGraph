@@ -1,27 +1,22 @@
 #pragma once
 
+#include <IO/ReadBufferFromFileBase.h>
 #include <memory>
 #include <string>
-#include <IO/ReadBufferFromFileBase.h>
 
-
-namespace DB
-{
+namespace DB {
 struct ReadSettings;
 class PageCache;
 using PageCachePtr = std::shared_ptr<PageCache>;
 
 /** Create an object to read data from a file.
-  *
-  * @param read_hint - the number of bytes to read hint
-  * @param file_size - size of file
-  */
-std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(
-    const std::string & filename,
-    const ReadSettings & settings,
-    std::optional<size_t> read_hint = {},
-    std::optional<size_t> file_size = {},
-    int flags_ = -1,
-    char * existing_memory = nullptr,
-    bool allow_userspace_page_cache = false);
-}
+ *
+ * @param read_hint - the number of bytes to read hint
+ * @param file_size - size of file
+ */
+std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(const std::string& filename, const ReadSettings& settings,
+                                                                     std::optional<size_t> read_hint = {},
+                                                                     std::optional<size_t> file_size = {}, int flags_ = -1,
+                                                                     char* existing_memory = nullptr,
+                                                                     bool allow_userspace_page_cache = false);
+}  // namespace DB

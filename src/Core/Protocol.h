@@ -1,12 +1,9 @@
 #pragma once
 
-#include <string_view>
 #include <base/types.h>
+#include <string_view>
 
-
-namespace DB
-{
-
+namespace DB {
 
 /// Client-server protocol.
 ///
@@ -53,8 +50,7 @@ namespace DB
 /// Using this block the client can initialize the output formatter and display the prefix of resulting table
 /// beforehand.
 
-namespace EncodedUserInfo
-{
+namespace EncodedUserInfo {
 
 /// Marker for the inter-server secret (passed as the user name)
 /// (anyway user cannot be started with a whitespace)
@@ -66,91 +62,84 @@ const char SSH_KEY_AUTHENTICAION_MARKER[] = " SSH KEY AUTHENTICATION ";
 /// Marker for JSON Web Token authentication
 const char JWT_AUTHENTICAION_MARKER[] = " JWT AUTHENTICATION ";
 
+};  // namespace EncodedUserInfo
+
+namespace Protocol {
+/// Packet types that server transmits.
+namespace Server {
+enum Enum {
+  Hello = 0,                 /// Name, version, revision.
+  Data = 1,                  /// A block of data (compressed or not).
+  Exception = 2,             /// The exception during query execution.
+  Progress = 3,              /// Query execution progress: rows read, bytes read.
+  Pong = 4,                  /// Ping response
+  EndOfStream = 5,           /// All packets were transmitted
+  ProfileInfo = 6,           /// Packet with profiling info.
+  Totals = 7,                /// A block with totals (compressed or not).
+  Extremes = 8,              /// A block with minimums and maximums (compressed or not).
+  TablesStatusResponse = 9,  /// A response to TablesStatus request.
+  Log = 10,                  /// System logs of the query execution
+  TableColumns = 11,         /// Columns' description for default values calculation
+  PartUUIDs = 12,            /// List of unique parts ids.
+  ReadTaskRequest = 13,      /// String (UUID) describes a request for which next task is needed
+                             /// This is such an inverted logic, where server sends requests
+                             /// And client returns back response
+  ProfileEvents = 14,        /// Packet with profile events from server.
+  MergeTreeAllRangesAnnouncement = 15,
+  MergeTreeReadTaskRequest = 16,  /// Request from a MergeTree replica to a coordinator
+  TimezoneUpdate = 17,            /// Receive server's (session-wide) default timezone
+  SSHChallenge = 18,              /// Return challenge for SSH signature signing
+  MAX = SSHChallenge,
+
 };
 
-namespace Protocol
-{
-    /// Packet types that server transmits.
-    namespace Server
-    {
-        enum Enum
-        {
-            Hello = 0,                      /// Name, version, revision.
-            Data = 1,                       /// A block of data (compressed or not).
-            Exception = 2,                  /// The exception during query execution.
-            Progress = 3,                   /// Query execution progress: rows read, bytes read.
-            Pong = 4,                       /// Ping response
-            EndOfStream = 5,                /// All packets were transmitted
-            ProfileInfo = 6,                /// Packet with profiling info.
-            Totals = 7,                     /// A block with totals (compressed or not).
-            Extremes = 8,                   /// A block with minimums and maximums (compressed or not).
-            TablesStatusResponse = 9,       /// A response to TablesStatus request.
-            Log = 10,                       /// System logs of the query execution
-            TableColumns = 11,              /// Columns' description for default values calculation
-            PartUUIDs = 12,                 /// List of unique parts ids.
-            ReadTaskRequest = 13,           /// String (UUID) describes a request for which next task is needed
-                                            /// This is such an inverted logic, where server sends requests
-                                            /// And client returns back response
-            ProfileEvents = 14,             /// Packet with profile events from server.
-            MergeTreeAllRangesAnnouncement = 15,
-            MergeTreeReadTaskRequest = 16,  /// Request from a MergeTree replica to a coordinator
-            TimezoneUpdate = 17,            /// Receive server's (session-wide) default timezone
-            SSHChallenge = 18,              /// Return challenge for SSH signature signing
-            MAX = SSHChallenge,
+/// NOTE: If the type of packet argument would be Enum, the comparison packet >= 0 && packet < 10
+/// would always be true because of compiler optimization. That would lead to out-of-bounds error
+/// if the packet is invalid.
+/// See https://www.securecoding.cert.org/confluence/display/cplusplus/INT36-CPP.+Do+not+use+out-of-range+enumeration+values
+std::string_view toString(UInt64 packet);
+}  // namespace Server
 
-        };
+/// Packet types that client transmits.
+namespace Client {
+enum Enum {
+  Hello = 0,                       /// Name, version, revision, default DB
+  Query = 1,                       /// Query id, query settings, stage up to which the query must be executed,
+                                   /// whether the compression must be used,
+                                   /// query text (without data for INSERTs).
+  Data = 2,                        /// A block of data (compressed or not).
+  Cancel = 3,                      /// Cancel the query execution.
+  Ping = 4,                        /// Check that connection to the server is alive.
+  TablesStatusRequest = 5,         /// Check status of tables on the server.
+  KeepAlive = 6,                   /// Keep the connection alive
+  Scalar = 7,                      /// A block of data (compressed or not).
+  IgnoredPartUUIDs = 8,            /// List of unique parts ids to exclude from query processing
+  ReadTaskResponse = 9,            /// A filename to read from s3 (used in s3Cluster)
+  MergeTreeReadTaskResponse = 10,  /// Coordinator's decision with a modified set of mark ranges allowed to read
 
-        /// NOTE: If the type of packet argument would be Enum, the comparison packet >= 0 && packet < 10
-        /// would always be true because of compiler optimization. That would lead to out-of-bounds error
-        /// if the packet is invalid.
-        /// See https://www.securecoding.cert.org/confluence/display/cplusplus/INT36-CPP.+Do+not+use+out-of-range+enumeration+values
-        std::string_view toString(UInt64 packet);
-    }
+  SSHChallengeRequest = 11,   /// Request SSH signature challenge
+  SSHChallengeResponse = 12,  /// Reply to SSH signature challenge
 
-    /// Packet types that client transmits.
-    namespace Client
-    {
-        enum Enum
-        {
-            Hello = 0,                      /// Name, version, revision, default DB
-            Query = 1,                      /// Query id, query settings, stage up to which the query must be executed,
-                                            /// whether the compression must be used,
-                                            /// query text (without data for INSERTs).
-            Data = 2,                       /// A block of data (compressed or not).
-            Cancel = 3,                     /// Cancel the query execution.
-            Ping = 4,                       /// Check that connection to the server is alive.
-            TablesStatusRequest = 5,        /// Check status of tables on the server.
-            KeepAlive = 6,                  /// Keep the connection alive
-            Scalar = 7,                     /// A block of data (compressed or not).
-            IgnoredPartUUIDs = 8,           /// List of unique parts ids to exclude from query processing
-            ReadTaskResponse = 9,           /// A filename to read from s3 (used in s3Cluster)
-            MergeTreeReadTaskResponse = 10, /// Coordinator's decision with a modified set of mark ranges allowed to read
+  QueryPlan = 13,  /// Query plan
 
-            SSHChallengeRequest = 11,       /// Request SSH signature challenge
-            SSHChallengeResponse = 12,      /// Reply to SSH signature challenge
+  MAX = QueryPlan,
+};
 
-            QueryPlan = 13,                 /// Query plan
+std::string_view toString(UInt64 packet);
+}  // namespace Client
 
-            MAX = QueryPlan,
-        };
+/// Whether the compression must be used.
+enum class Compression : uint8_t {
+  Disable = 0,
+  Enable = 1,
+};
 
-        std::string_view toString(UInt64 packet);
-    }
+/// Whether the ssl must be used.
+enum class Secure : uint8_t {
+  Disable = 0,
+  Enable = 1,
+};
 
-    /// Whether the compression must be used.
-    enum class Compression : uint8_t
-    {
-        Disable = 0,
-        Enable = 1,
-    };
+}  // namespace Protocol
 
-    /// Whether the ssl must be used.
-    enum class Secure : uint8_t
-    {
-        Disable = 0,
-        Enable = 1,
-    };
-
-}
-
-}
+}  // namespace DB

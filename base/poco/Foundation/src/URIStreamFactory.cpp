@@ -11,48 +11,25 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/URIStreamFactory.h"
 #include <algorithm>
 
-
 namespace Poco {
 
+URIStreamFactory::URIStreamFactory() {}
 
-URIStreamFactory::URIStreamFactory()
-{
+URIStreamFactory::~URIStreamFactory() {}
+
+URIRedirection::URIRedirection(const std::string& uri) : _uri(uri) {}
+
+URIRedirection::URIRedirection(const URIRedirection& redir) : _uri(redir._uri) {}
+
+URIRedirection& URIRedirection::operator=(const URIRedirection& redir) {
+  URIRedirection tmp(redir);
+  swap(tmp);
+  return *this;
 }
 
+void URIRedirection::swap(URIRedirection& redir) { std::swap(_uri, redir._uri); }
 
-URIStreamFactory::~URIStreamFactory()
-{
-}
-
-
-URIRedirection::URIRedirection(const std::string& uri):
-	_uri(uri)
-{
-}
-
-
-URIRedirection::URIRedirection(const URIRedirection& redir):
-	_uri(redir._uri)
-{
-}
-
-
-URIRedirection& URIRedirection::operator = (const URIRedirection& redir)
-{
-	URIRedirection tmp(redir);
-	swap(tmp);
-	return *this;
-}
-
-
-void URIRedirection::swap(URIRedirection& redir)
-{
-	std::swap(_uri, redir._uri);
-}
-
-
-} // namespace Poco
+}  // namespace Poco

@@ -1,49 +1,49 @@
 #pragma once
 
+#include <Common/ProfileEvents.h>
 #include <Server/IServer.h>
 #include <Server/TCPServerConnectionFactory.h>
-#include <Common/ProfileEvents.h>
 
 #include "config.h"
 
 #include <atomic>
 
 #if USE_SSL
-#    include <Common/Crypto/KeyPair.h>
+#  include <Common/Crypto/KeyPair.h>
 #endif
 
-namespace DB
-{
+namespace DB {
 class TCPServer;
 
-class MySQLHandlerFactory : public TCPServerConnectionFactory
-{
-private:
-    IServer & server;
-    LoggerPtr log;
+class MySQLHandlerFactory : public TCPServerConnectionFactory {
+ private:
+  IServer& server;
+  LoggerPtr log;
 
 #if USE_SSL
-    KeyPair keypair;
+  KeyPair keypair;
 
-    bool ssl_enabled = true;
+  bool ssl_enabled = true;
 #else
-    bool ssl_enabled = false;
+  bool ssl_enabled = false;
 #endif
 
-    bool secure_required = false;
+  bool secure_required = false;
 
-    std::atomic<unsigned> last_connection_id = 0;
+  std::atomic<unsigned> last_connection_id = 0;
 
-    ProfileEvents::Event read_event;
-    ProfileEvents::Event write_event;
-public:
-    explicit MySQLHandlerFactory(IServer & server_, bool secure_required_, const ProfileEvents::Event & read_event_ = ProfileEvents::end(), const ProfileEvents::Event & write_event_ = ProfileEvents::end());
+  ProfileEvents::Event read_event;
+  ProfileEvents::Event write_event;
 
-    void readRSAKeys();
+ public:
+  explicit MySQLHandlerFactory(IServer& server_, bool secure_required_, const ProfileEvents::Event& read_event_ = ProfileEvents::end(),
+                               const ProfileEvents::Event& write_event_ = ProfileEvents::end());
 
-    void generateRSAKeys();
+  void readRSAKeys();
 
-    Poco::Net::TCPServerConnection * createConnectionImpl(const Poco::Net::StreamSocket & socket, TCPServer & tcp_server) override;
+  void generateRSAKeys();
+
+  Poco::Net::TCPServerConnection* createConnectionImpl(const Poco::Net::StreamSocket& socket, TCPServer& tcp_server) override;
 };
 
-}
+}  // namespace DB

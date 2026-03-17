@@ -2,53 +2,45 @@
 
 #if USE_JWT_CPP && USE_SSL
 
-#include <Client/JWTProvider.h>
-#include <Poco/Timestamp.h>
-#include <string>
-#include <iosfwd>
-#include <map>
+#  include <Client/JWTProvider.h>
+#  include <Poco/Timestamp.h>
+#  include <iosfwd>
+#  include <map>
+#  include <string>
 
-namespace DB
-{
+namespace DB {
 
 /// JWT Provider for the ClickHouse managed service flow, which involves a token swap.
-class CloudJWTProvider : public JWTProvider
-{
-public:
-    CloudJWTProvider(
-        std::string auth_url,
-        std::string client_id,
-        std::string audience,
-        std::string host,
-        std::ostream & out,
-        std::ostream & err);
+class CloudJWTProvider : public JWTProvider {
+ public:
+  CloudJWTProvider(std::string auth_url, std::string client_id, std::string audience, std::string host, std::ostream& out,
+                   std::ostream& err);
 
-    std::string getJWT() override;
+  std::string getJWT() override;
 
-private:
-    std::string getAudience() const override;
+ private:
+  std::string getAudience() const override;
 
-    struct AuthEndpoints
-    {
-        std::string auth_url;
-        std::string client_id;
-        std::string api_host;
-    };
+  struct AuthEndpoints {
+    std::string auth_url;
+    std::string client_id;
+    std::string api_host;
+  };
 
-    void exchangeIdPTokenForClickHouseJWT(bool show_messages = true);
+  void exchangeIdPTokenForClickHouseJWT(bool show_messages = true);
 
-    static const AuthEndpoints * getAuthEndpoints(const std::string & host);
+  static const AuthEndpoints* getAuthEndpoints(const std::string& host);
 
-    // Configuration
-    std::string host_str;
+  // Configuration
+  std::string host_str;
 
-    // Token State
-    std::string clickhouse_jwt;
-    Poco::Timestamp clickhouse_jwt_expires_at{0};
+  // Token State
+  std::string clickhouse_jwt;
+  Poco::Timestamp clickhouse_jwt_expires_at{0};
 
-    static const std::map<std::string, AuthEndpoints> managed_service_endpoints;
+  static const std::map<std::string, AuthEndpoints> managed_service_endpoints;
 };
 
-}
+}  // namespace DB
 
 #endif

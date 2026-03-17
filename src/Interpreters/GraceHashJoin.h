@@ -12,8 +12,7 @@
 
 #include <mutex>
 
-namespace DB
-{
+namespace DB {
 class TableJoin;
 class HashJoin;
 
@@ -41,121 +40,116 @@ class HashJoin;
  * After joining the left table blocks, we can load non-joined rows from the right table for RIGHT/FULL JOINs.
  * Note that non-joined rows are processed in multiple threads, unlike HashJoin/ConcurrentHashJoin/MergeJoin.
  */
-class GraceHashJoin final : public IJoin
-{
-    class FileBucket;
-    class DelayedBlocks;
+class GraceHashJoin final : public IJoin {
+  class FileBucket;
+  class DelayedBlocks;
 
-    using InMemoryJoinPtr = std::shared_ptr<HashJoin>;
+  using InMemoryJoinPtr = std::shared_ptr<HashJoin>;
 
-public:
-    using BucketPtr = std::shared_ptr<FileBucket>;
-    using Buckets = std::vector<BucketPtr>;
+ public:
+  using BucketPtr = std::shared_ptr<FileBucket>;
+  using Buckets = std::vector<BucketPtr>;
 
-    GraceHashJoin(
-        size_t initial_num_buckets_,
-        size_t max_num_buckets_,
-        std::shared_ptr<TableJoin> table_join_,
-        SharedHeader left_sample_block_, SharedHeader right_sample_block_,
-        TemporaryDataOnDiskScopePtr tmp_data_,
-        bool any_take_last_row_ = false);
+  GraceHashJoin(size_t initial_num_buckets_, size_t max_num_buckets_, std::shared_ptr<TableJoin> table_join_,
+                SharedHeader left_sample_block_, SharedHeader right_sample_block_, TemporaryDataOnDiskScopePtr tmp_data_,
+                bool any_take_last_row_ = false);
 
-    ~GraceHashJoin() override;
+  ~GraceHashJoin() override;
 
-    std::string getName() const override { return "GraceHashJoin"; }
-    const TableJoin & getTableJoin() const override { return *table_join; }
+  std::string getName() const override { return "GraceHashJoin"; }
+  const TableJoin& getTableJoin() const override { return *table_join; }
 
-    void initialize(const Block & sample_block) override;
+  void initialize(const Block& sample_block) override;
 
-    bool addBlockToJoin(const Block & block, bool check_limits) override;
-    void checkTypesOfKeys(const Block & block) const override;
-    JoinResultPtr joinBlock(Block block) override;
+  bool addBlockToJoin(const Block& block, bool check_limits) override;
+  void checkTypesOfKeys(const Block& block) const override;
+  JoinResultPtr joinBlock(Block block) override;
 
-    void setTotals(const Block & block) override;
-    const Block & getTotals() const override;
+  void setTotals(const Block& block) override;
+  const Block& getTotals() const override;
 
-    size_t getTotalRowCount() const override;
-    size_t getTotalByteCount() const override;
-    bool alwaysReturnsEmptySet() const override;
+  size_t getTotalRowCount() const override;
+  size_t getTotalByteCount() const override;
+  bool alwaysReturnsEmptySet() const override;
 
-    bool supportParallelJoin() const override { return true; }
+  bool supportParallelJoin() const override { return true; }
 
-    IBlocksStreamPtr
-    getNonJoinedBlocks(const Block & left_sample_block_, const Block & result_sample_block_, UInt64 max_block_size) const override;
+  IBlocksStreamPtr getNonJoinedBlocks(const Block& left_sample_block_, const Block& result_sample_block_,
+                                      UInt64 max_block_size) const override;
 
-    /// Open iterator over joined blocks.
-    /// Must be called after all @joinBlock calls.
-    IBlocksStreamPtr getDelayedBlocks() override;
-    bool hasDelayedBlocks() const override { return true; }
-    bool rightTableCanBeReranged() const override;
-    void tryRerangeRightTableData() override;
+  /// Open iterator over joined blocks.
+  /// Must be called after all @joinBlock calls.
+  IBlocksStreamPtr getDelayedBlocks() override;
+  bool hasDelayedBlocks() const override { return true; }
+  bool rightTableCanBeReranged() const override;
+  void tryRerangeRightTableData() override;
 
-    void onBuildPhaseFinish() override;
+  void onBuildPhaseFinish() override;
 
-    static bool isSupported(const std::shared_ptr<TableJoin> & table_join);
+  static bool isSupported(const std::shared_ptr<TableJoin>& table_join);
 
-    void forceSpill() { force_spill = true; }
+  void forceSpill() { force_spill = true; }
 
-private:
-    void initBuckets();
-    /// Create empty join for in-memory processing.
-    InMemoryJoinPtr makeInMemoryJoin(const String & bucket_id, size_t reserve_num = 0);
+ private:
+  void initBuckets();
+  /// Create empty join for in-memory processing.
+  InMemoryJoinPtr makeInMemoryJoin(const String& bucket_id, size_t reserve_num = 0);
 
-    /// Add right table block to the @join. Calls @rehash on overflow.
-    void addBlockToJoinImpl(Block block);
+  /// Add right table block to the @join. Calls @rehash on overflow.
+  void addBlockToJoinImpl(Block block);
 
-    /// Check that join satisfies limits on rows/bytes in table_join.
-    bool hasMemoryOverflow(size_t total_rows, size_t total_bytes) const;
-    bool hasMemoryOverflow(const InMemoryJoinPtr & hash_join_) const;
-    bool hasMemoryOverflow(const BlocksList & blocks) const;
+  /// Check that join satisfies limits on rows/bytes in table_join.
+  bool hasMemoryOverflow(size_t total_rows, size_t total_bytes) const;
+  bool hasMemoryOverflow(const InMemoryJoinPtr& hash_join_) const;
+  bool hasMemoryOverflow(const BlocksList& blocks) const;
 
-    /// Add bucket_count new buckets
-    /// Throws if a bucket creation fails
-    void addBuckets(size_t bucket_count);
+  /// Add bucket_count new buckets
+  /// Throws if a bucket creation fails
+  void addBuckets(size_t bucket_count);
 
-    /// Increase number of buckets to match desired_size.
-    /// Called when HashJoin in-memory table for one bucket exceeds the limits.
-    ///
-    /// NB: after @rehashBuckets there may be rows that are written to the buckets that they do not belong to.
-    /// It is fine; these rows will be written to the corresponding buckets during the third stage.
-    Buckets rehashBuckets();
+  /// Increase number of buckets to match desired_size.
+  /// Called when HashJoin in-memory table for one bucket exceeds the limits.
+  ///
+  /// NB: after @rehashBuckets there may be rows that are written to the buckets that they do not belong to.
+  /// It is fine; these rows will be written to the corresponding buckets during the third stage.
+  Buckets rehashBuckets();
 
-    /// Perform some bookkeeping after all calls to @joinBlock.
-    void startReadingDelayedBlocks();
+  /// Perform some bookkeeping after all calls to @joinBlock.
+  void startReadingDelayedBlocks();
 
-    size_t getNumBuckets() const;
-    Buckets getCurrentBuckets() const;
+  size_t getNumBuckets() const;
+  Buckets getCurrentBuckets() const;
 
-    /// Structure block to store in the HashJoin according to sample_block.
-    Block prepareRightBlock(const Block & block);
+  /// Structure block to store in the HashJoin according to sample_block.
+  Block prepareRightBlock(const Block& block);
 
-    LoggerPtr log;
-    std::shared_ptr<TableJoin> table_join;
-    SharedHeader left_sample_block;
-    SharedHeader right_sample_block;
-    Block output_sample_block;
-    bool any_take_last_row;
-    const size_t initial_num_buckets;
-    const size_t max_num_buckets;
+  LoggerPtr log;
+  std::shared_ptr<TableJoin> table_join;
+  SharedHeader left_sample_block;
+  SharedHeader right_sample_block;
+  Block output_sample_block;
+  bool any_take_last_row;
+  const size_t initial_num_buckets;
+  const size_t max_num_buckets;
 
-    Names left_key_names;
-    Names right_key_names;
+  Names left_key_names;
+  Names right_key_names;
 
-    TemporaryDataOnDiskScopePtr tmp_data;
+  TemporaryDataOnDiskScopePtr tmp_data;
 
-    Buckets buckets;
-    mutable SharedMutex rehash_mutex;
+  Buckets buckets;
+  mutable SharedMutex rehash_mutex;
 
-    FileBucket * current_bucket = nullptr;
+  FileBucket* current_bucket = nullptr;
 
-    mutable std::mutex current_bucket_mutex;
+  mutable std::mutex current_bucket_mutex;
 
-    InMemoryJoinPtr hash_join;
-    Block hash_join_sample_block;
-    mutable std::mutex hash_join_mutex;
-    std::atomic<bool> force_spill = false;
+  InMemoryJoinPtr hash_join;
+  Block hash_join_sample_block;
+  mutable std::mutex hash_join_mutex;
+  std::atomic<bool> force_spill = false;
 
-    mutable std::mutex totals_mutex;
+  mutable std::mutex totals_mutex;
 };
 
-}
+}  // namespace DB

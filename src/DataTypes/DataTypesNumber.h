@@ -1,59 +1,52 @@
 #pragma once
 
-#include <type_traits>
 #include <Common/Exception.h>
 #include <Core/Field.h>
 #include <DataTypes/DataTypeNumberBase.h>
 #include <DataTypes/Serializations/SerializationNumber.h>
+#include <type_traits>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
 }
 
 template <typename T>
-class DataTypeNumber final : public DataTypeNumberBase<T>
-{
-public:
-    DataTypeNumber() = default;
+class DataTypeNumber final : public DataTypeNumberBase<T> {
+ public:
+  DataTypeNumber() = default;
 
-    bool equals(const IDataType & rhs) const override { return typeid(rhs) == typeid(*this); }
+  bool equals(const IDataType &rhs) const override { return typeid(rhs) == typeid(*this); }
 
-    bool canBeUsedAsVersion() const override { return true; }
-    bool isSummable() const override { return true; }
-    bool canBeUsedInBitOperations() const override { return true; }
-    bool canBeUsedInBooleanContext() const override { return WhichDataType(TypeToTypeIndex<T>).isNativeNumber(); }
-    bool canBeInsideNullable() const override { return true; }
+  bool canBeUsedAsVersion() const override { return true; }
+  bool isSummable() const override { return true; }
+  bool canBeUsedInBitOperations() const override { return true; }
+  bool canBeUsedInBooleanContext() const override { return WhichDataType(TypeToTypeIndex<T>).isNativeNumber(); }
+  bool canBeInsideNullable() const override { return true; }
 
-    bool canBePromoted() const override { return true; }
-    DataTypePtr promoteNumericType() const override
-    {
-        using PromotedType = DataTypeNumber<NearestFieldType<T>>;
-        return std::make_shared<PromotedType>();
-    }
+  bool canBePromoted() const override { return true; }
+  DataTypePtr promoteNumericType() const override {
+    using PromotedType = DataTypeNumber<NearestFieldType<T>>;
+    return std::make_shared<PromotedType>();
+  }
 
-    SerializationPtr doGetSerialization(const SerializationInfoSettings &) const override
-    {
-        return std::make_shared<SerializationNumber<T>>();
-    }
+  SerializationPtr doGetSerialization(const SerializationInfoSettings &) const override {
+    return std::make_shared<SerializationNumber<T>>();
+  }
 
-    /// Special constructor for unsigned integers that can also fit into signed integer.
-    /// It's used for better type inference from fields.
-    /// See getLeastSupertype.cpp::convertUInt64toInt64IfPossible and FieldToDataType.cpp
-    explicit DataTypeNumber(bool unsigned_can_be_signed_) : DataTypeNumberBase<T>(), unsigned_can_be_signed(unsigned_can_be_signed_)
-    {
-        if constexpr (std::is_signed_v<T>)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "DataTypeNumber constructor with bool argument should not be used with signed integers");
-    }
+  /// Special constructor for unsigned integers that can also fit into signed integer.
+  /// It's used for better type inference from fields.
+  /// See getLeastSupertype.cpp::convertUInt64toInt64IfPossible and FieldToDataType.cpp
+  explicit DataTypeNumber(bool unsigned_can_be_signed_) : DataTypeNumberBase<T>(), unsigned_can_be_signed(unsigned_can_be_signed_) {
+    if constexpr (std::is_signed_v<T>)
+      throw Exception(ErrorCodes::LOGICAL_ERROR, "DataTypeNumber constructor with bool argument should not be used with signed integers");
+  }
 
-    bool canUnsignedBeSigned() const { return unsigned_can_be_signed; }
+  bool canUnsignedBeSigned() const { return unsigned_can_be_signed; }
 
-private:
-    bool unsigned_can_be_signed = false;
+ private:
+  bool unsigned_can_be_signed = false;
 };
 
 extern template class DataTypeNumber<UInt8>;
@@ -90,10 +83,10 @@ using DataTypeInt128 = DataTypeNumber<Int128>;
 using DataTypeUInt256 = DataTypeNumber<UInt256>;
 using DataTypeInt256 = DataTypeNumber<Int256>;
 
-bool isUInt64ThatCanBeInt64(const DataTypePtr & type);
+bool isUInt64ThatCanBeInt64(const DataTypePtr &type);
 
 /// Function helper to create a type for column that contains indexes.
 /// It chooses the smallest numeric type based on the desired number of indexes.
 DataTypePtr getSmallestIndexesType(size_t num_indexes);
 
-}
+}  // namespace DB

@@ -13,100 +13,87 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_MultipartWriter_INCLUDED
 #define Net_MultipartWriter_INCLUDED
-
 
 #include <ostream>
 #include "Poco/Net/Net.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class MessageHeader;
+
+class Net_API MultipartWriter
+/// This class is used to write MIME multipart
+/// messages to an output stream.
+///
+/// The format of multipart messages is described
+/// in section 5.1 of RFC 2046.
+///
+/// To create a multipart message, first create
+/// a MultipartWriter object.
+/// Then, for each part, call nextPart() and
+/// write the content to the output stream.
+/// Repeat for all parts.
+/// After the last part has been written,
+/// call close() to finish the multipart message.
 {
-namespace Net
-{
+ public:
+  explicit MultipartWriter(std::ostream &ostr);
+  /// Creates the MultipartWriter, using the
+  /// given output stream.
+  ///
+  /// Creates a random boundary string.
 
+  MultipartWriter(std::ostream &ostr, const std::string &boundary);
+  /// Creates the MultipartWriter, using the
+  /// given output stream and boundary string.
 
-    class MessageHeader;
+  ~MultipartWriter();
+  /// Destroys the MultipartWriter.
 
+  void nextPart(const MessageHeader &header);
+  /// Opens a new message part and writes
+  /// the message boundary string, followed
+  /// by the message header to the stream.
 
-    class Net_API MultipartWriter
-    /// This class is used to write MIME multipart
-    /// messages to an output stream.
-    ///
-    /// The format of multipart messages is described
-    /// in section 5.1 of RFC 2046.
-    ///
-    /// To create a multipart message, first create
-    /// a MultipartWriter object.
-    /// Then, for each part, call nextPart() and
-    /// write the content to the output stream.
-    /// Repeat for all parts.
-    /// After the last part has been written,
-    /// call close() to finish the multipart message.
-    {
-    public:
-        explicit MultipartWriter(std::ostream & ostr);
-        /// Creates the MultipartWriter, using the
-        /// given output stream.
-        ///
-        /// Creates a random boundary string.
+  void close();
+  /// Closes the multipart message and writes
+  /// the terminating boundary string.
+  ///
+  /// Does not close the underlying stream.
 
-        MultipartWriter(std::ostream & ostr, const std::string & boundary);
-        /// Creates the MultipartWriter, using the
-        /// given output stream and boundary string.
+  std::ostream &stream();
+  /// Returns the writer's stream.
 
-        ~MultipartWriter();
-        /// Destroys the MultipartWriter.
+  const std::string &boundary() const;
+  /// Returns the multipart boundary used by this writer.
 
-        void nextPart(const MessageHeader & header);
-        /// Opens a new message part and writes
-        /// the message boundary string, followed
-        /// by the message header to the stream.
+  static std::string createBoundary();
+  /// Creates a random boundary string.
+  ///
+  /// The string always has the form
+  /// MIME_boundary_XXXXXXXXXXXX, where
+  /// XXXXXXXXXXXX is a random hexadecimal
+  /// number.
 
-        void close();
-        /// Closes the multipart message and writes
-        /// the terminating boundary string.
-        ///
-        /// Does not close the underlying stream.
+ private:
+  MultipartWriter();
+  MultipartWriter(const MultipartWriter &);
+  MultipartWriter &operator=(const MultipartWriter &);
 
-        std::ostream & stream();
-        /// Returns the writer's stream.
+  std::ostream &_ostr;
+  std::string _boundary;
+  bool _firstPart;
+};
 
-        const std::string & boundary() const;
-        /// Returns the multipart boundary used by this writer.
+//
+// inlines
+//
+inline std::ostream &MultipartWriter::stream() { return _ostr; }
 
-        static std::string createBoundary();
-        /// Creates a random boundary string.
-        ///
-        /// The string always has the form
-        /// MIME_boundary_XXXXXXXXXXXX, where
-        /// XXXXXXXXXXXX is a random hexadecimal
-        /// number.
+}  // namespace Net
+}  // namespace Poco
 
-    private:
-        MultipartWriter();
-        MultipartWriter(const MultipartWriter &);
-        MultipartWriter & operator=(const MultipartWriter &);
-
-        std::ostream & _ostr;
-        std::string _boundary;
-        bool _firstPart;
-    };
-
-
-    //
-    // inlines
-    //
-    inline std::ostream & MultipartWriter::stream()
-    {
-        return _ostr;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_MultipartWriter_INCLUDED
+#endif  // Net_MultipartWriter_INCLUDED

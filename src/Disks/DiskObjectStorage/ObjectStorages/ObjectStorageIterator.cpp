@@ -1,20 +1,16 @@
-#include <Disks/DiskObjectStorage/ObjectStorages/ObjectStorageIterator.h>
 #include <Common/Exception.h>
+#include <Disks/DiskObjectStorage/ObjectStorages/ObjectStorageIterator.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
+namespace ErrorCodes {
+extern const int LOGICAL_ERROR;
 }
 
-RelativePathWithMetadataPtr ObjectStorageIteratorFromList::current()
-{
-    if (!isValid())
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to access invalid iterator");
+RelativePathWithMetadataPtr ObjectStorageIteratorFromList::current() {
+  if (!isValid()) throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to access invalid iterator");
 
-    return *batch_iterator;
+  return *batch_iterator;
 }
 
-}
+}  // namespace DB

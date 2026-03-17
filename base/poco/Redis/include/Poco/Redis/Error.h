@@ -13,79 +13,57 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Redis_Error_INCLUDED
 #define Redis_Error_INCLUDED
 
-
 #include "Poco/Redis/Type.h"
 
+namespace Poco {
+namespace Redis {
 
-namespace Poco
+class Redis_API Error
+/// Represent a Redis error.
 {
-namespace Redis
-{
+ public:
+  Error();
+  /// Creates an empty Error.
 
+  Error(const std::string& message);
+  /// Creates an Error with the given message.
 
-    class Redis_API Error
-    /// Represent a Redis error.
-    {
-    public:
-        Error();
-        /// Creates an empty Error.
+  virtual ~Error();
+  /// Destroys the Error.
 
-        Error(const std::string & message);
-        /// Creates an Error with the given message.
+  const std::string& getMessage() const;
+  /// Returns the error message.
 
-        virtual ~Error();
-        /// Destroys the Error.
+  void setMessage(const std::string& message);
+  /// Sets the error message.
 
-        const std::string & getMessage() const;
-        /// Returns the error message.
+ private:
+  std::string _message;
+};
 
-        void setMessage(const std::string & message);
-        /// Sets the error message.
+//
+// inlines
+//
 
-    private:
-        std::string _message;
-    };
+inline const std::string& Error::getMessage() const { return _message; }
 
+inline void Error::setMessage(const std::string& message) { _message = message; }
 
-    //
-    // inlines
-    //
+template <>
+struct RedisTypeTraits<Error> {
+  enum { TypeId = RedisType::REDIS_ERROR };
 
+  static const char marker = '-';
 
-    inline const std::string & Error::getMessage() const
-    {
-        return _message;
-    }
+  static std::string toString(const Error& value) { return marker + value.getMessage() + LineEnding::NEWLINE_CRLF; }
 
+  static void read(RedisInputStream& input, Error& value) { value.setMessage(input.getline()); }
+};
 
-    inline void Error::setMessage(const std::string & message)
-    {
-        _message = message;
-    }
+}  // namespace Redis
+}  // namespace Poco
 
-
-    template <>
-    struct RedisTypeTraits<Error>
-    {
-        enum
-        {
-            TypeId = RedisType::REDIS_ERROR
-        };
-
-        static const char marker = '-';
-
-        static std::string toString(const Error & value) { return marker + value.getMessage() + LineEnding::NEWLINE_CRLF; }
-
-        static void read(RedisInputStream & input, Error & value) { value.setMessage(input.getline()); }
-    };
-
-
-}
-} // namespace Poco::Redis
-
-
-#endif // Redis_Error_INCLUDED
+#endif  // Redis_Error_INCLUDED

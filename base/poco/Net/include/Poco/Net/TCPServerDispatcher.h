@@ -13,7 +13,6 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_TCPServerDispatcher_INCLUDED
 #define Net_TCPServerDispatcher_INCLUDED
 
@@ -28,107 +27,97 @@
 #include "Poco/Runnable.h"
 #include "Poco/ThreadPool.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API TCPServerDispatcher : public Poco::Runnable
+/// A helper class for TCPServer that dispatches
+/// connections to server connection threads.
 {
-namespace Net
-{
+ public:
+  TCPServerDispatcher(TCPServerConnectionFactory::Ptr pFactory, Poco::ThreadPool &threadPool, TCPServerParams::Ptr pParams);
+  /// Creates the TCPServerDispatcher.
+  ///
+  /// The dispatcher takes ownership of the TCPServerParams object.
+  /// If no TCPServerParams object is supplied, the TCPServerDispatcher
+  /// creates one.
 
+  void duplicate();
+  /// Increments the object's reference count.
 
-    class Net_API TCPServerDispatcher : public Poco::Runnable
-    /// A helper class for TCPServer that dispatches
-    /// connections to server connection threads.
-    {
-    public:
-        TCPServerDispatcher(TCPServerConnectionFactory::Ptr pFactory, Poco::ThreadPool & threadPool, TCPServerParams::Ptr pParams);
-        /// Creates the TCPServerDispatcher.
-        ///
-        /// The dispatcher takes ownership of the TCPServerParams object.
-        /// If no TCPServerParams object is supplied, the TCPServerDispatcher
-        /// creates one.
+  void release();
+  /// Decrements the object's reference count
+  /// and deletes the object if the count
+  /// reaches zero.
 
-        void duplicate();
-        /// Increments the object's reference count.
+  void run();
+  /// Runs the dispatcher.
 
-        void release();
-        /// Decrements the object's reference count
-        /// and deletes the object if the count
-        /// reaches zero.
+  void enqueue(const StreamSocket &socket);
+  /// Queues the given socket connection.
 
-        void run();
-        /// Runs the dispatcher.
+  void stop();
+  /// Stops the dispatcher.
 
-        void enqueue(const StreamSocket & socket);
-        /// Queues the given socket connection.
+  int currentThreads() const;
+  /// Returns the number of currently used threads.
 
-        void stop();
-        /// Stops the dispatcher.
+  int maxThreads() const;
+  /// Returns the maximum number of threads available.
 
-        int currentThreads() const;
-        /// Returns the number of currently used threads.
+  int totalConnections() const;
+  /// Returns the total number of handled connections.
 
-        int maxThreads() const;
-        /// Returns the maximum number of threads available.
+  int currentConnections() const;
+  /// Returns the number of currently handled connections.
 
-        int totalConnections() const;
-        /// Returns the total number of handled connections.
+  int maxConcurrentConnections() const;
+  /// Returns the maximum number of concurrently handled connections.
 
-        int currentConnections() const;
-        /// Returns the number of currently handled connections.
+  int queuedConnections() const;
+  /// Returns the number of queued connections.
 
-        int maxConcurrentConnections() const;
-        /// Returns the maximum number of concurrently handled connections.
+  int refusedConnections() const;
+  /// Returns the number of refused connections.
 
-        int queuedConnections() const;
-        /// Returns the number of queued connections.
+  const TCPServerParams &params() const;
+  /// Returns a const reference to the TCPServerParam object.
 
-        int refusedConnections() const;
-        /// Returns the number of refused connections.
+ protected:
+  ~TCPServerDispatcher();
+  /// Destroys the TCPServerDispatcher.
 
-        const TCPServerParams & params() const;
-        /// Returns a const reference to the TCPServerParam object.
+  void beginConnection();
+  /// Updates the performance counters.
 
-    protected:
-        ~TCPServerDispatcher();
-        /// Destroys the TCPServerDispatcher.
+  void endConnection();
+  /// Updates the performance counters.
 
-        void beginConnection();
-        /// Updates the performance counters.
+ private:
+  TCPServerDispatcher();
+  TCPServerDispatcher(const TCPServerDispatcher &);
+  TCPServerDispatcher &operator=(const TCPServerDispatcher &);
 
-        void endConnection();
-        /// Updates the performance counters.
+  std::atomic<int> _rc;
+  TCPServerParams::Ptr _pParams;
+  std::atomic<int> _currentThreads;
+  std::atomic<int> _totalConnections;
+  std::atomic<int> _currentConnections;
+  std::atomic<int> _maxConcurrentConnections;
+  std::atomic<int> _refusedConnections;
+  std::atomic<bool> _stopped;
+  Poco::NotificationQueue _queue;
+  TCPServerConnectionFactory::Ptr _pConnectionFactory;
+  Poco::ThreadPool &_threadPool;
+  mutable Poco::FastMutex _mutex;
+};
 
-    private:
-        TCPServerDispatcher();
-        TCPServerDispatcher(const TCPServerDispatcher &);
-        TCPServerDispatcher & operator=(const TCPServerDispatcher &);
+//
+// inlines
+//
+inline const TCPServerParams &TCPServerDispatcher::params() const { return *_pParams; }
 
-        std::atomic<int> _rc;
-        TCPServerParams::Ptr _pParams;
-        std::atomic<int> _currentThreads;
-        std::atomic<int> _totalConnections;
-        std::atomic<int> _currentConnections;
-        std::atomic<int> _maxConcurrentConnections;
-        std::atomic<int> _refusedConnections;
-        std::atomic<bool> _stopped;
-        Poco::NotificationQueue _queue;
-        TCPServerConnectionFactory::Ptr _pConnectionFactory;
-        Poco::ThreadPool & _threadPool;
-        mutable Poco::FastMutex _mutex;
-    };
+}  // namespace Net
+}  // namespace Poco
 
-
-    //
-    // inlines
-    //
-    inline const TCPServerParams & TCPServerDispatcher::params() const
-    {
-        return *_pParams;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_TCPServerDispatcher_INCLUDED
+#endif  // Net_TCPServerDispatcher_INCLUDED

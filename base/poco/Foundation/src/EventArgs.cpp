@@ -13,21 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/EventArgs.h"
-
 
 namespace Poco {
 
+EventArgs::EventArgs() {}
 
-EventArgs::EventArgs()
-{
-}
+EventArgs::~EventArgs() {}
 
-
-EventArgs::~EventArgs()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

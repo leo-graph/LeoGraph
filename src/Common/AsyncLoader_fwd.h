@@ -1,11 +1,10 @@
 #pragma once
 
-#include <vector>
 #include <memory>
 #include <unordered_set>
+#include <vector>
 
-namespace DB
-{
+namespace DB {
 
 class AsyncLoader;
 class LoadTask;
@@ -16,4 +15,4 @@ class LoadJob;
 using LoadJobPtr = std::shared_ptr<LoadJob>;
 using LoadJobSet = std::unordered_set<LoadJobPtr>;
 
-}
+}  // namespace DB

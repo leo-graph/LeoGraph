@@ -2,17 +2,15 @@
 
 #include <Parsers/IParserBase.h>
 
-namespace DB
-{
+namespace DB {
 
-class ParserStringAndSubstitution : public IParserBase
-{
-private:
-    const char * getName() const override { return "ParserStringAndSubstitution"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+class ParserStringAndSubstitution : public IParserBase {
+ private:
+  const char* getName() const override { return "ParserStringAndSubstitution"; }
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 
-public:
-    explicit ParserStringAndSubstitution() = default;
+ public:
+  explicit ParserStringAndSubstitution() = default;
 };
 
-}
+}  // namespace DB

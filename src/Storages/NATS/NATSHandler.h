@@ -1,55 +1,53 @@
 #pragma once
 
+#include <base/types.h>
+#include <Common/Logger.h>
+#include <nats.h>
 #include <uv.h>
 #include <future>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <queue>
-#include <nats.h>
-#include <base/types.h>
-#include <Common/Logger.h>
+#include <thread>
 
 #include <Storages/NATS/NATSConnection.h>
 #include <Storages/UVLoop.h>
 
-namespace DB
-{
+namespace DB {
 
-class NATSHandler
-{
-    using Task = std::function<void ()>;
+class NATSHandler {
+  using Task = std::function<void()>;
 
-public:
-    explicit NATSHandler(LoggerPtr log_);
+ public:
+  explicit NATSHandler(LoggerPtr log_);
 
-    /// Loop for background thread worker.
-    void runLoop();
-    void stopLoop();
+  /// Loop for background thread worker.
+  void runLoop();
+  void stopLoop();
 
-    std::future<NATSConnectionPtr> createConnection(const NATSConfiguration & configuration);
+  std::future<NATSConnectionPtr> createConnection(const NATSConfiguration& configuration);
 
-private:
-    static void processTasks(uv_async_t* scheduler);
+ private:
+  static void processTasks(uv_async_t* scheduler);
 
-    /// Execute task on event loop thread
-    void post(Task task);
-    void executeTasks();
+  /// Execute task on event loop thread
+  void post(Task task);
+  void executeTasks();
 
-    NATSOptionsPtr createOptions();
+  NATSOptionsPtr createOptions();
 
-    void resetThreadLocalLoop();
+  void resetThreadLocalLoop();
 
-    UVLoop loop;
-    LoggerPtr log;
+  UVLoop loop;
+  LoggerPtr log;
 
-    std::mutex loop_state_mutex;
-    UInt8 loop_state;
+  std::mutex loop_state_mutex;
+  UInt8 loop_state;
 
-    std::mutex tasks_mutex;
-    std::queue<Task> tasks;
+  std::mutex tasks_mutex;
+  std::queue<Task> tasks;
 
-    uv_async_t execute_tasks_scheduler;
+  uv_async_t execute_tasks_scheduler;
 };
 
-}
+}  // namespace DB

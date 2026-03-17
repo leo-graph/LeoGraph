@@ -3,19 +3,16 @@
 #include <Interpreters/IInterpreter.h>
 #include <Parsers/IAST_fwd.h>
 
+namespace DB {
 
-namespace DB
-{
+class InterpreterCheckGrantQuery : public IInterpreter, WithMutableContext {
+ public:
+  InterpreterCheckGrantQuery(const ASTPtr& query_ptr_, ContextMutablePtr context_) : WithMutableContext(context_), query_ptr(query_ptr_) {}
 
-class InterpreterCheckGrantQuery : public IInterpreter, WithMutableContext
-{
-public:
-    InterpreterCheckGrantQuery(const ASTPtr & query_ptr_, ContextMutablePtr context_) : WithMutableContext(context_), query_ptr(query_ptr_) {}
+  BlockIO execute() override;
 
-    BlockIO execute() override;
-
-private:
-    ASTPtr query_ptr;
+ private:
+  ASTPtr query_ptr;
 };
 
-}
+}  // namespace DB

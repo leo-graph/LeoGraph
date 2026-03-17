@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_PatternFormatter_INCLUDED
 #define Foundation_PatternFormatter_INCLUDED
-
 
 #include "Poco/Formatter.h"
 #include "Poco/Foundation.h"
@@ -24,9 +22,7 @@
 
 #include <vector>
 
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API PatternFormatter : public Formatter
 /// This Formatter allows for custom formatting of
@@ -77,71 +73,68 @@ class Foundation_API PatternFormatter : public Formatter
 ///   * %% - percent sign
 
 {
-public:
-    PatternFormatter();
-    /// Creates a PatternFormatter.
-    /// The format pattern must be specified with
-    /// a call to setProperty.
+ public:
+  PatternFormatter();
+  /// Creates a PatternFormatter.
+  /// The format pattern must be specified with
+  /// a call to setProperty.
 
-    PatternFormatter(const std::string & format);
-    /// Creates a PatternFormatter that uses the
-    /// given format pattern.
+  PatternFormatter(const std::string& format);
+  /// Creates a PatternFormatter that uses the
+  /// given format pattern.
 
-    ~PatternFormatter();
-    /// Destroys the PatternFormatter.
+  ~PatternFormatter();
+  /// Destroys the PatternFormatter.
 
-    void format(const Message & msg, std::string & text);
-    /// Formats the message according to the specified
-    /// format pattern and places the result in text.
+  void format(const Message& msg, std::string& text);
+  /// Formats the message according to the specified
+  /// format pattern and places the result in text.
 
-    void setProperty(const std::string & name, const std::string & value);
-    /// Sets the property with the given name to the given value.
-    ///
-    /// The following properties are supported:
-    ///
-    ///     * pattern: The format pattern. See the PatternFormatter class
-    ///       for details.
-    ///     * times: Specifies whether times are adjusted for local time
-    ///       or taken as they are in UTC. Supported values are "local" and "UTC".
-    ///
-    /// If any other property name is given, a PropertyNotSupported
-    /// exception is thrown.
+  void setProperty(const std::string& name, const std::string& value);
+  /// Sets the property with the given name to the given value.
+  ///
+  /// The following properties are supported:
+  ///
+  ///     * pattern: The format pattern. See the PatternFormatter class
+  ///       for details.
+  ///     * times: Specifies whether times are adjusted for local time
+  ///       or taken as they are in UTC. Supported values are "local" and "UTC".
+  ///
+  /// If any other property name is given, a PropertyNotSupported
+  /// exception is thrown.
 
-    std::string getProperty(const std::string & name) const;
-    /// Returns the value of the property with the given name or
-    /// throws a PropertyNotSupported exception if the given
-    /// name is not recognized.
+  std::string getProperty(const std::string& name) const;
+  /// Returns the value of the property with the given name or
+  /// throws a PropertyNotSupported exception if the given
+  /// name is not recognized.
 
-    static const std::string PROP_PATTERN;
-    static const std::string PROP_TIMES;
+  static const std::string PROP_PATTERN;
+  static const std::string PROP_TIMES;
 
-protected:
-    static const std::string & getPriorityName(int);
-    /// Returns a string for the given priority value.
+ protected:
+  static const std::string& getPriorityName(int);
+  /// Returns a string for the given priority value.
 
-private:
-    struct PatternAction
-    {
-        PatternAction() : key(0), length(0) { }
+ private:
+  struct PatternAction {
+    PatternAction() : key(0), length(0) {}
 
-        char key;
-        int length;
-        std::string property;
-        std::string prepend;
-    };
+    char key;
+    int length;
+    std::string property;
+    std::string prepend;
+  };
 
-    void parsePattern();
-    /// Will parse the _pattern string into the vector of PatternActions,
-    /// which contains the message key, any text that needs to be written first
-    /// a property in case of %[] and required length.
+  void parsePattern();
+  /// Will parse the _pattern string into the vector of PatternActions,
+  /// which contains the message key, any text that needs to be written first
+  /// a property in case of %[] and required length.
 
-    std::vector<PatternAction> _patternActions;
-    bool _localTime;
-    std::string _pattern;
+  std::vector<PatternAction> _patternActions;
+  bool _localTime;
+  std::string _pattern;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_PatternFormatter_INCLUDED
+#endif  // Foundation_PatternFormatter_INCLUDED

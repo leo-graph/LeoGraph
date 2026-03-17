@@ -3,9 +3,7 @@
 #include <Common/logger_useful.h>
 #include <Interpreters/Context_fwd.h>
 
-
-namespace DB
-{
+namespace DB {
 class HTTPServerRequest;
 class HTMLForm;
 class HTTPServerResponse;
@@ -28,14 +26,8 @@ struct HTTPHandlerConnectionConfig;
 /// - the `request_credentials` instance must be preserved until the next request or until any exception.
 ///
 /// Throws an exception if authentication failed.
-bool authenticateUserByHTTP(
-    const HTTPServerRequest & request,
-    const HTMLForm & params,
-    HTTPServerResponse & response,
-    Session & session,
-    std::unique_ptr<Credentials> & request_credentials,
-    const HTTPHandlerConnectionConfig & connection_config,
-    ContextPtr global_context,
-    LoggerPtr log);
+bool authenticateUserByHTTP(const HTTPServerRequest& request, const HTMLForm& params, HTTPServerResponse& response, Session& session,
+                            std::unique_ptr<Credentials>& request_credentials, const HTTPHandlerConnectionConfig& connection_config,
+                            ContextPtr global_context, LoggerPtr log);
 
-}
+}  // namespace DB

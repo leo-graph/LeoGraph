@@ -11,36 +11,28 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/PrivateKeyPassphraseHandler.h"
-#include "Poco/Net/SSLManager.h"
 #include "Poco/Delegate.h"
-
+#include "Poco/Net/SSLManager.h"
 
 using Poco::Delegate;
-
 
 namespace Poco {
 namespace Net {
 
-
-PrivateKeyPassphraseHandler::PrivateKeyPassphraseHandler(bool onServerSide): _serverSide(onServerSide)
-{
-	SSLManager::instance().PrivateKeyPassphraseRequired += Delegate<PrivateKeyPassphraseHandler, std::string>(this, &PrivateKeyPassphraseHandler::onPrivateKeyRequested);
+PrivateKeyPassphraseHandler::PrivateKeyPassphraseHandler(bool onServerSide) : _serverSide(onServerSide) {
+  SSLManager::instance().PrivateKeyPassphraseRequired +=
+      Delegate<PrivateKeyPassphraseHandler, std::string>(this, &PrivateKeyPassphraseHandler::onPrivateKeyRequested);
 }
 
-
-PrivateKeyPassphraseHandler::~PrivateKeyPassphraseHandler()
-{
-	try
-	{
-		SSLManager::instance().PrivateKeyPassphraseRequired -= Delegate<PrivateKeyPassphraseHandler, std::string>(this, &PrivateKeyPassphraseHandler::onPrivateKeyRequested);
-	}
-	catch (...)
-	{
-		poco_unexpected();
-	}
+PrivateKeyPassphraseHandler::~PrivateKeyPassphraseHandler() {
+  try {
+    SSLManager::instance().PrivateKeyPassphraseRequired -=
+        Delegate<PrivateKeyPassphraseHandler, std::string>(this, &PrivateKeyPassphraseHandler::onPrivateKeyRequested);
+  } catch (...) {
+    poco_unexpected();
+  }
 }
 
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

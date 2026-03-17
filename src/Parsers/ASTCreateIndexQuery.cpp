@@ -1,77 +1,68 @@
 #include <Common/quoteString.h>
 #include <IO/Operators.h>
+#include <Parsers/ASTAlterQuery.h>
 #include <Parsers/ASTCreateIndexQuery.h>
 #include <Parsers/ASTIndexDeclaration.h>
-#include <Parsers/ASTAlterQuery.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Get the text that identifies this element. */
-String ASTCreateIndexQuery::getID(char delim) const
-{
-    return "CreateIndexQuery" + (delim + getDatabase()) + delim + getTable();
+String ASTCreateIndexQuery::getID(char delim) const { return "CreateIndexQuery" + (delim + getDatabase()) + delim + getTable(); }
+
+ASTPtr ASTCreateIndexQuery::clone() const {
+  auto res = make_intrusive<ASTCreateIndexQuery>(*this);
+  res->children.clear();
+
+  res->index_name = index_name->clone();
+  res->children.push_back(res->index_name);
+
+  res->index_decl = index_decl->clone();
+  res->children.push_back(res->index_decl);
+
+  cloneTableOptions(*res);
+
+  return res;
 }
 
-ASTPtr ASTCreateIndexQuery::clone() const
-{
-    auto res = make_intrusive<ASTCreateIndexQuery>(*this);
-    res->children.clear();
+void ASTCreateIndexQuery::formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                          FormatStateStacked frame) const {
+  frame.need_parens = false;
 
-    res->index_name = index_name->clone();
-    res->children.push_back(res->index_name);
+  std::string indent_str = settings.one_line ? "" : std::string(4u * frame.indent, ' ');
 
-    res->index_decl = index_decl->clone();
-    res->children.push_back(res->index_decl);
+  ostr << indent_str;
 
-    cloneTableOptions(*res);
+  ostr << "CREATE " << (unique ? "UNIQUE " : "") << "INDEX " << (if_not_exists ? "IF NOT EXISTS " : "");
+  index_name->format(ostr, settings, state, frame);
+  ostr << " ON ";
 
-    return res;
-}
-
-void ASTCreateIndexQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    frame.need_parens = false;
-
-    std::string indent_str = settings.one_line ? "" : std::string(4u * frame.indent, ' ');
-
-    ostr << indent_str;
-
-    ostr << "CREATE " << (unique ? "UNIQUE " : "") << "INDEX " << (if_not_exists ? "IF NOT EXISTS " : "");
-    index_name->format(ostr, settings, state, frame);
-    ostr << " ON ";
-
-    if (table)
-    {
-        if (database)
-        {
-            database->format(ostr, settings, state, frame);
-            ostr << '.';
-        }
-
-        chassert(table);
-        table->format(ostr, settings, state, frame);
+  if (table) {
+    if (database) {
+      database->format(ostr, settings, state, frame);
+      ostr << '.';
     }
 
-    formatOnCluster(ostr, settings);
+    chassert(table);
+    table->format(ostr, settings, state, frame);
+  }
 
-    ostr << " ";
+  formatOnCluster(ostr, settings);
 
-    index_decl->format(ostr, settings, state, frame);
+  ostr << " ";
+
+  index_decl->format(ostr, settings, state, frame);
 }
 
-ASTPtr ASTCreateIndexQuery::convertToASTAlterCommand() const
-{
-    auto command = make_intrusive<ASTAlterCommand>();
+ASTPtr ASTCreateIndexQuery::convertToASTAlterCommand() const {
+  auto command = make_intrusive<ASTAlterCommand>();
 
-    command->type = ASTAlterCommand::ADD_INDEX;
-    command->if_not_exists = if_not_exists;
+  command->type = ASTAlterCommand::ADD_INDEX;
+  command->if_not_exists = if_not_exists;
 
-    command->index = command->children.emplace_back(index_name).get();
-    command->index_decl = command->children.emplace_back(index_decl).get();
+  command->index = command->children.emplace_back(index_name).get();
+  command->index_decl = command->children.emplace_back(index_decl).get();
 
-    return command;
+  return command;
 }
 
-}
+}  // namespace DB

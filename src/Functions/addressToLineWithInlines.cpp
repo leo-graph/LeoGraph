@@ -1,98 +1,82 @@
 #if defined(__ELF__) && !defined(OS_FREEBSD)
 
-#include <Common/Dwarf.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnArray.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypeArray.h>
-#include <Functions/FunctionFactory.h>
-#include <IO/WriteBufferFromArena.h>
-#include <IO/WriteHelpers.h>
-#include <Interpreters/Context.h>
-#include <Access/Common/AccessFlags.h>
+#  include <Access/Common/AccessFlags.h>
+#  include <Columns/ColumnArray.h>
+#  include <Columns/ColumnString.h>
+#  include <Common/Dwarf.h>
+#  include <DataTypes/DataTypeArray.h>
+#  include <DataTypes/DataTypeString.h>
+#  include <Functions/FunctionFactory.h>
+#  include <Interpreters/Context.h>
+#  include <IO/WriteBufferFromArena.h>
+#  include <IO/WriteHelpers.h>
 
-#include <Functions/addressToLine.h>
-#include <vector>
+#  include <Functions/addressToLine.h>
+#  include <vector>
 
+namespace DB {
 
-namespace DB
-{
+namespace {
 
-namespace
-{
+class FunctionAddressToLineWithInlines : public FunctionAddressToLineBase<StringViews, Dwarf::LocationInfoMode::FULL_WITH_INLINE> {
+ public:
+  static constexpr auto name = "addressToLineWithInlines";
+  String getName() const override { return name; }
+  static FunctionPtr create(ContextPtr context) {
+    context->checkAccess(AccessType::addressToLineWithInlines);
+    return std::make_shared<FunctionAddressToLineWithInlines>();
+  }
 
-class FunctionAddressToLineWithInlines: public FunctionAddressToLineBase<StringViews, Dwarf::LocationInfoMode::FULL_WITH_INLINE>
-{
-public:
-    static constexpr auto name = "addressToLineWithInlines";
-    String getName() const override { return name; }
-    static FunctionPtr create(ContextPtr context)
-    {
-        context->checkAccess(AccessType::addressToLineWithInlines);
-        return std::make_shared<FunctionAddressToLineWithInlines>();
+ protected:
+  DataTypePtr getDataType() const override { return std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>()); }
+
+  ColumnPtr getResultColumn(const typename ColumnVector<UInt64>::Container &data, size_t input_rows_count) const override {
+    auto result_column = ColumnArray::create(ColumnString::create());
+    ColumnString &result_strings = typeid_cast<ColumnString &>(result_column->getData());
+    ColumnArray::Offsets &result_offsets = result_column->getOffsets();
+
+    ColumnArray::Offset current_offset = 0;
+
+    for (size_t i = 0; i < input_rows_count; ++i) {
+      StringViews res = implCached(data[i]);
+      for (auto &r : res) result_strings.insertData(r.data(), r.size());
+      current_offset += res.size();
+      result_offsets.push_back(current_offset);
     }
 
-protected:
-    DataTypePtr getDataType() const override
-    {
-        return std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
+    return result_column;
+  }
+
+  void setResult(StringViews &result, const Dwarf::LocationInfo &location,
+                 const std::vector<Dwarf::SymbolizedFrame> &inline_frames) const override {
+    appendLocationToResult(result, location, nullptr);
+    for (const auto &inline_frame : inline_frames) appendLocationToResult(result, inline_frame.location, &inline_frame);
+  }
+
+ private:
+  void appendLocationToResult(StringViews &result, const Dwarf::LocationInfo &location, const Dwarf::SymbolizedFrame *frame) const {
+    const char *arena_begin = nullptr;
+    WriteBufferFromArena out(cache.arena, arena_begin);
+
+    writeString(location.file.toString(), out);
+    writeChar(':', out);
+    writeIntText(location.line, out);
+
+    if (frame && frame->name != nullptr) {
+      writeChar(':', out);
+      int status = 0;
+      writeString(demangle(frame->name, status), out);
     }
 
-    ColumnPtr getResultColumn(const typename ColumnVector<UInt64>::Container & data, size_t input_rows_count) const override
-    {
-        auto result_column = ColumnArray::create(ColumnString::create());
-        ColumnString & result_strings = typeid_cast<ColumnString &>(result_column->getData());
-        ColumnArray::Offsets & result_offsets = result_column->getOffsets();
-
-        ColumnArray::Offset current_offset = 0;
-
-        for (size_t i = 0; i < input_rows_count; ++i)
-        {
-            StringViews res = implCached(data[i]);
-            for (auto & r : res)
-                result_strings.insertData(r.data(), r.size());
-            current_offset += res.size();
-            result_offsets.push_back(current_offset);
-        }
-
-        return result_column;
-    }
-
-    void setResult(StringViews & result, const Dwarf::LocationInfo & location, const std::vector<Dwarf::SymbolizedFrame> & inline_frames) const override
-    {
-        appendLocationToResult(result, location, nullptr);
-        for (const auto & inline_frame : inline_frames)
-            appendLocationToResult(result, inline_frame.location, &inline_frame);
-    }
-
-private:
-    void appendLocationToResult(StringViews & result, const Dwarf::LocationInfo & location, const Dwarf::SymbolizedFrame * frame) const
-    {
-        const char * arena_begin = nullptr;
-        WriteBufferFromArena out(cache.arena, arena_begin);
-
-        writeString(location.file.toString(), out);
-        writeChar(':', out);
-        writeIntText(location.line, out);
-
-        if (frame && frame->name != nullptr)
-        {
-            writeChar(':', out);
-            int status = 0;
-            writeString(demangle(frame->name, status), out);
-        }
-
-        result.emplace_back(out.complete());
-        out.finalize();
-    }
-
+    result.emplace_back(out.complete());
+    out.finalize();
+  }
 };
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(AddressToLineWithInlines)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(AddressToLineWithInlines) {
+  FunctionDocumentation::Description description = R"(
 Similar to `addressToLine`, but returns an Array with all inline functions.
 As a result of this, it is slower than `addressToLine`.
 
@@ -101,27 +85,27 @@ To enable this introspection function:
 - Install the `clickhouse-common-static-dbg` package.
 - Set setting [`allow_introspection_functions`](../../operations/settings/settings.md#allow_introspection_functions) to `1`.
     )";
-    FunctionDocumentation::Syntax syntax = "addressToLineWithInlines(address_of_binary_instruction)";
-    FunctionDocumentation::Arguments arguments = {
-        {"address_of_binary_instruction", "The address of an instruction in a running process.", {"UInt64"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns an array whose first element is the source code filename and line number delimited by a colon. The second, third, etc. element list inline functions' source code filenames, line numbers and function names. If no debug information could be found, then an array with a single element equal to the name of the binary is returned, otherwise an empty array is returned if the address is not valid.", {"Array(String)"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Applying the function to an address",
-        R"(
+  FunctionDocumentation::Syntax syntax = "addressToLineWithInlines(address_of_binary_instruction)";
+  FunctionDocumentation::Arguments arguments = {
+      {"address_of_binary_instruction", "The address of an instruction in a running process.", {"UInt64"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {
+      "Returns an array whose first element is the source code filename and line number delimited by a colon. The second, third, etc. "
+      "element list inline functions' source code filenames, line numbers and function names. If no debug information could be found, then "
+      "an array with a single element equal to the name of the binary is returned, otherwise an empty array is returned if the address is "
+      "not valid.",
+      {"Array(String)"}};
+  FunctionDocumentation::Examples examples = {{"Applying the function to an address",
+                                               R"(
 SET allow_introspection_functions=1;
 SELECT addressToLineWithInlines(531055181::UInt64);
         )",
-        R"(
+                                               R"(
 ┌─addressToLineWithInlines(CAST('531055181', 'UInt64'))────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ['./src/Functions/addressToLineWithInlines.cpp:98','./build_normal_debug/./src/Functions/addressToLineWithInlines.cpp:176:DB::(anonymous namespace)::FunctionAddressToLineWithInlines::implCached(unsigned long) const'] │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-        )"
-    },
-    {
-        "Applying the function to the whole stack trace",
-        R"(
+        )"},
+                                              {"Applying the function to the whole stack trace",
+                                               R"(
 SET allow_introspection_functions=1;
 
 -- The arrayJoin function will split array to rows
@@ -132,7 +116,7 @@ FROM system.trace_log
 WHERE
     query_id = '5e173544-2020-45de-b645-5deebe2aae54';
         )",
-        R"(
+                                               R"(
 ┌────────ta─┬─addressToLineWithInlines(arrayJoin(trace))───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ 365497529 │ ['./build_normal_debug/./contrib/libcxx/include/string_view:252']                                                                                                                                                        │
 │ 365593602 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:191']                                                                                                                                                                      │
@@ -175,16 +159,14 @@ WHERE
 │ 626323133 │ ['./build_normal_debug/./contrib/libcxx/include/type_traits:3682']                                                                                                                                                       │
 │ 626323041 │ ['./build_normal_debug/./contrib/libcxx/include/tuple:1415']                                                                                                                                                             │
 └───────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {22, 2};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Introspection;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {22, 2};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Introspection;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionAddressToLineWithInlines>(documentation);
+  factory.registerFunction<FunctionAddressToLineWithInlines>(documentation);
 }
 
-}
+}  // namespace DB
 
 #endif

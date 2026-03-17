@@ -5,8 +5,7 @@
 
 class SipHash;
 
-namespace DB
-{
+namespace DB {
 
 class ReadBuffer;
 
@@ -14,34 +13,27 @@ class ReadBuffer;
  * This AST node is relevant only for Postgres wire protocol.
  * For more information see https://www.postgresql.org/docs/current/sql-copy.html
  */
-class ASTCopyQuery : public IAST
-{
-public:
-    enum class QueryType : uint8_t
-    {
-        COPY_FROM = 0,
-        COPY_TO = 1,
-    } type;
+class ASTCopyQuery : public IAST {
+ public:
+  enum class QueryType : uint8_t {
+    COPY_FROM = 0,
+    COPY_TO = 1,
+  } type;
 
-    String table_name;
-    Strings column_names;
-    enum class Formats : uint8_t
-    {
-        TSV,
-        CSV,
-        Binary
-    } format = Formats::TSV;
+  String table_name;
+  Strings column_names;
+  enum class Formats : uint8_t { TSV, CSV, Binary } format = Formats::TSV;
 
-    String getID(char) const override { return "CopyQuery"; }
+  String getID(char) const override { return "CopyQuery"; }
 
-    ASTPtr clone() const override;
+  ASTPtr clone() const override;
 
-    QueryKind getQueryKind() const override { return QueryKind::Copy; }
+  QueryKind getQueryKind() const override { return QueryKind::Copy; }
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state, FormatStateStacked frame) const override;
 };
 
 String toString(ASTCopyQuery::Formats format);
 
-}
+}  // namespace DB

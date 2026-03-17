@@ -11,21 +11,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Timezone.h"
 #include <ctime>
 
-
 #include "Timezone_UNIX.cpp"
-
 
 namespace Poco {
 
+int Timezone::tzd() { return utcOffset() + dst(); }
 
-int Timezone::tzd()
-{
-	return utcOffset() + dst();
-}
-
-
-} // namespace Poco
+}  // namespace Poco

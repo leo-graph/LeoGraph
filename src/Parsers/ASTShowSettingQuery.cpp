@@ -1,24 +1,21 @@
 #include <Parsers/ASTShowSettingQuery.h>
 
-#include <iomanip>
-#include <IO/Operators.h>
 #include <Common/quoteString.h>
+#include <IO/Operators.h>
+#include <iomanip>
 
-namespace DB
-{
+namespace DB {
 
-ASTPtr ASTShowSettingQuery::clone() const
-{
-    auto res = make_intrusive<ASTShowSettingQuery>(*this);
-    res->children.clear();
-    cloneOutputOptions(*res);
-    res->setting_name = setting_name;
-    return res;
+ASTPtr ASTShowSettingQuery::clone() const {
+  auto res = make_intrusive<ASTShowSettingQuery>(*this);
+  res->children.clear();
+  cloneOutputOptions(*res);
+  res->setting_name = setting_name;
+  return res;
 }
 
-void ASTShowSettingQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings &, FormatState &, FormatStateStacked) const
-{
-    ostr << "SHOW SETTING " << backQuoteIfNeed(setting_name);
+void ASTShowSettingQuery::formatQueryImpl(WriteBuffer &ostr, const FormatSettings &, FormatState &, FormatStateStacked) const {
+  ostr << "SHOW SETTING " << backQuoteIfNeed(setting_name);
 }
 
-}
+}  // namespace DB

@@ -5,8 +5,7 @@
 #include <memory>
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
 struct EqualRange;
 using EqualRanges = std::vector<EqualRange>;
@@ -17,8 +16,8 @@ using ColumnCheckpoints = std::vector<ColumnCheckpointPtr>;
 
 class IColumn;
 
-void intrusive_ptr_add_ref(const IColumn * c);
-void intrusive_ptr_release(const IColumn * c);
+void intrusive_ptr_add_ref(const IColumn *c);
+void intrusive_ptr_release(const IColumn *c);
 
 using ColumnPtr = COW<IColumn>::Ptr;
 using MutableColumnPtr = COW<IColumn>::MutablePtr;
@@ -27,4 +26,4 @@ using MutableColumns = std::vector<MutableColumnPtr>;
 
 using ColumnRawPtrs = std::vector<const IColumn *>;
 
-}
+}  // namespace DB

@@ -1,34 +1,27 @@
-#include <Parsers/ParserDescribeCacheQuery.h>
 #include <Parsers/ASTDescribeCacheQuery.h>
-#include <Parsers/CommonParsers.h>
 #include <Parsers/ASTLiteral.h>
+#include <Parsers/CommonParsers.h>
+#include <Parsers/ParserDescribeCacheQuery.h>
 
-namespace DB
-{
+namespace DB {
 
+bool ParserDescribeCacheQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  ParserKeyword p_describe(Keyword::DESCRIBE);
+  ParserKeyword p_desc(Keyword::DESC);
+  ParserKeyword p_cache(Keyword::FILESYSTEM_CACHE);
+  ParserLiteral p_cache_name;
 
-bool ParserDescribeCacheQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    ParserKeyword p_describe(Keyword::DESCRIBE);
-    ParserKeyword p_desc(Keyword::DESC);
-    ParserKeyword p_cache(Keyword::FILESYSTEM_CACHE);
-    ParserLiteral p_cache_name;
+  if ((!p_describe.ignore(pos, expected) && !p_desc.ignore(pos, expected)) || !p_cache.ignore(pos, expected)) return false;
 
-    if ((!p_describe.ignore(pos, expected) && !p_desc.ignore(pos, expected))
-        || !p_cache.ignore(pos, expected))
-        return false;
+  auto query = make_intrusive<ASTDescribeCacheQuery>();
 
-    auto query = make_intrusive<ASTDescribeCacheQuery>();
+  ASTPtr ast;
+  if (!p_cache_name.parse(pos, ast, expected)) return false;
 
-    ASTPtr ast;
-    if (!p_cache_name.parse(pos, ast, expected))
-        return false;
+  query->cache_name = ast->as<ASTLiteral>()->value.safeGet<String>();
+  node = query;
 
-    query->cache_name = ast->as<ASTLiteral>()->value.safeGet<String>();
-    node = query;
-
-    return true;
+  return true;
 }
 
-
-}
+}  // namespace DB

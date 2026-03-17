@@ -1,21 +1,26 @@
 /** This library provides runtime instrumentation (hardening)
-  * that ensures no "harmful" functions from libc are called
-  * (by terminating the program immediately).
-  */
+ * that ensures no "harmful" functions from libc are called
+ * (by terminating the program immediately).
+ */
 
 #include <base/sanitizer_defs.h>
 
 /// We check for "harmful" functions if it's a debug build or with a sanitizer.
 #if defined(DEBUG_OR_SANITIZER_BUILD)
 
-#pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
+#  pragma clang diagnostic ignored "-Wincompatible-library-redeclaration"
 
 /// We cannot use libc headers here.
 long write(int, const void *, unsigned long);
-#define TRAP(func) void func() { write(2, #func "\n", __builtin_strlen(#func) + 1); __builtin_trap(); }
+#  define TRAP(func)                                     \
+    void func() {                                        \
+      write(2, #func "\n", __builtin_strlen(#func) + 1); \
+      __builtin_trap();                                  \
+    }
 
 /// Trap all non thread-safe functions:
-/// nm -D /lib/x86_64-linux-gnu/{libc.so.6,libdl.so.2,libm.so.6,libpthread.so.0,librt.so.1,libnss_dns.so.2,libresolv.so.2} | grep -P '_r@?$' | awk '{ print $3 }' | sed -r -e 's/_r//' | grep -vP '^_'
+/// nm -D /lib/x86_64-linux-gnu/{libc.so.6,libdl.so.2,libm.so.6,libpthread.so.0,librt.so.1,libnss_dns.so.2,libresolv.so.2} | grep -P '_r@?$'
+/// | awk '{ print $3 }' | sed -r -e 's/_r//' | grep -vP '^_'
 
 /// See also https://reviews.llvm.org/D90944
 
@@ -48,7 +53,7 @@ TRAP(endutent)
 TRAP(endutxent)
 TRAP(erand48)
 TRAP(error_at_line)
-///TRAP(exit)
+/// TRAP(exit)
 TRAP(fcloseall)
 TRAP(fcvt)
 TRAP(fgetgrent)
@@ -95,8 +100,8 @@ TRAP(getutxent)
 TRAP(getutxid)
 TRAP(getutxline)
 TRAP(getwchar_unlocked)
-//TRAP(glob)
-//TRAP(glob64)
+// TRAP(glob)
+// TRAP(glob64)
 TRAP(gmtime)
 TRAP(hcreate)
 TRAP(hdestroy)
@@ -114,15 +119,15 @@ TRAP(logout)
 TRAP(logwtmp)
 TRAP(lrand48)
 TRAP(mallinfo)
-#if !defined(SANITIZER)
-TRAP(mallopt) // Used by tsan
-#endif
+#  if !defined(SANITIZER)
+TRAP(mallopt)  // Used by tsan
+#  endif
 TRAP(mblen)
 TRAP(mbrlen)
 TRAP(mbrtowc)
 TRAP(mbsnrtowcs)
 TRAP(mbsrtowcs)
-//TRAP(mbtowc) // Used by Standard C++ library
+// TRAP(mbtowc) // Used by Standard C++ library
 TRAP(mcheck)
 TRAP(mprobe)
 TRAP(mrand48)
@@ -139,13 +144,13 @@ TRAP(qecvt)
 TRAP(qfcvt)
 TRAP(register_printf_function)
 TRAP(seed48)
-//TRAP(setenv)
+// TRAP(setenv)
 TRAP(setfsent)
 TRAP(setgrent)
 TRAP(sethostent)
 TRAP(sethostid)
 TRAP(setkey)
-//TRAP(setlocale) // Used by replxx at startup
+// TRAP(setlocale) // Used by replxx at startup
 TRAP(setnetent)
 TRAP(setnetgrent)
 TRAP(setprotoent)
@@ -155,14 +160,14 @@ TRAP(setutent)
 TRAP(setutxent)
 TRAP(siginterrupt)
 TRAP(sigpause)
-//TRAP(sigprocmask)
+// TRAP(sigprocmask)
 TRAP(sigsuspend)
-#if !USE_FUZZING_MODE
-TRAP(sleep) // Used by libFuzzer
-#endif
+#  if !USE_FUZZING_MODE
+TRAP(sleep)  // Used by libFuzzer
+#  endif
 TRAP(srand48)
-//TRAP(strerror) // Used by RocksDB and many other libraries, unfortunately.
-//TRAP(strsignal) // This function is imported from Musl and is thread safe.
+// TRAP(strerror) // Used by RocksDB and many other libraries, unfortunately.
+// TRAP(strsignal) // This function is imported from Musl and is thread safe.
 TRAP(strtok)
 TRAP(tcflow)
 TRAP(tcsendbreak)
@@ -172,9 +177,9 @@ TRAP(unsetenv)
 TRAP(updwtmp)
 TRAP(utmpname)
 TRAP(utmpxname)
-//TRAP(valloc)
+// TRAP(valloc)
 TRAP(vlimit)
-//TRAP(wcrtomb) // Used by Standard C++ library
+// TRAP(wcrtomb) // Used by Standard C++ library
 TRAP(wcsnrtombs)
 TRAP(wcsrtombs)
 TRAP(wctomb)
@@ -194,7 +199,7 @@ TRAP(dirname)
 /// Note: we should better get rid of glibc, dynamic linking and all that sort of annoying garbage altogether.
 TRAP(ftw)
 TRAP(getc_unlocked)
-//TRAP(getenv) // Ok at program startup
+// TRAP(getenv) // Ok at program startup
 TRAP(inet_ntoa)
 TRAP(lgamma)
 TRAP(lgammaf)
@@ -203,13 +208,13 @@ TRAP(nftw)
 TRAP(nl_langinfo)
 TRAP(putc_unlocked)
 /** In  the current POSIX.1 specification (POSIX.1-2008), readdir() is not required to be thread-safe.  However, in modern
-  * implementations (including the glibc implementation), concurrent calls to readdir() that specify different directory streams
-  * are thread-safe.  In cases where multiple threads must read from the same directory stream, using readdir() with external
-  * synchronization is still preferable to the use of the deprecated readdir_r(3)  function. It is expected that a future
-  * version of POSIX.1 will require that readdir() be thread-safe when concurrently employed on different directory streams.
-  * - man readdir
-  */
-//TRAP(readdir)
+ * implementations (including the glibc implementation), concurrent calls to readdir() that specify different directory streams
+ * are thread-safe.  In cases where multiple threads must read from the same directory stream, using readdir() with external
+ * synchronization is still preferable to the use of the deprecated readdir_r(3)  function. It is expected that a future
+ * version of POSIX.1 will require that readdir() be thread-safe when concurrently employed on different directory streams.
+ * - man readdir
+ */
+// TRAP(readdir)
 TRAP(system)
 TRAP(wcstombs)
 TRAP(ether_aton)
@@ -286,7 +291,7 @@ TRAP(tss_get)
 TRAP(tss_set)
 TRAP(tss_delete)
 
-#ifndef USE_MUSL
+#  ifndef USE_MUSL
 /// These produce duplicate symbol errors when statically linking with musl.
 /// Maybe we can remove them from the musl fork.
 TRAP(getopt)
@@ -295,6 +300,6 @@ TRAP(setlogmask)
 TRAP(rand)
 TRAP(getmntent)
 TRAP(getlogin)
-#endif
+#  endif
 
 #endif

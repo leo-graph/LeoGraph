@@ -7,63 +7,48 @@
 
 #include <memory>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
+namespace ErrorCodes {
 
 extern const int LOGICAL_ERROR;
 
 }
 
-namespace QueryPlanOptimizations
-{
+namespace QueryPlanOptimizations {
 
-void materializeQueryPlanReferences(QueryPlan::Node & node, QueryPlan::Nodes & nodes)
-{
-    auto * subplan_reference = typeid_cast<CommonSubplanReferenceStep *>(node.step.get());
-    if (!subplan_reference)
-        return;
+void materializeQueryPlanReferences(QueryPlan::Node &node, QueryPlan::Nodes &nodes) {
+  auto *subplan_reference = typeid_cast<CommonSubplanReferenceStep *>(node.step.get());
+  if (!subplan_reference) return;
 
-    auto columns_to_use = subplan_reference->extractColumnsToUse();
+  auto columns_to_use = subplan_reference->extractColumnsToUse();
 
-    QueryPlan::cloneSubplanAndReplace(&node, subplan_reference->getSubplanReferenceRoot(), nodes);
+  QueryPlan::cloneSubplanAndReplace(&node, subplan_reference->getSubplanReferenceRoot(), nodes);
 
-    auto * common_subplan = typeid_cast<CommonSubplanStep *>(node.step.get());
-    if (!common_subplan)
-        throw Exception(
-            ErrorCodes::LOGICAL_ERROR,
-            "Expected CommonSubplanReferenceStep to reference CommonSubplanStep, but got {}",
-            node.step->getName());
+  auto *common_subplan = typeid_cast<CommonSubplanStep *>(node.step.get());
+  if (!common_subplan)
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected CommonSubplanReferenceStep to reference CommonSubplanStep, but got {}",
+                    node.step->getName());
 
-    if (node.children.size() != 1)
-        throw Exception(
-            ErrorCodes::LOGICAL_ERROR,
-            "Expected CommonSubplanStep to have exactly one child, but got {}",
-            node.children.size());
+  if (node.children.size() != 1)
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected CommonSubplanStep to have exactly one child, but got {}", node.children.size());
 
-    node.step = projectOnlyUsedColumns(common_subplan->getInputHeaders().front(), columns_to_use);
+  node.step = projectOnlyUsedColumns(common_subplan->getInputHeaders().front(), columns_to_use);
 }
 
-void optimizeUnusedCommonSubplans(QueryPlan::Node & node)
-{
-    auto * common_subplan = typeid_cast<CommonSubplanStep *>(node.step.get());
-    if (!common_subplan)
-        return;
+void optimizeUnusedCommonSubplans(QueryPlan::Node &node) {
+  auto *common_subplan = typeid_cast<CommonSubplanStep *>(node.step.get());
+  if (!common_subplan) return;
 
-    if (node.children.size() != 1)
-        throw Exception(
-            ErrorCodes::LOGICAL_ERROR,
-            "Expected CommonSubplanStep to have exactly one child, but got {}",
-            node.children.size());
+  if (node.children.size() != 1)
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected CommonSubplanStep to have exactly one child, but got {}", node.children.size());
 
-    auto * child = node.children[0];
+  auto *child = node.children[0];
 
-    node.step = std::move(child->step);
-    node.children = std::move(child->children);
+  node.step = std::move(child->step);
+  node.children = std::move(child->children);
 }
 
-}
+}  // namespace QueryPlanOptimizations
 
-}
+}  // namespace DB

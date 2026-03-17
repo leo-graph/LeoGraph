@@ -1,9 +1,8 @@
 #pragma once
-#include <Common/Visitor.h>
 #include <base/TypeLists.h>
+#include <Common/Visitor.h>
 
-namespace DB::GatherUtils
-{
+namespace DB::GatherUtils {
 
 template <typename T>
 struct NumericArraySink;
@@ -18,17 +17,15 @@ using BasicArraySinks = TypeListAppend<GenericArraySink, NumericArraySinks>;
 using NullableArraySinks = TypeListMap<NullableArraySink, BasicArraySinks>;
 using TLArraySinks = TypeListConcat<BasicArraySinks, NullableArraySinks>;
 
-class ArraySinkVisitor : public TypeListChangeRoot<Visitor, TLArraySinks>
-{
-protected:
-    ~ArraySinkVisitor() = default;
+class ArraySinkVisitor : public TypeListChangeRoot<Visitor, TLArraySinks> {
+ protected:
+  ~ArraySinkVisitor() = default;
 };
 
 template <typename Derived>
-class ArraySinkVisitorImpl : public VisitorImpl<Derived, ArraySinkVisitor>
-{
-protected:
-    ~ArraySinkVisitorImpl() = default;
+class ArraySinkVisitorImpl : public VisitorImpl<Derived, ArraySinkVisitor> {
+ protected:
+  ~ArraySinkVisitorImpl() = default;
 };
 
-}
+}  // namespace DB::GatherUtils

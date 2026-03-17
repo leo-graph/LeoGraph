@@ -13,21 +13,16 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Format_INCLUDED
 #define Foundation_Format_INCLUDED
-
 
 #include <vector>
 #include "Poco/Any.h"
 #include "Poco/Foundation.h"
 
+namespace Poco {
 
-namespace Poco
-{
-
-
-std::string Foundation_API format(const std::string & fmt, const Any & value);
+std::string Foundation_API format(const std::string& fmt, const Any& value);
 /// This function implements sprintf-style formatting in a typesafe way.
 /// Various variants of the function are available, supporting a
 /// different number of arguments (up to six).
@@ -103,141 +98,49 @@ std::string Foundation_API format(const std::string & fmt, const Any & value);
 ///     std::string s1 = format("The answer to life, the universe, and everything is %d", 42);
 ///     std::string s2 = format("second: %[1]d, first: %[0]d", 1, 2);
 
-std::string Foundation_API format(const std::string & fmt, const Any & value1, const Any & value2);
-std::string Foundation_API format(const std::string & fmt, const Any & value1, const Any & value2, const Any & value3);
-std::string Foundation_API format(const std::string & fmt, const Any & value1, const Any & value2, const Any & value3, const Any & value4);
-std::string Foundation_API
-format(const std::string & fmt, const Any & value1, const Any & value2, const Any & value3, const Any & value4, const Any & value5);
-std::string Foundation_API format(
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6);
-std::string Foundation_API format(
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7);
-std::string Foundation_API format(
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7,
-    const Any & value8);
-std::string Foundation_API format(
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7,
-    const Any & value8,
-    const Any & value9);
-std::string Foundation_API format(
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7,
-    const Any & value8,
-    const Any & value9,
-    const Any & value10);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4,
+                                  const Any& value5);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4,
+                                  const Any& value5, const Any& value6);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4,
+                                  const Any& value5, const Any& value6, const Any& value7);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4,
+                                  const Any& value5, const Any& value6, const Any& value7, const Any& value8);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4,
+                                  const Any& value5, const Any& value6, const Any& value7, const Any& value8, const Any& value9);
+std::string Foundation_API format(const std::string& fmt, const Any& value1, const Any& value2, const Any& value3, const Any& value4,
+                                  const Any& value5, const Any& value6, const Any& value7, const Any& value8, const Any& value9,
+                                  const Any& value10);
 
-
-void Foundation_API format(std::string & result, const std::string & fmt, const Any & value);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value);
 /// Appends the formatted string to result.
 
-void Foundation_API format(std::string & result, const std::string & fmt, const Any & value1, const Any & value2);
-void Foundation_API format(std::string & result, const std::string & fmt, const Any & value1, const Any & value2, const Any & value3);
-void Foundation_API
-format(std::string & result, const std::string & fmt, const Any & value1, const Any & value2, const Any & value3, const Any & value4);
-void Foundation_API format(
-    std::string & result,
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5);
-void Foundation_API format(
-    std::string & result,
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6);
-void Foundation_API format(
-    std::string & result,
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7);
-void Foundation_API format(
-    std::string & result,
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7,
-    const Any & value8);
-void Foundation_API format(
-    std::string & result,
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7,
-    const Any & value8,
-    const Any & value9);
-void Foundation_API format(
-    std::string & result,
-    const std::string & fmt,
-    const Any & value1,
-    const Any & value2,
-    const Any & value3,
-    const Any & value4,
-    const Any & value5,
-    const Any & value6,
-    const Any & value7,
-    const Any & value8,
-    const Any & value9,
-    const Any & value10);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4, const Any& value5);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4, const Any& value5, const Any& value6);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4, const Any& value5, const Any& value6, const Any& value7);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4, const Any& value5, const Any& value6, const Any& value7, const Any& value8);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4, const Any& value5, const Any& value6, const Any& value7, const Any& value8,
+                           const Any& value9);
+void Foundation_API format(std::string& result, const std::string& fmt, const Any& value1, const Any& value2, const Any& value3,
+                           const Any& value4, const Any& value5, const Any& value6, const Any& value7, const Any& value8, const Any& value9,
+                           const Any& value10);
 
-
-void Foundation_API formatVector(std::string & result, const std::string & fmt, const std::vector<Any> & values);
+void Foundation_API formatVector(std::string& result, const std::string& fmt, const std::vector<Any>& values);
 /// Supports a variable number of arguments and is used by
 /// all other variants of format().
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Format_INCLUDED
+#endif  // Foundation_Format_INCLUDED

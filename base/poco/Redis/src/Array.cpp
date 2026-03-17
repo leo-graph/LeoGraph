@@ -13,55 +13,35 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Redis/Array.h"
-
 
 namespace Poco {
 namespace Redis {
 
+Array::Array() {}
 
-Array::Array()
-{
+Array::Array(const Array& copy) : _elements(copy._elements) {}
+
+Array::~Array() {}
+
+Array& Array::addRedisType(RedisType::Ptr value) {
+  checkNull();
+
+  _elements.value().push_back(value);
+
+  return *this;
 }
 
+int Array::getType(size_t pos) const {
+  if (_elements.isNull()) throw NullValueException();
 
-Array::Array(const Array& copy): 
-	_elements(copy._elements)
-{
+  if (pos >= _elements.value().size()) throw InvalidArgumentException();
+
+  RedisType::Ptr element = _elements.value().at(pos);
+  return element->type();
 }
 
+std::string Array::toString() const { return RedisTypeTraits<Array>::toString(*this); }
 
-Array::~Array()
-{
-}
-
-
-Array& Array::addRedisType(RedisType::Ptr value)
-{
-	checkNull();
-
-	_elements.value().push_back(value);
-
-	return *this;
-}
-
-
-int Array::getType(size_t pos) const
-{
-	if (_elements.isNull()) throw NullValueException();
-
-	if (pos >= _elements.value().size()) throw InvalidArgumentException();
-
-	RedisType::Ptr element = _elements.value().at(pos);
-	return element->type();
-}
-
-
-std::string Array::toString() const
-{
-	return RedisTypeTraits<Array>::toString(*this);
-}
-
-
-} } // namespace Poco::Redis
+}  // namespace Redis
+}  // namespace Poco

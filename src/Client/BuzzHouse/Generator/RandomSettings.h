@@ -9,41 +9,42 @@
 #include <functional>
 #include <thread>
 
-namespace BuzzHouse
-{
+namespace BuzzHouse {
 
 extern const std::unordered_set<String> blockSizes;
 
-const auto trueOrFalse = [](RandomGenerator & rg, FuzzConfig &) { return rg.nextBool() ? "1" : "0"; };
+const auto trueOrFalse = [](RandomGenerator &rg, FuzzConfig &) { return rg.nextBool() ? "1" : "0"; };
 
-const auto zeroOneTwo = [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.randomInt<uint32_t>(0, 2)); };
+const auto zeroOneTwo = [](RandomGenerator &rg, FuzzConfig &) { return std::to_string(rg.randomInt<uint32_t>(0, 2)); };
 
-const auto zeroToThree = [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.randomInt<uint32_t>(0, 3)); };
+const auto zeroToThree = [](RandomGenerator &rg, FuzzConfig &) { return std::to_string(rg.randomInt<uint32_t>(0, 3)); };
 
-const auto probRange = [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<double>(0.2, 0.2, 0.0, 1.0)); };
+const auto probRange = [](RandomGenerator &rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<double>(0.2, 0.2, 0.0, 1.0)); };
 
-const auto probRangeNoZero
-    = [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<double>(0.2, 0.2, 0.001, 0.999)); };
-
-const auto highRange = [](RandomGenerator & rg, FuzzConfig &)
-{
-    const auto val = rg.randomInt<uint32_t>(0, 25);
-    return std::to_string(val == UINT32_C(0) ? UINT32_C(0) : (UINT32_C(1) << (val - UINT32_C(1))));
+const auto probRangeNoZero = [](RandomGenerator &rg, FuzzConfig &) {
+  return std::to_string(rg.thresholdGenerator<double>(0.2, 0.2, 0.001, 0.999));
 };
 
-const auto columnsRange
-    = [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, UINT32_C(10))); };
+const auto highRange = [](RandomGenerator &rg, FuzzConfig &) {
+  const auto val = rg.randomInt<uint32_t>(0, 25);
+  return std::to_string(val == UINT32_C(0) ? UINT32_C(0) : (UINT32_C(1) << (val - UINT32_C(1))));
+};
 
-const auto rowsRange
-    = [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, UINT32_C(8192))); };
+const auto columnsRange = [](RandomGenerator &rg, FuzzConfig &) {
+  return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, UINT32_C(10)));
+};
 
-const auto bytesRange = [](RandomGenerator & rg, FuzzConfig &)
-{ return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, UINT32_C(10) * UINT32_C(1024) * UINT32_C(1024))); };
+const auto rowsRange = [](RandomGenerator &rg, FuzzConfig &) {
+  return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, UINT32_C(8192)));
+};
+
+const auto bytesRange = [](RandomGenerator &rg, FuzzConfig &) {
+  return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, UINT32_C(10) * UINT32_C(1024) * UINT32_C(1024)));
+};
 
 const auto threadSetting = CHSetting(
-    [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.randomInt<uint32_t>(0, std::thread::hardware_concurrency())); },
-    {"0", "1", "2", std::to_string(std::thread::hardware_concurrency())},
-    false);
+    [](RandomGenerator &rg, FuzzConfig &) { return std::to_string(rg.randomInt<uint32_t>(0, std::thread::hardware_concurrency())); },
+    {"0", "1", "2", std::to_string(std::thread::hardware_concurrency())}, false);
 
 const auto inline probRangeSetting = CHSetting(probRange, {"0", "0.001", "0.01", "0.1", "0.5", "0.9", "0.99", "0.999", "1.0"}, false);
 
@@ -85,9 +86,9 @@ extern std::vector<SystemTable> systemTables;
 
 extern std::unordered_map<DictionaryLayouts, std::unordered_map<String, CHSetting>> allDictionaryLayoutSettings;
 
-String generateNextCodecString(RandomGenerator & rg);
-void loadFuzzerServerSettings(const FuzzConfig & fc);
-void loadFuzzerTableSettings(const FuzzConfig & fc);
-void loadSystemTables(FuzzConfig & fc);
+String generateNextCodecString(RandomGenerator &rg);
+void loadFuzzerServerSettings(const FuzzConfig &fc);
+void loadFuzzerTableSettings(const FuzzConfig &fc);
+void loadSystemTables(FuzzConfig &fc);
 
-}
+}  // namespace BuzzHouse

@@ -13,30 +13,22 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_NamedMutex_Android_INCLUDED
 #define Foundation_NamedMutex_Android_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
+namespace Poco {
 
-namespace Poco
-{
-
-
-class Foundation_API NamedMutexImpl
-{
-protected:
-    NamedMutexImpl(const std::string & name);
-    ~NamedMutexImpl();
-    void lockImpl();
-    bool tryLockImpl();
-    void unlockImpl();
+class Foundation_API NamedMutexImpl {
+ protected:
+  NamedMutexImpl(const std::string& name);
+  ~NamedMutexImpl();
+  void lockImpl();
+  bool tryLockImpl();
+  void unlockImpl();
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_NamedMutex_Android_INCLUDED
+#endif  // Foundation_NamedMutex_Android_INCLUDED

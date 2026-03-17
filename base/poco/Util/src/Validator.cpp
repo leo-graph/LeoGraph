@@ -11,22 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Util/Validator.h"
-
 
 namespace Poco {
 namespace Util {
 
+Validator::Validator() {}
 
-Validator::Validator()
-{
-}
+Validator::~Validator() {}
 
-
-Validator::~Validator()
-{
-}
-
-
-} } // namespace Poco::Util
+}  // namespace Util
+}  // namespace Poco

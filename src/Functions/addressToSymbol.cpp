@@ -1,109 +1,86 @@
 #if defined(__ELF__) && !defined(OS_FREEBSD)
 
-#include <Common/SymbolIndex.h>
-#include <Columns/ColumnString.h>
-#include <Columns/ColumnsNumber.h>
-#include <DataTypes/DataTypeString.h>
-#include <Functions/IFunction.h>
-#include <Functions/FunctionFactory.h>
-#include <Functions/FunctionHelpers.h>
-#include <Access/Common/AccessFlags.h>
-#include <Interpreters/Context.h>
+#  include <Access/Common/AccessFlags.h>
+#  include <Columns/ColumnsNumber.h>
+#  include <Columns/ColumnString.h>
+#  include <Common/SymbolIndex.h>
+#  include <DataTypes/DataTypeString.h>
+#  include <Functions/FunctionFactory.h>
+#  include <Functions/FunctionHelpers.h>
+#  include <Functions/IFunction.h>
+#  include <Interpreters/Context.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int ILLEGAL_COLUMN;
+namespace ErrorCodes {
+extern const int ILLEGAL_COLUMN;
 }
 
-namespace
-{
+namespace {
 
-class FunctionAddressToSymbol : public IFunction
-{
-public:
-    static constexpr auto name = "addressToSymbol";
-    static FunctionPtr create(ContextPtr context)
-    {
-        context->checkAccess(AccessType::addressToSymbol);
-        return std::make_shared<FunctionAddressToSymbol>();
+class FunctionAddressToSymbol : public IFunction {
+ public:
+  static constexpr auto name = "addressToSymbol";
+  static FunctionPtr create(ContextPtr context) {
+    context->checkAccess(AccessType::addressToSymbol);
+    return std::make_shared<FunctionAddressToSymbol>();
+  }
+
+  String getName() const override { return name; }
+
+  size_t getNumberOfArguments() const override { return 1; }
+
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
+
+  DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName &arguments) const override {
+    FunctionArgumentDescriptors mandatory_args{{"address_of_binary_instruction", &isUInt64, nullptr, "UInt64"}};
+
+    validateFunctionArguments(*this, arguments, mandatory_args);
+    return std::make_shared<DataTypeString>();
+  }
+
+  bool useDefaultImplementationForConstants() const override { return true; }
+
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t input_rows_count) const override {
+    const SymbolIndex &symbol_index = SymbolIndex::instance();
+
+    const ColumnPtr &column = arguments[0].column;
+    const ColumnUInt64 *column_concrete = checkAndGetColumn<ColumnUInt64>(column.get());
+
+    if (!column_concrete)
+      throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Illegal column {} of argument of function {}", column->getName(), getName());
+
+    const typename ColumnVector<UInt64>::Container &data = column_concrete->getData();
+    auto result_column = ColumnString::create();
+
+    for (size_t i = 0; i < input_rows_count; ++i) {
+      if (const auto *symbol = symbol_index.findSymbol(reinterpret_cast<const void *>(data[i])))
+        result_column->insertData(symbol->name, strlen(symbol->name));
+      else
+        result_column->insertDefault();
     }
 
-    String getName() const override
-    {
-        return name;
-    }
-
-    size_t getNumberOfArguments() const override
-    {
-        return 1;
-    }
-
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
-
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override
-    {
-        FunctionArgumentDescriptors mandatory_args{
-            {"address_of_binary_instruction", &isUInt64, nullptr, "UInt64"}
-        };
-
-        validateFunctionArguments(*this, arguments, mandatory_args);
-        return std::make_shared<DataTypeString>();
-    }
-
-    bool useDefaultImplementationForConstants() const override
-    {
-        return true;
-    }
-
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
-    {
-        const SymbolIndex & symbol_index = SymbolIndex::instance();
-
-        const ColumnPtr & column = arguments[0].column;
-        const ColumnUInt64 * column_concrete = checkAndGetColumn<ColumnUInt64>(column.get());
-
-        if (!column_concrete)
-            throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Illegal column {} of argument of function {}", column->getName(), getName());
-
-        const typename ColumnVector<UInt64>::Container & data = column_concrete->getData();
-        auto result_column = ColumnString::create();
-
-        for (size_t i = 0; i < input_rows_count; ++i)
-        {
-            if (const auto * symbol = symbol_index.findSymbol(reinterpret_cast<const void *>(data[i])))
-                result_column->insertData(symbol->name, strlen(symbol->name));
-            else
-                result_column->insertDefault();
-        }
-
-        return result_column;
-    }
+    return result_column;
+  }
 };
 
-}
+}  // namespace
 
-REGISTER_FUNCTION(AddressToSymbol)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(AddressToSymbol) {
+  FunctionDocumentation::Description description = R"(
 Converts virtual memory address inside the ClickHouse server process to a symbol from ClickHouse's object files.
     )";
-    FunctionDocumentation::Syntax syntax = "addressToSymbol(address_of_binary_instruction)";
-    FunctionDocumentation::Arguments arguments = {
-        {"address_of_binary_instruction", "Address of instruction in a running process.", {"UInt64"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns the symbol from ClickHouse object files or an empty string, if the address is not valid.", {"String"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Selecting the first string from the `trace_log` system table",
-        R"(
+  FunctionDocumentation::Syntax syntax = "addressToSymbol(address_of_binary_instruction)";
+  FunctionDocumentation::Arguments arguments = {
+      {"address_of_binary_instruction", "Address of instruction in a running process.", {"UInt64"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {
+      "Returns the symbol from ClickHouse object files or an empty string, if the address is not valid.", {"String"}};
+  FunctionDocumentation::Examples examples = {{"Selecting the first string from the `trace_log` system table",
+                                               R"(
 SET allow_introspection_functions=1;
 SELECT * FROM system.trace_log LIMIT 1 \G;
         )",
-        R"(
+                                               R"(
 -- The `trace` field contains the stack trace at the moment of sampling.
 Row 1:
 ──────
@@ -114,23 +91,19 @@ timer_type:    Real
 thread_number: 48
 query_id:      724028bf-f550-45aa-910d-2af6212b94ac
 trace:         [94138803686098,94138815010911,94138815096522,94138815101224,94138815102091,94138814222988,94138806823642,94138814457211,94138806823642,94138814457211,94138806823642,94138806795179,94138806796144,94138753770094,94138753771646,94138753760572,94138852407232,140399185266395,140399178045583]
-        )"
-    },
-    {
-        "Getting a symbol for a single address",
-        R"(
+        )"},
+                                              {"Getting a symbol for a single address",
+                                               R"(
 SET allow_introspection_functions=1;
 SELECT addressToSymbol(94138803686098) \G;
         )",
-        R"(
+                                               R"(
 Row 1:
 ──────
 addressToSymbol(94138803686098): _ZNK2DB24IAggregateFunctionHelperINS_20AggregateFunctionSumImmNS_24AggregateFunctionSumDataImEEEEE19addBatchSinglePlaceEmPcPPKNS_7IColumnEPNS_5ArenaE
-        )"
-    },
-    {
-        "Applying the function to the whole stack trace",
-        R"(
+        )"},
+                                              {"Applying the function to the whole stack trace",
+                                               R"(
 SET allow_introspection_functions=1;
 
 -- The arrayMap function allows to process each individual element of the trace array by the addressToSymbols function.
@@ -142,7 +115,7 @@ FROM system.trace_log
 LIMIT 1
 \G
         )",
-        R"(
+                                               R"(
 Row 1:
 ──────
 trace_symbols: _ZNK2DB24IAggregateFunctionHelperINS_20AggregateFunctionSumImmNS_24AggregateFunctionSumDataImEEEEE19addBatchSinglePlaceEmPcPPKNS_7IColumnEPNS_5ArenaE
@@ -164,16 +137,14 @@ _ZN14ThreadPoolImplISt6threadE6workerESt14_List_iteratorIS0_E
 execute_native_thread_routine
 start_thread
 clone
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {20, 1};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Introspection;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {20, 1};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Introspection;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionAddressToSymbol>(documentation);
+  factory.registerFunction<FunctionAddressToSymbol>(documentation);
 }
 
-}
+}  // namespace DB
 
 #endif

@@ -1,10 +1,9 @@
 #pragma once
 
-#include <Parsers/IAST_fwd.h>
 #include <Interpreters/InDepthNodeVisitor.h>
+#include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 class ASTSelectQuery;
 
@@ -16,15 +15,14 @@ class ASTSelectQuery;
 ///
 /// But not the following:
 /// - GROUPING SETS (foo, bar) (since it has two groups (foo) and (bar))
-class GroupingSetsRewriterData
-{
-public:
-    using TypeToVisit = ASTSelectQuery;
+class GroupingSetsRewriterData {
+ public:
+  using TypeToVisit = ASTSelectQuery;
 
-    static void visit(ASTSelectQuery & select_query, ASTPtr &);
+  static void visit(ASTSelectQuery &select_query, ASTPtr &);
 };
 
 using GroupingSetsRewriterMatcher = OneTypeMatcher<GroupingSetsRewriterData>;
 using GroupingSetsRewriterVisitor = InDepthNodeVisitor<GroupingSetsRewriterMatcher, true>;
 
-}
+}  // namespace DB

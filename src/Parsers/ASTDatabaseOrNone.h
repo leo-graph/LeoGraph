@@ -2,22 +2,18 @@
 
 #include <Parsers/IAST.h>
 
-namespace DB
-{
+namespace DB {
 
-class ASTDatabaseOrNone : public IAST
-{
-public:
-    bool none = false;
-    String database_name;
+class ASTDatabaseOrNone : public IAST {
+ public:
+  bool none = false;
+  String database_name;
 
-    bool isNone() const { return none; }
-    String getID(char) const override { return "DatabaseOrNone"; }
-    ASTPtr clone() const override { return make_intrusive<ASTDatabaseOrNone>(*this); }
+  bool isNone() const { return none; }
+  String getID(char) const override { return "DatabaseOrNone"; }
+  ASTPtr clone() const override { return make_intrusive<ASTDatabaseOrNone>(*this); }
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
-}
-
-
+}  // namespace DB

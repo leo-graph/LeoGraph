@@ -2,20 +2,18 @@
 
 #include <Parsers/IAST.h>
 
-namespace DB
-{
+namespace DB {
 
-class ASTCollation : public IAST
-{
-public:
-    ASTPtr collation = nullptr;
+class ASTCollation : public IAST {
+ public:
+  ASTPtr collation = nullptr;
 
-    String getID(char) const override { return "Collation"; }
+  String getID(char) const override { return "Collation"; }
 
-    ASTPtr clone() const override;
+  ASTPtr clone() const override;
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & s, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer& ostr, const FormatSettings& s, FormatState& state, FormatStateStacked frame) const override;
 };
 
-}
+}  // namespace DB

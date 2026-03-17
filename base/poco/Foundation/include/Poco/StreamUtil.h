@@ -13,13 +13,10 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_StreamUtil_INCLUDED
 #define Foundation_StreamUtil_INCLUDED
 
-
 #include "Poco/Foundation.h"
-
 
 // poco_ios_init
 //
@@ -73,20 +70,18 @@
 // Also this macro will adjust exceptions() flags, since by default std::ios
 // will hide exceptions, while in ClickHouse it is better to pass them through.
 
-
 #if !defined(POCO_IOS_INIT_HACK)
 // Microsoft Visual Studio with Dinkumware STL (but not STLport)
 #endif
 
-
 #if defined(POCO_IOS_INIT_HACK)
-#    define poco_ios_init(buf)
+#  define poco_ios_init(buf)
 #else
-#    define poco_ios_init(buf) do {                         \
-    init(buf);                                              \
-    this->exceptions(std::ios::badbit);                     \
-} while (0)
+#  define poco_ios_init(buf)              \
+    do {                                  \
+      init(buf);                          \
+      this->exceptions(std::ios::badbit); \
+    } while (0)
 #endif
 
-
-#endif // Foundation_StreamUtil_INCLUDED
+#endif  // Foundation_StreamUtil_INCLUDED

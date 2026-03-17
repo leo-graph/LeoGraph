@@ -3,31 +3,28 @@
 #include <Processors/Formats/Impl/JSONCompactEachRowRowInputFormat.h>
 #include <Processors/Formats/ISchemaReader.h>
 
-namespace DB
-{
+namespace DB {
 class JSONCompactFormatReader;
-class JSONCompactRowInputFormat final : public RowInputFormatWithNamesAndTypes<JSONCompactFormatReader>
-{
-public:
-    JSONCompactRowInputFormat(SharedHeader header_, ReadBuffer & in_, Params params_, const FormatSettings & format_settings_);
+class JSONCompactRowInputFormat final : public RowInputFormatWithNamesAndTypes<JSONCompactFormatReader> {
+ public:
+  JSONCompactRowInputFormat(SharedHeader header_, ReadBuffer& in_, Params params_, const FormatSettings& format_settings_);
 
-    String getName() const override { return "JSONCompactRowInputFormat"; }
+  String getName() const override { return "JSONCompactRowInputFormat"; }
 
-private:
-    bool allowSyncAfterError() const override { return true; }
-    void syncAfterError() override;
-    bool supportsCountRows() const override { return true; }
+ private:
+  bool allowSyncAfterError() const override { return true; }
+  void syncAfterError() override;
+  bool supportsCountRows() const override { return true; }
 
-    void readPrefix() override;
-    void readSuffix() override;
+  void readPrefix() override;
+  void readSuffix() override;
 };
 
-class JSONCompactFormatReader : public JSONCompactEachRowFormatReader
-{
-public:
-    JSONCompactFormatReader(ReadBuffer & in_, const FormatSettings & format_settings_);
+class JSONCompactFormatReader : public JSONCompactEachRowFormatReader {
+ public:
+  JSONCompactFormatReader(ReadBuffer& in_, const FormatSettings& format_settings_);
 
-    bool checkForSuffix() override;
+  bool checkForSuffix() override;
 };
 
-}
+}  // namespace DB

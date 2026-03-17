@@ -5,9 +5,7 @@
 #include <Core/SettingsEnums.h>
 #include <Core/SettingsFields.h>
 
-
-namespace DB
-{
+namespace DB {
 class ASTSetQuery;
 struct DataLakeStorageSettingsImpl;
 struct MutableColumnsAndConstraints;
@@ -16,32 +14,32 @@ class SettingsChanges;
 
 /// List of available types supported in DataLakeStorageSettingsSettings object
 #define STORAGE_DATA_LAKE_STORAGE_SETTINGS_SUPPORTED_TYPES(CLASS_NAME, M) \
-    M(CLASS_NAME, ArrowCompression) \
-    M(CLASS_NAME, Bool) \
-    M(CLASS_NAME, CapnProtoEnumComparingMode) \
-    M(CLASS_NAME, Char) \
-    M(CLASS_NAME, DateTimeInputFormat) \
-    M(CLASS_NAME, DateTimeOutputFormat) \
-    M(CLASS_NAME, DateTimeOverflowBehavior) \
-    M(CLASS_NAME, Double) \
-    M(CLASS_NAME, EscapingRule) \
-    M(CLASS_NAME, Float) \
-    M(CLASS_NAME, IdentifierQuotingRule) \
-    M(CLASS_NAME, IdentifierQuotingStyle) \
-    M(CLASS_NAME, Int64) \
-    M(CLASS_NAME, IntervalOutputFormat) \
-    M(CLASS_NAME, MsgPackUUIDRepresentation) \
-    M(CLASS_NAME, ORCCompression) \
-    M(CLASS_NAME, ParquetCompression) \
-    M(CLASS_NAME, ParquetVersion) \
-    M(CLASS_NAME, SchemaInferenceMode) \
-    M(CLASS_NAME, String) \
-    M(CLASS_NAME, UInt32) \
-    M(CLASS_NAME, UInt64) \
-    M(CLASS_NAME, NonZeroUInt64) \
-    M(CLASS_NAME, UInt64Auto) \
-    M(CLASS_NAME, URI) \
-    M(CLASS_NAME, DatabaseDataLakeCatalogType)
+  M(CLASS_NAME, ArrowCompression)                                         \
+  M(CLASS_NAME, Bool)                                                     \
+  M(CLASS_NAME, CapnProtoEnumComparingMode)                               \
+  M(CLASS_NAME, Char)                                                     \
+  M(CLASS_NAME, DateTimeInputFormat)                                      \
+  M(CLASS_NAME, DateTimeOutputFormat)                                     \
+  M(CLASS_NAME, DateTimeOverflowBehavior)                                 \
+  M(CLASS_NAME, Double)                                                   \
+  M(CLASS_NAME, EscapingRule)                                             \
+  M(CLASS_NAME, Float)                                                    \
+  M(CLASS_NAME, IdentifierQuotingRule)                                    \
+  M(CLASS_NAME, IdentifierQuotingStyle)                                   \
+  M(CLASS_NAME, Int64)                                                    \
+  M(CLASS_NAME, IntervalOutputFormat)                                     \
+  M(CLASS_NAME, MsgPackUUIDRepresentation)                                \
+  M(CLASS_NAME, ORCCompression)                                           \
+  M(CLASS_NAME, ParquetCompression)                                       \
+  M(CLASS_NAME, ParquetVersion)                                           \
+  M(CLASS_NAME, SchemaInferenceMode)                                      \
+  M(CLASS_NAME, String)                                                   \
+  M(CLASS_NAME, UInt32)                                                   \
+  M(CLASS_NAME, UInt64)                                                   \
+  M(CLASS_NAME, NonZeroUInt64)                                            \
+  M(CLASS_NAME, UInt64Auto)                                               \
+  M(CLASS_NAME, URI)                                                      \
+  M(CLASS_NAME, DatabaseDataLakeCatalogType)
 
 // clang-format off
 
@@ -85,35 +83,34 @@ Metadata format version.
 
 STORAGE_DATA_LAKE_STORAGE_SETTINGS_SUPPORTED_TYPES(DataLakeStorageSettings, DECLARE_SETTING_TRAIT)
 
-struct DataLakeStorageSettings
-{
-    DataLakeStorageSettings();
-    DataLakeStorageSettings(const DataLakeStorageSettings & settings);
-    DataLakeStorageSettings(DataLakeStorageSettings && settings) noexcept;
-    ~DataLakeStorageSettings();
+struct DataLakeStorageSettings {
+  DataLakeStorageSettings();
+  DataLakeStorageSettings(const DataLakeStorageSettings& settings);
+  DataLakeStorageSettings(DataLakeStorageSettings&& settings) noexcept;
+  ~DataLakeStorageSettings();
 
-    STORAGE_DATA_LAKE_STORAGE_SETTINGS_SUPPORTED_TYPES(DataLakeStorageSettings, DECLARE_SETTING_SUBSCRIPT_OPERATOR)
+  STORAGE_DATA_LAKE_STORAGE_SETTINGS_SUPPORTED_TYPES(DataLakeStorageSettings, DECLARE_SETTING_SUBSCRIPT_OPERATOR)
 
-    void loadFromQuery(ASTSetQuery & settings_ast);
+  void loadFromQuery(ASTSetQuery& settings_ast);
 
-    void loadFromSettingsChanges(const SettingsChanges & changes);
+  void loadFromSettingsChanges(const SettingsChanges& changes);
 
-    Field get(const std::string & name);
+  Field get(const std::string& name);
 
-    static bool hasBuiltin(std::string_view name);
+  static bool hasBuiltin(std::string_view name);
 
-    void serialize(WriteBuffer & out) const;
-    static DataLakeStorageSettings deserialize(ReadBuffer & in);
+  void serialize(WriteBuffer& out) const;
+  static DataLakeStorageSettings deserialize(ReadBuffer& in);
 
-private:
-    std::unique_ptr<DataLakeStorageSettingsImpl> impl;
+ private:
+  std::unique_ptr<DataLakeStorageSettingsImpl> impl;
 };
 
 using DataLakeStorageSettingsPtr = std::shared_ptr<DataLakeStorageSettings>;
 
 #define LIST_OF_DATA_LAKE_STORAGE_SETTINGS(M, ALIAS) \
-    DATA_LAKE_STORAGE_RELATED_SETTINGS(M, ALIAS) \
-    OBSOLETE_SETTINGS(M, ALIAS) \
-    LIST_OF_ALL_FORMAT_SETTINGS(M, ALIAS)
+  DATA_LAKE_STORAGE_RELATED_SETTINGS(M, ALIAS)       \
+  OBSOLETE_SETTINGS(M, ALIAS)                        \
+  LIST_OF_ALL_FORMAT_SETTINGS(M, ALIAS)
 
-}
+}  // namespace DB

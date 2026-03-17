@@ -13,15 +13,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Redis/Exception.h"
-
 
 namespace Poco {
 namespace Redis {
 
-
 POCO_IMPLEMENT_EXCEPTION(RedisException, Exception, "Redis Exception")
 
-
-} } // namespace Poco::Redis
+}
+}  // namespace Poco

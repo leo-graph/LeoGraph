@@ -1,19 +1,17 @@
 #pragma once
 #include <base/types.h>
 
-namespace DB
-{
+namespace DB {
 
 class ReadBuffer;
 
-class WithFileName
-{
-public:
-    virtual String getFileName() const = 0;
-    virtual ~WithFileName() = default;
+class WithFileName {
+ public:
+  virtual String getFileName() const = 0;
+  virtual ~WithFileName() = default;
 };
 
-String getFileNameFromReadBuffer(const ReadBuffer & in);
-String getExceptionEntryWithFileName(const ReadBuffer & in);
+String getFileNameFromReadBuffer(const ReadBuffer& in);
+String getExceptionEntryWithFileName(const ReadBuffer& in);
 
-}
+}  // namespace DB

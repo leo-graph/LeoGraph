@@ -13,64 +13,49 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_Semaphore_POSIX_INCLUDED
 #define Foundation_Semaphore_POSIX_INCLUDED
-
 
 #include <errno.h>
 #include <pthread.h>
 #include "Poco/Exception.h"
 #include "Poco/Foundation.h"
 
+namespace Poco {
 
-namespace Poco
-{
+class Foundation_API SemaphoreImpl {
+ protected:
+  SemaphoreImpl(int n, int max);
+  ~SemaphoreImpl();
+  void setImpl();
+  void waitImpl();
+  bool waitImpl(long milliseconds);
 
-
-class Foundation_API SemaphoreImpl
-{
-protected:
-    SemaphoreImpl(int n, int max);
-    ~SemaphoreImpl();
-    void setImpl();
-    void waitImpl();
-    bool waitImpl(long milliseconds);
-
-private:
-    volatile int _n;
-    int _max;
-    pthread_mutex_t _mutex;
-    pthread_cond_t _cond;
+ private:
+  volatile int _n;
+  int _max;
+  pthread_mutex_t _mutex;
+  pthread_cond_t _cond;
 };
-
 
 //
 // inlines
 //
-inline void SemaphoreImpl::setImpl()
-{
-    if (pthread_mutex_lock(&_mutex))
-        throw SystemException("cannot signal semaphore (lock)");
-    if (_n < _max)
-    {
-        ++_n;
-    }
-    else
-    {
-        pthread_mutex_unlock(&_mutex);
-        throw SystemException("cannot signal semaphore: count would exceed maximum");
-    }
-    if (pthread_cond_signal(&_cond))
-    {
-        pthread_mutex_unlock(&_mutex);
-        throw SystemException("cannot signal semaphore");
-    }
+inline void SemaphoreImpl::setImpl() {
+  if (pthread_mutex_lock(&_mutex)) throw SystemException("cannot signal semaphore (lock)");
+  if (_n < _max) {
+    ++_n;
+  } else {
     pthread_mutex_unlock(&_mutex);
+    throw SystemException("cannot signal semaphore: count would exceed maximum");
+  }
+  if (pthread_cond_signal(&_cond)) {
+    pthread_mutex_unlock(&_mutex);
+    throw SystemException("cannot signal semaphore");
+  }
+  pthread_mutex_unlock(&_mutex);
 }
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_Semaphore_POSIX_INCLUDED
+#endif  // Foundation_Semaphore_POSIX_INCLUDED

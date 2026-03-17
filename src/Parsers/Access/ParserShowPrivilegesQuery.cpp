@@ -1,21 +1,17 @@
-#include <Parsers/Access/ParserShowPrivilegesQuery.h>
 #include <Parsers/Access/ASTShowPrivilegesQuery.h>
+#include <Parsers/Access/ParserShowPrivilegesQuery.h>
 #include <Parsers/CommonParsers.h>
 
+namespace DB {
 
-namespace DB
-{
+bool ParserShowPrivilegesQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
+  auto query = make_intrusive<ASTShowPrivilegesQuery>();
 
-bool ParserShowPrivilegesQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    auto query = make_intrusive<ASTShowPrivilegesQuery>();
+  if (!ParserKeyword(Keyword::SHOW_PRIVILEGES).ignore(pos, expected)) return false;
 
-    if (!ParserKeyword(Keyword::SHOW_PRIVILEGES).ignore(pos, expected))
-        return false;
+  node = query;
 
-    node = query;
-
-    return true;
+  return true;
 }
 
-}
+}  // namespace DB

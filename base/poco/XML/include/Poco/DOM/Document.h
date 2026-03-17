@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef DOM_Document_INCLUDED
 #define DOM_Document_INCLUDED
-
 
 #include "Poco/AutoReleasePool.h"
 #include "Poco/DOM/AbstractContainerNode.h"
@@ -26,265 +24,241 @@
 #include "Poco/XML/XML.h"
 #include "Poco/XML/XMLString.h"
 
+namespace Poco {
+namespace XML {
 
-namespace Poco
+class NamePool;
+class DocumentType;
+class DOMImplementation;
+class DocumentFragment;
+class Text;
+class Comment;
+class CDATASection;
+class ProcessingInstruction;
+class Attr;
+class EntityReference;
+class NodeList;
+class Entity;
+class Notation;
+
+class XML_API Document : public AbstractContainerNode,
+                         public DocumentEvent
+/// The Document interface represents the entire HTML or XML document. Conceptually,
+/// it is the root of the document tree, and provides the primary access to the
+/// document's data.
+///
+/// Since elements, text nodes, comments, processing instructions, etc. cannot exist
+/// outside the context of a Document, the Document interface also contains the
+/// factory methods needed to create these objects. The Node objects created have a
+/// ownerDocument attribute which associates them with the Document within whose
+/// context they were created.
 {
-namespace XML
-{
+ public:
+  using AutoReleasePool = Poco::AutoReleasePool<DOMObject>;
 
+  explicit Document(NamePool* pNamePool = 0);
+  /// Creates a new document. If pNamePool == 0, the document
+  /// creates its own name pool, otherwise it uses the given name pool.
+  /// Sharing a name pool makes sense for documents containing instances
+  /// of the same schema, thus reducing memory usage.
 
-    class NamePool;
-    class DocumentType;
-    class DOMImplementation;
-    class DocumentFragment;
-    class Text;
-    class Comment;
-    class CDATASection;
-    class ProcessingInstruction;
-    class Attr;
-    class EntityReference;
-    class NodeList;
-    class Entity;
-    class Notation;
+  explicit Document(unsigned long namePoolSize);
+  /// Creates a new document using a name pool with the given size, which
+  /// should be a prime number (e.g., 251, 509, 1021, 4093).
 
+  Document(DocumentType* pDocumentType, NamePool* pNamePool = 0);
+  /// Creates a new document. If pNamePool == 0, the document
+  /// creates its own name pool, otherwise it uses the given name pool.
+  /// Sharing a name pool makes sense for documents containing instances
+  /// of the same schema, thus reducing memory usage.
 
-    class XML_API Document : public AbstractContainerNode, public DocumentEvent
-    /// The Document interface represents the entire HTML or XML document. Conceptually,
-    /// it is the root of the document tree, and provides the primary access to the
-    /// document's data.
-    ///
-    /// Since elements, text nodes, comments, processing instructions, etc. cannot exist
-    /// outside the context of a Document, the Document interface also contains the
-    /// factory methods needed to create these objects. The Node objects created have a
-    /// ownerDocument attribute which associates them with the Document within whose
-    /// context they were created.
-    {
-    public:
-        using AutoReleasePool = Poco::AutoReleasePool<DOMObject>;
+  Document(DocumentType* pDocumentType, unsigned long namePoolSize);
+  /// Creates a new document using a name pool with the given size, which
+  /// should be a prime number (e.g., 251, 509, 1021, 4093).
 
-        explicit Document(NamePool * pNamePool = 0);
-        /// Creates a new document. If pNamePool == 0, the document
-        /// creates its own name pool, otherwise it uses the given name pool.
-        /// Sharing a name pool makes sense for documents containing instances
-        /// of the same schema, thus reducing memory usage.
+  NamePool& namePool();
+  /// Returns a pointer to the documents Name Pool.
 
-        explicit Document(unsigned long namePoolSize);
-        /// Creates a new document using a name pool with the given size, which
-        /// should be a prime number (e.g., 251, 509, 1021, 4093).
+  AutoReleasePool& autoReleasePool();
+  /// Returns a pointer to the documents Auto Release Pool.
 
-        Document(DocumentType * pDocumentType, NamePool * pNamePool = 0);
-        /// Creates a new document. If pNamePool == 0, the document
-        /// creates its own name pool, otherwise it uses the given name pool.
-        /// Sharing a name pool makes sense for documents containing instances
-        /// of the same schema, thus reducing memory usage.
+  void collectGarbage();
+  /// Releases all objects in the Auto Release Pool.
 
-        Document(DocumentType * pDocumentType, unsigned long namePoolSize);
-        /// Creates a new document using a name pool with the given size, which
-        /// should be a prime number (e.g., 251, 509, 1021, 4093).
+  void suspendEvents();
+  /// Suspends all events until resumeEvents() is called.
 
-        NamePool & namePool();
-        /// Returns a pointer to the documents Name Pool.
+  void resumeEvents();
+  /// Resumes all events suspended with suspendEvent();
 
-        AutoReleasePool & autoReleasePool();
-        /// Returns a pointer to the documents Auto Release Pool.
+  bool eventsSuspended() const;
+  /// Returns true if events are suspended.
 
-        void collectGarbage();
-        /// Releases all objects in the Auto Release Pool.
+  bool events() const;
+  /// Returns true if events are not suspended.
 
-        void suspendEvents();
-        /// Suspends all events until resumeEvents() is called.
+  const DocumentType* doctype() const;
+  /// The Document Type Declaration (see DocumentType) associated with this document.
+  /// For HTML documents as well as XML documents without a document type declaration
+  /// this returns null. The DOM Level 1 does not support editing the Document
+  /// Type Declaration. docType cannot be altered in any way, including through
+  /// the use of methods inherited from the Node interface, such as insertNode
+  /// or removeNode.
 
-        void resumeEvents();
-        /// Resumes all events suspended with suspendEvent();
+  const DOMImplementation& implementation() const;
+  /// The DOMImplementation object that handles this document. A DOM application
+  /// may use objects from multiple implementations.
 
-        bool eventsSuspended() const;
-        /// Returns true if events are suspended.
+  Element* documentElement() const;
+  /// This is a convenience attribute that allows direct access to the child node
+  /// that is the root element of the document. For HTML documents, this is the
+  /// element with the tagName "HTML".
 
-        bool events() const;
-        /// Returns true if events are not suspended.
+  Element* createElement(const XMLString& tagName) const;
+  /// Creates an element of the type specified. Note that the instance returned
+  /// implements the Element interface, so attributes can be specified directly
+  /// on the returned object.
+  ///
+  /// In addition, if there are known attributes with default values, Attr nodes
+  /// representing them are automatically created and attached to the element.
 
-        const DocumentType * doctype() const;
-        /// The Document Type Declaration (see DocumentType) associated with this document.
-        /// For HTML documents as well as XML documents without a document type declaration
-        /// this returns null. The DOM Level 1 does not support editing the Document
-        /// Type Declaration. docType cannot be altered in any way, including through
-        /// the use of methods inherited from the Node interface, such as insertNode
-        /// or removeNode.
+  DocumentFragment* createDocumentFragment() const;
+  /// Creates an empty DocumentFragment object.
 
-        const DOMImplementation & implementation() const;
-        /// The DOMImplementation object that handles this document. A DOM application
-        /// may use objects from multiple implementations.
+  Text* createTextNode(const XMLString& data) const;
+  /// Creates a text node given the specified string.
 
-        Element * documentElement() const;
-        /// This is a convenience attribute that allows direct access to the child node
-        /// that is the root element of the document. For HTML documents, this is the
-        /// element with the tagName "HTML".
+  Comment* createComment(const XMLString& data) const;
+  /// Creates a comment node given the specified string.
 
-        Element * createElement(const XMLString & tagName) const;
-        /// Creates an element of the type specified. Note that the instance returned
-        /// implements the Element interface, so attributes can be specified directly
-        /// on the returned object.
-        ///
-        /// In addition, if there are known attributes with default values, Attr nodes
-        /// representing them are automatically created and attached to the element.
+  CDATASection* createCDATASection(const XMLString& data) const;
+  /// Creates a CDATASection node whose value is the specified string.
 
-        DocumentFragment * createDocumentFragment() const;
-        /// Creates an empty DocumentFragment object.
+  ProcessingInstruction* createProcessingInstruction(const XMLString& target, const XMLString& data) const;
+  /// Creates a ProcessingInstruction node given the specified target and data strings.
 
-        Text * createTextNode(const XMLString & data) const;
-        /// Creates a text node given the specified string.
+  Attr* createAttribute(const XMLString& name) const;
+  /// Creates an Attr of the given name. Note that the Attr instance can then
+  /// be set on an Element using the setAttributeNode method.
 
-        Comment * createComment(const XMLString & data) const;
-        /// Creates a comment node given the specified string.
+  EntityReference* createEntityReference(const XMLString& name) const;
+  /// Creates an EntityReference object. In addition, if the referenced entity
+  /// is known, the child list of the EntityReference node is made the same as
+  /// that of the corresponding Entity node.
 
-        CDATASection * createCDATASection(const XMLString & data) const;
-        /// Creates a CDATASection node whose value is the specified string.
+  NodeList* getElementsByTagName(const XMLString& name) const;
+  /// Returns a NodeList of all Elements with a given tag name in the order
+  /// in which they would be encountered in a preorder traversal of the
+  /// document tree.
+  ///
+  /// The returned NodeList must be released with a call to release()
+  /// when no longer needed.
 
-        ProcessingInstruction * createProcessingInstruction(const XMLString & target, const XMLString & data) const;
-        /// Creates a ProcessingInstruction node given the specified target and data strings.
+  // DOM Level 2
+  Node* importNode(Node* importedNode, bool deep);
+  /// Imports a node from another document to this document. The returned node
+  /// has no parent; (parentNode is null). The source node is not altered or removed
+  /// from the original document; this method creates a new copy of the source
+  /// node.
+  /// For all nodes, importing a node creates a node object owned by the importing
+  /// document, with attribute values identical to the source node's nodeName
+  /// and nodeType, plus the attributes related to namespaces (prefix, localName,
+  /// and namespaceURI). As in the cloneNode operation on a Node, the source node
+  /// is not altered.
+  /// Additional information is copied as appropriate to the nodeType, attempting
+  /// to mirror the behavior expected if a fragment of XML or HTML source was
+  /// copied from one document to another, recognizing that the two documents
+  /// may have different DTDs in the XML case.
 
-        Attr * createAttribute(const XMLString & name) const;
-        /// Creates an Attr of the given name. Note that the Attr instance can then
-        /// be set on an Element using the setAttributeNode method.
+  Element* createElementNS(const XMLString& namespaceURI, const XMLString& qualifiedName) const;
+  /// Creates an element of the given qualified name and namespace URI.
 
-        EntityReference * createEntityReference(const XMLString & name) const;
-        /// Creates an EntityReference object. In addition, if the referenced entity
-        /// is known, the child list of the EntityReference node is made the same as
-        /// that of the corresponding Entity node.
+  Attr* createAttributeNS(const XMLString& namespaceURI, const XMLString& qualifiedName) const;
+  /// Creates an attribute of the given qualified name and namespace URI.
 
-        NodeList * getElementsByTagName(const XMLString & name) const;
-        /// Returns a NodeList of all Elements with a given tag name in the order
-        /// in which they would be encountered in a preorder traversal of the
-        /// document tree.
-        ///
-        /// The returned NodeList must be released with a call to release()
-        /// when no longer needed.
+  NodeList* getElementsByTagNameNS(const XMLString& namespaceURI, const XMLString& localName) const;
+  /// Returns a NodeList of all the Elements with a given local name and
+  /// namespace URI in the order in which they are encountered in a
+  /// preorder traversal of the Document tree.
 
-        // DOM Level 2
-        Node * importNode(Node * importedNode, bool deep);
-        /// Imports a node from another document to this document. The returned node
-        /// has no parent; (parentNode is null). The source node is not altered or removed
-        /// from the original document; this method creates a new copy of the source
-        /// node.
-        /// For all nodes, importing a node creates a node object owned by the importing
-        /// document, with attribute values identical to the source node's nodeName
-        /// and nodeType, plus the attributes related to namespaces (prefix, localName,
-        /// and namespaceURI). As in the cloneNode operation on a Node, the source node
-        /// is not altered.
-        /// Additional information is copied as appropriate to the nodeType, attempting
-        /// to mirror the behavior expected if a fragment of XML or HTML source was
-        /// copied from one document to another, recognizing that the two documents
-        /// may have different DTDs in the XML case.
+  Element* getElementById(const XMLString& elementId) const;
+  /// Returns the Element whose ID is given by elementId. If no such
+  /// element exists, returns null. Behavior is not defined if more
+  /// than one element has this ID.
+  ///
+  /// Note: The DOM implementation must have information that says
+  /// which attributes are of type ID. Attributes with the name "ID"
+  /// are not of type ID unless so defined. Implementations that do
+  /// not know whether attributes are of type ID or not are expected to
+  /// return null. This implementation therefore returns null.
+  ///
+  /// See also the non-standard two argument variant of getElementById()
+  /// and getElementByIdNS().
 
-        Element * createElementNS(const XMLString & namespaceURI, const XMLString & qualifiedName) const;
-        /// Creates an element of the given qualified name and namespace URI.
+  // DocumentEvent
+  Event* createEvent(const XMLString& eventType) const;
 
-        Attr * createAttributeNS(const XMLString & namespaceURI, const XMLString & qualifiedName) const;
-        /// Creates an attribute of the given qualified name and namespace URI.
+  // Node
+  const XMLString& nodeName() const;
+  unsigned short nodeType() const;
 
-        NodeList * getElementsByTagNameNS(const XMLString & namespaceURI, const XMLString & localName) const;
-        /// Returns a NodeList of all the Elements with a given local name and
-        /// namespace URI in the order in which they are encountered in a
-        /// preorder traversal of the Document tree.
+  // EventTarget
+  bool dispatchEvent(Event* evt);
 
-        Element * getElementById(const XMLString & elementId) const;
-        /// Returns the Element whose ID is given by elementId. If no such
-        /// element exists, returns null. Behavior is not defined if more
-        /// than one element has this ID.
-        ///
-        /// Note: The DOM implementation must have information that says
-        /// which attributes are of type ID. Attributes with the name "ID"
-        /// are not of type ID unless so defined. Implementations that do
-        /// not know whether attributes are of type ID or not are expected to
-        /// return null. This implementation therefore returns null.
-        ///
-        /// See also the non-standard two argument variant of getElementById()
-        /// and getElementByIdNS().
+  // Extensions
+  Entity* createEntity(const XMLString& name, const XMLString& publicId, const XMLString& systemId, const XMLString& notationName) const;
+  /// Creates an Entity with the given name, publicId, systemId and notationName.
+  ///
+  /// This method is not part of the W3C Document Object Model.
 
-        // DocumentEvent
-        Event * createEvent(const XMLString & eventType) const;
+  Notation* createNotation(const XMLString& name, const XMLString& publicId, const XMLString& systemId) const;
+  /// Creates a Notation with the given name, publicId and systemId.
+  ///
+  /// This method is not part of the W3C Document Object Model.
 
-        // Node
-        const XMLString & nodeName() const;
-        unsigned short nodeType() const;
+  Element* getElementById(const XMLString& elementId, const XMLString& idAttribute) const;
+  /// Returns the first Element whose ID attribute (given in idAttribute)
+  /// has the given elementId. If no such element exists, returns null.
+  ///
+  /// This method is an extension to the W3C Document Object Model.
 
-        // EventTarget
-        bool dispatchEvent(Event * evt);
+  Element* getElementByIdNS(const XMLString& elementId, const XMLString& idAttributeURI, const XMLString& idAttributeLocalName) const;
+  /// Returns the first Element whose ID attribute (given in idAttributeURI and idAttributeLocalName)
+  /// has the given elementId. If no such element exists, returns null.
+  ///
+  /// This method is an extension to the W3C Document Object Model.
 
-        // Extensions
-        Entity *
-        createEntity(const XMLString & name, const XMLString & publicId, const XMLString & systemId, const XMLString & notationName) const;
-        /// Creates an Entity with the given name, publicId, systemId and notationName.
-        ///
-        /// This method is not part of the W3C Document Object Model.
+ protected:
+  ~Document();
 
-        Notation * createNotation(const XMLString & name, const XMLString & publicId, const XMLString & systemId) const;
-        /// Creates a Notation with the given name, publicId and systemId.
-        ///
-        /// This method is not part of the W3C Document Object Model.
+  Node* copyNode(bool deep, Document* pOwnerDocument) const;
 
-        Element * getElementById(const XMLString & elementId, const XMLString & idAttribute) const;
-        /// Returns the first Element whose ID attribute (given in idAttribute)
-        /// has the given elementId. If no such element exists, returns null.
-        ///
-        /// This method is an extension to the W3C Document Object Model.
+  DocumentType* getDoctype();
+  void setDoctype(DocumentType* pDoctype);
 
-        Element *
-        getElementByIdNS(const XMLString & elementId, const XMLString & idAttributeURI, const XMLString & idAttributeLocalName) const;
-        /// Returns the first Element whose ID attribute (given in idAttributeURI and idAttributeLocalName)
-        /// has the given elementId. If no such element exists, returns null.
-        ///
-        /// This method is an extension to the W3C Document Object Model.
+ private:
+  DocumentType* _pDocumentType;
+  NamePool* _pNamePool;
+  AutoReleasePool _autoReleasePool;
+  int _eventSuspendLevel;
 
-    protected:
-        ~Document();
+  static const XMLString NODE_NAME;
 
-        Node * copyNode(bool deep, Document * pOwnerDocument) const;
+  friend class DOMBuilder;
+};
 
-        DocumentType * getDoctype();
-        void setDoctype(DocumentType * pDoctype);
+//
+// inlines
+//
+inline NamePool& Document::namePool() { return *_pNamePool; }
 
-    private:
-        DocumentType * _pDocumentType;
-        NamePool * _pNamePool;
-        AutoReleasePool _autoReleasePool;
-        int _eventSuspendLevel;
+inline Document::AutoReleasePool& Document::autoReleasePool() { return _autoReleasePool; }
 
-        static const XMLString NODE_NAME;
+inline const DocumentType* Document::doctype() const { return _pDocumentType; }
 
-        friend class DOMBuilder;
-    };
+inline DocumentType* Document::getDoctype() { return _pDocumentType; }
 
+}  // namespace XML
+}  // namespace Poco
 
-    //
-    // inlines
-    //
-    inline NamePool & Document::namePool()
-    {
-        return *_pNamePool;
-    }
-
-
-    inline Document::AutoReleasePool & Document::autoReleasePool()
-    {
-        return _autoReleasePool;
-    }
-
-
-    inline const DocumentType * Document::doctype() const
-    {
-        return _pDocumentType;
-    }
-
-
-    inline DocumentType * Document::getDoctype()
-    {
-        return _pDocumentType;
-    }
-
-
-}
-} // namespace Poco::XML
-
-
-#endif // DOM_Document_INCLUDED
+#endif  // DOM_Document_INCLUDED

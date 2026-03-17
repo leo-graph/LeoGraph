@@ -1,15 +1,15 @@
-#include <iomanip>
-#include <iostream>
-#include <vector>
-#include <Compression/CompressedReadBuffer.h>
 #include <base/types.h>
-#include <IO/ReadBufferFromFile.h>
-#include <IO/ReadHelpers.h>
-#include <Interpreters/AggregationCommon.h>
 #include <Common/HashTable/HashMap.h>
 #include <Common/HashTable/HashTableKeyHolder.h>
 #include <Common/HashTable/StringHashMap.h>
 #include <Common/Stopwatch.h>
+#include <Compression/CompressedReadBuffer.h>
+#include <Interpreters/AggregationCommon.h>
+#include <IO/ReadBufferFromFile.h>
+#include <IO/ReadHelpers.h>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 /**
 
@@ -72,9 +72,8 @@ for file in term1 term2 term4 term8 term16 term24 term48; do
         BEST_RESULT=0
         for method in {1..2}; do
             echo -ne $file $size $method ''
-            numactl --membind=0 taskset -c 18 ./string_hash_map $size $method <"$dir"/"$file".bin 2>&1 | perl -nE 'say /([0-9\.]+) elem/g if /HashMap/' | tee /tmp/string_hash_map_res
-            CUR_RESULT=$(cat /tmp/string_hash_map_res | tr -d '.')
-            if [[ $CUR_RESULT -gt $BEST_RESULT ]]; then
+            numactl --membind=0 taskset -c 18 ./string_hash_map $size $method <"$dir"/"$file".bin 2>&1 | perl -nE 'say /([0-9\.]+) elem/g if
+/HashMap/' | tee /tmp/string_hash_map_res CUR_RESULT=$(cat /tmp/string_hash_map_res | tr -d '.') if [[ $CUR_RESULT -gt $BEST_RESULT ]]; then
                 BEST_METHOD=$method
                 BEST_RESULT=$CUR_RESULT
             fi
@@ -114,52 +113,46 @@ Best: 1 - 593010342                 Best: 1 - 503062152                 Best: 1 
 
 */
 
-
 using Value = uint64_t;
 
 template <typename Map>
-void NO_INLINE bench(const std::vector<std::string_view> & data, DB::Arena &, const char * name)
-{
-    // warm up
-    /*
-    {
-        Map map;
-        typename Map::LookupResult it;
-        bool inserted;
+void NO_INLINE bench(const std::vector<std::string_view> &data, DB::Arena &, const char *name) {
+  // warm up
+  /*
+  {
+      Map map;
+      typename Map::LookupResult it;
+      bool inserted;
 
-        for (size_t i = 0, size = data.size(); i < size; ++i)
-        {
-            auto key_holder = DB::ArenaKeyHolder{data[i], pool};
-            map.emplace(key_holder, it, inserted);
-            if (inserted)
-                it->getSecond() = 0;
-            ++it->getSecond();
-        }
+      for (size_t i = 0, size = data.size(); i < size; ++i)
+      {
+          auto key_holder = DB::ArenaKeyHolder{data[i], pool};
+          map.emplace(key_holder, it, inserted);
+          if (inserted)
+              it->getSecond() = 0;
+          ++it->getSecond();
+      }
+  }
+  */
+
+  std::cerr << "method " << name << std::endl;
+  for (auto t = 0ul; t < 7; ++t) {
+    DB::Arena pool(128 * 1024 * 1024);
+    Stopwatch watch;
+    Map map;
+    typename Map::LookupResult it;
+    bool inserted;
+
+    for (const auto &value : data) {
+      map.emplace(DB::ArenaKeyHolder{value, pool}, it, inserted);
+      if (inserted) it->getMapped() = 0;
+      ++it->getMapped();
     }
-    */
+    watch.stop();
 
-    std::cerr << "method " << name << std::endl;
-    for (auto t = 0ul; t < 7; ++t)
-    {
-        DB::Arena pool(128 * 1024 * 1024);
-        Stopwatch watch;
-        Map map;
-        typename Map::LookupResult it;
-        bool inserted;
-
-        for (const auto & value : data)
-        {
-            map.emplace(DB::ArenaKeyHolder{value, pool}, it, inserted);
-            if (inserted)
-                it->getMapped() = 0;
-            ++it->getMapped();
-        }
-        watch.stop();
-
-        std::cerr << "arena-memory " << pool.allocatedBytes() + map.getBufferSizeInBytes() << std::endl;
-        std::cerr << "single-run " << std::setprecision(3)
-                  << watch.elapsedSeconds() << std::endl;
-    }
+    std::cerr << "arena-memory " << pool.allocatedBytes() + map.getBufferSizeInBytes() << std::endl;
+    std::cerr << "single-run " << std::setprecision(3) << watch.elapsedSeconds() << std::endl;
+  }
 }
 
 /*
@@ -202,45 +195,38 @@ benchFromFile()
 }
 */
 
+int main(int argc, char **argv) {
+  if (argc < 3) {
+    std::cerr << "Usage: program n m\n";
+    return 1;
+  }
 
-int main(int argc, char ** argv)
-{
-    if (argc < 3)
-    {
-        std::cerr << "Usage: program n m\n";
-        return 1;
+  size_t n = std::stol(argv[1]);
+  size_t m = std::stol(argv[2]);
+
+  DB::Arena pool(128 * 1024 * 1024);
+  std::vector<std::string_view> data(n);
+
+  std::cerr << "sizeof(Key) = " << sizeof(std::string_view) << ", sizeof(Value) = " << sizeof(Value) << std::endl;
+
+  {
+    Stopwatch watch;
+    DB::ReadBufferFromFileDescriptor in1(STDIN_FILENO);
+    DB::CompressedReadBuffer in2(in1);
+
+    std::string tmp;
+    for (size_t i = 0; i < n && !in2.eof(); ++i) {
+      DB::readStringBinary(tmp, in2);
+      data[i] = std::string_view(pool.insert(tmp.data(), tmp.size()), tmp.size());
     }
 
-    size_t n = std::stol(argv[1]);
-    size_t m = std::stol(argv[2]);
+    watch.stop();
+    std::cerr << std::fixed << std::setprecision(2) << "Vector. Size: " << n << ", elapsed: " << watch.elapsedSeconds() << " ("
+              << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)" << std::endl;
+  }
 
-    DB::Arena pool(128 * 1024 * 1024);
-    std::vector<std::string_view> data(n);
-
-    std::cerr << "sizeof(Key) = " << sizeof(std::string_view) << ", sizeof(Value) = " << sizeof(Value) << std::endl;
-
-    {
-        Stopwatch watch;
-        DB::ReadBufferFromFileDescriptor in1(STDIN_FILENO);
-        DB::CompressedReadBuffer in2(in1);
-
-        std::string tmp;
-        for (size_t i = 0; i < n && !in2.eof(); ++i)
-        {
-            DB::readStringBinary(tmp, in2);
-            data[i] = std::string_view(pool.insert(tmp.data(), tmp.size()), tmp.size());
-        }
-
-        watch.stop();
-        std::cerr << std::fixed << std::setprecision(2) << "Vector. Size: " << n << ", elapsed: " << watch.elapsedSeconds() << " ("
-                  << static_cast<double>(n) / watch.elapsedSeconds() << " elem/sec.)" << std::endl;
-    }
-
-    if (!m || m == 1)
-        bench<StringHashMap<Value>>(data, pool, "StringHashMap");
-    if (!m || m == 2)
-        bench<HashMapWithSavedHash<std::string_view, Value>>(data, pool, "HashMapWithSavedHash");
-    if (!m || m == 3)
-        bench<HashMap<std::string_view, Value>>(data, pool, "HashMap");
-    return 0;
+  if (!m || m == 1) bench<StringHashMap<Value>>(data, pool, "StringHashMap");
+  if (!m || m == 2) bench<HashMapWithSavedHash<std::string_view, Value>>(data, pool, "HashMapWithSavedHash");
+  if (!m || m == 3) bench<HashMap<std::string_view, Value>>(data, pool, "HashMap");
+  return 0;
 }

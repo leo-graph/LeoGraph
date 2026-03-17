@@ -1,56 +1,54 @@
 #pragma once
 
-#include <Core/BackgroundSchedulePool.h>
 #include <Common/ActionBlocker.h>
-#include <Common/Stopwatch.h>
 #include <Common/randomSeed.h>
+#include <Common/Stopwatch.h>
+#include <Core/BackgroundSchedulePool.h>
 
 #include <pcg_random.hpp>
 
-namespace DB
-{
+namespace DB {
 
 class MergeTreeData;
 
 /// Removes obsolete data from a table of type [Replicated]MergeTree.
-class IMergeTreeCleanupThread
-{
-public:
-    explicit IMergeTreeCleanupThread(MergeTreeData & data_);
+class IMergeTreeCleanupThread {
+ public:
+  explicit IMergeTreeCleanupThread(MergeTreeData& data_);
 
-    virtual ~IMergeTreeCleanupThread();
+  virtual ~IMergeTreeCleanupThread();
 
-    void start();
+  void start();
 
-    void wakeup();
+  void wakeup();
 
-    void stop();
+  void stop();
 
-    void wakeupEarlierIfNeeded();
+  void wakeupEarlierIfNeeded();
 
-    ActionLock getCleanupLock() { return cleanup_blocker.cancel(); }
+  ActionLock getCleanupLock() { return cleanup_blocker.cancel(); }
 
-protected:
-    MergeTreeData & data;
+ protected:
+  MergeTreeData& data;
 
-    String log_name;
-    LoggerPtr log;
-    BackgroundSchedulePoolTaskHolder task;
-    pcg64 rng{randomSeed()};
+  String log_name;
+  LoggerPtr log;
+  BackgroundSchedulePoolTaskHolder task;
+  pcg64 rng{randomSeed()};
 
-    UInt64 sleep_ms;
+  UInt64 sleep_ms;
 
-    std::atomic<UInt64> prev_cleanup_timestamp_ms = 0;
-    std::atomic<bool> is_running = false;
+  std::atomic<UInt64> prev_cleanup_timestamp_ms = 0;
+  std::atomic<bool> is_running = false;
 
-    AtomicStopwatch wakeup_check_timer;
+  AtomicStopwatch wakeup_check_timer;
 
-    ActionBlocker cleanup_blocker;
+  ActionBlocker cleanup_blocker;
 
-    void run();
+  void run();
 
-    /// Returns a number this is directly proportional to the number of cleaned up blocks
-    virtual Float32 iterate() = 0;
+  /// Returns a number this is directly proportional to the number of cleaned up blocks
+  virtual Float32 iterate() = 0;
 };
 
-}
+}  // namespace DB

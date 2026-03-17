@@ -1,32 +1,27 @@
 #pragma once
 
-#include <Parsers/IParserBase.h>
 #include <Parsers/Access/ASTShowAccessQuery.h>
 #include <Parsers/CommonParsers.h>
 #include <Parsers/ExpressionElementParsers.h>
+#include <Parsers/IParserBase.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Query SHOW ACCESS
-  */
-class ParserShowAccessQuery : public IParserBase
-{
-protected:
-    const char * getName() const override { return "SHOW ACCESS query"; }
+ */
+class ParserShowAccessQuery : public IParserBase {
+ protected:
+  const char* getName() const override { return "SHOW ACCESS query"; }
 
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override
-    {
-        auto query = make_intrusive<ASTShowAccessQuery>();
+  bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override {
+    auto query = make_intrusive<ASTShowAccessQuery>();
 
-        if (!ParserKeyword(Keyword::SHOW_ACCESS).ignore(pos, expected))
-            return false;
+    if (!ParserKeyword(Keyword::SHOW_ACCESS).ignore(pos, expected)) return false;
 
-        node = query;
+    node = query;
 
-        return true;
-    }
+    return true;
+  }
 };
 
-}
+}  // namespace DB

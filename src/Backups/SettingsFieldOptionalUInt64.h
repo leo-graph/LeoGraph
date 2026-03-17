@@ -1,20 +1,18 @@
 #pragma once
 
-#include <optional>
 #include <Core/SettingsFields.h>
+#include <optional>
 
-namespace DB
-{
+namespace DB {
 
-struct SettingFieldOptionalUInt64
-{
-    std::optional<UInt64> value;
+struct SettingFieldOptionalUInt64 {
+  std::optional<UInt64> value;
 
-    explicit SettingFieldOptionalUInt64(const std::optional<UInt64> & value_) : value(value_) {}
+  explicit SettingFieldOptionalUInt64(const std::optional<UInt64>& value_) : value(value_) {}
 
-    explicit SettingFieldOptionalUInt64(const Field & field);
+  explicit SettingFieldOptionalUInt64(const Field& field);
 
-    explicit operator Field() const;
+  explicit operator Field() const;
 };
 
-}
+}  // namespace DB

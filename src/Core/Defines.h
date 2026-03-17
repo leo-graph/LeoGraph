@@ -3,8 +3,7 @@
 #include <base/defines.h>
 #include <base/unit.h>
 
-namespace DB
-{
+namespace DB {
 
 static constexpr auto DBMS_DEFAULT_PORT = 9000;
 static constexpr auto DBMS_DEFAULT_SECURE_PORT = 9440;
@@ -26,18 +25,18 @@ static constexpr auto DBMS_DEFAULT_INITIAL_ADAPTIVE_BUFFER_SIZE = 16384ULL;
 static constexpr auto PADDING_FOR_SIMD = 64;
 
 /** Which blocks by default read the data (by number of rows).
-  * Smaller values give better cache locality, less consumption of RAM, but more overhead to process the query.
-  */
-static constexpr auto DEFAULT_BLOCK_SIZE
-    = 65409; /// 65536 - PADDING_FOR_SIMD - (PADDING_FOR_SIMD - 1) bytes padding that we usually have in = arrays
+ * Smaller values give better cache locality, less consumption of RAM, but more overhead to process the query.
+ */
+static constexpr auto DEFAULT_BLOCK_SIZE =
+    65409;  /// 65536 - PADDING_FOR_SIMD - (PADDING_FOR_SIMD - 1) bytes padding that we usually have in = arrays
 
 /** Which blocks should be formed for insertion into the table, if we control the formation of blocks.
-  * (Sometimes the blocks are inserted exactly such blocks that have been read / transmitted from the outside, and this parameter does not affect their size.)
-  * More than DEFAULT_BLOCK_SIZE, because in some tables a block of data on the disk is created for each block (quite a big thing),
-  *  and if the parts were small, then it would be costly then to combine them.
-  */
-static constexpr auto DEFAULT_INSERT_BLOCK_SIZE
-    = 1048449; /// 1048576 - PADDING_FOR_SIMD - (PADDING_FOR_SIMD - 1) bytes padding that we usually have in arrays
+ * (Sometimes the blocks are inserted exactly such blocks that have been read / transmitted from the outside, and this parameter does not
+ * affect their size.) More than DEFAULT_BLOCK_SIZE, because in some tables a block of data on the disk is created for each block (quite a
+ * big thing), and if the parts were small, then it would be costly then to combine them.
+ */
+static constexpr auto DEFAULT_INSERT_BLOCK_SIZE =
+    1048449;  /// 1048576 - PADDING_FOR_SIMD - (PADDING_FOR_SIMD - 1) bytes padding that we usually have in arrays
 
 static constexpr auto SHOW_CHARS_ON_SYNTAX_ERROR = ptrdiff_t(160);
 /// each period reduces the error counter by 2 times
@@ -79,7 +78,6 @@ static constexpr auto DBMS_DEFAULT_MAX_QUERY_SIZE = 262144;
 /// Max depth of hierarchical dictionary
 static constexpr auto DBMS_HIERARCHICAL_DICTIONARY_MAX_DEPTH = 1000;
 
-
 /// Default maximum (total and entry) sizes and policies of various caches
 static constexpr auto DEFAULT_UNCOMPRESSED_CACHE_POLICY = "SLRU";
 static constexpr auto DEFAULT_UNCOMPRESSED_CACHE_MAX_SIZE = 0_MiB;
@@ -112,7 +110,7 @@ static constexpr auto DEFAULT_TEXT_INDEX_POSTINGS_CACHE_POLICY = "SLRU";
 static constexpr auto DEFAULT_TEXT_INDEX_POSTINGS_CACHE_MAX_SIZE = 2_GiB;
 static constexpr auto DEFAULT_TEXT_INDEX_POSTINGS_CACHE_SIZE_RATIO = 0.5;
 static constexpr auto DEFAULT_TEXT_INDEX_POSTINGS_CACHE_MAX_ENTRIES = 1'000'000;
-static constexpr auto DEFAULT_MMAP_CACHE_MAX_SIZE = 1_KiB; /// chosen by rolling dice
+static constexpr auto DEFAULT_MMAP_CACHE_MAX_SIZE = 1_KiB;  /// chosen by rolling dice
 static constexpr auto DEFAULT_COMPILED_EXPRESSION_CACHE_MAX_SIZE = 128_MiB;
 static constexpr auto DEFAULT_COMPILED_EXPRESSION_CACHE_MAX_ENTRIES = 10'000;
 static constexpr auto DEFAULT_ICEBERG_METADATA_CACHE_POLICY = "SLRU";
@@ -157,4 +155,4 @@ static constexpr auto DEFAULT_NATIVE_BINARY_MAX_NUM_COLUMNS = 1'000'000uz;
 
 static constexpr auto DEFAULT_NATIVE_BINARY_MAX_NUM_ROWS = 1'000'000'000'000uz;
 
-}
+}  // namespace DB

@@ -4,8 +4,7 @@
 
 #include <unordered_set>
 
-namespace DB
-{
+namespace DB {
 
 /// We do track memory allocations from standard containers by default, but we do it through
 /// non-throwing methods of the `MemoryTracker` (see `trackMemory` in src/Common/memory.h).
@@ -23,4 +22,4 @@ using UnorderedSetWithMemoryTracking = std::unordered_set<K, Hash, KeyEqual, All
 
 template <typename K, typename Hash = std::hash<K>, typename KeyEqual = std::equal_to<K>>
 using UnorderedMultiSetWithMemoryTracking = std::unordered_multiset<K, Hash, KeyEqual, AllocatorWithMemoryTracking<K>>;
-}
+}  // namespace DB

@@ -4,7 +4,6 @@
 
 #include <string>
 
-namespace DB
-{
+namespace DB {
 std::string formatKQLTimespan(Int64 ticks);
 }

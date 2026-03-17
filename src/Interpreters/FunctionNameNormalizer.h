@@ -2,8 +2,7 @@
 
 #include <Parsers/IAST_fwd.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Rewrite function names to their canonical forms.
 /// For example, rewrite (1) to (2)
@@ -12,9 +11,8 @@ namespace DB
 ///
 /// It's used to help projection query analysis matching function nodes by their canonical names.
 /// See the comment of ActionsDAG::foldActionsByProjection for details.
-struct FunctionNameNormalizer
-{
-    static void visit(IAST *);
+struct FunctionNameNormalizer {
+  static void visit(IAST *);
 };
 
-}
+}  // namespace DB

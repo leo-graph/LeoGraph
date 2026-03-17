@@ -3,8 +3,7 @@
 
 #include <Core/Types.h>
 
-namespace DistributedCache
-{
+namespace DistributedCache {
 
 static constexpr auto SERVER_CONFIG_PREFIX = "distributed_cache_server";
 static constexpr auto CLIENT_CONFIG_PREFIX = "distributed_cache_client";
@@ -38,4 +37,4 @@ static constexpr auto PROTOCOL_VERSION_WITH_THROTTLING_SETTINGS = 10;
 
 static constexpr UInt32 CURRENT_PROTOCOL_VERSION = PROTOCOL_VERSION_WITH_THROTTLING_SETTINGS;
 
-}
+}  // namespace DistributedCache

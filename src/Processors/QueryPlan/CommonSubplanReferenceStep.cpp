@@ -4,19 +4,16 @@
 #include <QueryPipeline/Pipe.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
+namespace ErrorCodes {
 
 extern const int NOT_IMPLEMENTED;
 
 }
 
-void CommonSubplanReferenceStep::initializePipeline(QueryPipelineBuilder &, const BuildQueryPipelineSettings &)
-{
-    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "CommonSubplanReference cannot be used to build pipeline");
+void CommonSubplanReferenceStep::initializePipeline(QueryPipelineBuilder &, const BuildQueryPipelineSettings &) {
+  throw Exception(ErrorCodes::NOT_IMPLEMENTED, "CommonSubplanReference cannot be used to build pipeline");
 }
 
-}
+}  // namespace DB

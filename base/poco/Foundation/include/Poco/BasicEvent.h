@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_BasicEvent_INCLUDED
 #define Foundation_BasicEvent_INCLUDED
-
 
 #include "Poco/AbstractDelegate.h"
 #include "Poco/AbstractEvent.h"
 #include "Poco/DefaultStrategy.h"
 #include "Poco/Mutex.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TArgs, class TMutex = FastMutex>
 class BasicEvent : public AbstractEvent<TArgs, DefaultStrategy<TArgs, AbstractDelegate<TArgs>>, AbstractDelegate<TArgs>, TMutex>
@@ -36,18 +31,16 @@ class BasicEvent : public AbstractEvent<TArgs, DefaultStrategy<TArgs, AbstractDe
 /// Please see the AbstractEvent class template documentation
 /// for more information.
 {
-public:
-    BasicEvent() { }
+ public:
+  BasicEvent() {}
 
-    ~BasicEvent() { }
+  ~BasicEvent() {}
 
-private:
-    BasicEvent(const BasicEvent & e);
-    BasicEvent & operator=(const BasicEvent & e);
+ private:
+  BasicEvent(const BasicEvent& e);
+  BasicEvent& operator=(const BasicEvent& e);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_BasicEvent_INCLUDED
+#endif  // Foundation_BasicEvent_INCLUDED

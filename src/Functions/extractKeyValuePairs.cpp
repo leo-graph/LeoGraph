@@ -1,5 +1,5 @@
-#include <Columns/ColumnsNumber.h>
 #include <Columns/ColumnMap.h>
+#include <Columns/ColumnsNumber.h>
 #include <Core/Settings.h>
 
 #include <Functions/FunctionFactory.h>
@@ -10,165 +10,133 @@
 
 #include <Interpreters/Context.h>
 
-#include <Functions/keyvaluepair/impl/KeyValuePairExtractorBuilder.h>
 #include <Functions/keyvaluepair/ArgumentExtractor.h>
+#include <Functions/keyvaluepair/impl/KeyValuePairExtractorBuilder.h>
 
-namespace DB
-{
+namespace DB {
 
-namespace Setting
-{
-    extern const SettingsUInt64 extract_key_value_pairs_max_pairs_per_row;
+namespace Setting {
+extern const SettingsUInt64 extract_key_value_pairs_max_pairs_per_row;
 }
 
-namespace ErrorCodes
-{
+namespace ErrorCodes {
 extern const int BAD_ARGUMENTS;
 }
 
-class ExtractKeyValuePairs : public IFunction
-{
-    KeyValuePairExtractorBuilder getBuilder(const ArgumentExtractor::ParsedArguments & parsed_arguments) const
-    {
-        auto builder = KeyValuePairExtractorBuilder();
+class ExtractKeyValuePairs : public IFunction {
+  KeyValuePairExtractorBuilder getBuilder(const ArgumentExtractor::ParsedArguments &parsed_arguments) const {
+    auto builder = KeyValuePairExtractorBuilder();
 
-        if (parsed_arguments.key_value_delimiter)
-        {
-            builder.withKeyValueDelimiter(parsed_arguments.key_value_delimiter.value());
-        }
-
-        if (!parsed_arguments.pair_delimiters.empty())
-        {
-            builder.withItemDelimiters(parsed_arguments.pair_delimiters);
-        }
-
-        if (parsed_arguments.quoting_character)
-        {
-            builder.withQuotingCharacter(parsed_arguments.quoting_character.value());
-        }
-
-        bool is_number_of_pairs_unlimited = extract_key_value_pairs_max_pairs_per_row == 0;
-        if (!is_number_of_pairs_unlimited)
-        {
-            builder.withMaxNumberOfPairs(extract_key_value_pairs_max_pairs_per_row);
-        }
-
-        if (parsed_arguments.unexpected_quoting_character_strategy)
-        {
-            const std::string unexpected_quoting_character_strategy_string{parsed_arguments.unexpected_quoting_character_strategy->getDataAt(0)};
-            const auto unexpected_quoting_character_strategy = magic_enum::enum_cast<extractKV::Configuration::UnexpectedQuotingCharacterStrategy>(
-                    unexpected_quoting_character_strategy_string, magic_enum::case_insensitive);
-
-            if (!unexpected_quoting_character_strategy)
-            {
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid unexpected_quoting_character_strategy argument: {}", unexpected_quoting_character_strategy_string);
-            }
-
-            builder.withUnexpectedQuotingCharacterStrategy(unexpected_quoting_character_strategy.value());
-        }
-
-        return builder;
+    if (parsed_arguments.key_value_delimiter) {
+      builder.withKeyValueDelimiter(parsed_arguments.key_value_delimiter.value());
     }
 
-    ColumnPtr extract(ColumnPtr data_column, auto & extractor, size_t input_rows_count) const
-    {
-        auto offsets = ColumnUInt64::create();
-
-        auto keys = ColumnString::create();
-        auto values = ColumnString::create();
-
-        uint64_t offset = 0u;
-
-        for (auto i = 0u; i < input_rows_count; i++)
-        {
-            auto row = data_column->getDataAt(i);
-
-            auto pairs_count = extractor.extract(row, keys, values);
-
-            offset += pairs_count;
-
-            offsets->insert(offset);
-        }
-
-        keys->validate();
-        values->validate();
-
-        ColumnPtr keys_ptr = std::move(keys);
-
-        return ColumnMap::create(keys_ptr, std::move(values), std::move(offsets));
+    if (!parsed_arguments.pair_delimiters.empty()) {
+      builder.withItemDelimiters(parsed_arguments.pair_delimiters);
     }
 
-public:
-    ExtractKeyValuePairs(ContextPtr context, const char * name_, bool with_escaping_)
-        : extract_key_value_pairs_max_pairs_per_row(context->getSettingsRef()[Setting::extract_key_value_pairs_max_pairs_per_row])
-        , function_name(name_)
-        , with_escaping(with_escaping_)
-    {}
-
-    String getName() const override
-    {
-        return function_name;
+    if (parsed_arguments.quoting_character) {
+      builder.withQuotingCharacter(parsed_arguments.quoting_character.value());
     }
 
-    static FunctionPtr create(ContextPtr context, const char * name, bool with_escaping)
-    {
-        return std::make_shared<ExtractKeyValuePairs>(context, name, with_escaping);
+    bool is_number_of_pairs_unlimited = extract_key_value_pairs_max_pairs_per_row == 0;
+    if (!is_number_of_pairs_unlimited) {
+      builder.withMaxNumberOfPairs(extract_key_value_pairs_max_pairs_per_row);
     }
 
-    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
-    {
-        auto parsed_arguments = ArgumentExtractor::extract(arguments);
+    if (parsed_arguments.unexpected_quoting_character_strategy) {
+      const std::string unexpected_quoting_character_strategy_string{parsed_arguments.unexpected_quoting_character_strategy->getDataAt(0)};
+      const auto unexpected_quoting_character_strategy =
+          magic_enum::enum_cast<extractKV::Configuration::UnexpectedQuotingCharacterStrategy>(unexpected_quoting_character_strategy_string,
+                                                                                              magic_enum::case_insensitive);
 
-        auto builder = getBuilder(parsed_arguments);
+      if (!unexpected_quoting_character_strategy) {
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid unexpected_quoting_character_strategy argument: {}",
+                        unexpected_quoting_character_strategy_string);
+      }
 
-        if (with_escaping)
-        {
-            auto extractor = builder.buildWithEscaping();
-            return extract(parsed_arguments.data_column, extractor, input_rows_count);
-        }
-        else
-        {
-            auto extractor = builder.buildWithoutEscaping();
-            return extract(parsed_arguments.data_column, extractor, input_rows_count);
-        }
+      builder.withUnexpectedQuotingCharacterStrategy(unexpected_quoting_character_strategy.value());
     }
 
-    DataTypePtr getReturnTypeImpl(const DataTypes &) const override
-    {
-        return std::make_shared<DataTypeMap>(std::make_shared<DataTypeString>(), std::make_shared<DataTypeString>());
+    return builder;
+  }
+
+  ColumnPtr extract(ColumnPtr data_column, auto &extractor, size_t input_rows_count) const {
+    auto offsets = ColumnUInt64::create();
+
+    auto keys = ColumnString::create();
+    auto values = ColumnString::create();
+
+    uint64_t offset = 0u;
+
+    for (auto i = 0u; i < input_rows_count; i++) {
+      auto row = data_column->getDataAt(i);
+
+      auto pairs_count = extractor.extract(row, keys, values);
+
+      offset += pairs_count;
+
+      offsets->insert(offset);
     }
 
-    bool isVariadic() const override
-    {
-        return true;
-    }
+    keys->validate();
+    values->validate();
 
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo &) const override
-    {
-        return false;
-    }
+    ColumnPtr keys_ptr = std::move(keys);
 
-    std::size_t getNumberOfArguments() const override
-    {
-        return 0u;
-    }
+    return ColumnMap::create(keys_ptr, std::move(values), std::move(offsets));
+  }
 
-    ColumnNumbers getArgumentsThatAreAlwaysConstant() const override
-    {
-        return {1, 2, 3, 4, 5};
-    }
+ public:
+  ExtractKeyValuePairs(ContextPtr context, const char *name_, bool with_escaping_)
+      : extract_key_value_pairs_max_pairs_per_row(context->getSettingsRef()[Setting::extract_key_value_pairs_max_pairs_per_row]),
+        function_name(name_),
+        with_escaping(with_escaping_) {}
 
-private:
-    const UInt64 extract_key_value_pairs_max_pairs_per_row;
-    const char * function_name;
-    bool with_escaping;
+  String getName() const override { return function_name; }
+
+  static FunctionPtr create(ContextPtr context, const char *name, bool with_escaping) {
+    return std::make_shared<ExtractKeyValuePairs>(context, name, with_escaping);
+  }
+
+  ColumnPtr executeImpl(const ColumnsWithTypeAndName &arguments, const DataTypePtr &, size_t input_rows_count) const override {
+    auto parsed_arguments = ArgumentExtractor::extract(arguments);
+
+    auto builder = getBuilder(parsed_arguments);
+
+    if (with_escaping) {
+      auto extractor = builder.buildWithEscaping();
+      return extract(parsed_arguments.data_column, extractor, input_rows_count);
+    } else {
+      auto extractor = builder.buildWithoutEscaping();
+      return extract(parsed_arguments.data_column, extractor, input_rows_count);
+    }
+  }
+
+  DataTypePtr getReturnTypeImpl(const DataTypes &) const override {
+    return std::make_shared<DataTypeMap>(std::make_shared<DataTypeString>(), std::make_shared<DataTypeString>());
+  }
+
+  bool isVariadic() const override { return true; }
+
+  bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo &) const override { return false; }
+
+  std::size_t getNumberOfArguments() const override { return 0u; }
+
+  ColumnNumbers getArgumentsThatAreAlwaysConstant() const override { return {1, 2, 3, 4, 5}; }
+
+ private:
+  const UInt64 extract_key_value_pairs_max_pairs_per_row;
+  const char *function_name;
+  bool with_escaping;
 };
 
-REGISTER_FUNCTION(ExtractKeyValuePairs)
-{
-    factory.registerFunction("extractKeyValuePairs", [](ContextPtr ctx){ return ExtractKeyValuePairs::create(ctx, "extractKeyValuePairs", false); },
-        FunctionDocumentation{
-            .description=R"(Extracts key-value pairs from any string. The string does not need to be 100% structured in a key value pair format;
+REGISTER_FUNCTION(ExtractKeyValuePairs) {
+  factory.registerFunction(
+      "extractKeyValuePairs", [](ContextPtr ctx) { return ExtractKeyValuePairs::create(ctx, "extractKeyValuePairs", false); },
+      FunctionDocumentation{
+          .description =
+              R"(Extracts key-value pairs from any string. The string does not need to be 100% structured in a key value pair format;
 
             It can contain noise (e.g. log files). The key-value pair format to be interpreted should be specified via function arguments.
 
@@ -299,15 +267,14 @@ REGISTER_FUNCTION(ExtractKeyValuePairs)
             │ {'age':'a\\x0A\\n\\0'} │
             └───────────────────────┘
             ```)",
-            .syntax = "extractKeyValuePairs(input)",
-            .introduced_in = {23, 4},
-            .category = FunctionDocumentation::Category::Map
-        }
-    );
+          .syntax = "extractKeyValuePairs(input)",
+          .introduced_in = {23, 4},
+          .category = FunctionDocumentation::Category::Map});
 
-    factory.registerFunction("extractKeyValuePairsWithEscaping", [](ContextPtr ctx){ return ExtractKeyValuePairs::create(ctx, "extractKeyValuePairsWithEscaping", true); },
-        FunctionDocumentation{
-            .description=R"(Same as `extractKeyValuePairs` but with escaping support.
+  factory.registerFunction(
+      "extractKeyValuePairsWithEscaping",
+      [](ContextPtr ctx) { return ExtractKeyValuePairs::create(ctx, "extractKeyValuePairsWithEscaping", true); },
+      FunctionDocumentation{.description = R"(Same as `extractKeyValuePairs` but with escaping support.
 
             Escape sequences supported: `\x`, `\N`, `\a`, `\b`, `\e`, `\f`, `\n`, `\r`, `\t`, `\v` and `\0`.
             Non standard escape sequences are returned as it is (including the backslash) unless they are one of the following:
@@ -332,13 +299,11 @@ REGISTER_FUNCTION(ExtractKeyValuePairs)
             │ {'age':'a\n\n\0'} │
             └──────────────────┘
             ```)",
-            .syntax = "extractKeyValuePairsWithEscaping(input)",
-            .introduced_in = {23, 4},
-            .category = FunctionDocumentation::Category::Map
-        }
-    );
-    factory.registerAlias("str_to_map", "extractKeyValuePairs", FunctionFactory::Case::Insensitive);
-    factory.registerAlias("mapFromString", "extractKeyValuePairs");
+                            .syntax = "extractKeyValuePairsWithEscaping(input)",
+                            .introduced_in = {23, 4},
+                            .category = FunctionDocumentation::Category::Map});
+  factory.registerAlias("str_to_map", "extractKeyValuePairs", FunctionFactory::Case::Insensitive);
+  factory.registerAlias("mapFromString", "extractKeyValuePairs");
 }
 
-}
+}  // namespace DB

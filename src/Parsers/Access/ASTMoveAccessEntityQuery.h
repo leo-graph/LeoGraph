@@ -1,35 +1,34 @@
 #pragma once
 
-#include <Parsers/IAST.h>
-#include <Parsers/ASTQueryWithOnCluster.h>
 #include <Access/Common/AccessEntityType.h>
+#include <Parsers/ASTQueryWithOnCluster.h>
+#include <Parsers/IAST.h>
 
-
-namespace DB
-{
+namespace DB {
 class ASTRowPolicyNames;
 
 /** MOVE {USER | ROLE | QUOTA | [ROW] POLICY | [SETTINGS] PROFILE} [IF EXISTS] name [,...] [ON [database.]table [,...]] TO storage_name
-  */
-class ASTMoveAccessEntityQuery : public IAST, public ASTQueryWithOnCluster
-{
-public:
-    AccessEntityType type;
-    Strings names;
-    boost::intrusive_ptr<ASTRowPolicyNames> row_policy_names;
+ */
+class ASTMoveAccessEntityQuery : public IAST, public ASTQueryWithOnCluster {
+ public:
+  AccessEntityType type;
+  Strings names;
+  boost::intrusive_ptr<ASTRowPolicyNames> row_policy_names;
 
-    String storage_name;
+  String storage_name;
 
-    String getID(char) const override;
-    ASTPtr clone() const override;
-    ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams &) const override { return removeOnCluster<ASTMoveAccessEntityQuery>(clone()); }
+  String getID(char) const override;
+  ASTPtr clone() const override;
+  ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams &) const override {
+    return removeOnCluster<ASTMoveAccessEntityQuery>(clone());
+  }
 
-    void replaceEmptyDatabase(const String & current_database) const;
+  void replaceEmptyDatabase(const String &current_database) const;
 
-    QueryKind getQueryKind() const override { return QueryKind::Move; }
+  QueryKind getQueryKind() const override { return QueryKind::Move; }
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
 
-}
+}  // namespace DB

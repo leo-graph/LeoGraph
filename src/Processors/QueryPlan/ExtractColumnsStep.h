@@ -1,23 +1,20 @@
 #pragma once
-#include <Processors/QueryPlan/ITransformingStep.h>
 #include <Interpreters/ActionsDAG.h>
+#include <Processors/QueryPlan/ITransformingStep.h>
 
-namespace DB
-{
+namespace DB {
 
-class ExtractColumnsStep : public ITransformingStep
-{
-public:
+class ExtractColumnsStep : public ITransformingStep {
+ public:
+  explicit ExtractColumnsStep(SharedHeader input_header_, const NamesAndTypesList& requested_columns_);
+  String getName() const override { return "ExtractColumns"; }
 
-    explicit ExtractColumnsStep(SharedHeader input_header_, const NamesAndTypesList & requested_columns_);
-    String getName() const override { return "ExtractColumns"; }
+  void transformPipeline(QueryPipelineBuilder& pipeline, const BuildQueryPipelineSettings& settings) override;
 
-    void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & settings) override;
+ private:
+  void updateOutputHeader() override;
 
-private:
-    void updateOutputHeader() override;
-
-    NamesAndTypesList requested_columns;
+  NamesAndTypesList requested_columns;
 };
 
-}
+}  // namespace DB

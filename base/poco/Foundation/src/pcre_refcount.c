@@ -1,6 +1,6 @@
 /*************************************************
-*      Perl-Compatible Regular Expressions       *
-*************************************************/
+ *      Perl-Compatible Regular Expressions       *
+ *************************************************/
 
 /* PCRE is a library of functions to support regular expressions whose syntax
 and semantics are as close as possible to those of the Perl 5 language.
@@ -37,21 +37,19 @@ POSSIBILITY OF SUCH DAMAGE.
 -----------------------------------------------------------------------------
 */
 
-#pragma warning( disable : 4244)  // conversion from 'int' to 'unsigned short', possible loss of data
+#pragma warning(disable : 4244)  // conversion from 'int' to 'unsigned short', possible loss of data
 
 /* This module contains the external function pcre_refcount(), which is an
 auxiliary function that can be used to maintain a reference count in a compiled
 pattern data block. This might be helpful in applications where the block is
 shared by different users. */
 
-
 #include "pcre_config.h"
 #include "pcre_internal.h"
 
-
 /*************************************************
-*           Maintain reference count             *
-*************************************************/
+ *           Maintain reference count             *
+ *************************************************/
 
 /* The reference count is a 16-bit field, initialized to zero. It is not
 possible to transfer a non-zero count from one host to a different host that
@@ -67,24 +65,19 @@ Returns:        the (possibly updated) count value (a non-negative number), or
 */
 
 #if defined COMPILE_PCRE8
-PCRE_EXP_DEFN int PCRE_CALL_CONVENTION
-pcre_refcount(pcre *argument_re, int adjust)
+PCRE_EXP_DEFN int PCRE_CALL_CONVENTION pcre_refcount(pcre *argument_re, int adjust)
 #elif defined COMPILE_PCRE16
-PCRE_EXP_DEFN int PCRE_CALL_CONVENTION
-pcre16_refcount(pcre16 *argument_re, int adjust)
+PCRE_EXP_DEFN int PCRE_CALL_CONVENTION pcre16_refcount(pcre16 *argument_re, int adjust)
 #elif defined COMPILE_PCRE32
-PCRE_EXP_DEFN int PCRE_CALL_CONVENTION
-pcre32_refcount(pcre32 *argument_re, int adjust)
+PCRE_EXP_DEFN int PCRE_CALL_CONVENTION pcre32_refcount(pcre32 *argument_re, int adjust)
 #endif
 {
-REAL_PCRE *re = (REAL_PCRE *)argument_re;
-if (re == NULL) return PCRE_ERROR_NULL;
-if (re->magic_number != MAGIC_NUMBER) return PCRE_ERROR_BADMAGIC;
-if ((re->flags & PCRE_MODE) == 0) return PCRE_ERROR_BADMODE;
-re->ref_count = (-adjust > re->ref_count)? 0 :
-                (adjust + re->ref_count > 65535)? 65535 :
-                re->ref_count + adjust;
-return re->ref_count;
+  REAL_PCRE *re = (REAL_PCRE *)argument_re;
+  if (re == NULL) return PCRE_ERROR_NULL;
+  if (re->magic_number != MAGIC_NUMBER) return PCRE_ERROR_BADMAGIC;
+  if ((re->flags & PCRE_MODE) == 0) return PCRE_ERROR_BADMODE;
+  re->ref_count = (-adjust > re->ref_count) ? 0 : (adjust + re->ref_count > 65535) ? 65535 : re->ref_count + adjust;
+  return re->ref_count;
 }
 
 /* End of pcre_refcount.c */

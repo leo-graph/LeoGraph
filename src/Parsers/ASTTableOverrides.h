@@ -4,9 +4,7 @@
 
 #include <map>
 
-
-namespace DB
-{
+namespace DB {
 
 class ASTColumns;
 class ASTCreateQuery;
@@ -17,24 +15,22 @@ class ASTStorage;
 ///
 ///   TABLE OVERRIDE `foo` (PARTITION BY toYYYYMM(`createtime`))
 ///
-class ASTTableOverride : public IAST
-{
-public:
-    String table_name;
-    ASTColumns * columns = nullptr;
-    ASTStorage * storage = nullptr;
-    bool is_standalone = true;
-    String getID(char) const override { return "TableOverride " + table_name; }
-    ASTPtr clone() const override;
+class ASTTableOverride : public IAST {
+ public:
+  String table_name;
+  ASTColumns *columns = nullptr;
+  ASTStorage *storage = nullptr;
+  bool is_standalone = true;
+  String getID(char) const override { return "TableOverride " + table_name; }
+  ASTPtr clone() const override;
 
-    void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override
-    {
-        f(reinterpret_cast<IAST **>(&columns), nullptr);
-        f(reinterpret_cast<IAST **>(&storage), nullptr);
-    }
+  void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override {
+    f(reinterpret_cast<IAST **>(&columns), nullptr);
+    f(reinterpret_cast<IAST **>(&storage), nullptr);
+  }
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state, FormatStateStacked frame) const override;
 };
 
 /// List of table overrides, for example:
@@ -42,21 +38,20 @@ protected:
 ///   TABLE OVERRIDE `foo` (PARTITION BY toYYYYMM(`createtime`)),
 ///   TABLE OVERRIDE `bar` (SAMPLE BY `id`)
 ///
-class ASTTableOverrideList : public IAST
-{
-public:
-    String getID(char) const override { return "TableOverrideList"; }
-    ASTPtr clone() const override;
-    void setTableOverride(const String & name, ASTPtr ast);
-    void removeTableOverride(const String & name);
-    ASTPtr tryGetTableOverride(const String & name) const;
-    bool hasOverride(const String & name) const;
+class ASTTableOverrideList : public IAST {
+ public:
+  String getID(char) const override { return "TableOverrideList"; }
+  ASTPtr clone() const override;
+  void setTableOverride(const String &name, ASTPtr ast);
+  void removeTableOverride(const String &name);
+  ASTPtr tryGetTableOverride(const String &name) const;
+  bool hasOverride(const String &name) const;
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+ protected:
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state, FormatStateStacked frame) const override;
 
-private:
-    std::map<String, size_t> positions;
+ private:
+  std::map<String, size_t> positions;
 };
 
-}
+}  // namespace DB

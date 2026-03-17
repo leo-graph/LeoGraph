@@ -5,9 +5,7 @@
 #include <map>
 #include <memory>
 
-
-namespace DB
-{
+namespace DB {
 
 class Block;
 
@@ -23,26 +21,25 @@ using ContextWeakPtr = std::weak_ptr<const Context>;
 using ContextWeakMutablePtr = std::weak_ptr<Context>;
 
 template <typename Shared = ContextPtr>
-struct WithContextImpl
-{
-    using Weak = typename Shared::weak_type;
-    using ConstShared = std::shared_ptr<const typename Shared::element_type>;
-    using ConstWeak = typename ConstShared::weak_type;
+struct WithContextImpl {
+  using Weak = typename Shared::weak_type;
+  using ConstShared = std::shared_ptr<const typename Shared::element_type>;
+  using ConstWeak = typename ConstShared::weak_type;
 
-    WithContextImpl() = default;
-    explicit WithContextImpl(Weak context_) : context(context_) {}
+  WithContextImpl() = default;
+  explicit WithContextImpl(Weak context_) : context(context_) {}
 
-    Shared getContext() const;
+  Shared getContext() const;
 
-protected:
-    Weak context;
+ protected:
+  Weak context;
 };
 
 using WithContext = WithContextImpl<>;
-using WithConstContext = WithContext; /// For compatibility. Use WithContext.
+using WithConstContext = WithContext;  /// For compatibility. Use WithContext.
 using WithMutableContext = WithContextImpl<ContextMutablePtr>;
 
 extern template struct WithContextImpl<ContextPtr>;
 extern template struct WithContextImpl<ContextMutablePtr>;
 
-}
+}  // namespace DB

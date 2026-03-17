@@ -8,9 +8,7 @@
 #include <DataTypes/DataTypeTime.h>
 #include <DataTypes/DataTypeTime64.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** Convenience typedefs for columns of SQL types Date, Date32, DateTime and DateTime64. */
 
@@ -21,4 +19,4 @@ using ColumnDateTime64 = DataTypeDateTime64::ColumnType;
 using ColumnTime = DataTypeTime::ColumnType;
 using ColumnTime64 = DataTypeTime64::ColumnType;
 
-}
+}  // namespace DB

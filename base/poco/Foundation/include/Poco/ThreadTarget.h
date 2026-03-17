@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ThreadTarget_INCLUDED
 #define Foundation_ThreadTarget_INCLUDED
-
 
 #include "Poco/Foundation.h"
 #include "Poco/Runnable.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API ThreadTarget : public Runnable
 /// This adapter simplifies using static member functions as well as
@@ -53,36 +48,30 @@ class Foundation_API ThreadTarget : public Runnable
 ///    Thread thr;
 ///    thr.start(ra);
 {
-public:
-    typedef void (*Callback)();
+ public:
+  typedef void (*Callback)();
 
-    ThreadTarget(Callback method);
+  ThreadTarget(Callback method);
 
-    ThreadTarget(const ThreadTarget & te);
+  ThreadTarget(const ThreadTarget& te);
 
-    ~ThreadTarget();
+  ~ThreadTarget();
 
-    ThreadTarget & operator=(const ThreadTarget & te);
+  ThreadTarget& operator=(const ThreadTarget& te);
 
-    void run();
+  void run();
 
-private:
-    ThreadTarget();
+ private:
+  ThreadTarget();
 
-    Callback _method;
+  Callback _method;
 };
-
 
 //
 // inlines
 //
-inline void ThreadTarget::run()
-{
-    _method();
-}
+inline void ThreadTarget::run() { _method(); }
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ThreadTarget_INCLUDED
+#endif  // Foundation_ThreadTarget_INCLUDED

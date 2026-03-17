@@ -11,95 +11,40 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/SocketNotification.h"
-
 
 namespace Poco {
 namespace Net {
 
+SocketNotification::SocketNotification(SocketReactor* pReactor) : _pReactor(pReactor) {}
 
-SocketNotification::SocketNotification(SocketReactor* pReactor):
-	_pReactor(pReactor)
-{
-}
+SocketNotification::~SocketNotification() {}
 
+void SocketNotification::setSocket(const Socket& socket) { _socket = socket; }
 
-SocketNotification::~SocketNotification()
-{
-}
+ReadableNotification::ReadableNotification(SocketReactor* pReactor) : SocketNotification(pReactor) {}
 
-	
-void SocketNotification::setSocket(const Socket& socket)
-{
-	_socket = socket;
-}
+ReadableNotification::~ReadableNotification() {}
 
+WritableNotification::WritableNotification(SocketReactor* pReactor) : SocketNotification(pReactor) {}
 
-ReadableNotification::ReadableNotification(SocketReactor* pReactor): 
-	SocketNotification(pReactor)
-{
-}
+WritableNotification::~WritableNotification() {}
 
+ErrorNotification::ErrorNotification(SocketReactor* pReactor) : SocketNotification(pReactor) {}
 
-ReadableNotification::~ReadableNotification()
-{
-}
+ErrorNotification::~ErrorNotification() {}
 
+TimeoutNotification::TimeoutNotification(SocketReactor* pReactor) : SocketNotification(pReactor) {}
 
-WritableNotification::WritableNotification(SocketReactor* pReactor): 
-	SocketNotification(pReactor)
-{
-}
+TimeoutNotification::~TimeoutNotification() {}
 
+IdleNotification::IdleNotification(SocketReactor* pReactor) : SocketNotification(pReactor) {}
 
-WritableNotification::~WritableNotification()
-{
-}
+IdleNotification::~IdleNotification() {}
 
+ShutdownNotification::ShutdownNotification(SocketReactor* pReactor) : SocketNotification(pReactor) {}
 
-ErrorNotification::ErrorNotification(SocketReactor* pReactor): 
-	SocketNotification(pReactor)
-{
-}
+ShutdownNotification::~ShutdownNotification() {}
 
-
-ErrorNotification::~ErrorNotification()
-{
-}
-
-
-TimeoutNotification::TimeoutNotification(SocketReactor* pReactor): 
-	SocketNotification(pReactor)
-{
-}
-
-
-TimeoutNotification::~TimeoutNotification()
-{
-}
-
-
-IdleNotification::IdleNotification(SocketReactor* pReactor): 
-	SocketNotification(pReactor)
-{
-}
-
-
-IdleNotification::~IdleNotification()
-{
-}
-
-
-ShutdownNotification::ShutdownNotification(SocketReactor* pReactor): 
-	SocketNotification(pReactor)
-{
-}
-
-
-ShutdownNotification::~ShutdownNotification()
-{
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

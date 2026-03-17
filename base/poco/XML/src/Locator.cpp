@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/Locator.h"
-
 
 namespace Poco {
 namespace XML {
 
+Locator::~Locator() {}
 
-Locator::~Locator()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

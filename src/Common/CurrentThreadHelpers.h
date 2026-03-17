@@ -2,8 +2,7 @@
 
 #include <Core/LogsLevel.h>
 
-namespace DB
-{
+namespace DB {
 bool currentThreadHasGroup();
 LogsLevel currentThreadLogsLevel();
-}
+}  // namespace DB

@@ -1,16 +1,13 @@
 #pragma once
 
+namespace DB {
 
-namespace DB
-{
-
-enum class DataDestinationType : uint8_t
-{
-    DISK,
-    VOLUME,
-    TABLE,
-    DELETE,
-    SHARD,
+enum class DataDestinationType : uint8_t {
+  DISK,
+  VOLUME,
+  TABLE,
+  DELETE,
+  SHARD,
 };
 
 }

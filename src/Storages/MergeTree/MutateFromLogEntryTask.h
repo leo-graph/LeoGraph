@@ -3,70 +3,54 @@
 #include <Storages/MergeTree/IExecutableTask.h>
 #include <Storages/MergeTree/MutateTask.h>
 #include <Storages/MergeTree/ReplicatedMergeMutateTaskBase.h>
-#include <Storages/MergeTree/ReplicatedMergeTreeQueue.h>
 #include <Storages/MergeTree/ReplicatedMergeTreeLogEntry.h>
+#include <Storages/MergeTree/ReplicatedMergeTreeQueue.h>
 #include <Storages/MergeTree/ZeroCopyLock.h>
 #include <Storages/StorageReplicatedMergeTree.h>
 
-namespace DB
-{
+namespace DB {
 
-class MutateFromLogEntryTask : public ReplicatedMergeMutateTaskBase
-{
-public:
-    template <typename Callback>
-    MutateFromLogEntryTask(
-        ReplicatedMergeTreeQueue::SelectedEntryPtr selected_entry_,
-        StorageReplicatedMergeTree & storage_,
-        Callback && task_result_callback_)
-        : ReplicatedMergeMutateTaskBase(
-            getLogger(storage_.getStorageID().getShortName() + "::" + selected_entry_->log_entry->new_part_name + " (MutateFromLogEntryTask)"),
-            storage_,
-            selected_entry_,
-            task_result_callback_)
-        {}
+class MutateFromLogEntryTask : public ReplicatedMergeMutateTaskBase {
+ public:
+  template <typename Callback>
+  MutateFromLogEntryTask(ReplicatedMergeTreeQueue::SelectedEntryPtr selected_entry_, StorageReplicatedMergeTree& storage_,
+                         Callback&& task_result_callback_)
+      : ReplicatedMergeMutateTaskBase(getLogger(storage_.getStorageID().getShortName() + "::" + selected_entry_->log_entry->new_part_name +
+                                                " (MutateFromLogEntryTask)"),
+                                      storage_, selected_entry_, task_result_callback_) {}
 
+  Priority getPriority() const override { return priority; }
 
-    Priority getPriority() const override { return priority; }
+  void cancel() noexcept override {
+    if (mutate_task) mutate_task->cancel();
 
-    void cancel() noexcept override
-    {
-        if (mutate_task)
-            mutate_task->cancel();
+    if (new_part) new_part->removeIfNeeded();
+  }
 
-        if (new_part)
-            new_part->removeIfNeeded();
-    }
+ private:
+  ReplicatedMergeMutateTaskBase::PrepareResult prepare() override;
 
-private:
+  bool finalize(ReplicatedMergeMutateTaskBase::PartLogWriter write_part_log) override;
 
-    ReplicatedMergeMutateTaskBase::PrepareResult prepare() override;
+  bool executeInnerTask() override { return mutate_task->execute(); }
 
-    bool finalize(ReplicatedMergeMutateTaskBase::PartLogWriter write_part_log) override;
+  Priority priority;
 
-    bool executeInnerTask() override
-    {
-        return mutate_task->execute();
-    }
+  TableLockHolder table_lock_holder{nullptr};
+  ReservationSharedPtr reserved_space{nullptr};
 
-    Priority priority;
+  MergeTreePartInfo new_part_info;
+  MutationCommandsConstPtr commands;
+  Strings mutation_ids_for_log;
 
-    TableLockHolder table_lock_holder{nullptr};
-    ReservationSharedPtr reserved_space{nullptr};
+  MergeTreeData::TransactionUniquePtr transaction_ptr{nullptr};
+  std::optional<ZeroCopyLock> zero_copy_lock;
+  StopwatchUniquePtr stopwatch_ptr{nullptr};
 
-    MergeTreePartInfo new_part_info;
-    MutationCommandsConstPtr commands;
-    Strings mutation_ids_for_log;
+  MergeTreeData::MutableDataPartPtr new_part{nullptr};
+  FutureMergedMutatedPartPtr future_mutated_part{nullptr};
 
-    MergeTreeData::TransactionUniquePtr transaction_ptr{nullptr};
-    std::optional<ZeroCopyLock> zero_copy_lock;
-    StopwatchUniquePtr stopwatch_ptr{nullptr};
-
-    MergeTreeData::MutableDataPartPtr new_part{nullptr};
-    FutureMergedMutatedPartPtr future_mutated_part{nullptr};
-
-    MutateTaskPtr mutate_task;
+  MutateTaskPtr mutate_task;
 };
 
-
-}
+}  // namespace DB

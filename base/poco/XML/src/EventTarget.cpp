@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/DOM/EventTarget.h"
-
 
 namespace Poco {
 namespace XML {
 
+EventTarget::~EventTarget() {}
 
-EventTarget::~EventTarget()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

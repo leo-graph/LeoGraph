@@ -13,44 +13,36 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_ValidArgs_INCLUDED
 #define Foundation_ValidArgs_INCLUDED
 
-
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class TKey>
-class ValidArgs
-{
-public:
-    ValidArgs(const TKey & key) : _key(key), _isValid(true) { }
+class ValidArgs {
+ public:
+  ValidArgs(const TKey& key) : _key(key), _isValid(true) {}
 
-    ValidArgs(const ValidArgs & args) : _key(args._key), _isValid(args._isValid) { }
+  ValidArgs(const ValidArgs& args) : _key(args._key), _isValid(args._isValid) {}
 
-    ~ValidArgs() { }
+  ~ValidArgs() {}
 
-    const TKey & key() const { return _key; }
+  const TKey& key() const { return _key; }
 
-    bool isValid() const { return _isValid; }
+  bool isValid() const { return _isValid; }
 
-    void invalidate() { _isValid = false; }
+  void invalidate() { _isValid = false; }
 
-protected:
-    const TKey & _key;
-    bool _isValid;
+ protected:
+  const TKey& _key;
+  bool _isValid;
 
-private:
-    ValidArgs & operator=(const ValidArgs & args);
+ private:
+  ValidArgs& operator=(const ValidArgs& args);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_ValidArgs_INCLUDED
+#endif  // Foundation_ValidArgs_INCLUDED

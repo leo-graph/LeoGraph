@@ -1,6 +1,6 @@
 /*************************************************
-*      Perl-Compatible Regular Expressions       *
-*************************************************/
+ *      Perl-Compatible Regular Expressions       *
+ *************************************************/
 
 /* PCRE is a library of functions to support regular expressions whose syntax
 and semantics are as close as possible to those of the Perl 5 language.
@@ -37,7 +37,6 @@ POSSIBILITY OF SUCH DAMAGE.
 -----------------------------------------------------------------------------
 */
 
-
 /* This module contains internal functions for comparing and finding the length
 of strings for different data item sizes. */
 
@@ -47,8 +46,8 @@ of strings for different data item sizes. */
 #ifndef COMPILE_PCRE8
 
 /*************************************************
-*           Compare string utilities             *
-*************************************************/
+ *           Compare string utilities             *
+ *************************************************/
 
 /* The following two functions compares two strings. Basically a strcmp
 for non 8 bit characters.
@@ -60,83 +59,67 @@ Arguments:
 Returns:      0 if both string are equal (like strcmp), 1 otherwise
 */
 
-int
-PRIV(strcmp_uc_uc)(const pcre_uchar *str1, const pcre_uchar *str2)
-{
-pcre_uchar c1;
-pcre_uchar c2;
+int PRIV(strcmp_uc_uc)(const pcre_uchar *str1, const pcre_uchar *str2) {
+  pcre_uchar c1;
+  pcre_uchar c2;
 
-while (*str1 != '\0' || *str2 != '\0')
-  {
-  c1 = *str1++;
-  c2 = *str2++;
-  if (c1 != c2)
-    return ((c1 > c2) << 1) - 1;
+  while (*str1 != '\0' || *str2 != '\0') {
+    c1 = *str1++;
+    c2 = *str2++;
+    if (c1 != c2) return ((c1 > c2) << 1) - 1;
   }
-/* Both length and characters must be equal. */
-return 0;
+  /* Both length and characters must be equal. */
+  return 0;
 }
 
-#ifdef COMPILE_PCRE32
+#  ifdef COMPILE_PCRE32
 
-int
-PRIV(strcmp_uc_uc_utf)(const pcre_uchar *str1, const pcre_uchar *str2)
-{
-pcre_uchar c1;
-pcre_uchar c2;
+int PRIV(strcmp_uc_uc_utf)(const pcre_uchar *str1, const pcre_uchar *str2) {
+  pcre_uchar c1;
+  pcre_uchar c2;
 
-while (*str1 != '\0' || *str2 != '\0')
-  {
-  c1 = UCHAR21INC(str1);
-  c2 = UCHAR21INC(str2);
-  if (c1 != c2)
-    return ((c1 > c2) << 1) - 1;
+  while (*str1 != '\0' || *str2 != '\0') {
+    c1 = UCHAR21INC(str1);
+    c2 = UCHAR21INC(str2);
+    if (c1 != c2) return ((c1 > c2) << 1) - 1;
   }
-/* Both length and characters must be equal. */
-return 0;
+  /* Both length and characters must be equal. */
+  return 0;
 }
 
-#endif /* COMPILE_PCRE32 */
+#  endif /* COMPILE_PCRE32 */
 
-int
-PRIV(strcmp_uc_c8)(const pcre_uchar *str1, const char *str2)
-{
-const pcre_uint8 *ustr2 = (pcre_uint8 *)str2;
-pcre_uchar c1;
-pcre_uchar c2;
+int PRIV(strcmp_uc_c8)(const pcre_uchar *str1, const char *str2) {
+  const pcre_uint8 *ustr2 = (pcre_uint8 *)str2;
+  pcre_uchar c1;
+  pcre_uchar c2;
 
-while (*str1 != '\0' || *ustr2 != '\0')
-  {
-  c1 = *str1++;
-  c2 = (pcre_uchar)*ustr2++;
-  if (c1 != c2)
-    return ((c1 > c2) << 1) - 1;
+  while (*str1 != '\0' || *ustr2 != '\0') {
+    c1 = *str1++;
+    c2 = (pcre_uchar)*ustr2++;
+    if (c1 != c2) return ((c1 > c2) << 1) - 1;
   }
-/* Both length and characters must be equal. */
-return 0;
+  /* Both length and characters must be equal. */
+  return 0;
 }
 
-#ifdef COMPILE_PCRE32
+#  ifdef COMPILE_PCRE32
 
-int
-PRIV(strcmp_uc_c8_utf)(const pcre_uchar *str1, const char *str2)
-{
-const pcre_uint8 *ustr2 = (pcre_uint8 *)str2;
-pcre_uchar c1;
-pcre_uchar c2;
+int PRIV(strcmp_uc_c8_utf)(const pcre_uchar *str1, const char *str2) {
+  const pcre_uint8 *ustr2 = (pcre_uint8 *)str2;
+  pcre_uchar c1;
+  pcre_uchar c2;
 
-while (*str1 != '\0' || *ustr2 != '\0')
-  {
-  c1 = UCHAR21INC(str1);
-  c2 = (pcre_uchar)*ustr2++;
-  if (c1 != c2)
-    return ((c1 > c2) << 1) - 1;
+  while (*str1 != '\0' || *ustr2 != '\0') {
+    c1 = UCHAR21INC(str1);
+    c2 = (pcre_uchar)*ustr2++;
+    if (c1 != c2) return ((c1 > c2) << 1) - 1;
   }
-/* Both length and characters must be equal. */
-return 0;
+  /* Both length and characters must be equal. */
+  return 0;
 }
 
-#endif /* COMPILE_PCRE32 */
+#  endif /* COMPILE_PCRE32 */
 
 /* The following two functions compares two, fixed length
 strings. Basically an strncmp for non 8 bit characters.
@@ -149,39 +132,31 @@ Arguments:
 Returns:      0 if both string are equal (like strcmp), 1 otherwise
 */
 
-int
-PRIV(strncmp_uc_uc)(const pcre_uchar *str1, const pcre_uchar *str2, unsigned int num)
-{
-pcre_uchar c1;
-pcre_uchar c2;
+int PRIV(strncmp_uc_uc)(const pcre_uchar *str1, const pcre_uchar *str2, unsigned int num) {
+  pcre_uchar c1;
+  pcre_uchar c2;
 
-while (num-- > 0)
-  {
-  c1 = *str1++;
-  c2 = *str2++;
-  if (c1 != c2)
-    return ((c1 > c2) << 1) - 1;
+  while (num-- > 0) {
+    c1 = *str1++;
+    c2 = *str2++;
+    if (c1 != c2) return ((c1 > c2) << 1) - 1;
   }
-/* Both length and characters must be equal. */
-return 0;
+  /* Both length and characters must be equal. */
+  return 0;
 }
 
-int
-PRIV(strncmp_uc_c8)(const pcre_uchar *str1, const char *str2, unsigned int num)
-{
-const pcre_uint8 *ustr2 = (pcre_uint8 *)str2;
-pcre_uchar c1;
-pcre_uchar c2;
+int PRIV(strncmp_uc_c8)(const pcre_uchar *str1, const char *str2, unsigned int num) {
+  const pcre_uint8 *ustr2 = (pcre_uint8 *)str2;
+  pcre_uchar c1;
+  pcre_uchar c2;
 
-while (num-- > 0)
-  {
-  c1 = *str1++;
-  c2 = (pcre_uchar)*ustr2++;
-  if (c1 != c2)
-    return ((c1 > c2) << 1) - 1;
+  while (num-- > 0) {
+    c1 = *str1++;
+    c2 = (pcre_uchar)*ustr2++;
+    if (c1 != c2) return ((c1 > c2) << 1) - 1;
   }
-/* Both length and characters must be equal. */
-return 0;
+  /* Both length and characters must be equal. */
+  return 0;
 }
 
 /* The following function returns with the length of
@@ -193,13 +168,10 @@ Arguments:
 Returns:      length of the string
 */
 
-unsigned int
-PRIV(strlen_uc)(const pcre_uchar *str)
-{
-unsigned int len = 0;
-while (*str++ != 0)
-  len++;
-return len;
+unsigned int PRIV(strlen_uc)(const pcre_uchar *str) {
+  unsigned int len = 0;
+  while (*str++ != 0) len++;
+  return len;
 }
 
 #endif /* !COMPILE_PCRE8 */

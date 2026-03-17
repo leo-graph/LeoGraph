@@ -2,12 +2,11 @@
 
 #include <base/types.h>
 #include <limits>
-namespace DB::Iceberg
-{
+namespace DB::Iceberg {
 /// This file define the field name appearing in Iceberg files.
-#define DEFINE_ICEBERG_FIELD_ALIAS(name, strval) constexpr const char * f_##name = #strval;
-#define DEFINE_ICEBERG_FIELD_COMPOUND(name, subname) constexpr const char * c_##name##_##subname = #name "." #subname;
-#define DEFINE_ICEBERG_FIELD(name) constexpr const char * f_##name = #name;
+#define DEFINE_ICEBERG_FIELD_ALIAS(name, strval) constexpr const char* f_##name = #strval;
+#define DEFINE_ICEBERG_FIELD_COMPOUND(name, subname) constexpr const char* c_##name##_##subname = #name "." #subname;
+#define DEFINE_ICEBERG_FIELD(name) constexpr const char* f_##name = #name;
 
 /// These variables begin with 'f_', following the field name in Iceberg files.
 DEFINE_ICEBERG_FIELD(boolean);
@@ -80,61 +79,60 @@ DEFINE_ICEBERG_FIELD(upper_bounds);
 DEFINE_ICEBERG_FIELD(partitions);
 DEFINE_ICEBERG_FIELD(key_metadata);
 
-
 /// These variables replace `-` with underscore `_` to be compatible with c++ code.
-DEFINE_ICEBERG_FIELD_ALIAS(format_version, format-version);
-DEFINE_ICEBERG_FIELD_ALIAS(current_snapshot_id, current-snapshot-id);
-DEFINE_ICEBERG_FIELD_ALIAS(metadata_snapshot_id, snapshot-id);
-DEFINE_ICEBERG_FIELD_ALIAS(parent_snapshot_id, parent-snapshot-id);
-DEFINE_ICEBERG_FIELD_ALIAS(snapshot_log, snapshot-log);
-DEFINE_ICEBERG_FIELD_ALIAS(schema_id, schema-id);
-DEFINE_ICEBERG_FIELD_ALIAS(current_schema_id, current-schema-id);
-DEFINE_ICEBERG_FIELD_ALIAS(table_uuid, table-uuid);
-DEFINE_ICEBERG_FIELD_ALIAS(total_records, total-records);
-DEFINE_ICEBERG_FIELD_ALIAS(total_files_size, total-files-size);
-DEFINE_ICEBERG_FIELD_ALIAS(manifest_list, manifest-list);
-DEFINE_ICEBERG_FIELD_ALIAS(timestamp_ms, timestamp-ms);
-DEFINE_ICEBERG_FIELD_ALIAS(last_updated_ms, last-updated-ms);
-DEFINE_ICEBERG_FIELD_ALIAS(last_column_id, last-column-id);
-DEFINE_ICEBERG_FIELD_ALIAS(element_id, element-id);
-DEFINE_ICEBERG_FIELD_ALIAS(element_required, element-required);
-DEFINE_ICEBERG_FIELD_ALIAS(key_id, key-id);
-DEFINE_ICEBERG_FIELD_ALIAS(value_id, value-id);
-DEFINE_ICEBERG_FIELD_ALIAS(value_required, value-required);
-DEFINE_ICEBERG_FIELD_ALIAS(last_partition_id, last-partition-id);
-DEFINE_ICEBERG_FIELD_ALIAS(order_id, order-id);
-DEFINE_ICEBERG_FIELD_ALIAS(default_sort_order_id, default-sort-order-id);
-DEFINE_ICEBERG_FIELD_ALIAS(sort_orders, sort-orders);
-DEFINE_ICEBERG_FIELD_ALIAS(source_id, source-id);
+DEFINE_ICEBERG_FIELD_ALIAS(format_version, format - version);
+DEFINE_ICEBERG_FIELD_ALIAS(current_snapshot_id, current - snapshot - id);
+DEFINE_ICEBERG_FIELD_ALIAS(metadata_snapshot_id, snapshot - id);
+DEFINE_ICEBERG_FIELD_ALIAS(parent_snapshot_id, parent - snapshot - id);
+DEFINE_ICEBERG_FIELD_ALIAS(snapshot_log, snapshot - log);
+DEFINE_ICEBERG_FIELD_ALIAS(schema_id, schema - id);
+DEFINE_ICEBERG_FIELD_ALIAS(current_schema_id, current - schema - id);
+DEFINE_ICEBERG_FIELD_ALIAS(table_uuid, table - uuid);
+DEFINE_ICEBERG_FIELD_ALIAS(total_records, total - records);
+DEFINE_ICEBERG_FIELD_ALIAS(total_files_size, total - files - size);
+DEFINE_ICEBERG_FIELD_ALIAS(manifest_list, manifest - list);
+DEFINE_ICEBERG_FIELD_ALIAS(timestamp_ms, timestamp - ms);
+DEFINE_ICEBERG_FIELD_ALIAS(last_updated_ms, last - updated - ms);
+DEFINE_ICEBERG_FIELD_ALIAS(last_column_id, last - column - id);
+DEFINE_ICEBERG_FIELD_ALIAS(element_id, element - id);
+DEFINE_ICEBERG_FIELD_ALIAS(element_required, element - required);
+DEFINE_ICEBERG_FIELD_ALIAS(key_id, key - id);
+DEFINE_ICEBERG_FIELD_ALIAS(value_id, value - id);
+DEFINE_ICEBERG_FIELD_ALIAS(value_required, value - required);
+DEFINE_ICEBERG_FIELD_ALIAS(last_partition_id, last - partition - id);
+DEFINE_ICEBERG_FIELD_ALIAS(order_id, order - id);
+DEFINE_ICEBERG_FIELD_ALIAS(default_sort_order_id, default - sort - order - id);
+DEFINE_ICEBERG_FIELD_ALIAS(sort_orders, sort - orders);
+DEFINE_ICEBERG_FIELD_ALIAS(source_id, source - id);
 DEFINE_ICEBERG_FIELD_ALIAS(partition_transform, transform);
 DEFINE_ICEBERG_FIELD_ALIAS(partition_name, name);
-DEFINE_ICEBERG_FIELD_ALIAS(default_spec_id, default-spec-id);
-DEFINE_ICEBERG_FIELD_ALIAS(partition_spec, partition-spec);
-DEFINE_ICEBERG_FIELD_ALIAS(partition_specs, partition-specs);
-DEFINE_ICEBERG_FIELD_ALIAS(spec_id, spec-id);
-DEFINE_ICEBERG_FIELD_ALIAS(added_records, added-records);
-DEFINE_ICEBERG_FIELD_ALIAS(added_data_files, added-data-files);
-DEFINE_ICEBERG_FIELD_ALIAS(added_delete_files, added-delete-files);
-DEFINE_ICEBERG_FIELD_ALIAS(added_position_delete_files, added-position-delete-files);
-DEFINE_ICEBERG_FIELD_ALIAS(added_position_deletes, added-position-deletes);
-DEFINE_ICEBERG_FIELD_ALIAS(added_files_size, added-files-size);
-DEFINE_ICEBERG_FIELD_ALIAS(total_data_files, total-data-files);
-DEFINE_ICEBERG_FIELD_ALIAS(changed_partition_count, changed-partition-count);
-DEFINE_ICEBERG_FIELD_ALIAS(total_delete_files, total-delete-files);
-DEFINE_ICEBERG_FIELD_ALIAS(total_position_deletes, total-position-deletes);
-DEFINE_ICEBERG_FIELD_ALIAS(total_equality_deletes, total-equality-deletes);
-DEFINE_ICEBERG_FIELD_ALIAS(field_id, field-id);
-DEFINE_ICEBERG_FIELD_ALIAS(last_sequence_number, last-sequence-number);
-DEFINE_ICEBERG_FIELD_ALIAS(metadata_file, metadata-file);
-DEFINE_ICEBERG_FIELD_ALIAS(metadata_log, metadata-log);
-DEFINE_ICEBERG_FIELD_ALIAS(metadata_sequence_number, sequence-number);
-DEFINE_ICEBERG_FIELD_ALIAS(min_snapshots_to_keep, history.expire.min-snapshots-to-keep);
-DEFINE_ICEBERG_FIELD_ALIAS(max_snapshot_age_ms, history.expire.max-snapshot-age-ms);
-DEFINE_ICEBERG_FIELD_ALIAS(max_ref_age_ms, history.expire.max-ref-age-ms);
+DEFINE_ICEBERG_FIELD_ALIAS(default_spec_id, default - spec - id);
+DEFINE_ICEBERG_FIELD_ALIAS(partition_spec, partition - spec);
+DEFINE_ICEBERG_FIELD_ALIAS(partition_specs, partition - specs);
+DEFINE_ICEBERG_FIELD_ALIAS(spec_id, spec - id);
+DEFINE_ICEBERG_FIELD_ALIAS(added_records, added - records);
+DEFINE_ICEBERG_FIELD_ALIAS(added_data_files, added - data - files);
+DEFINE_ICEBERG_FIELD_ALIAS(added_delete_files, added - delete -files);
+DEFINE_ICEBERG_FIELD_ALIAS(added_position_delete_files, added - position - delete -files);
+DEFINE_ICEBERG_FIELD_ALIAS(added_position_deletes, added - position - deletes);
+DEFINE_ICEBERG_FIELD_ALIAS(added_files_size, added - files - size);
+DEFINE_ICEBERG_FIELD_ALIAS(total_data_files, total - data - files);
+DEFINE_ICEBERG_FIELD_ALIAS(changed_partition_count, changed - partition - count);
+DEFINE_ICEBERG_FIELD_ALIAS(total_delete_files, total - delete -files);
+DEFINE_ICEBERG_FIELD_ALIAS(total_position_deletes, total - position - deletes);
+DEFINE_ICEBERG_FIELD_ALIAS(total_equality_deletes, total - equality - deletes);
+DEFINE_ICEBERG_FIELD_ALIAS(field_id, field - id);
+DEFINE_ICEBERG_FIELD_ALIAS(last_sequence_number, last - sequence - number);
+DEFINE_ICEBERG_FIELD_ALIAS(metadata_file, metadata - file);
+DEFINE_ICEBERG_FIELD_ALIAS(metadata_log, metadata - log);
+DEFINE_ICEBERG_FIELD_ALIAS(metadata_sequence_number, sequence - number);
+DEFINE_ICEBERG_FIELD_ALIAS(min_snapshots_to_keep, history.expire.min - snapshots - to - keep);
+DEFINE_ICEBERG_FIELD_ALIAS(max_snapshot_age_ms, history.expire.max - snapshot - age - ms);
+DEFINE_ICEBERG_FIELD_ALIAS(max_ref_age_ms, history.expire.max - ref - age - ms);
 /// Ref-level override fields (short names inside the "refs" map per Iceberg spec).
-DEFINE_ICEBERG_FIELD_ALIAS(ref_min_snapshots_to_keep, min-snapshots-to-keep);
-DEFINE_ICEBERG_FIELD_ALIAS(ref_max_snapshot_age_ms, max-snapshot-age-ms);
-DEFINE_ICEBERG_FIELD_ALIAS(ref_max_ref_age_ms, max-ref-age-ms);
+DEFINE_ICEBERG_FIELD_ALIAS(ref_min_snapshots_to_keep, min - snapshots - to - keep);
+DEFINE_ICEBERG_FIELD_ALIAS(ref_max_snapshot_age_ms, max - snapshot - age - ms);
+DEFINE_ICEBERG_FIELD_ALIAS(ref_max_ref_age_ms, max - ref - age - ms);
 /// These are compound fields like `data_file.file_path`, we use prefix 'c_' to distinguish them.
 DEFINE_ICEBERG_FIELD_COMPOUND(data_file, file_path);
 DEFINE_ICEBERG_FIELD_COMPOUND(data_file, file_format);
@@ -155,6 +153,6 @@ DEFINE_ICEBERG_FIELD_COMPOUND(data_file, sort_order_id);
 /// TODO: consider exposing these as ClickHouse server-level settings so users can
 /// change the global defaults without patching every table's properties.
 constexpr Int32 default_min_snapshots_to_keep = 1;
-constexpr Int64 default_max_snapshot_age_ms = 432000000; // 5 days
-constexpr Int64 default_max_ref_age_ms = std::numeric_limits<Int64>::max(); // forever, main branch never expires
-}
+constexpr Int64 default_max_snapshot_age_ms = 432000000;                     // 5 days
+constexpr Int64 default_max_ref_age_ms = std::numeric_limits<Int64>::max();  // forever, main branch never expires
+}  // namespace DB::Iceberg

@@ -1,36 +1,26 @@
 #pragma once
-#include <boost/noncopyable.hpp>
 #include <Disks/DiskObjectStorage/ObjectStorages/IObjectStorage.h>
+#include <boost/noncopyable.hpp>
 
-namespace DB
-{
+namespace DB {
 
-class ObjectStorageFactory final : private boost::noncopyable
-{
-public:
-    using Creator = std::function<ObjectStoragePtr(
-        const std::string & name,
-        const Poco::Util::AbstractConfiguration & config,
-        const std::string & config_prefix,
-        const ContextPtr & context,
-        bool skip_access_check)>;
+class ObjectStorageFactory final : private boost::noncopyable {
+ public:
+  using Creator = std::function<ObjectStoragePtr(const std::string& name, const Poco::Util::AbstractConfiguration& config,
+                                                 const std::string& config_prefix, const ContextPtr& context, bool skip_access_check)>;
 
-    static ObjectStorageFactory & instance();
+  static ObjectStorageFactory& instance();
 
-    void registerObjectStorageType(const std::string & type, Creator creator);
+  void registerObjectStorageType(const std::string& type, Creator creator);
 
-    ObjectStoragePtr create(
-        const std::string & name,
-        const Poco::Util::AbstractConfiguration & config,
-        const std::string & config_prefix,
-        const ContextPtr & context,
-        bool skip_access_check) const;
+  ObjectStoragePtr create(const std::string& name, const Poco::Util::AbstractConfiguration& config, const std::string& config_prefix,
+                          const ContextPtr& context, bool skip_access_check) const;
 
-    void clearRegistry();
+  void clearRegistry();
 
-private:
-    using Registry = std::unordered_map<String, Creator>;
-    Registry registry;
+ private:
+  using Registry = std::unordered_map<String, Creator>;
+  Registry registry;
 };
 
-}
+}  // namespace DB

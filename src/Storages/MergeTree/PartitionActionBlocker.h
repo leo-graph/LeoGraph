@@ -4,12 +4,11 @@
 #include <string>
 #include <unordered_map>
 
-#include <Common/ActionLock.h>
 #include <Common/ActionBlocker.h>
+#include <Common/ActionLock.h>
 #include <Common/SharedMutex.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Locks actions on given MergeTree-family table.
 /// Like, ActionBlocker, but has two modes:
@@ -29,41 +28,39 @@ namespace DB
 /// There could be any number of locks active at given point on single ActionBlocker instance:
 /// - 'global lock' locked `N` times.
 /// - `M` 'partition lock's each locked different number of times.
-class PartitionActionBlocker
-{
-public:
-    PartitionActionBlocker() = default;
+class PartitionActionBlocker {
+ public:
+  PartitionActionBlocker() = default;
 
-    bool isCancelled() const { return global_blocker.isCancelled(); }
-    bool isCancelledForPartition(const std::string & /*partition_id*/) const;
+  bool isCancelled() const { return global_blocker.isCancelled(); }
+  bool isCancelledForPartition(const std::string& /*partition_id*/) const;
 
-    /// Temporarily blocks corresponding actions (while the returned object is alive)
-    friend class ActionLock;
-    ActionLock cancel() { return ActionLock(global_blocker); }
-    ActionLock cancelForPartition(const std::string & partition_id);
+  /// Temporarily blocks corresponding actions (while the returned object is alive)
+  friend class ActionLock;
+  ActionLock cancel() { return ActionLock(global_blocker); }
+  ActionLock cancelForPartition(const std::string& partition_id);
 
-    /// Cancel the actions forever.
-    void cancelForever() { global_blocker.cancelForever(); }
+  /// Cancel the actions forever.
+  void cancelForever() { global_blocker.cancelForever(); }
 
-    const std::atomic<int> & getCounter() const { return global_blocker.getCounter(); }
+  const std::atomic<int>& getCounter() const { return global_blocker.getCounter(); }
 
-    size_t countPartitionBlockers() const;
+  size_t countPartitionBlockers() const;
 
-    /// Cleanup partition blockers
-    void compactPartitionBlockers();
+  /// Cleanup partition blockers
+  void compactPartitionBlockers();
 
-    std::string formatDebug() const;
+  std::string formatDebug() const;
 
-private:
-    void compactPartitionBlockersLocked();
-    bool isCancelledForPartitionOnlyLocked(const std::string & partition_id) const;
+ private:
+  void compactPartitionBlockersLocked();
+  bool isCancelledForPartitionOnlyLocked(const std::string& partition_id) const;
 
-    ActionBlocker global_blocker;
+  ActionBlocker global_blocker;
 
-    mutable SharedMutex mutex;
-    std::unordered_map<std::string, ActionBlocker> partition_blockers;
-    size_t cleanup_counter = 0;
+  mutable SharedMutex mutex;
+  std::unordered_map<std::string, ActionBlocker> partition_blockers;
+  size_t cleanup_counter = 0;
 };
 
-
-}
+}  // namespace DB

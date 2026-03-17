@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_FIFOEvent_INCLUDED
 #define Foundation_FIFOEvent_INCLUDED
-
 
 #include "Poco/AbstractDelegate.h"
 #include "Poco/AbstractEvent.h"
 #include "Poco/FIFOStrategy.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 //@ deprecated
 template <class TArgs, class TMutex = FastMutex>
@@ -38,18 +33,16 @@ class FIFOEvent : public AbstractEvent<TArgs, FIFOStrategy<TArgs, AbstractDelega
 /// implemented by BasicEvent, so this class is provided
 /// for backwards compatibility only.
 {
-public:
-    FIFOEvent() { }
+ public:
+  FIFOEvent() {}
 
-    ~FIFOEvent() { }
+  ~FIFOEvent() {}
 
-private:
-    FIFOEvent(const FIFOEvent & e);
-    FIFOEvent & operator=(const FIFOEvent & e);
+ private:
+  FIFOEvent(const FIFOEvent& e);
+  FIFOEvent& operator=(const FIFOEvent& e);
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_FIFOEvent_INCLUDED
+#endif  // Foundation_FIFOEvent_INCLUDED

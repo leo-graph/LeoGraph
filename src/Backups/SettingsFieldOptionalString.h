@@ -1,20 +1,18 @@
 #pragma once
 
-#include <optional>
 #include <Core/SettingsFields.h>
+#include <optional>
 
-namespace DB
-{
+namespace DB {
 
-struct SettingFieldOptionalString
-{
-    std::optional<String> value;
+struct SettingFieldOptionalString {
+  std::optional<String> value;
 
-    explicit SettingFieldOptionalString(const std::optional<String> & value_) : value(value_) {}
+  explicit SettingFieldOptionalString(const std::optional<String>& value_) : value(value_) {}
 
-    explicit SettingFieldOptionalString(const Field & field);
+  explicit SettingFieldOptionalString(const Field& field);
 
-    explicit operator Field() const;
+  explicit operator Field() const;
 };
 
-}
+}  // namespace DB

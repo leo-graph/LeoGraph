@@ -11,22 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/PartHandler.h"
-
 
 namespace Poco {
 namespace Net {
 
+PartHandler::PartHandler() {}
 
-PartHandler::PartHandler()
-{
-}
+PartHandler::~PartHandler() {}
 
-
-PartHandler::~PartHandler()
-{
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

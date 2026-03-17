@@ -2,20 +2,11 @@
 
 #include <Storages/IStorage.h>
 
-namespace DB
-{
+namespace DB {
 
-RecursiveCTETable::RecursiveCTETable(TemporaryTableHolderPtr holder_,
-    StoragePtr storage_,
-    NamesAndTypes columns_)
-    : holder(std::move(holder_))
-    , storage(std::move(storage_))
-    , columns(std::move(columns_))
-{}
+RecursiveCTETable::RecursiveCTETable(TemporaryTableHolderPtr holder_, StoragePtr storage_, NamesAndTypes columns_)
+    : holder(std::move(holder_)), storage(std::move(storage_)), columns(std::move(columns_)) {}
 
-StorageID RecursiveCTETable::getStorageID() const
-{
-    return storage->getStorageID();
-}
+StorageID RecursiveCTETable::getStorageID() const { return storage->getStorageID(); }
 
-}
+}  // namespace DB

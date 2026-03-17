@@ -2,27 +2,19 @@
 
 #include <Core/Settings.h>
 
-namespace DB::Setting
-{
+namespace DB::Setting {
 extern const SettingsString local_filesystem_read_method;
 }
 
-ContextHolder::ContextHolder()
-    : shared_context(DB::Context::createShared())
-    , context(DB::Context::createGlobal(shared_context.get()))
-{
-    context->makeGlobalContext();
-    context->setPath("./");
-    const_cast<DB::Settings &>(context->getSettingsRef())[DB::Setting::local_filesystem_read_method] = "pread";
+ContextHolder::ContextHolder() : shared_context(DB::Context::createShared()), context(DB::Context::createGlobal(shared_context.get())) {
+  context->makeGlobalContext();
+  context->setPath("./");
+  const_cast<DB::Settings &>(context->getSettingsRef())[DB::Setting::local_filesystem_read_method] = "pread";
 }
 
-const ContextHolder & getContext()
-{
-    return getMutableContext();
-}
+const ContextHolder &getContext() { return getMutableContext(); }
 
-ContextHolder & getMutableContext()
-{
-    static ContextHolder holder;
-    return holder;
+ContextHolder &getMutableContext() {
+  static ContextHolder holder;
+  return holder;
 }

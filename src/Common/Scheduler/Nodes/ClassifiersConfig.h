@@ -4,14 +4,12 @@
 #include <Poco/Util/AbstractConfiguration.h>
 #include <unordered_map>
 
-namespace DB
-{
+namespace DB {
 
 /// Mapping of resource name into path string (e.g. "disk1" -> "/path/to/class")
-struct ClassifierDescription : std::unordered_map<String, String>
-{
-    ClassifierDescription() = default;
-    ClassifierDescription(const Poco::Util::AbstractConfiguration & config, const String & config_prefix);
+struct ClassifierDescription : std::unordered_map<String, String> {
+  ClassifierDescription() = default;
+  ClassifierDescription(const Poco::Util::AbstractConfiguration& config, const String& config_prefix);
 };
 
 /*
@@ -25,16 +23,15 @@ struct ClassifierDescription : std::unordered_map<String, String>
  *   <classifierN>...</classifierN>
  * </workload_classifiers>
  */
-class ClassifiersConfig
-{
-public:
-    ClassifiersConfig() = default;
-    explicit ClassifiersConfig(const Poco::Util::AbstractConfiguration & config);
+class ClassifiersConfig {
+ public:
+  ClassifiersConfig() = default;
+  explicit ClassifiersConfig(const Poco::Util::AbstractConfiguration& config);
 
-    const ClassifierDescription & get(const String & classifier_name);
+  const ClassifierDescription& get(const String& classifier_name);
 
-private:
-    std::unordered_map<String, ClassifierDescription> classifiers; // by classifier_name
+ private:
+  std::unordered_map<String, ClassifierDescription> classifiers;  // by classifier_name
 };
 
-}
+}  // namespace DB

@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_CompressedLogFile_INCLUDED
 #define Foundation_CompressedLogFile_INCLUDED
-
 
 #include "Poco/Buffer.h"
 #include "Poco/Foundation.h"
@@ -25,34 +23,28 @@
 #include <lz4.h>
 #include <lz4frame.h>
 
+namespace Poco {
 
-namespace Poco
-{
+class Foundation_API CompressedLogFile : public LogFile {
+ public:
+  CompressedLogFile(const std::string& path);
+  /// Allocates buffer and initializes compession state.
 
+  ~CompressedLogFile();
+  /// Destoys CompressedLogFile
 
-class Foundation_API CompressedLogFile : public LogFile
-{
-public:
-    CompressedLogFile(const std::string & path);
-    /// Allocates buffer and initializes compession state.
+  void write(const std::string& text, bool flush = true);
+  /// Writes the given text to the compressed log file.
+  /// If flush is true, the text will be immediately
+  /// flushed to the file.
 
-    ~CompressedLogFile();
-    /// Destoys CompressedLogFile
+ private:
+  Poco::Buffer<char> _buffer;
 
-    void write(const std::string & text, bool flush = true);
-    /// Writes the given text to the compressed log file.
-    /// If flush is true, the text will be immediately
-    /// flushed to the file.
-
-private:
-    Poco::Buffer<char> _buffer;
-
-    LZ4F_preferences_t _kPrefs;
-    LZ4F_compressionContext_t _ctx;
+  LZ4F_preferences_t _kPrefs;
+  LZ4F_compressionContext_t _ctx;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_CompressedLogFile_INCLUDED
+#endif  // Foundation_CompressedLogFile_INCLUDED

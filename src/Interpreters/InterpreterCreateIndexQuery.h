@@ -2,23 +2,18 @@
 
 #include <Interpreters/IInterpreter.h>
 
-
-namespace DB
-{
+namespace DB {
 
 class Context;
 
-class InterpreterCreateIndexQuery : public IInterpreter, WithContext
-{
-public:
-    InterpreterCreateIndexQuery(const ASTPtr & query_ptr_, ContextPtr context_)
-        : WithContext(context_)
-        , query_ptr(query_ptr_) {}
+class InterpreterCreateIndexQuery : public IInterpreter, WithContext {
+ public:
+  InterpreterCreateIndexQuery(const ASTPtr& query_ptr_, ContextPtr context_) : WithContext(context_), query_ptr(query_ptr_) {}
 
-    BlockIO execute() override;
+  BlockIO execute() override;
 
-private:
-    ASTPtr query_ptr;
+ private:
+  ASTPtr query_ptr;
 };
 
-}
+}  // namespace DB

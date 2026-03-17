@@ -15,13 +15,10 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef JSON_JSON_INCLUDED
 #define JSON_JSON_INCLUDED
 
-
 #include "Poco/Foundation.h"
-
 
 //
 // The following block is the standard way of creating macros which make exporting
@@ -32,19 +29,16 @@
 // defined with this macro as being exported.
 //
 
-
 #if !defined(JSON_API)
-#    if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
-#        define JSON_API __attribute__((visibility("default")))
-#    else
-#        define JSON_API
-#    endif
+#  if !defined(POCO_NO_GCC_API_ATTRIBUTE) && defined(__GNUC__) && (__GNUC__ >= 4)
+#    define JSON_API __attribute__((visibility("default")))
+#  else
+#    define JSON_API
+#  endif
 #endif
-
 
 //
 // Automatically link JSON library.
 //
 
-
-#endif // JSON_JSON_INCLUDED
+#endif  // JSON_JSON_INCLUDED

@@ -1,7 +1,7 @@
 #pragma once
 /**
-  * This file provides forward declarations for Allocator.
-  */
+ * This file provides forward declarations for Allocator.
+ */
 
 template <bool clear_memory_, bool populate = false>
 class Allocator;

@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace DB
-{
+namespace DB {
 
 using ColumnsWithTypeAndName = std::vector<ColumnWithTypeAndName>;
 

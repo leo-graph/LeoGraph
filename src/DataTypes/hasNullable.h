@@ -2,9 +2,8 @@
 
 #include <DataTypes/IDataType.h>
 
-namespace DB
-{
+namespace DB {
 
-bool hasNullable(const DataTypePtr & type);
+bool hasNullable(const DataTypePtr& type);
 
 }

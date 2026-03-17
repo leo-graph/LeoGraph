@@ -13,7 +13,6 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef NetSSL_SSLManager_INCLUDED
 #define NetSSL_SSLManager_INCLUDED
 
@@ -31,366 +30,339 @@
 #include "Poco/SharedPtr.h"
 #include "Poco/Util/AbstractConfiguration.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Context;
+
+class NetSSL_API SSLManager
+/// SSLManager is a singleton for holding the default server/client
+/// Context and handling callbacks for certificate verification errors
+/// and private key passphrases.
+///
+/// Proper initialization of SSLManager is critical.
+///
+/// SSLManager can be initialized manually, by calling initializeServer()
+/// and/or initializeClient(), or initialization can be automatic. In the latter
+/// case, a Poco::Util::Application instance must be available and the required
+/// configuration properties must be set (see below).
+///
+/// Note that manual initialization must happen very early in the application,
+/// before defaultClientContext() or defaultServerContext() are called.
+///
+/// If defaultClientContext() and defaultServerContext() are never called
+/// in an application, initialization of SSLManager can be omitted.
+/// However, in this case, delegates for the ServerVerificationError,
+/// ClientVerificationError and PrivateKeyPassphraseRequired events
+/// must be registered.
+///
+/// An exemplary documentation which sets either the server or client default context and creates
+/// a PrivateKeyPassphraseHandler that reads the password from the XML file looks like this:
+///
+///    <AppConfig>
+///       <openSSL>
+///          <server|client>
+///            <privateKeyFile>mycert.key</privateKeyFile>
+///            <certificateFile>mycert.crt</certificateFile>
+///            <caConfig>rootcert.pem</caConfig>
+///            <verificationMode>none|relaxed|strict|once</verificationMode>
+///            <verificationDepth>1..9</verificationDepth>
+///            <loadDefaultCAFile>true|false</loadDefaultCAFile>
+///            <cipherList>ALL:!ADH:!LOW:!EXP:!MD5:!3DES:@STRENGTH</cipherList>
+///            <preferServerCiphers>true|false</preferServerCiphers>
+///            <privateKeyPassphraseHandler>
+///                <name>KeyFileHandler</name>
+///                <options>
+///                    <password>test</password>
+///                </options>
+///            </privateKeyPassphraseHandler>
+///            <invalidCertificateHandler>
+///                 <name>RejectCertificateHandler</name>
+///            </invalidCertificateHandler>
+///            <cacheSessions>true|false</cacheSessions>
+///            <sessionIdContext>someString</sessionIdContext> <!-- server only -->
+///            <sessionCacheSize>0..n</sessionCacheSize>       <!-- server only -->
+///            <sessionTimeout>0..n</sessionTimeout>           <!-- server only -->
+///            <extendedVerification>true|false</extendedVerification>
+///            <requireTLSv1>true|false</requireTLSv1>
+///            <requireTLSv1_1>true|false</requireTLSv1_1>
+///            <requireTLSv1_2>true|false</requireTLSv1_2>
+///            <disableProtocols>sslv2,sslv3,tlsv1,tlsv1_1,tlsv1_2</disableProtocols>
+///            <dhParamsFile>dh.pem</dhParamsFile>
+///            <ecdhCurve>prime256v1</ecdhCurve>
+///          </server|client>
+///       </openSSL>
+///    </AppConfig>
+///
+/// Following is a list of supported configuration properties. Property names must always
+/// be prefixed with openSSL.server or openSSL.client. Some properties are only supported
+/// for servers.
+///
+///    - privateKeyFile (string): The path to the file containing the private key for the certificate
+///      in PEM format (or containing both the private key and the certificate).
+///    - certificateFile (string): The Path to the file containing the server's or client's certificate
+///      in PEM format. Can be omitted if the the file given in privateKeyFile contains the certificate as well.
+///    - caConfig (string): The path to the file or directory containing the trusted root certificates.
+///    - verificationMode (string): Specifies whether and how peer certificates are validated (see
+///      the Context class for details). Valid values are none, relaxed, strict, once.
+///    - verificationDepth (integer, 1-9): Sets the upper limit for verification chain sizes. Verification
+///      will fail if a certificate chain larger than this is encountered.
+///    - loadDefaultCAFile (boolean): Specifies whether the builtin CA certificates from OpenSSL are used.
+///    - cipherList (string): Specifies the supported ciphers in OpenSSL notation
+///      (e.g. "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH").
+///    - preferServerCiphers (bool): When choosing a cipher, use the server's preferences instead of the
+///      client preferences. When not called, the SSL server will always follow the clients
+///      preferences. When called, the SSL/TLS server will choose following its own
+///      preferences.
+///    - privateKeyPassphraseHandler.name (string): The name of the class (subclass of PrivateKeyPassphraseHandler)
+///      used for obtaining the passphrase for accessing the private key.
+///    - privateKeyPassphraseHandler.options.password (string): The password to be used by KeyFileHandler.
+///    - invalidCertificateHandler.name: The name of the class (subclass of CertificateHandler)
+///      used for confirming invalid certificates.
+///    - cacheSessions (boolean): Enables or disables session caching.
+///    - sessionIdContext (string): contains the application's unique session ID context, which becomes
+///      part of each session identifier generated by the server. Can be an arbitrary sequence
+///      of bytes with a maximum length of SSL_MAX_SSL_SESSION_ID_LENGTH. Should be specified
+///      for a server to enable session caching. Should be specified even if session caching
+///      is disabled to avoid problems with clients that request session caching (e.g. Firefox 3.6).
+///      If not specified, defaults to ${application.name}.
+///    - sessionCacheSize (integer): Sets the maximum size of the server session cache, in number of
+///      sessions. The default size (according to OpenSSL documentation) is 1024*20, which may be too
+///      large for many applications, especially on embedded platforms with limited memory.
+///      Specifying a size of 0 will set an unlimited cache size.
+///    - sessionTimeout (integer):  Sets the timeout (in seconds) of cached sessions on the server.
+///    - extendedVerification (boolean): Enable or disable the automatic post-connection
+///      extended certificate verification.
+///    - requireTLSv1 (boolean): Require a TLSv1 connection.
+///    - requireTLSv1_1 (boolean): Require a TLSv1.1 connection.
+///    - requireTLSv1_2 (boolean): Require a TLSv1.2 connection.
+///    - disableProtocols (string): A comma-separated list of protocols that should be
+///      disabled. Valid protocol names are sslv2, sslv3, tlsv1, tlsv1_1, tlsv1_2.
+///    - dhParamsFile (string): Specifies a file containing Diffie-Hellman parameters.
+///      If not specified or empty, the default parameters are used.
+///    - ecdhCurve (string): Specifies the name of the curve to use for ECDH, based
+///      on the curve names specified in RFC 4492. Defaults to "prime256v1".
 {
-namespace Net
-{
+ public:
+  typedef Poco::SharedPtr<PrivateKeyPassphraseHandler> PrivateKeyPassphraseHandlerPtr;
+  typedef Poco::SharedPtr<InvalidCertificateHandler> InvalidCertificateHandlerPtr;
 
+  Poco::BasicEvent<VerificationErrorArgs> ServerVerificationError;
+  /// Fired whenever a certificate verification error is detected by the server during a handshake.
 
-    class Context;
+  Poco::BasicEvent<VerificationErrorArgs> ClientVerificationError;
+  /// Fired whenever a certificate verification error is detected by the client during a handshake.
 
+  Poco::BasicEvent<std::string> PrivateKeyPassphraseRequired;
+  /// Fired when a encrypted certificate is loaded. Not setting the password
+  /// in the event parameter will result in a failure to load the certificate.
 
-    class NetSSL_API SSLManager
-    /// SSLManager is a singleton for holding the default server/client
-    /// Context and handling callbacks for certificate verification errors
-    /// and private key passphrases.
-    ///
-    /// Proper initialization of SSLManager is critical.
-    ///
-    /// SSLManager can be initialized manually, by calling initializeServer()
-    /// and/or initializeClient(), or initialization can be automatic. In the latter
-    /// case, a Poco::Util::Application instance must be available and the required
-    /// configuration properties must be set (see below).
-    ///
-    /// Note that manual initialization must happen very early in the application,
-    /// before defaultClientContext() or defaultServerContext() are called.
-    ///
-    /// If defaultClientContext() and defaultServerContext() are never called
-    /// in an application, initialization of SSLManager can be omitted.
-    /// However, in this case, delegates for the ServerVerificationError,
-    /// ClientVerificationError and PrivateKeyPassphraseRequired events
-    /// must be registered.
-    ///
-    /// An exemplary documentation which sets either the server or client default context and creates
-    /// a PrivateKeyPassphraseHandler that reads the password from the XML file looks like this:
-    ///
-    ///    <AppConfig>
-    ///       <openSSL>
-    ///          <server|client>
-    ///            <privateKeyFile>mycert.key</privateKeyFile>
-    ///            <certificateFile>mycert.crt</certificateFile>
-    ///            <caConfig>rootcert.pem</caConfig>
-    ///            <verificationMode>none|relaxed|strict|once</verificationMode>
-    ///            <verificationDepth>1..9</verificationDepth>
-    ///            <loadDefaultCAFile>true|false</loadDefaultCAFile>
-    ///            <cipherList>ALL:!ADH:!LOW:!EXP:!MD5:!3DES:@STRENGTH</cipherList>
-    ///            <preferServerCiphers>true|false</preferServerCiphers>
-    ///            <privateKeyPassphraseHandler>
-    ///                <name>KeyFileHandler</name>
-    ///                <options>
-    ///                    <password>test</password>
-    ///                </options>
-    ///            </privateKeyPassphraseHandler>
-    ///            <invalidCertificateHandler>
-    ///                 <name>RejectCertificateHandler</name>
-    ///            </invalidCertificateHandler>
-    ///            <cacheSessions>true|false</cacheSessions>
-    ///            <sessionIdContext>someString</sessionIdContext> <!-- server only -->
-    ///            <sessionCacheSize>0..n</sessionCacheSize>       <!-- server only -->
-    ///            <sessionTimeout>0..n</sessionTimeout>           <!-- server only -->
-    ///            <extendedVerification>true|false</extendedVerification>
-    ///            <requireTLSv1>true|false</requireTLSv1>
-    ///            <requireTLSv1_1>true|false</requireTLSv1_1>
-    ///            <requireTLSv1_2>true|false</requireTLSv1_2>
-    ///            <disableProtocols>sslv2,sslv3,tlsv1,tlsv1_1,tlsv1_2</disableProtocols>
-    ///            <dhParamsFile>dh.pem</dhParamsFile>
-    ///            <ecdhCurve>prime256v1</ecdhCurve>
-    ///          </server|client>
-    ///       </openSSL>
-    ///    </AppConfig>
-    ///
-    /// Following is a list of supported configuration properties. Property names must always
-    /// be prefixed with openSSL.server or openSSL.client. Some properties are only supported
-    /// for servers.
-    ///
-    ///    - privateKeyFile (string): The path to the file containing the private key for the certificate
-    ///      in PEM format (or containing both the private key and the certificate).
-    ///    - certificateFile (string): The Path to the file containing the server's or client's certificate
-    ///      in PEM format. Can be omitted if the the file given in privateKeyFile contains the certificate as well.
-    ///    - caConfig (string): The path to the file or directory containing the trusted root certificates.
-    ///    - verificationMode (string): Specifies whether and how peer certificates are validated (see
-    ///      the Context class for details). Valid values are none, relaxed, strict, once.
-    ///    - verificationDepth (integer, 1-9): Sets the upper limit for verification chain sizes. Verification
-    ///      will fail if a certificate chain larger than this is encountered.
-    ///    - loadDefaultCAFile (boolean): Specifies whether the builtin CA certificates from OpenSSL are used.
-    ///    - cipherList (string): Specifies the supported ciphers in OpenSSL notation
-    ///      (e.g. "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH").
-    ///    - preferServerCiphers (bool): When choosing a cipher, use the server's preferences instead of the
-    ///      client preferences. When not called, the SSL server will always follow the clients
-    ///      preferences. When called, the SSL/TLS server will choose following its own
-    ///      preferences.
-    ///    - privateKeyPassphraseHandler.name (string): The name of the class (subclass of PrivateKeyPassphraseHandler)
-    ///      used for obtaining the passphrase for accessing the private key.
-    ///    - privateKeyPassphraseHandler.options.password (string): The password to be used by KeyFileHandler.
-    ///    - invalidCertificateHandler.name: The name of the class (subclass of CertificateHandler)
-    ///      used for confirming invalid certificates.
-    ///    - cacheSessions (boolean): Enables or disables session caching.
-    ///    - sessionIdContext (string): contains the application's unique session ID context, which becomes
-    ///      part of each session identifier generated by the server. Can be an arbitrary sequence
-    ///      of bytes with a maximum length of SSL_MAX_SSL_SESSION_ID_LENGTH. Should be specified
-    ///      for a server to enable session caching. Should be specified even if session caching
-    ///      is disabled to avoid problems with clients that request session caching (e.g. Firefox 3.6).
-    ///      If not specified, defaults to ${application.name}.
-    ///    - sessionCacheSize (integer): Sets the maximum size of the server session cache, in number of
-    ///      sessions. The default size (according to OpenSSL documentation) is 1024*20, which may be too
-    ///      large for many applications, especially on embedded platforms with limited memory.
-    ///      Specifying a size of 0 will set an unlimited cache size.
-    ///    - sessionTimeout (integer):  Sets the timeout (in seconds) of cached sessions on the server.
-    ///    - extendedVerification (boolean): Enable or disable the automatic post-connection
-    ///      extended certificate verification.
-    ///    - requireTLSv1 (boolean): Require a TLSv1 connection.
-    ///    - requireTLSv1_1 (boolean): Require a TLSv1.1 connection.
-    ///    - requireTLSv1_2 (boolean): Require a TLSv1.2 connection.
-    ///    - disableProtocols (string): A comma-separated list of protocols that should be
-    ///      disabled. Valid protocol names are sslv2, sslv3, tlsv1, tlsv1_1, tlsv1_2.
-    ///    - dhParamsFile (string): Specifies a file containing Diffie-Hellman parameters.
-    ///      If not specified or empty, the default parameters are used.
-    ///    - ecdhCurve (string): Specifies the name of the curve to use for ECDH, based
-    ///      on the curve names specified in RFC 4492. Defaults to "prime256v1".
-    {
-    public:
-        typedef Poco::SharedPtr<PrivateKeyPassphraseHandler> PrivateKeyPassphraseHandlerPtr;
-        typedef Poco::SharedPtr<InvalidCertificateHandler> InvalidCertificateHandlerPtr;
+  static SSLManager& instance();
+  /// Returns the instance of the SSLManager singleton.
 
-        Poco::BasicEvent<VerificationErrorArgs> ServerVerificationError;
-        /// Fired whenever a certificate verification error is detected by the server during a handshake.
+  void initializeServer(PrivateKeyPassphraseHandlerPtr ptrPassphraseHandler, InvalidCertificateHandlerPtr ptrCertificateHandler,
+                        Context::Ptr ptrContext);
+  /// Initializes the server side of the SSLManager with a default passphrase handler, a default invalid certificate handler and a default
+  /// context. If this method is never called the SSLmanager will try to initialize its members from an application configuration.
+  ///
+  /// PtrPassphraseHandler and ptrCertificateHandler can be 0. However, in this case, event delegates
+  /// must be registered with the ServerVerificationError and PrivateKeyPassphraseRequired events.
+  ///
+  /// Note: Always create the handlers (or register the corresponding event delegates) before creating
+  /// the Context, as during creation of the Context the passphrase for the private key might be needed.
+  ///
+  /// Valid initialization code would be:
+  ///     SharedPtr<PrivateKeyPassphraseHandler> pConsoleHandler = new KeyConsoleHandler;
+  ///     SharedPtr<InvalidCertificateHandler> pInvalidCertHandler = new RejectCertificateHandler;
+  ///     Context::Ptr pContext = new Context(Context::SERVER_USE, "any.pem", "any.pem", "rootcert.pem", Context::VERIFY_RELAXED, 9, false,
+  ///     "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"); SSLManager::instance().initializeServer(pConsoleHandler, pInvalidCertHandler, pContext);
 
-        Poco::BasicEvent<VerificationErrorArgs> ClientVerificationError;
-        /// Fired whenever a certificate verification error is detected by the client during a handshake.
+  void initializeClient(PrivateKeyPassphraseHandlerPtr ptrPassphraseHandler, InvalidCertificateHandlerPtr ptrHandler,
+                        Context::Ptr ptrContext);
+  /// Initializes the client side of the SSLManager with a default passphrase handler, a default invalid certificate handler and a default
+  /// context. If this method is never called the SSLmanager will try to initialize its members from an application configuration.
+  ///
+  /// PtrPassphraseHandler and ptrCertificateHandler can be 0. However, in this case, event delegates
+  /// must be registered with the ClientVerificationError and PrivateKeyPassphraseRequired events.
+  ///
+  /// Note: Always create the handlers (or register the corresponding event delegates) before creating
+  /// the Context, as during creation of the Context the passphrase for the private key might be needed.
+  ///
+  /// Valid initialization code would be:
+  ///     SharedPtr<PrivateKeyPassphraseHandler> pConsoleHandler = new KeyConsoleHandler;
+  ///     SharedPtr<InvalidCertificateHandler> pInvalidCertHandler = new RejectCertificateHandler;
+  ///     Context::Ptr pContext = new Context(Context::CLIENT_USE, "", "", "rootcert.pem", Context::VERIFY_RELAXED, 9, false,
+  ///     "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"); SSLManager::instance().initializeClient(pConsoleHandler, pInvalidCertHandler, pContext);
 
-        Poco::BasicEvent<std::string> PrivateKeyPassphraseRequired;
-        /// Fired when a encrypted certificate is loaded. Not setting the password
-        /// in the event parameter will result in a failure to load the certificate.
+  Context::Ptr defaultServerContext();
+  /// Returns the default Context used by the server.
+  ///
+  /// Unless initializeServer() has been called, the first call to this method initializes the default Context
+  /// from the application configuration.
 
-        static SSLManager & instance();
-        /// Returns the instance of the SSLManager singleton.
+  Context::Ptr defaultClientContext();
+  /// Returns the default Context used by the client.
+  ///
+  /// Unless initializeClient() has been called, the first call to this method initializes the default Context
+  /// from the application configuration.
 
-        void initializeServer(
-            PrivateKeyPassphraseHandlerPtr ptrPassphraseHandler,
-            InvalidCertificateHandlerPtr ptrCertificateHandler,
-            Context::Ptr ptrContext);
-        /// Initializes the server side of the SSLManager with a default passphrase handler, a default invalid certificate handler and a default context. If this method
-        /// is never called the SSLmanager will try to initialize its members from an application configuration.
-        ///
-        /// PtrPassphraseHandler and ptrCertificateHandler can be 0. However, in this case, event delegates
-        /// must be registered with the ServerVerificationError and PrivateKeyPassphraseRequired events.
-        ///
-        /// Note: Always create the handlers (or register the corresponding event delegates) before creating
-        /// the Context, as during creation of the Context the passphrase for the private key might be needed.
-        ///
-        /// Valid initialization code would be:
-        ///     SharedPtr<PrivateKeyPassphraseHandler> pConsoleHandler = new KeyConsoleHandler;
-        ///     SharedPtr<InvalidCertificateHandler> pInvalidCertHandler = new RejectCertificateHandler;
-        ///     Context::Ptr pContext = new Context(Context::SERVER_USE, "any.pem", "any.pem", "rootcert.pem", Context::VERIFY_RELAXED, 9, false, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
-        ///     SSLManager::instance().initializeServer(pConsoleHandler, pInvalidCertHandler, pContext);
+  Context::Ptr getCustomServerContext(const std::string& name);
+  /// Return custom Context used by the server.
 
-        void initializeClient(
-            PrivateKeyPassphraseHandlerPtr ptrPassphraseHandler, InvalidCertificateHandlerPtr ptrHandler, Context::Ptr ptrContext);
-        /// Initializes the client side of the SSLManager with a default passphrase handler, a default invalid certificate handler and a default context. If this method
-        /// is never called the SSLmanager will try to initialize its members from an application configuration.
-        ///
-        /// PtrPassphraseHandler and ptrCertificateHandler can be 0. However, in this case, event delegates
-        /// must be registered with the ClientVerificationError and PrivateKeyPassphraseRequired events.
-        ///
-        /// Note: Always create the handlers (or register the corresponding event delegates) before creating
-        /// the Context, as during creation of the Context the passphrase for the private key might be needed.
-        ///
-        /// Valid initialization code would be:
-        ///     SharedPtr<PrivateKeyPassphraseHandler> pConsoleHandler = new KeyConsoleHandler;
-        ///     SharedPtr<InvalidCertificateHandler> pInvalidCertHandler = new RejectCertificateHandler;
-        ///     Context::Ptr pContext = new Context(Context::CLIENT_USE, "", "", "rootcert.pem", Context::VERIFY_RELAXED, 9, false, "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH");
-        ///     SSLManager::instance().initializeClient(pConsoleHandler, pInvalidCertHandler, pContext);
+  Context::Ptr setCustomServerContext(const std::string& name, Context::Ptr ctx);
+  /// Set custom Context used by the server.
+  /// Return pointer on inserted Context or on old Context if exists.
 
-        Context::Ptr defaultServerContext();
-        /// Returns the default Context used by the server.
-        ///
-        /// Unless initializeServer() has been called, the first call to this method initializes the default Context
-        /// from the application configuration.
+  PrivateKeyPassphraseHandlerPtr serverPassphraseHandler();
+  /// Returns the configured passphrase handler of the server. If none is set, the method will create a default one
+  /// from an application configuration.
 
-        Context::Ptr defaultClientContext();
-        /// Returns the default Context used by the client.
-        ///
-        /// Unless initializeClient() has been called, the first call to this method initializes the default Context
-        /// from the application configuration.
+  InvalidCertificateHandlerPtr serverCertificateHandler();
+  /// Returns an initialized certificate handler (used by the server to verify client cert) which determines how invalid certificates are
+  /// treated. If none is set, it will try to auto-initialize one from an application configuration.
 
-        Context::Ptr getCustomServerContext(const std::string & name);
-        /// Return custom Context used by the server.
+  PrivateKeyPassphraseHandlerPtr clientPassphraseHandler();
+  /// Returns the configured passphrase handler of the client. If none is set, the method will create a default one
+  /// from an application configuration.
 
-        Context::Ptr setCustomServerContext(const std::string & name, Context::Ptr ctx);
-        /// Set custom Context used by the server.
-        /// Return pointer on inserted Context or on old Context if exists.
+  InvalidCertificateHandlerPtr clientCertificateHandler();
+  /// Returns an initialized certificate handler (used by the client to verify server cert) which determines how invalid certificates are
+  /// treated. If none is set, it will try to auto-initialize one from an application configuration.
 
-        PrivateKeyPassphraseHandlerPtr serverPassphraseHandler();
-        /// Returns the configured passphrase handler of the server. If none is set, the method will create a default one
-        /// from an application configuration.
+  PrivateKeyFactoryMgr& privateKeyFactoryMgr();
+  /// Returns the private key factory manager which stores the
+  /// factories for the different registered passphrase handlers for private keys.
 
-        InvalidCertificateHandlerPtr serverCertificateHandler();
-        /// Returns an initialized certificate handler (used by the server to verify client cert) which determines how invalid certificates are treated.
-        /// If none is set, it will try to auto-initialize one from an application configuration.
+  CertificateHandlerFactoryMgr& certificateHandlerFactoryMgr();
+  /// Returns the CertificateHandlerFactoryMgr which stores the
+  /// factories for the different registered certificate handlers.
 
-        PrivateKeyPassphraseHandlerPtr clientPassphraseHandler();
-        /// Returns the configured passphrase handler of the client. If none is set, the method will create a default one
-        /// from an application configuration.
+  static bool isFIPSEnabled();
+  // Returns true if FIPS mode is enabled, false otherwise.
 
-        InvalidCertificateHandlerPtr clientCertificateHandler();
-        /// Returns an initialized certificate handler (used by the client to verify server cert) which determines how invalid certificates are treated.
-        /// If none is set, it will try to auto-initialize one from an application configuration.
+  void shutdown();
+  /// Shuts down the SSLManager and releases the default Context
+  /// objects. After a call to shutdown(), the SSLManager can no
+  /// longer be used.
+  ///
+  /// Normally, it's not necessary to call this method directly, as this
+  /// will be called either by uninitializeSSL(), or when
+  /// the SSLManager instance is destroyed.
 
-        PrivateKeyFactoryMgr & privateKeyFactoryMgr();
-        /// Returns the private key factory manager which stores the
-        /// factories for the different registered passphrase handlers for private keys.
+  static const std::string CFG_SERVER_PREFIX;
+  static const std::string CFG_CLIENT_PREFIX;
 
-        CertificateHandlerFactoryMgr & certificateHandlerFactoryMgr();
-        /// Returns the CertificateHandlerFactoryMgr which stores the
-        /// factories for the different registered certificate handlers.
+  static const std::string CFG_PRIV_KEY_FILE;
+  static const std::string CFG_CERTIFICATE_FILE;
+  static const std::string CFG_CA_LOCATION;
+  static const std::string CFG_VER_MODE;
+  static const Context::VerificationMode VAL_VER_MODE;
+  static const std::string CFG_VER_DEPTH;
+  static const int VAL_VER_DEPTH;
+  static const std::string CFG_ENABLE_DEFAULT_CA;
+  static const bool VAL_ENABLE_DEFAULT_CA;
+  static const std::string CFG_CIPHER_LIST;
+  static const std::string CFG_CYPHER_LIST;  // for backwards compatibility
+  static const std::string VAL_CIPHER_LIST;
+  static const std::string CFG_PREFER_SERVER_CIPHERS;
+  static const std::string CFG_DELEGATE_HANDLER;
+  static const std::string VAL_DELEGATE_HANDLER;
+  static const std::string CFG_CERTIFICATE_HANDLER;
+  static const std::string VAL_CERTIFICATE_HANDLER;
+  static const std::string CFG_CACHE_SESSIONS;
+  static const std::string CFG_SESSION_ID_CONTEXT;
+  static const std::string CFG_SESSION_CACHE_SIZE;
+  static const std::string CFG_SESSION_TIMEOUT;
+  static const std::string CFG_EXTENDED_VERIFICATION;
+  static const std::string CFG_REQUIRE_TLSV1;
+  static const std::string CFG_REQUIRE_TLSV1_1;
+  static const std::string CFG_REQUIRE_TLSV1_2;
+  static const std::string CFG_DISABLE_PROTOCOLS;
+  static const std::string CFG_DH_PARAMS_FILE;
+  static const std::string CFG_ECDH_CURVE;
 
-        static bool isFIPSEnabled();
-        // Returns true if FIPS mode is enabled, false otherwise.
+ protected:
+  static int verifyClientCallback(int ok, X509_STORE_CTX* pStore);
+  /// The return value of this method defines how errors in
+  /// verification are handled. Return 0 to terminate the handshake,
+  /// or 1 to continue despite the error.
 
-        void shutdown();
-        /// Shuts down the SSLManager and releases the default Context
-        /// objects. After a call to shutdown(), the SSLManager can no
-        /// longer be used.
-        ///
-        /// Normally, it's not necessary to call this method directly, as this
-        /// will be called either by uninitializeSSL(), or when
-        /// the SSLManager instance is destroyed.
+  static int verifyServerCallback(int ok, X509_STORE_CTX* pStore);
+  /// The return value of this method defines how errors in
+  /// verification are handled. Return 0 to terminate the handshake,
+  /// or 1 to continue despite the error.
 
-        static const std::string CFG_SERVER_PREFIX;
-        static const std::string CFG_CLIENT_PREFIX;
+  static int privateKeyPassphraseCallback(char* pBuf, int size, int flag, void* userData);
+  /// Method is invoked by OpenSSL to retrieve a passwd for an encrypted certificate.
+  /// The request is delegated to the PrivatekeyPassword event. This method returns the
+  /// length of the password.
 
-        static const std::string CFG_PRIV_KEY_FILE;
-        static const std::string CFG_CERTIFICATE_FILE;
-        static const std::string CFG_CA_LOCATION;
-        static const std::string CFG_VER_MODE;
-        static const Context::VerificationMode VAL_VER_MODE;
-        static const std::string CFG_VER_DEPTH;
-        static const int VAL_VER_DEPTH;
-        static const std::string CFG_ENABLE_DEFAULT_CA;
-        static const bool VAL_ENABLE_DEFAULT_CA;
-        static const std::string CFG_CIPHER_LIST;
-        static const std::string CFG_CYPHER_LIST; // for backwards compatibility
-        static const std::string VAL_CIPHER_LIST;
-        static const std::string CFG_PREFER_SERVER_CIPHERS;
-        static const std::string CFG_DELEGATE_HANDLER;
-        static const std::string VAL_DELEGATE_HANDLER;
-        static const std::string CFG_CERTIFICATE_HANDLER;
-        static const std::string VAL_CERTIFICATE_HANDLER;
-        static const std::string CFG_CACHE_SESSIONS;
-        static const std::string CFG_SESSION_ID_CONTEXT;
-        static const std::string CFG_SESSION_CACHE_SIZE;
-        static const std::string CFG_SESSION_TIMEOUT;
-        static const std::string CFG_EXTENDED_VERIFICATION;
-        static const std::string CFG_REQUIRE_TLSV1;
-        static const std::string CFG_REQUIRE_TLSV1_1;
-        static const std::string CFG_REQUIRE_TLSV1_2;
-        static const std::string CFG_DISABLE_PROTOCOLS;
-        static const std::string CFG_DH_PARAMS_FILE;
-        static const std::string CFG_ECDH_CURVE;
+  static Poco::Util::AbstractConfiguration& appConfig();
+  /// Returns the application configuration.
+  ///
+  /// Throws a InvalidStateException if not application instance
+  /// is available.
 
-    protected:
-        static int verifyClientCallback(int ok, X509_STORE_CTX * pStore);
-        /// The return value of this method defines how errors in
-        /// verification are handled. Return 0 to terminate the handshake,
-        /// or 1 to continue despite the error.
+ private:
+  SSLManager();
+  /// Creates the SSLManager.
 
-        static int verifyServerCallback(int ok, X509_STORE_CTX * pStore);
-        /// The return value of this method defines how errors in
-        /// verification are handled. Return 0 to terminate the handshake,
-        /// or 1 to continue despite the error.
+  ~SSLManager();
+  /// Destroys the SSLManager.
 
-        static int privateKeyPassphraseCallback(char * pBuf, int size, int flag, void * userData);
-        /// Method is invoked by OpenSSL to retrieve a passwd for an encrypted certificate.
-        /// The request is delegated to the PrivatekeyPassword event. This method returns the
-        /// length of the password.
+  void initDefaultContext(bool server);
+  /// Inits the default context, the first time it is accessed.
 
-        static Poco::Util::AbstractConfiguration & appConfig();
-        /// Returns the application configuration.
-        ///
-        /// Throws a InvalidStateException if not application instance
-        /// is available.
+  void initEvents(bool server);
+  /// Registers delegates at the events according to the configuration.
 
-    private:
-        SSLManager();
-        /// Creates the SSLManager.
+  void initPassphraseHandler(bool server);
+  /// Inits the passphrase handler.
 
-        ~SSLManager();
-        /// Destroys the SSLManager.
+  void initCertificateHandler(bool server);
+  /// Inits the certificate handler.
 
-        void initDefaultContext(bool server);
-        /// Inits the default context, the first time it is accessed.
+  static int verifyCallback(bool server, int ok, X509_STORE_CTX* pStore);
+  /// The return value of this method defines how errors in
+  /// verification are handled. Return 0 to terminate the handshake,
+  /// or 1 to continue despite the error.
 
-        void initEvents(bool server);
-        /// Registers delegates at the events according to the configuration.
+  PrivateKeyFactoryMgr _factoryMgr;
+  CertificateHandlerFactoryMgr _certHandlerFactoryMgr;
+  Context::Ptr _ptrDefaultServerContext;
+  PrivateKeyPassphraseHandlerPtr _ptrServerPassphraseHandler;
+  InvalidCertificateHandlerPtr _ptrServerCertificateHandler;
+  Context::Ptr _ptrDefaultClientContext;
+  PrivateKeyPassphraseHandlerPtr _ptrClientPassphraseHandler;
+  InvalidCertificateHandlerPtr _ptrClientCertificateHandler;
+  Poco::FastMutex _mutex;
 
-        void initPassphraseHandler(bool server);
-        /// Inits the passphrase handler.
+  std::unordered_map<std::string, Context::Ptr> _mapPtrServerContexts;
 
-        void initCertificateHandler(bool server);
-        /// Inits the certificate handler.
+  friend class Poco::SingletonHolder<SSLManager>;
+  friend class Context;
+};
 
-        static int verifyCallback(bool server, int ok, X509_STORE_CTX * pStore);
-        /// The return value of this method defines how errors in
-        /// verification are handled. Return 0 to terminate the handshake,
-        /// or 1 to continue despite the error.
+//
+// inlines
+//
+inline PrivateKeyFactoryMgr& SSLManager::privateKeyFactoryMgr() { return _factoryMgr; }
 
-        PrivateKeyFactoryMgr _factoryMgr;
-        CertificateHandlerFactoryMgr _certHandlerFactoryMgr;
-        Context::Ptr _ptrDefaultServerContext;
-        PrivateKeyPassphraseHandlerPtr _ptrServerPassphraseHandler;
-        InvalidCertificateHandlerPtr _ptrServerCertificateHandler;
-        Context::Ptr _ptrDefaultClientContext;
-        PrivateKeyPassphraseHandlerPtr _ptrClientPassphraseHandler;
-        InvalidCertificateHandlerPtr _ptrClientCertificateHandler;
-        Poco::FastMutex _mutex;
+inline CertificateHandlerFactoryMgr& SSLManager::certificateHandlerFactoryMgr() { return _certHandlerFactoryMgr; }
 
-        std::unordered_map<std::string, Context::Ptr> _mapPtrServerContexts;
-
-        friend class Poco::SingletonHolder<SSLManager>;
-        friend class Context;
-    };
-
-
-    //
-    // inlines
-    //
-    inline PrivateKeyFactoryMgr & SSLManager::privateKeyFactoryMgr()
-    {
-        return _factoryMgr;
-    }
-
-
-    inline CertificateHandlerFactoryMgr & SSLManager::certificateHandlerFactoryMgr()
-    {
-        return _certHandlerFactoryMgr;
-    }
-
-
-    inline bool SSLManager::isFIPSEnabled()
-    {
+inline bool SSLManager::isFIPSEnabled() {
 #ifdef OPENSSL_FIPS
-        return FIPS_mode() ? true : false;
+  return FIPS_mode() ? true : false;
 #else
-        return false;
+  return false;
 #endif
-    }
-
-
-    inline int SSLManager::verifyServerCallback(int ok, X509_STORE_CTX * pStore)
-    {
-        return SSLManager::verifyCallback(true, ok, pStore);
-    }
-
-
-    inline int SSLManager::verifyClientCallback(int ok, X509_STORE_CTX * pStore)
-    {
-        return SSLManager::verifyCallback(false, ok, pStore);
-    }
-
-
 }
-} // namespace Poco::Net
 
+inline int SSLManager::verifyServerCallback(int ok, X509_STORE_CTX* pStore) { return SSLManager::verifyCallback(true, ok, pStore); }
 
-#endif // NetSSL_SSLManager_INCLUDED
+inline int SSLManager::verifyClientCallback(int ok, X509_STORE_CTX* pStore) { return SSLManager::verifyCallback(false, ok, pStore); }
+
+}  // namespace Net
+}  // namespace Poco
+
+#endif  // NetSSL_SSLManager_INCLUDED

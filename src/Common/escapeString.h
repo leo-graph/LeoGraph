@@ -2,8 +2,7 @@
 
 #include <base/types.h>
 
-namespace DB
-{
+namespace DB {
 
 String escapeString(std::string_view value);
 

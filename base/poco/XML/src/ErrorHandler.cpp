@@ -11,17 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/ErrorHandler.h"
-
 
 namespace Poco {
 namespace XML {
 
+ErrorHandler::~ErrorHandler() {}
 
-ErrorHandler::~ErrorHandler()
-{
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

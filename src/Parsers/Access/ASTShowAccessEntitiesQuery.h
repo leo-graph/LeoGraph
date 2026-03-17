@@ -1,11 +1,9 @@
 #pragma once
 
-#include <Parsers/ASTQueryWithOutput.h>
 #include <Access/Common/AccessEntityType.h>
+#include <Parsers/ASTQueryWithOutput.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /// SHOW USERS
 /// SHOW [CURRENT|ENABLED] ROLES
@@ -14,31 +12,30 @@ namespace DB
 /// SHOW MASKING POLICIES [name | ON [database.]table]
 /// SHOW QUOTAS
 /// SHOW [CURRENT] QUOTA
-class ASTShowAccessEntitiesQuery : public ASTQueryWithOutput
-{
-public:
-    AccessEntityType type;
+class ASTShowAccessEntitiesQuery : public ASTQueryWithOutput {
+ public:
+  AccessEntityType type;
 
-    bool all = false;
-    bool current_quota = false;
-    bool current_roles = false;
-    bool enabled_roles = false;
+  bool all = false;
+  bool current_quota = false;
+  bool current_roles = false;
+  bool enabled_roles = false;
 
-    String short_name;
-    std::optional<std::pair<String, String>> database_and_table_name;
+  String short_name;
+  std::optional<std::pair<String, String>> database_and_table_name;
 
-    String getID(char) const override;
-    ASTPtr clone() const override { return make_intrusive<ASTShowAccessEntitiesQuery>(*this); }
+  String getID(char) const override;
+  ASTPtr clone() const override { return make_intrusive<ASTShowAccessEntitiesQuery>(*this); }
 
-    void replaceEmptyDatabase(const String & current_database);
+  void replaceEmptyDatabase(const String &current_database);
 
-    QueryKind getQueryKind() const override { return QueryKind::Show; }
+  QueryKind getQueryKind() const override { return QueryKind::Show; }
 
-protected:
-    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatQueryImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 
-private:
-    String getKeyword() const;
+ private:
+  String getKeyword() const;
 };
 
-}
+}  // namespace DB

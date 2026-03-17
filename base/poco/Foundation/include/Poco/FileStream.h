@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_FileStream_INCLUDED
 #define Foundation_FileStream_INCLUDED
 
-
-#include "Poco/Foundation.h"
-#    include "Poco/FileStream_POSIX.h"
 #include <istream>
 #include <ostream>
+#include "Poco/FileStream_POSIX.h"
+#include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API FileIOS : public virtual std::ios
 /// The base class for FileInputStream and FileOutputStream.
@@ -44,37 +39,37 @@ class Foundation_API FileIOS : public virtual std::ios
 /// On Windows platforms, if POCO_WIN32_UTF8 is #define'd,
 /// UTF-8 encoded Unicode paths are correctly handled.
 {
-public:
-    FileIOS(std::ios::openmode defaultMode);
-    /// Creates the basic stream.
+ public:
+  FileIOS(std::ios::openmode defaultMode);
+  /// Creates the basic stream.
 
-    ~FileIOS();
-    /// Destroys the stream.
+  ~FileIOS();
+  /// Destroys the stream.
 
-    void open(const std::string & path, std::ios::openmode mode);
-    /// Opens the file specified by path, using the given mode.
-    ///
-    /// Throws a FileException (or a similar exception) if the file
-    /// does not exist or is not accessible for other reasons and
-    /// a new file cannot be created.
+  void open(const std::string& path, std::ios::openmode mode);
+  /// Opens the file specified by path, using the given mode.
+  ///
+  /// Throws a FileException (or a similar exception) if the file
+  /// does not exist or is not accessible for other reasons and
+  /// a new file cannot be created.
 
-    void close();
-    /// Closes the file stream.
-    ///
-    /// If, for an output stream, the close operation fails (because
-    /// the contents of the stream buffer cannot synced back to
-    /// the filesystem), the bad bit is set in the stream state.
+  void close();
+  /// Closes the file stream.
+  ///
+  /// If, for an output stream, the close operation fails (because
+  /// the contents of the stream buffer cannot synced back to
+  /// the filesystem), the bad bit is set in the stream state.
 
-    FileStreamBuf * rdbuf();
-    /// Returns a pointer to the underlying streambuf.
+  FileStreamBuf* rdbuf();
+  /// Returns a pointer to the underlying streambuf.
 
-protected:
-    FileStreamBuf _buf;
-    std::ios::openmode _defaultMode;
+ protected:
+  FileStreamBuf _buf;
+  std::ios::openmode _defaultMode;
 };
 
-
-class Foundation_API FileInputStream : public FileIOS, public std::istream
+class Foundation_API FileInputStream : public FileIOS,
+                                       public std::istream
 /// An input stream for reading from a file.
 ///
 /// Files are always opened in binary mode, a text mode
@@ -86,26 +81,26 @@ class Foundation_API FileInputStream : public FileIOS, public std::istream
 /// On Windows platforms, if POCO_WIN32_UTF8 is #define'd,
 /// UTF-8 encoded Unicode paths are correctly handled.
 {
-public:
-    FileInputStream();
-    /// Creates an unopened FileInputStream.
+ public:
+  FileInputStream();
+  /// Creates an unopened FileInputStream.
 
-    FileInputStream(const std::string & path, std::ios::openmode mode = std::ios::in);
-    /// Creates the FileInputStream for the file given by path, using
-    /// the given mode.
-    ///
-    /// The std::ios::in flag is always set, regardless of the actual
-    /// value specified for mode.
-    ///
-    /// Throws a FileNotFoundException (or a similar exception) if the file
-    /// does not exist or is not accessible for other reasons.
+  FileInputStream(const std::string& path, std::ios::openmode mode = std::ios::in);
+  /// Creates the FileInputStream for the file given by path, using
+  /// the given mode.
+  ///
+  /// The std::ios::in flag is always set, regardless of the actual
+  /// value specified for mode.
+  ///
+  /// Throws a FileNotFoundException (or a similar exception) if the file
+  /// does not exist or is not accessible for other reasons.
 
-    ~FileInputStream();
-    /// Destroys the stream.
+  ~FileInputStream();
+  /// Destroys the stream.
 };
 
-
-class Foundation_API FileOutputStream : public FileIOS, public std::ostream
+class Foundation_API FileOutputStream : public FileIOS,
+                                        public std::ostream
 /// An output stream for writing to a file.
 ///
 /// Files are always opened in binary mode, a text mode
@@ -117,27 +112,27 @@ class Foundation_API FileOutputStream : public FileIOS, public std::ostream
 /// On Windows platforms, if POCO_WIN32_UTF8 is #define'd,
 /// UTF-8 encoded Unicode paths are correctly handled.
 {
-public:
-    FileOutputStream();
-    /// Creates an unopened FileOutputStream.
+ public:
+  FileOutputStream();
+  /// Creates an unopened FileOutputStream.
 
-    FileOutputStream(const std::string & path, std::ios::openmode mode = std::ios::out | std::ios::trunc);
-    /// Creates the FileOutputStream for the file given by path, using
-    /// the given mode.
-    ///
-    /// The std::ios::out is always set, regardless of the actual
-    /// value specified for mode.
-    ///
-    /// Throws a FileException (or a similar exception) if the file
-    /// does not exist or is not accessible for other reasons and
-    /// a new file cannot be created.
+  FileOutputStream(const std::string& path, std::ios::openmode mode = std::ios::out | std::ios::trunc);
+  /// Creates the FileOutputStream for the file given by path, using
+  /// the given mode.
+  ///
+  /// The std::ios::out is always set, regardless of the actual
+  /// value specified for mode.
+  ///
+  /// Throws a FileException (or a similar exception) if the file
+  /// does not exist or is not accessible for other reasons and
+  /// a new file cannot be created.
 
-    ~FileOutputStream();
-    /// Destroys the FileOutputStream.
+  ~FileOutputStream();
+  /// Destroys the FileOutputStream.
 };
 
-
-class Foundation_API FileStream : public FileIOS, public std::iostream
+class Foundation_API FileStream : public FileIOS,
+                                  public std::iostream
 /// A stream for reading from and writing to a file.
 ///
 /// Files are always opened in binary mode, a text mode
@@ -154,20 +149,18 @@ class Foundation_API FileStream : public FileIOS, public std::iostream
 /// On Windows platforms, if POCO_WIN32_UTF8 is #define'd,
 /// UTF-8 encoded Unicode paths are correctly handled.
 {
-public:
-    FileStream();
-    /// Creates an unopened FileStream.
+ public:
+  FileStream();
+  /// Creates an unopened FileStream.
 
-    FileStream(const std::string & path, std::ios::openmode mode = std::ios::out | std::ios::in);
-    /// Creates the FileStream for the file given by path, using
-    /// the given mode.
+  FileStream(const std::string& path, std::ios::openmode mode = std::ios::out | std::ios::in);
+  /// Creates the FileStream for the file given by path, using
+  /// the given mode.
 
-    ~FileStream();
-    /// Destroys the FileOutputStream.
+  ~FileStream();
+  /// Destroys the FileOutputStream.
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_FileStream_INCLUDED
+#endif  // Foundation_FileStream_INCLUDED

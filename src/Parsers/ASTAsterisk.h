@@ -2,25 +2,22 @@
 
 #include <Parsers/IAST.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /** SELECT * is expanded to all visible columns of the source table.
-  * Optional transformers can be attached to further manipulate these expanded columns.
-  */
-class ASTAsterisk : public IAST
-{
-public:
-    String getID(char) const override { return "Asterisk"; }
-    ASTPtr clone() const override;
-    void appendColumnName(WriteBuffer & ostr) const override;
+ * Optional transformers can be attached to further manipulate these expanded columns.
+ */
+class ASTAsterisk : public IAST {
+ public:
+  String getID(char) const override { return "Asterisk"; }
+  ASTPtr clone() const override;
+  void appendColumnName(WriteBuffer &ostr) const override;
 
-    ASTPtr expression;
-    ASTPtr transformers;
+  ASTPtr expression;
+  ASTPtr transformers;
 
-protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+ protected:
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &, FormatStateStacked) const override;
 };
 
-}
+}  // namespace DB

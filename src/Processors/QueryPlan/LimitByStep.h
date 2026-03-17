@@ -1,42 +1,36 @@
 #pragma once
 #include <Processors/QueryPlan/ITransformingStep.h>
 
-namespace DB
-{
+namespace DB {
 
 /// Executes LIMIT BY for specified columns. See LimitByTransform.
-class LimitByStep : public ITransformingStep
-{
-public:
-    explicit LimitByStep(
-            const SharedHeader & input_header_,
-            size_t group_length_, size_t group_offset_, Names columns_);
+class LimitByStep : public ITransformingStep {
+ public:
+  explicit LimitByStep(const SharedHeader &input_header_, size_t group_length_, size_t group_offset_, Names columns_);
 
-    String getName() const override { return "LimitBy"; }
+  String getName() const override { return "LimitBy"; }
 
-    void transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &) override;
+  void transformPipeline(QueryPipelineBuilder &pipeline, const BuildQueryPipelineSettings &) override;
 
-    void describeActions(JSONBuilder::JSONMap & map) const override;
-    void describeActions(FormatSettings & settings) const override;
+  void describeActions(JSONBuilder::JSONMap &map) const override;
+  void describeActions(FormatSettings &settings) const override;
 
-    void serialize(Serialization & ctx) const override;
-    bool isSerializable() const override { return true; }
+  void serialize(Serialization &ctx) const override;
+  bool isSerializable() const override { return true; }
 
-    static QueryPlanStepPtr deserialize(Deserialization & ctx);
+  static QueryPlanStepPtr deserialize(Deserialization &ctx);
 
-    void applyOrder(SortDescription sort_desc);
-private:
-    void updateOutputHeader() override
-    {
-        output_header = input_headers.front();
-    }
+  void applyOrder(SortDescription sort_desc);
 
-    size_t group_length;
-    size_t group_offset;
+ private:
+  void updateOutputHeader() override { output_header = input_headers.front(); }
 
-    Names columns;
+  size_t group_length;
+  size_t group_offset;
 
-    bool in_order = false;
+  Names columns;
+
+  bool in_order = false;
 };
 
-}
+}  // namespace DB

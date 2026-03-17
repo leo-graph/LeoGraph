@@ -1,54 +1,51 @@
 #pragma once
-#include <Parsers/ASTCreateNamedCollectionQuery.h>
-#include <Parsers/ASTAlterNamedCollectionQuery.h>
-#include <Parsers/ASTDropNamedCollectionQuery.h>
 #include <Common/NamedCollections/NamedCollections.h>
 #include <Interpreters/Context_fwd.h>
+#include <Parsers/ASTAlterNamedCollectionQuery.h>
+#include <Parsers/ASTCreateNamedCollectionQuery.h>
+#include <Parsers/ASTDropNamedCollectionQuery.h>
 
-namespace DB
-{
+namespace DB {
 
-class NamedCollectionsMetadataStorage : private WithContext
-{
-public:
-    static std::unique_ptr<NamedCollectionsMetadataStorage> create(const ContextPtr & context);
+class NamedCollectionsMetadataStorage : private WithContext {
+ public:
+  static std::unique_ptr<NamedCollectionsMetadataStorage> create(const ContextPtr& context);
 
-    NamedCollectionsMap getAll() const;
+  NamedCollectionsMap getAll() const;
 
-    MutableNamedCollectionPtr get(const std::string & collection_name) const;
+  MutableNamedCollectionPtr get(const std::string& collection_name) const;
 
-    MutableNamedCollectionPtr create(const ASTCreateNamedCollectionQuery & query);
+  MutableNamedCollectionPtr create(const ASTCreateNamedCollectionQuery& query);
 
-    void remove(const std::string & collection_name);
+  void remove(const std::string& collection_name);
 
-    bool removeIfExists(const std::string & collection_name);
+  bool removeIfExists(const std::string& collection_name);
 
-    MutableNamedCollectionPtr update(const ASTAlterNamedCollectionQuery & query);
+  MutableNamedCollectionPtr update(const ASTAlterNamedCollectionQuery& query);
 
-    void shutdown();
+  void shutdown();
 
-    /// Return true if update was made
-    bool waitUpdate();
+  /// Return true if update was made
+  bool waitUpdate();
 
-    bool isReplicated() const;
+  bool isReplicated() const;
 
-private:
-    class INamedCollectionsStorage;
-    class LocalStorage;
-    class LocalStorageEncrypted;
-    class ZooKeeperStorage;
-    class ZooKeeperStorageEncrypted;
+ private:
+  class INamedCollectionsStorage;
+  class LocalStorage;
+  class LocalStorageEncrypted;
+  class ZooKeeperStorage;
+  class ZooKeeperStorageEncrypted;
 
-    std::shared_ptr<INamedCollectionsStorage> storage;
+  std::shared_ptr<INamedCollectionsStorage> storage;
 
-    NamedCollectionsMetadataStorage(std::shared_ptr<INamedCollectionsStorage> storage_, ContextPtr context_);
+  NamedCollectionsMetadataStorage(std::shared_ptr<INamedCollectionsStorage> storage_, ContextPtr context_);
 
-    std::vector<std::string> listCollections() const;
+  std::vector<std::string> listCollections() const;
 
-    ASTCreateNamedCollectionQuery readCreateQuery(const std::string & collection_name) const;
+  ASTCreateNamedCollectionQuery readCreateQuery(const std::string& collection_name) const;
 
-    void writeCreateQuery(const String & collection_name, const String & create_statement, bool replace = false);
+  void writeCreateQuery(const String& collection_name, const String& create_statement, bool replace = false);
 };
 
-
-}
+}  // namespace DB

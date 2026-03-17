@@ -2,18 +2,16 @@
 
 #include <IO/BufferBase.h>
 
-namespace DB
-{
+namespace DB {
 
-class SwapHelper
-{
-public:
-    SwapHelper(BufferBase & b1_, BufferBase & b2_);
-    ~SwapHelper();
+class SwapHelper {
+ public:
+  SwapHelper(BufferBase& b1_, BufferBase& b2_);
+  ~SwapHelper();
 
-private:
-    BufferBase & b1;
-    BufferBase & b2;
+ private:
+  BufferBase& b1;
+  BufferBase& b2;
 };
 
-}
+}  // namespace DB

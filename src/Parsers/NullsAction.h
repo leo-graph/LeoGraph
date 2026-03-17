@@ -1,14 +1,12 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
 /// Some window functions support adding [IGNORE|RESPECT] NULLS
-enum class NullsAction : UInt8
-{
-    EMPTY,
-    RESPECT_NULLS,
-    IGNORE_NULLS,
+enum class NullsAction : UInt8 {
+  EMPTY,
+  RESPECT_NULLS,
+  IGNORE_NULLS,
 };
 
-}
+}  // namespace DB

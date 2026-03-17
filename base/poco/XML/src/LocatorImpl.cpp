@@ -11,94 +11,50 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/SAX/LocatorImpl.h"
-
 
 namespace Poco {
 namespace XML {
 
-
-LocatorImpl::LocatorImpl()
-{
-	_lineNumber   = 0;
-	_columnNumber = 0;
+LocatorImpl::LocatorImpl() {
+  _lineNumber = 0;
+  _columnNumber = 0;
 }
 
-
-LocatorImpl::LocatorImpl(const Locator& loc)
-{
-	_publicId     = loc.getPublicId();
-	_systemId     = loc.getSystemId();
-	_lineNumber   = loc.getLineNumber();
-	_columnNumber = loc.getColumnNumber();
+LocatorImpl::LocatorImpl(const Locator& loc) {
+  _publicId = loc.getPublicId();
+  _systemId = loc.getSystemId();
+  _lineNumber = loc.getLineNumber();
+  _columnNumber = loc.getColumnNumber();
 }
 
+LocatorImpl::~LocatorImpl() {}
 
-LocatorImpl::~LocatorImpl()
-{
+LocatorImpl& LocatorImpl::operator=(const Locator& loc) {
+  if (&loc != this) {
+    _publicId = loc.getPublicId();
+    _systemId = loc.getSystemId();
+    _lineNumber = loc.getLineNumber();
+    _columnNumber = loc.getColumnNumber();
+  }
+  return *this;
 }
 
+XMLString LocatorImpl::getPublicId() const { return _publicId; }
 
-LocatorImpl& LocatorImpl::operator = (const Locator& loc)
-{
-	if (&loc != this)
-	{
-		_publicId     = loc.getPublicId();
-		_systemId     = loc.getSystemId();
-		_lineNumber   = loc.getLineNumber();
-		_columnNumber = loc.getColumnNumber();
-	}
-	return *this;
-}
+XMLString LocatorImpl::getSystemId() const { return _systemId; }
 
+int LocatorImpl::getLineNumber() const { return _lineNumber; }
 
-XMLString LocatorImpl::getPublicId() const
-{
-	return _publicId;
-}
+int LocatorImpl::getColumnNumber() const { return _columnNumber; }
 
+void LocatorImpl::setPublicId(const XMLString& publicId) { _publicId = publicId; }
 
-XMLString LocatorImpl::getSystemId() const
-{
-	return _systemId;
-}
+void LocatorImpl::setSystemId(const XMLString& systemId) { _systemId = systemId; }
 
+void LocatorImpl::setLineNumber(int lineNumber) { _lineNumber = lineNumber; }
 
-int LocatorImpl::getLineNumber() const
-{
-	return _lineNumber;
-}
+void LocatorImpl::setColumnNumber(int columnNumber) { _columnNumber = columnNumber; }
 
-
-int LocatorImpl::getColumnNumber() const
-{
-	return _columnNumber;
-}
-
-
-void LocatorImpl::setPublicId(const XMLString& publicId)
-{
-	_publicId = publicId;
-}
-
-
-void LocatorImpl::setSystemId(const XMLString& systemId)
-{
-	_systemId = systemId;
-}
-
-
-void LocatorImpl::setLineNumber(int lineNumber)
-{
-	_lineNumber = lineNumber;
-}
-
-
-void LocatorImpl::setColumnNumber(int columnNumber)
-{
-	_columnNumber = columnNumber;
-}
-
-
-} } // namespace Poco::XML
+}  // namespace XML
+}  // namespace Poco

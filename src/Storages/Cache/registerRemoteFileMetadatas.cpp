@@ -2,20 +2,18 @@
 #include <Storages/Cache/RemoteFileMetadataFactory.h>
 #include "config.h"
 
-namespace DB
-{
+namespace DB {
 
 #if USE_HIVE
-void registerStorageHiveMetadata(RemoteFileMetadataFactory & factory);
+void registerStorageHiveMetadata(RemoteFileMetadataFactory& factory);
 #endif
 
-void registerRemoteFileMetadatas()
-{
-    [[maybe_unused]] auto & factory = RemoteFileMetadataFactory::instance();
+void registerRemoteFileMetadatas() {
+  [[maybe_unused]] auto& factory = RemoteFileMetadataFactory::instance();
 
 #if USE_HIVE
-    registerStorageHiveMetadata(factory);
+  registerStorageHiveMetadata(factory);
 #endif
 }
 
-}
+}  // namespace DB

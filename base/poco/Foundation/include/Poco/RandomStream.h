@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_RandomStream_INCLUDED
 #define Foundation_RandomStream_INCLUDED
-
 
 #include <istream>
 #include "Poco/BufferedStreamBuf.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 class Foundation_API RandomBuf : public BufferedStreamBuf
 /// This streambuf generates random data.
@@ -35,12 +30,11 @@ class Foundation_API RandomBuf : public BufferedStreamBuf
 /// more-or-less random data and a SHA-1 digest
 /// is used to generate random data.
 {
-public:
-    RandomBuf();
-    ~RandomBuf();
-    int readFromDevice(char * buffer, std::streamsize length);
+ public:
+  RandomBuf();
+  ~RandomBuf();
+  int readFromDevice(char* buffer, std::streamsize length);
 };
-
 
 class Foundation_API RandomIOS : public virtual std::ios
 /// The base class for RandomInputStream.
@@ -48,27 +42,25 @@ class Foundation_API RandomIOS : public virtual std::ios
 /// This class is needed to ensure the correct initialization
 /// order of the stream buffer and base classes.
 {
-public:
-    RandomIOS();
-    ~RandomIOS();
-    RandomBuf * rdbuf();
+ public:
+  RandomIOS();
+  ~RandomIOS();
+  RandomBuf* rdbuf();
 
-protected:
-    RandomBuf _buf;
+ protected:
+  RandomBuf _buf;
 };
 
-
-class Foundation_API RandomInputStream : public RandomIOS, public std::istream
+class Foundation_API RandomInputStream : public RandomIOS,
+                                         public std::istream
 /// This istream generates random data
 /// using the RandomBuf.
 {
-public:
-    RandomInputStream();
-    ~RandomInputStream();
+ public:
+  RandomInputStream();
+  ~RandomInputStream();
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_RandomStream_INCLUDED
+#endif  // Foundation_RandomStream_INCLUDED

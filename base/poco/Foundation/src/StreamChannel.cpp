@@ -11,30 +11,19 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/StreamChannel.h"
 #include "Poco/Message.h"
 
-
 namespace Poco {
 
+StreamChannel::StreamChannel(std::ostream& str) : _str(str) {}
 
-StreamChannel::StreamChannel(std::ostream& str): _str(str)
-{
+StreamChannel::~StreamChannel() {}
+
+void StreamChannel::log(const Message& msg) {
+  FastMutex::ScopedLock lock(_mutex);
+
+  _str << msg.getText() << std::endl;
 }
 
-
-StreamChannel::~StreamChannel()
-{
-}
-
-
-void StreamChannel::log(const Message& msg)
-{
-	FastMutex::ScopedLock lock(_mutex);
-	
-	_str << msg.getText() << std::endl;
-}
-
-
-} // namespace Poco
+}  // namespace Poco

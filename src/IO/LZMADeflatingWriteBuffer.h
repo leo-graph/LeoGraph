@@ -6,40 +6,34 @@
 
 #include <lzma.h>
 
-
-namespace DB
-{
+namespace DB {
 
 /// Performs compression using lzma library and writes compressed data to out_ WriteBuffer.
-class LZMADeflatingWriteBuffer : public WriteBufferWithOwnMemoryDecorator
-{
-public:
-    template<typename WriteBufferT>
-    LZMADeflatingWriteBuffer(
-        WriteBufferT && out_,
-        int compression_level,
-        size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE,
-        char * existing_memory = nullptr, /// NOLINT(readability-non-const-parameter)
-        size_t alignment = 0,
-        bool compress_empty_ = true)
-    : WriteBufferWithOwnMemoryDecorator(std::move(out_), buf_size, existing_memory, alignment), compress_empty(compress_empty_) /// NOLINT(bugprone-move-forwarding-reference)
-    {
-        initialize(compression_level);
-    }
+class LZMADeflatingWriteBuffer : public WriteBufferWithOwnMemoryDecorator {
+ public:
+  template <typename WriteBufferT>
+  LZMADeflatingWriteBuffer(WriteBufferT&& out_, int compression_level, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE,
+                           char* existing_memory = nullptr,  /// NOLINT(readability-non-const-parameter)
+                           size_t alignment = 0, bool compress_empty_ = true)
+      : WriteBufferWithOwnMemoryDecorator(std::move(out_), buf_size, existing_memory, alignment),
+        compress_empty(compress_empty_)  /// NOLINT(bugprone-move-forwarding-reference)
+  {
+    initialize(compression_level);
+  }
 
-    ~LZMADeflatingWriteBuffer() override;
+  ~LZMADeflatingWriteBuffer() override;
 
-private:
-    void initialize(int compression_level);
+ private:
+  void initialize(int compression_level);
 
-    void nextImpl() override;
+  void nextImpl() override;
 
-    void finalFlushBefore() override;
-    void finalFlushAfter() override;
+  void finalFlushBefore() override;
+  void finalFlushAfter() override;
 
-    lzma_stream lstr;
+  lzma_stream lstr;
 
-    bool compress_empty = true;
+  bool compress_empty = true;
 };
 
-}
+}  // namespace DB

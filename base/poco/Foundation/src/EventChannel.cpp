@@ -11,27 +11,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/EventChannel.h"
-
 
 namespace Poco {
 
+EventChannel::EventChannel() {}
 
-EventChannel::EventChannel()
-{
-}
+EventChannel::~EventChannel() {}
 
+void EventChannel::log(const Message& msg) { messageLogged(this, msg); }
 
-EventChannel::~EventChannel()
-{
-}
-
-
-void EventChannel::log(const Message& msg)
-{
-	messageLogged(this, msg);
-}
-
-
-} // namespace Poco
+}  // namespace Poco

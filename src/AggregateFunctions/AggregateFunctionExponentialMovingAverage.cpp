@@ -1,108 +1,91 @@
-#include <AggregateFunctions/IAggregateFunction.h>
 #include <AggregateFunctions/AggregateFunctionFactory.h>
 #include <AggregateFunctions/FactoryHelpers.h>
+#include <AggregateFunctions/IAggregateFunction.h>
 #include <Common/ExponentiallySmoothedCounter.h>
 #include <Common/FieldVisitorConvertToNumber.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
-}
-
+namespace ErrorCodes {
+extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+}  // namespace ErrorCodes
 
 /** See the comments in ExponentiallySmoothedCounter.h
-  */
+ */
 class AggregateFunctionExponentialMovingAverage final
-    : public IAggregateFunctionDataHelper<ExponentiallySmoothedAverage, AggregateFunctionExponentialMovingAverage>
-{
-private:
-    String name;
-    Float64 half_decay;
+    : public IAggregateFunctionDataHelper<ExponentiallySmoothedAverage, AggregateFunctionExponentialMovingAverage> {
+ private:
+  String name;
+  Float64 half_decay;
 
-public:
-    AggregateFunctionExponentialMovingAverage(const DataTypes & argument_types_, const Array & params)
-        : IAggregateFunctionDataHelper<ExponentiallySmoothedAverage, AggregateFunctionExponentialMovingAverage>(argument_types_, params, createResultType())
-    {
-        if (params.size() != 1)
-            throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH, "Aggregate function {} requires exactly one parameter: "
-                "half decay time.", getName());
+ public:
+  AggregateFunctionExponentialMovingAverage(const DataTypes &argument_types_, const Array &params)
+      : IAggregateFunctionDataHelper<ExponentiallySmoothedAverage, AggregateFunctionExponentialMovingAverage>(argument_types_, params,
+                                                                                                              createResultType()) {
+    if (params.size() != 1)
+      throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
+                      "Aggregate function {} requires exactly one parameter: "
+                      "half decay time.",
+                      getName());
 
-        half_decay = applyVisitor(FieldVisitorConvertToNumber<Float64>(), params[0]);
-    }
+    half_decay = applyVisitor(FieldVisitorConvertToNumber<Float64>(), params[0]);
+  }
 
-    String getName() const override
-    {
-        return "exponentialMovingAverage";
-    }
+  String getName() const override { return "exponentialMovingAverage"; }
 
-    static DataTypePtr createResultType()
-    {
-        return std::make_shared<DataTypeNumber<Float64>>();
-    }
+  static DataTypePtr createResultType() { return std::make_shared<DataTypeNumber<Float64>>(); }
 
-    bool allocatesMemoryInArena() const override { return false; }
+  bool allocatesMemoryInArena() const override { return false; }
 
-    void add(AggregateDataPtr __restrict place, const IColumn ** columns, size_t row_num, Arena *) const override
-    {
-        const auto & value = columns[0]->getFloat64(row_num);
-        const auto & time = columns[1]->getFloat64(row_num);
-        data(place).add(value, time, half_decay);
-    }
+  void add(AggregateDataPtr __restrict place, const IColumn **columns, size_t row_num, Arena *) const override {
+    const auto &value = columns[0]->getFloat64(row_num);
+    const auto &time = columns[1]->getFloat64(row_num);
+    data(place).add(value, time, half_decay);
+  }
 
-    void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs, Arena *) const override
-    {
-        data(place).merge(data(rhs), half_decay);
-    }
+  void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs, Arena *) const override {
+    data(place).merge(data(rhs), half_decay);
+  }
 
-    void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer & buf, std::optional<size_t> /* version */) const override
-    {
-        writeBinary(data(place).value, buf);
-        writeBinary(data(place).time, buf);
-    }
+  void serialize(ConstAggregateDataPtr __restrict place, WriteBuffer &buf, std::optional<size_t> /* version */) const override {
+    writeBinary(data(place).value, buf);
+    writeBinary(data(place).time, buf);
+  }
 
-    void deserialize(AggregateDataPtr __restrict place, ReadBuffer & buf, std::optional<size_t> /* version */, Arena *) const override
-    {
-        readBinary(data(place).value, buf);
-        readBinary(data(place).time, buf);
-    }
+  void deserialize(AggregateDataPtr __restrict place, ReadBuffer &buf, std::optional<size_t> /* version */, Arena *) const override {
+    readBinary(data(place).value, buf);
+    readBinary(data(place).time, buf);
+  }
 
-    void insertResultInto(AggregateDataPtr __restrict place, IColumn & to, Arena *) const override
-    {
-        auto & column = assert_cast<ColumnVector<Float64> &>(to);
-        column.getData().push_back(data(place).get(half_decay));
-    }
+  void insertResultInto(AggregateDataPtr __restrict place, IColumn &to, Arena *) const override {
+    auto &column = assert_cast<ColumnVector<Float64> &>(to);
+    column.getData().push_back(data(place).get(half_decay));
+  }
 };
 
-void registerAggregateFunctionExponentialMovingAverage(AggregateFunctionFactory & factory)
-{
-    FunctionDocumentation::Description description = R"(
+void registerAggregateFunctionExponentialMovingAverage(AggregateFunctionFactory &factory) {
+  FunctionDocumentation::Description description = R"(
 Calculates the exponential moving average of values for the determined time.
 
 Each `value` corresponds to the determinate `timeunit`.
 The half-life `x` is the time lag at which the exponential weights decay by one-half.
 The function returns a weighted average: the older the time point, the less weight the corresponding value is considered to be.
     )";
-    FunctionDocumentation::Syntax syntax = "exponentialMovingAverage(x)(value, timeunit)";
-    FunctionDocumentation::Arguments arguments = {
-        {"value", "Value.", {"(U)Int*", "Float*", "Decimal"}},
-        {"timeunit", "Timeunit. Timeunit is not timestamp (seconds), it's an index of the time interval. Can be calculated using `intDiv`.", {"(U)Int*", "Float*", "Decimal"}}
-    };
-    FunctionDocumentation::Parameters parameters = {
-        {"x", "Half-life period.", {"(U)Int*", "Float*", "Decimal"}}
-    };
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns an exponentially smoothed moving average of the values for the past `x` time at the latest point of time.", {"Float64"}};
-    FunctionDocumentation::Examples examples = {
-    {
-        "Basic exponential moving average",
-        R"(
+  FunctionDocumentation::Syntax syntax = "exponentialMovingAverage(x)(value, timeunit)";
+  FunctionDocumentation::Arguments arguments = {
+      {"value", "Value.", {"(U)Int*", "Float*", "Decimal"}},
+      {"timeunit",
+       "Timeunit. Timeunit is not timestamp (seconds), it's an index of the time interval. Can be calculated using `intDiv`.",
+       {"(U)Int*", "Float*", "Decimal"}}};
+  FunctionDocumentation::Parameters parameters = {{"x", "Half-life period.", {"(U)Int*", "Float*", "Decimal"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {
+      "Returns an exponentially smoothed moving average of the values for the past `x` time at the latest point of time.", {"Float64"}};
+  FunctionDocumentation::Examples examples = {{"Basic exponential moving average",
+                                               R"(
 -- Input table with temperature data
 SELECT exponentialMovingAverage(5)(temperature, timestamp)
 FROM VALUES('temperature Int32, timestamp Int32',
@@ -110,15 +93,13 @@ FROM VALUES('temperature Int32, timestamp Int32',
     (97, 8), (97, 9), (97, 10), (97, 11), (98, 12), (98, 13), (98, 14),
     (98, 15), (99, 16), (99, 17), (99, 18), (100, 19), (100, 20))
         )",
-        R"(
+                                               R"(
 ┌─exponentialM⋯ timestamp)─┐
 │        92.25779635374204 │
 └──────────────────────────┘
-        )"
-    },
-    {
-        "Example with the `bar` function",
-        R"(
+        )"},
+                                              {"Example with the `bar` function",
+                                               R"(
 SELECT
     value,
     time,
@@ -133,7 +114,7 @@ FROM
     FROM numbers(50)
 )
         )",
-        R"(
+                                               R"(
 ┌─value─┬─time─┬─round(exp_smooth, 3)─┬─bar────────────────────────────────────────┐
 │     1 │    0 │                0.067 │ ███▎                                       │
 │     0 │    1 │                0.062 │ ███                                        │
@@ -186,11 +167,9 @@ FROM
 │     1 │   48 │                0.813 │ ████████████████████████████████████████▋  │
 │     1 │   49 │                0.825 │ █████████████████████████████████████████▎ │
 └───────┴──────┴──────────────────────┴────────────────────────────────────────────┘
-        )"
-    },
-    {
-        "Window function usage with time-based calculation",
-        R"(
+        )"},
+                                              {"Window function usage with time-based calculation",
+                                               R"(
 CREATE TABLE data
 ENGINE = Memory AS
 SELECT
@@ -207,7 +186,7 @@ SELECT
 FROM data
 ORDER BY time ASC
         )",
-        R"(
+                                               R"(
 ┌─value─┬────────────────time─┬─────────res─┬─timeunit─┐
 │    10 │ 2020-01-01 00:00:00 │           5 │   438288 │
 │    10 │ 2020-01-01 01:00:00 │         7.5 │   438289 │
@@ -220,25 +199,21 @@ ORDER BY time ASC
 │    10 │ 2020-01-01 08:00:00 │  9.98046875 │   438296 │
 │    10 │ 2020-01-01 09:00:00 │ 9.990234375 │   438297 │
 └───────┴─────────────────────┴─────────────┴──────────┘
-        )"
-    }
-    };
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::AggregateFunction;
-    FunctionDocumentation::IntroducedIn introduced_in = {21, 11};
-    FunctionDocumentation documentation = {description, syntax, arguments, parameters, returned_value, examples, introduced_in, category};
-    factory.registerFunction("exponentialMovingAverage",
-    {
-        [](const std::string & name, const DataTypes & argument_types, const Array & params, const Settings *) -> AggregateFunctionPtr
-        {
-            assertBinary(name, argument_types);
-            for (const auto & type : argument_types)
-                if (!isNumber(*type))
-                    throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                        "Both arguments for aggregate function {} must have numeric type, got {}", name, type->getName());
-            return std::make_shared<AggregateFunctionExponentialMovingAverage>(argument_types, params);
-        },
-        documentation
-    });
+        )"}};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::AggregateFunction;
+  FunctionDocumentation::IntroducedIn introduced_in = {21, 11};
+  FunctionDocumentation documentation = {description, syntax, arguments, parameters, returned_value, examples, introduced_in, category};
+  factory.registerFunction(
+      "exponentialMovingAverage",
+      {[](const std::string &name, const DataTypes &argument_types, const Array &params, const Settings *) -> AggregateFunctionPtr {
+         assertBinary(name, argument_types);
+         for (const auto &type : argument_types)
+           if (!isNumber(*type))
+             throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                             "Both arguments for aggregate function {} must have numeric type, got {}", name, type->getName());
+         return std::make_shared<AggregateFunctionExponentialMovingAverage>(argument_types, params);
+       },
+       documentation});
 }
 
-}
+}  // namespace DB

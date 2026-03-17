@@ -3,11 +3,11 @@
 #include <base/types.h>
 #include <memory>
 
+namespace Poco::Util {
+class AbstractConfiguration;
+}
 
-namespace Poco::Util { class AbstractConfiguration; }
-
-namespace DB
-{
+namespace DB {
 
 class IServer;
 class HTTPRequestHandlerFactory;
@@ -53,11 +53,8 @@ class AsynchronousMetrics;
 ///         <type>prometheus</type>
 ///     </my_protocol_1>
 /// </protocols>
-HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactory(
-    IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
-    const AsynchronousMetrics & asynchronous_metrics,
-    const String & name);
+HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactory(IServer& server, const Poco::Util::AbstractConfiguration& config,
+                                                            const AsynchronousMetrics& asynchronous_metrics, const String& name);
 
 /// Makes a HTTP handler factory to handle requests for prometheus metrics for a HTTP rule in the <http_handlers> section.
 /// Expects a configuration like this:
@@ -90,14 +87,12 @@ HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactory(
 ///     </my_rule3>
 /// </http_handlers>
 HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactoryForHTTPRule(
-    IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
-    const String & config_prefix, /// path to "http_handlers.my_handler_1"
-    const AsynchronousMetrics & asynchronous_metrics,
-    std::unordered_map<String, String> & common_headers);
+    IServer& server, const Poco::Util::AbstractConfiguration& config,
+    const String& config_prefix,  /// path to "http_handlers.my_handler_1"
+    const AsynchronousMetrics& asynchronous_metrics, std::unordered_map<String, String>& common_headers);
 
-/// Makes a HTTP Handler factory to handle requests for prometheus metrics as a part of the default HTTP rule in the <http_handlers> section.
-/// Expects a configuration like this:
+/// Makes a HTTP Handler factory to handle requests for prometheus metrics as a part of the default HTTP rule in the <http_handlers>
+/// section. Expects a configuration like this:
 ///
 /// <http_port>8123</http_port>
 /// <http_handlers>
@@ -115,17 +110,13 @@ HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactoryForHTTPRule(
 /// only if it isn't already served on its own port <prometheus.port>,
 /// and also if there is no <prometheus.handlers> section in the configuration
 /// (because if that section exists then it must be in charge of how prometheus protocols are handled).
-HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactoryForHTTPRuleDefaults(
-    IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
-    const AsynchronousMetrics & asynchronous_metrics);
+HTTPRequestHandlerFactoryPtr createPrometheusHandlerFactoryForHTTPRuleDefaults(IServer& server,
+                                                                               const Poco::Util::AbstractConfiguration& config,
+                                                                               const AsynchronousMetrics& asynchronous_metrics);
 
 /// Makes a handler factory to handle prometheus protocols.
 /// Supports the "expose_metrics" protocol only.
-HTTPRequestHandlerFactoryPtr createKeeperPrometheusHandlerFactory(
-    IServer & server,
-    const Poco::Util::AbstractConfiguration & config,
-    const AsynchronousMetrics & asynchronous_metrics,
-    const String & name);
+HTTPRequestHandlerFactoryPtr createKeeperPrometheusHandlerFactory(IServer& server, const Poco::Util::AbstractConfiguration& config,
+                                                                  const AsynchronousMetrics& asynchronous_metrics, const String& name);
 
-}
+}  // namespace DB

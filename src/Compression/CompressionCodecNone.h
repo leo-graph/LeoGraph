@@ -1,31 +1,28 @@
 #pragma once
 
-#include <IO/WriteBuffer.h>
 #include <Compression/ICompressionCodec.h>
 #include <IO/BufferWithOwnMemory.h>
+#include <IO/WriteBuffer.h>
 
+namespace DB {
 
-namespace DB
-{
+class CompressionCodecNone final : public ICompressionCodec {
+ public:
+  CompressionCodecNone();
 
-class CompressionCodecNone final : public ICompressionCodec
-{
-public:
-    CompressionCodecNone();
+  uint8_t getMethodByte() const override;
 
-    uint8_t getMethodByte() const override;
+  void updateHash(SipHash& hash) const override;
 
-    void updateHash(SipHash & hash) const override;
+ protected:
+  UInt32 doCompressData(const char* source, UInt32 source_size, char* dest) const override;
+  UInt32 doDecompressData(const char* source, UInt32 source_size, char* dest, UInt32 uncompressed_size) const override;
 
-protected:
-    UInt32 doCompressData(const char * source, UInt32 source_size, char * dest) const override;
-    UInt32 doDecompressData(const char * source, UInt32 source_size, char * dest, UInt32 uncompressed_size) const override;
+  bool isCompression() const override { return false; }
+  bool isGenericCompression() const override { return false; }
+  bool isNone() const override { return true; }
 
-    bool isCompression() const override { return false; }
-    bool isGenericCompression() const override { return false; }
-    bool isNone() const override { return true; }
-
-    String getDescription() const override { return "No compression. Can be used on columns that can not be compressed anyway."; }
+  String getDescription() const override { return "No compression. Can be used on columns that can not be compressed anyway."; }
 };
 
-}
+}  // namespace DB

@@ -5,46 +5,43 @@
 #include <Poco/JSON/Parser.h>
 
 #include <Core/Range.h>
+#include <Functions/IFunction.h>
 #include <Processors/Chunk.h>
 #include <Storages/ObjectStorage/StorageObjectStorage.h>
-#include <Functions/IFunction.h>
 
-namespace DB
-{
+namespace DB {
 
 #if USE_AVRO
 
-class ChunkPartitioner
-{
-public:
-    explicit ChunkPartitioner(
-        Poco::JSON::Array::Ptr partition_specification, Poco::JSON::Object::Ptr schema, ContextPtr context, SharedHeader sample_block_);
+class ChunkPartitioner {
+ public:
+  explicit ChunkPartitioner(Poco::JSON::Array::Ptr partition_specification, Poco::JSON::Object::Ptr schema, ContextPtr context,
+                            SharedHeader sample_block_);
 
-    using PartitionKey = Row;
-    struct PartitionKeyHasher
-    {
-        size_t operator()(const PartitionKey & key) const;
+  using PartitionKey = Row;
+  struct PartitionKeyHasher {
+    size_t operator()(const PartitionKey& key) const;
 
-        mutable std::hash<String> hasher;
-    };
+    mutable std::hash<String> hasher;
+  };
 
-    std::vector<std::pair<PartitionKey, Chunk>> partitionChunk(const Chunk & chunk);
+  std::vector<std::pair<PartitionKey, Chunk>> partitionChunk(const Chunk& chunk);
 
-    const std::vector<String> & getColumns() const { return columns_to_apply; }
+  const std::vector<String>& getColumns() const { return columns_to_apply; }
 
-    const std::vector<DataTypePtr> & getResultTypes() const { return result_data_types; }
+  const std::vector<DataTypePtr>& getResultTypes() const { return result_data_types; }
 
-private:
-    SharedHeader sample_block;
+ private:
+  SharedHeader sample_block;
 
-    std::vector<FunctionOverloadResolverPtr> functions;
-    std::vector<std::optional<size_t>> function_params;
-    std::vector<String> columns_to_apply;
-    std::vector<DataTypePtr> result_data_types;
+  std::vector<FunctionOverloadResolverPtr> functions;
+  std::vector<std::optional<size_t>> function_params;
+  std::vector<String> columns_to_apply;
+  std::vector<DataTypePtr> result_data_types;
 
-    size_t max_partitions_count;
+  size_t max_partitions_count;
 };
 
 #endif
 
-}
+}  // namespace DB

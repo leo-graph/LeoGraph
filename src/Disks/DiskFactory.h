@@ -1,55 +1,40 @@
 #pragma once
 
+#include <base/types.h>
 #include <Disks/IDisk.h>
 #include <Interpreters/Context_fwd.h>
-#include <base/types.h>
 
-#include <boost/noncopyable.hpp>
 #include <Poco/Util/AbstractConfiguration.h>
+#include <boost/noncopyable.hpp>
 
 #include <functional>
 #include <map>
 #include <unordered_map>
 
-
-namespace DB
-{
+namespace DB {
 
 using DisksMap = std::map<String, DiskPtr, std::less<>>;
 /**
  * Disk factory. Responsible for creating new disk objects.
  */
-class DiskFactory final : private boost::noncopyable
-{
-public:
-    using Creator = std::function<DiskPtr(
-        const String & name,
-        const Poco::Util::AbstractConfiguration & config,
-        const String & config_prefix,
-        ContextPtr context,
-        const DisksMap & map,
-        bool attach,
-        bool custom_disk)>;
+class DiskFactory final : private boost::noncopyable {
+ public:
+  using Creator = std::function<DiskPtr(const String& name, const Poco::Util::AbstractConfiguration& config, const String& config_prefix,
+                                        ContextPtr context, const DisksMap& map, bool attach, bool custom_disk)>;
 
-    static DiskFactory & instance();
+  static DiskFactory& instance();
 
-    void registerDiskType(const String & disk_type, Creator creator);
+  void registerDiskType(const String& disk_type, Creator creator);
 
-    DiskPtr create(
-        const String & name,
-        const Poco::Util::AbstractConfiguration & config,
-        const String & config_prefix,
-        ContextPtr context,
-        const DisksMap & map,
-        bool attach = false,
-        bool custom_disk = false,
-        const std::unordered_set<String> & skip_types = {}) const;
+  DiskPtr create(const String& name, const Poco::Util::AbstractConfiguration& config, const String& config_prefix, ContextPtr context,
+                 const DisksMap& map, bool attach = false, bool custom_disk = false,
+                 const std::unordered_set<String>& skip_types = {}) const;
 
-    void clearRegistry();
+  void clearRegistry();
 
-private:
-    using DiskTypeRegistry = std::unordered_map<String, Creator>;
-    DiskTypeRegistry registry;
+ private:
+  using DiskTypeRegistry = std::unordered_map<String, Creator>;
+  DiskTypeRegistry registry;
 };
 
-}
+}  // namespace DB

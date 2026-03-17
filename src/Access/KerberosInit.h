@@ -6,6 +6,6 @@
 
 #if USE_KRB5
 
-void kerberosInit(const String & keytab_file, const String & principal, const String & cache_name = "");
+void kerberosInit(const String& keytab_file, const String& principal, const String& cache_name = "");
 
-#endif // USE_KRB5
+#endif  // USE_KRB5

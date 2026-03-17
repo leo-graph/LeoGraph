@@ -5,8 +5,7 @@
 /// to better parallelize the build procedure and avoid MSan build failure
 /// due to excessive resource consumption.
 
-namespace DB
-{
+namespace DB {
 
 template class RangeHashedDictionary<DictionaryKeyType::Simple>;
 

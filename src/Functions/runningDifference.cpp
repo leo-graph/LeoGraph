@@ -1,13 +1,10 @@
-#include <Functions/runningDifference.h>
 #include <Functions/FunctionFactory.h>
+#include <Functions/runningDifference.h>
 
+namespace DB {
 
-namespace DB
-{
-
-REGISTER_FUNCTION(RunningDifference)
-{
-    FunctionDocumentation::Description description = R"(
+REGISTER_FUNCTION(RunningDifference) {
+  FunctionDocumentation::Description description = R"(
 Calculates the difference between two consecutive row values in the data block.
 Returns `0` for the first row, and for subsequent rows the difference to the previous row.
 
@@ -25,11 +22,12 @@ To prevent that you can create a subquery with [`ORDER BY`](../../sql-reference/
 Please note that the block size affects the result.
 The internal state of `runningDifference` state is reset for each new block.
 )";
-    FunctionDocumentation::Syntax syntax = "runningDifference(x)";
-    FunctionDocumentation::Arguments arguments = {{"x", "Column for which to calculate the running difference.", {"Any"}}};
-    FunctionDocumentation::ReturnedValue returned_value = {"Returns the difference between consecutive values, with 0 for the first row.", {}};
-    FunctionDocumentation::Examples examples = {{"Usage example",
-        R"(
+  FunctionDocumentation::Syntax syntax = "runningDifference(x)";
+  FunctionDocumentation::Arguments arguments = {{"x", "Column for which to calculate the running difference.", {"Any"}}};
+  FunctionDocumentation::ReturnedValue returned_value = {"Returns the difference between consecutive values, with 0 for the first row.",
+                                                         {}};
+  FunctionDocumentation::Examples examples = {{"Usage example",
+                                               R"(
 SELECT
     EventID,
     EventTime,
@@ -45,7 +43,7 @@ FROM
     LIMIT 5
 );
         )",
-        R"(
+                                               R"(
 ┌─EventID─┬───────────EventTime─┬─delta─┐
 │    1106 │ 2025-11-24 00:00:04 │     0 │
 │    1107 │ 2025-11-24 00:00:05 │     1 │
@@ -53,32 +51,28 @@ FROM
 │    1109 │ 2025-11-24 00:00:09 │     4 │
 │    1110 │ 2025-11-24 00:00:10 │     1 │
 └─────────┴─────────────────────┴───────┘
-        )"
-    },
-    {
-        "Block size impact example",
-        R"(
+        )"},
+                                              {"Block size impact example",
+                                               R"(
 SELECT
     number,
     runningDifference(number + 1) AS diff
 FROM numbers(100000)
 WHERE diff != 1;
         )",
-        R"(
+                                               R"(
 ┌─number─┬─diff─┐
 │      0 │    0 │
 └────────┴──────┘
 ┌─number─┬─diff─┐
 │  65536 │    0 │
 └────────┴──────┘
-        )"
-    }
-    };
-    FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
-    FunctionDocumentation::Category category = FunctionDocumentation::Category::Other;
-    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
+        )"}};
+  FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
+  FunctionDocumentation::Category category = FunctionDocumentation::Category::Other;
+  FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
-    factory.registerFunction<FunctionRunningDifferenceImpl<true>>(documentation);
+  factory.registerFunction<FunctionRunningDifferenceImpl<true>>(documentation);
 }
 
-}
+}  // namespace DB

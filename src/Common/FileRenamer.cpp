@@ -13,85 +13,61 @@
 
 namespace fs = std::filesystem;
 
-namespace DB
-{
+namespace DB {
 
-namespace ErrorCodes
-{
-    extern const int BAD_ARGUMENTS;
+namespace ErrorCodes {
+extern const int BAD_ARGUMENTS;
 }
 
 FileRenamer::FileRenamer() = default;
 
-FileRenamer::FileRenamer(const String & renaming_rule)
-    : rule(renaming_rule)
-{
-    FileRenamer::validateRenamingRule(rule, true);
+FileRenamer::FileRenamer(const String& renaming_rule) : rule(renaming_rule) { FileRenamer::validateRenamingRule(rule, true); }
+
+String FileRenamer::generateNewFilename(const String& filename) const {
+  // Split filename and extension
+  String file_base = fs::path(filename).stem();
+  String file_ext = fs::path(filename).extension();
+
+  // Get current timestamp in microseconds
+  String timestamp;
+  if (rule.contains("%t")) {
+    auto now = std::chrono::system_clock::now();
+    timestamp = std::to_string(timeInMicroseconds(now));
+  }
+
+  // Define placeholders and their corresponding values
+  std::map<String, String> placeholders = {{"%a", filename}, {"%f", file_base}, {"%e", file_ext}, {"%t", timestamp}, {"%%", "%"}};
+
+  // Replace placeholders with their actual values
+  String new_name = rule;
+  for (const auto& [placeholder, value] : placeholders) boost::replace_all(new_name, placeholder, value);
+
+  return new_name;
 }
 
-String FileRenamer::generateNewFilename(const String & filename) const
-{
-    // Split filename and extension
-    String file_base = fs::path(filename).stem();
-    String file_ext = fs::path(filename).extension();
+bool FileRenamer::isEmpty() const { return rule.empty(); }
 
-    // Get current timestamp in microseconds
-    String timestamp;
-    if (rule.contains("%t"))
-    {
-        auto now = std::chrono::system_clock::now();
-        timestamp = std::to_string(timeInMicroseconds(now));
-    }
+bool FileRenamer::validateRenamingRule(const String& rule, bool throw_on_error) {
+  // Check if the rule contains invalid placeholders
+  re2::RE2 invalid_placeholder_pattern("^([^%]|%[afet%])*$");
+  if (!re2::RE2::FullMatch(rule, invalid_placeholder_pattern)) {
+    if (throw_on_error)
+      throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid renaming rule: Allowed placeholders only %a, %f, %e, %t, and %%");
+    return false;
+  }
 
-    // Define placeholders and their corresponding values
-    std::map<String, String> placeholders =
-    {
-        {"%a", filename},
-        {"%f", file_base},
-        {"%e", file_ext},
-        {"%t", timestamp},
-        {"%%", "%"}
-    };
+  // Replace valid placeholders with empty strings and count remaining percentage signs.
+  String replaced_rule = rule;
+  boost::replace_all(replaced_rule, "%a", "");
+  boost::replace_all(replaced_rule, "%f", "");
+  boost::replace_all(replaced_rule, "%e", "");
+  boost::replace_all(replaced_rule, "%t", "");
+  if (std::count(replaced_rule.begin(), replaced_rule.end(), '%') % 2) {
+    if (throw_on_error) throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid renaming rule: Odd number of consecutive percentage signs");
+    return false;
+  }
 
-    // Replace placeholders with their actual values
-    String new_name = rule;
-    for (const auto & [placeholder, value] : placeholders)
-        boost::replace_all(new_name, placeholder, value);
-
-    return new_name;
+  return true;
 }
 
-bool FileRenamer::isEmpty() const
-{
-    return rule.empty();
-}
-
-bool FileRenamer::validateRenamingRule(const String & rule, bool throw_on_error)
-{
-    // Check if the rule contains invalid placeholders
-    re2::RE2 invalid_placeholder_pattern("^([^%]|%[afet%])*$");
-    if (!re2::RE2::FullMatch(rule, invalid_placeholder_pattern))
-    {
-        if (throw_on_error)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid renaming rule: Allowed placeholders only %a, %f, %e, %t, and %%");
-        return false;
-    }
-
-    // Replace valid placeholders with empty strings and count remaining percentage signs.
-    String replaced_rule = rule;
-    boost::replace_all(replaced_rule, "%a", "");
-    boost::replace_all(replaced_rule, "%f", "");
-    boost::replace_all(replaced_rule, "%e", "");
-    boost::replace_all(replaced_rule, "%t", "");
-    if (std::count(replaced_rule.begin(), replaced_rule.end(), '%') % 2)
-    {
-        if (throw_on_error)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid renaming rule: Odd number of consecutive percentage signs");
-        return false;
-    }
-
-    return true;
-}
-
-
-} // DB
+}  // namespace DB

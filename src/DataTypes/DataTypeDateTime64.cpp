@@ -7,73 +7,63 @@
 
 #include <string>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-    extern const int ARGUMENT_OUT_OF_BOUND;
-    extern const int LOGICAL_ERROR;
-}
+namespace ErrorCodes {
+extern const int ARGUMENT_OUT_OF_BOUND;
+extern const int LOGICAL_ERROR;
+}  // namespace ErrorCodes
 
 static constexpr UInt32 max_scale = 9;
 
 DataTypeDateTime64::DataTypeDateTime64(UInt32 scale_, std::string_view time_zone_name)
-    : DataTypeDecimalBase<DateTime64>(DecimalUtils::max_precision<DateTime64>, scale_),
-      TimezoneMixin(time_zone_name)
-{
-    if (scale > max_scale)
-        throw Exception(ErrorCodes::ARGUMENT_OUT_OF_BOUND, "Scale {} is too large for DateTime64. "
-            "Maximum is up to nanoseconds (9).", std::to_string(scale));
+    : DataTypeDecimalBase<DateTime64>(DecimalUtils::max_precision<DateTime64>, scale_), TimezoneMixin(time_zone_name) {
+  if (scale > max_scale)
+    throw Exception(ErrorCodes::ARGUMENT_OUT_OF_BOUND,
+                    "Scale {} is too large for DateTime64. "
+                    "Maximum is up to nanoseconds (9).",
+                    std::to_string(scale));
 }
 
-DataTypeDateTime64::DataTypeDateTime64(UInt32 scale_, const TimezoneMixin & time_zone_info)
-    : DataTypeDecimalBase<DateTime64>(DecimalUtils::max_precision<DateTime64>, scale_),
-      TimezoneMixin(time_zone_info)
-{
-    if (scale > max_scale)
-        throw Exception(ErrorCodes::ARGUMENT_OUT_OF_BOUND, "Scale {} is too large for DateTime64. "
-            "Maximum is up to nanoseconds (9).", std::to_string(scale));
+DataTypeDateTime64::DataTypeDateTime64(UInt32 scale_, const TimezoneMixin &time_zone_info)
+    : DataTypeDecimalBase<DateTime64>(DecimalUtils::max_precision<DateTime64>, scale_), TimezoneMixin(time_zone_info) {
+  if (scale > max_scale)
+    throw Exception(ErrorCodes::ARGUMENT_OUT_OF_BOUND,
+                    "Scale {} is too large for DateTime64. "
+                    "Maximum is up to nanoseconds (9).",
+                    std::to_string(scale));
 }
 
-std::string DataTypeDateTime64::doGetName() const
-{
-    if (!has_explicit_time_zone)
-        return std::string(getFamilyName()) + "(" + std::to_string(this->scale) + ")";
+std::string DataTypeDateTime64::doGetName() const {
+  if (!has_explicit_time_zone) return std::string(getFamilyName()) + "(" + std::to_string(this->scale) + ")";
 
-    WriteBufferFromOwnString out;
-    out << "DateTime64(" << this->scale << ", " << quote << getDateLUTTimeZone(time_zone) << ")";
-    return out.str();
+  WriteBufferFromOwnString out;
+  out << "DateTime64(" << this->scale << ", " << quote << getDateLUTTimeZone(time_zone) << ")";
+  return out.str();
 }
 
-void DataTypeDateTime64::updateHashImpl(SipHash & hash) const
-{
-    Base::updateHashImpl(hash);
-    /// Do not include timezone in hash: equals() considers types with different
-    /// timezones as equal (only scale matters), and hash must be consistent with equality.
+void DataTypeDateTime64::updateHashImpl(SipHash &hash) const {
+  Base::updateHashImpl(hash);
+  /// Do not include timezone in hash: equals() considers types with different
+  /// timezones as equal (only scale matters), and hash must be consistent with equality.
 }
 
-bool DataTypeDateTime64::equals(const IDataType & rhs) const
-{
-    if (const auto * ptype = typeid_cast<const DataTypeDateTime64 *>(&rhs))
-        return this->scale == ptype->getScale();
-    return false;
+bool DataTypeDateTime64::equals(const IDataType &rhs) const {
+  if (const auto *ptype = typeid_cast<const DataTypeDateTime64 *>(&rhs)) return this->scale == ptype->getScale();
+  return false;
 }
 
-SerializationPtr DataTypeDateTime64::doGetSerialization(const SerializationInfoSettings &) const
-{
-    return std::make_shared<SerializationDateTime64>(scale, *this);
+SerializationPtr DataTypeDateTime64::doGetSerialization(const SerializationInfoSettings &) const {
+  return std::make_shared<SerializationDateTime64>(scale, *this);
 }
 
-std::string getDateTimeTimezone(const IDataType & data_type)
-{
-    if (const auto * type = typeid_cast<const DataTypeDateTime *>(&data_type))
-        return type->hasExplicitTimeZone() ? getDateLUTTimeZone(type->getTimeZone()) : std::string();
-    if (const auto * type = typeid_cast<const DataTypeDateTime64 *>(&data_type))
-        return type->hasExplicitTimeZone() ? getDateLUTTimeZone(type->getTimeZone()) : std::string();
+std::string getDateTimeTimezone(const IDataType &data_type) {
+  if (const auto *type = typeid_cast<const DataTypeDateTime *>(&data_type))
+    return type->hasExplicitTimeZone() ? getDateLUTTimeZone(type->getTimeZone()) : std::string();
+  if (const auto *type = typeid_cast<const DataTypeDateTime64 *>(&data_type))
+    return type->hasExplicitTimeZone() ? getDateLUTTimeZone(type->getTimeZone()) : std::string();
 
-    throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot get time zone from type {}", data_type.getName());
+  throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot get time zone from type {}", data_type.getName());
 }
 
-}
+}  // namespace DB

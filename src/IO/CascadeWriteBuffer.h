@@ -5,13 +5,9 @@
 #include <functional>
 #include <vector>
 
+namespace DB {
 
-namespace DB
-{
-
-namespace ErrorCodes
-{
-}
+namespace ErrorCodes {}
 
 /* The buffer is similar to ConcatReadBuffer, but writes data
  *
@@ -26,40 +22,34 @@ namespace ErrorCodes
  * NOTE: If you use one of underlying WriteBuffers buffers outside, you need sync its position() with CascadeWriteBuffer's position().
  * The sync is performed into nextImpl(), getResultBuffers() and destructor.
  */
-class CascadeWriteBuffer : public WriteBuffer
-{
-public:
+class CascadeWriteBuffer : public WriteBuffer {
+ public:
+  using WriteBufferConstructor = std::function<WriteBufferPtr(const WriteBufferPtr& prev_buf)>;
+  using WriteBufferConstructors = std::vector<WriteBufferConstructor>;
+  using WriteBufferPtrs = std::vector<WriteBufferPtr>;
 
-    using WriteBufferConstructor = std::function<WriteBufferPtr (const WriteBufferPtr & prev_buf)>;
-    using WriteBufferConstructors = std::vector<WriteBufferConstructor>;
-    using WriteBufferPtrs = std::vector<WriteBufferPtr>;
+  explicit CascadeWriteBuffer(WriteBufferPtrs&& prepared_sources_, WriteBufferConstructors&& lazy_sources_ = {});
 
-    explicit CascadeWriteBuffer(WriteBufferPtrs && prepared_sources_, WriteBufferConstructors && lazy_sources_ = {});
+  void nextImpl() override;
 
-    void nextImpl() override;
+  /// Should be called once
+  WriteBufferPtrs getResultBuffers();
 
-    /// Should be called once
-    WriteBufferPtrs getResultBuffers();
+  const WriteBuffer* getCurrentBuffer() const { return curr_buffer; }
 
-    const WriteBuffer * getCurrentBuffer() const
-    {
-        return curr_buffer;
-    }
+ private:
+  void finalizeImpl() override;
+  void cancelImpl() noexcept override;
 
-private:
+  WriteBuffer* setNextBuffer();
 
-    void finalizeImpl() override;
-    void cancelImpl() noexcept override;
+  WriteBufferPtrs prepared_sources;
+  WriteBufferConstructors lazy_sources;
+  size_t first_lazy_source_num;
+  size_t num_sources;
 
-    WriteBuffer * setNextBuffer();
-
-    WriteBufferPtrs prepared_sources;
-    WriteBufferConstructors lazy_sources;
-    size_t first_lazy_source_num;
-    size_t num_sources;
-
-    WriteBuffer * curr_buffer;
-    size_t curr_buffer_num;
+  WriteBuffer* curr_buffer;
+  size_t curr_buffer_num;
 };
 
-}
+}  // namespace DB

@@ -71,39 +71,38 @@ Chunk ends             | 0x00000000
 
 */
 
-namespace DB
-{
+namespace DB {
 
-class ReadBufferFromPocoSocketChunked: public ReadBufferFromPocoSocketBase
-{
-public:
-    using ReadBufferFromPocoSocketBase::setAsyncCallback;
+class ReadBufferFromPocoSocketChunked : public ReadBufferFromPocoSocketBase {
+ public:
+  using ReadBufferFromPocoSocketBase::setAsyncCallback;
 
-    explicit ReadBufferFromPocoSocketChunked(Poco::Net::Socket & socket_, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
-    explicit ReadBufferFromPocoSocketChunked(Poco::Net::Socket & socket_, const ProfileEvents::Event & read_event_, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
+  explicit ReadBufferFromPocoSocketChunked(Poco::Net::Socket& socket_, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
+  explicit ReadBufferFromPocoSocketChunked(Poco::Net::Socket& socket_, const ProfileEvents::Event& read_event_,
+                                           size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
 
-    void enableChunked();
+  void enableChunked();
 
-    bool hasBufferedData() const;
+  bool hasBufferedData() const;
 
-    bool poll(size_t timeout_microseconds) const;
+  bool poll(size_t timeout_microseconds) const;
 
-    Poco::Net::SocketAddress peerAddress() { return peer_address; }
-    Poco::Net::SocketAddress ourAddress() { return our_address; }
+  Poco::Net::SocketAddress peerAddress() { return peer_address; }
+  Poco::Net::SocketAddress ourAddress() { return our_address; }
 
-protected:
-    bool loadNextChunk(Position c_pos, bool cont = false);
-    bool processChunkLeft(Position c_pos);
-    bool nextImpl() override;
+ protected:
+  bool loadNextChunk(Position c_pos, bool cont = false);
+  bool processChunkLeft(Position c_pos);
+  bool nextImpl() override;
 
-    Poco::Net::SocketAddress our_address;
+  Poco::Net::SocketAddress our_address;
 
-private:
-    LoggerPtr log;
-    Position data_end = nullptr; // end position of data in the internal_buffer
-    UInt32 chunk_left = 0;       // chunk left to read from socket
-    UInt32 next_chunk = 0;       // size of the next cnunk
-    UInt8 chunked = 0;           // 0 - disabled; 1 - started; 2 - enabled;
+ private:
+  LoggerPtr log;
+  Position data_end = nullptr;  // end position of data in the internal_buffer
+  UInt32 chunk_left = 0;        // chunk left to read from socket
+  UInt32 next_chunk = 0;        // size of the next cnunk
+  UInt8 chunked = 0;            // 0 - disabled; 1 - started; 2 - enabled;
 };
 
-}
+}  // namespace DB

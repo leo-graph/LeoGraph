@@ -11,21 +11,12 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/RefCountedObject.h"
-
 
 namespace Poco {
 
+RefCountedObject::RefCountedObject() : _counter(1) {}
 
-RefCountedObject::RefCountedObject(): _counter(1)
-{
-}
+RefCountedObject::~RefCountedObject() {}
 
-
-RefCountedObject::~RefCountedObject()
-{
-}
-
-
-} // namespace Poco
+}  // namespace Poco

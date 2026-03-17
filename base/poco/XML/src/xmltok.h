@@ -42,15 +42,15 @@ extern "C" {
 #  endif
 
 /* The following token may be returned by XmlContentTok */
-#  define XML_TOK_TRAILING_RSQB                                                \
-    -5 /* ] or ]] at the end of the scan; might be                             \
+#  define XML_TOK_TRAILING_RSQB                    \
+    -5 /* ] or ]] at the end of the scan; might be \
           start of illegal ]]> sequence */
 /* The following tokens may be returned by both XmlPrologTok and
    XmlContentTok.
 */
 #  define XML_TOK_NONE -4 /* The string to be scanned is empty */
-#  define XML_TOK_TRAILING_CR                                                  \
-    -3                            /* A CR at the end of the scan;              \
+#  define XML_TOK_TRAILING_CR                                     \
+    -3                            /* A CR at the end of the scan; \
                                      might be part of CRLF sequence */
 #  define XML_TOK_PARTIAL_CHAR -2 /* only part of a multibyte sequence */
 #  define XML_TOK_PARTIAL -1      /* only part of a token */
@@ -159,40 +159,28 @@ typedef struct {
 struct encoding;
 typedef struct encoding ENCODING;
 
-typedef int(PTRCALL *SCANNER)(const ENCODING *, const char *, const char *,
-                              const char **);
+typedef int(PTRCALL *SCANNER)(const ENCODING *, const char *, const char *, const char **);
 
 enum XML_Convert_Result {
   XML_CONVERT_COMPLETED = 0,
   XML_CONVERT_INPUT_INCOMPLETE = 1,
-  XML_CONVERT_OUTPUT_EXHAUSTED
-  = 2 /* and therefore potentially input remaining as well */
+  XML_CONVERT_OUTPUT_EXHAUSTED = 2 /* and therefore potentially input remaining as well */
 };
 
 struct encoding {
   SCANNER scanners[XML_N_STATES];
   SCANNER literalScanners[XML_N_LITERAL_TYPES];
-  int(PTRCALL *nameMatchesAscii)(const ENCODING *, const char *, const char *,
-                                 const char *);
+  int(PTRCALL *nameMatchesAscii)(const ENCODING *, const char *, const char *, const char *);
   int(PTRFASTCALL *nameLength)(const ENCODING *, const char *);
   const char *(PTRFASTCALL *skipS)(const ENCODING *, const char *);
-  int(PTRCALL *getAtts)(const ENCODING *enc, const char *ptr, int attsMax,
-                        ATTRIBUTE *atts);
+  int(PTRCALL *getAtts)(const ENCODING *enc, const char *ptr, int attsMax, ATTRIBUTE *atts);
   int(PTRFASTCALL *charRefNumber)(const ENCODING *enc, const char *ptr);
-  int(PTRCALL *predefinedEntityName)(const ENCODING *, const char *,
-                                     const char *);
-  void(PTRCALL *updatePosition)(const ENCODING *, const char *ptr,
-                                const char *end, POSITION *);
-  int(PTRCALL *isPublicId)(const ENCODING *enc, const char *ptr,
-                           const char *end, const char **badPtr);
-  enum XML_Convert_Result(PTRCALL *utf8Convert)(const ENCODING *enc,
-                                                const char **fromP,
-                                                const char *fromLim, char **toP,
+  int(PTRCALL *predefinedEntityName)(const ENCODING *, const char *, const char *);
+  void(PTRCALL *updatePosition)(const ENCODING *, const char *ptr, const char *end, POSITION *);
+  int(PTRCALL *isPublicId)(const ENCODING *enc, const char *ptr, const char *end, const char **badPtr);
+  enum XML_Convert_Result(PTRCALL *utf8Convert)(const ENCODING *enc, const char **fromP, const char *fromLim, char **toP,
                                                 const char *toLim);
-  enum XML_Convert_Result(PTRCALL *utf16Convert)(const ENCODING *enc,
-                                                 const char **fromP,
-                                                 const char *fromLim,
-                                                 unsigned short **toP,
+  enum XML_Convert_Result(PTRCALL *utf16Convert)(const ENCODING *enc, const char **fromP, const char *fromLim, unsigned short **toP,
                                                  const unsigned short *toLim);
   int minBytesPerChar;
   char isUtf8;
@@ -220,77 +208,59 @@ struct encoding {
    the prolog outside literals, comments and processing instructions.
 */
 
-#  define XmlTok(enc, state, ptr, end, nextTokPtr)                             \
-    (((enc)->scanners[state])(enc, ptr, end, nextTokPtr))
+#  define XmlTok(enc, state, ptr, end, nextTokPtr) (((enc)->scanners[state])(enc, ptr, end, nextTokPtr))
 
-#  define XmlPrologTok(enc, ptr, end, nextTokPtr)                              \
-    XmlTok(enc, XML_PROLOG_STATE, ptr, end, nextTokPtr)
+#  define XmlPrologTok(enc, ptr, end, nextTokPtr) XmlTok(enc, XML_PROLOG_STATE, ptr, end, nextTokPtr)
 
-#  define XmlContentTok(enc, ptr, end, nextTokPtr)                             \
-    XmlTok(enc, XML_CONTENT_STATE, ptr, end, nextTokPtr)
+#  define XmlContentTok(enc, ptr, end, nextTokPtr) XmlTok(enc, XML_CONTENT_STATE, ptr, end, nextTokPtr)
 
-#  define XmlCdataSectionTok(enc, ptr, end, nextTokPtr)                        \
-    XmlTok(enc, XML_CDATA_SECTION_STATE, ptr, end, nextTokPtr)
+#  define XmlCdataSectionTok(enc, ptr, end, nextTokPtr) XmlTok(enc, XML_CDATA_SECTION_STATE, ptr, end, nextTokPtr)
 
 #  ifdef XML_DTD
 
-#    define XmlIgnoreSectionTok(enc, ptr, end, nextTokPtr)                     \
-      XmlTok(enc, XML_IGNORE_SECTION_STATE, ptr, end, nextTokPtr)
+#    define XmlIgnoreSectionTok(enc, ptr, end, nextTokPtr) XmlTok(enc, XML_IGNORE_SECTION_STATE, ptr, end, nextTokPtr)
 
 #  endif /* XML_DTD */
 
 /* This is used for performing a 2nd-level tokenization on the content
    of a literal that has already been returned by XmlTok.
 */
-#  define XmlLiteralTok(enc, literalType, ptr, end, nextTokPtr)                \
-    (((enc)->literalScanners[literalType])(enc, ptr, end, nextTokPtr))
+#  define XmlLiteralTok(enc, literalType, ptr, end, nextTokPtr) (((enc)->literalScanners[literalType])(enc, ptr, end, nextTokPtr))
 
-#  define XmlAttributeValueTok(enc, ptr, end, nextTokPtr)                      \
-    XmlLiteralTok(enc, XML_ATTRIBUTE_VALUE_LITERAL, ptr, end, nextTokPtr)
+#  define XmlAttributeValueTok(enc, ptr, end, nextTokPtr) XmlLiteralTok(enc, XML_ATTRIBUTE_VALUE_LITERAL, ptr, end, nextTokPtr)
 
-#  define XmlEntityValueTok(enc, ptr, end, nextTokPtr)                         \
-    XmlLiteralTok(enc, XML_ENTITY_VALUE_LITERAL, ptr, end, nextTokPtr)
+#  define XmlEntityValueTok(enc, ptr, end, nextTokPtr) XmlLiteralTok(enc, XML_ENTITY_VALUE_LITERAL, ptr, end, nextTokPtr)
 
-#  define XmlNameMatchesAscii(enc, ptr1, end1, ptr2)                           \
-    (((enc)->nameMatchesAscii)(enc, ptr1, end1, ptr2))
+#  define XmlNameMatchesAscii(enc, ptr1, end1, ptr2) (((enc)->nameMatchesAscii)(enc, ptr1, end1, ptr2))
 
 #  define XmlNameLength(enc, ptr) (((enc)->nameLength)(enc, ptr))
 
 #  define XmlSkipS(enc, ptr) (((enc)->skipS)(enc, ptr))
 
-#  define XmlGetAttributes(enc, ptr, attsMax, atts)                            \
-    (((enc)->getAtts)(enc, ptr, attsMax, atts))
+#  define XmlGetAttributes(enc, ptr, attsMax, atts) (((enc)->getAtts)(enc, ptr, attsMax, atts))
 
 #  define XmlCharRefNumber(enc, ptr) (((enc)->charRefNumber)(enc, ptr))
 
-#  define XmlPredefinedEntityName(enc, ptr, end)                               \
-    (((enc)->predefinedEntityName)(enc, ptr, end))
+#  define XmlPredefinedEntityName(enc, ptr, end) (((enc)->predefinedEntityName)(enc, ptr, end))
 
-#  define XmlUpdatePosition(enc, ptr, end, pos)                                \
-    (((enc)->updatePosition)(enc, ptr, end, pos))
+#  define XmlUpdatePosition(enc, ptr, end, pos) (((enc)->updatePosition)(enc, ptr, end, pos))
 
-#  define XmlIsPublicId(enc, ptr, end, badPtr)                                 \
-    (((enc)->isPublicId)(enc, ptr, end, badPtr))
+#  define XmlIsPublicId(enc, ptr, end, badPtr) (((enc)->isPublicId)(enc, ptr, end, badPtr))
 
-#  define XmlUtf8Convert(enc, fromP, fromLim, toP, toLim)                      \
-    (((enc)->utf8Convert)(enc, fromP, fromLim, toP, toLim))
+#  define XmlUtf8Convert(enc, fromP, fromLim, toP, toLim) (((enc)->utf8Convert)(enc, fromP, fromLim, toP, toLim))
 
-#  define XmlUtf16Convert(enc, fromP, fromLim, toP, toLim)                     \
-    (((enc)->utf16Convert)(enc, fromP, fromLim, toP, toLim))
+#  define XmlUtf16Convert(enc, fromP, fromLim, toP, toLim) (((enc)->utf16Convert)(enc, fromP, fromLim, toP, toLim))
 
 typedef struct {
   ENCODING initEnc;
   const ENCODING **encPtr;
 } INIT_ENCODING;
 
-int XmlParseXmlDecl(int isGeneralTextEntity, const ENCODING *enc,
-                    const char *ptr, const char *end, const char **badPtr,
-                    const char **versionPtr, const char **versionEndPtr,
-                    const char **encodingNamePtr,
-                    const ENCODING **namedEncodingPtr, int *standalonePtr);
+int XmlParseXmlDecl(int isGeneralTextEntity, const ENCODING *enc, const char *ptr, const char *end, const char **badPtr,
+                    const char **versionPtr, const char **versionEndPtr, const char **encodingNamePtr, const ENCODING **namedEncodingPtr,
+                    int *standalonePtr);
 
-int XmlInitEncoding(INIT_ENCODING *p, const ENCODING **encPtr,
-                    const char *name);
+int XmlInitEncoding(INIT_ENCODING *p, const ENCODING **encPtr, const char *name);
 const ENCODING *XmlGetUtf8InternalEncoding(void);
 const ENCODING *XmlGetUtf16InternalEncoding(void);
 int FASTCALL XmlUtf8Encode(int charNumber, char *buf);
@@ -299,21 +269,16 @@ int XmlSizeOfUnknownEncoding(void);
 
 typedef int(XMLCALL *CONVERTER)(void *userData, const char *p);
 
-ENCODING *XmlInitUnknownEncoding(void *mem, const int *table, CONVERTER convert,
-                                 void *userData);
+ENCODING *XmlInitUnknownEncoding(void *mem, const int *table, CONVERTER convert, void *userData);
 
-int XmlParseXmlDeclNS(int isGeneralTextEntity, const ENCODING *enc,
-                      const char *ptr, const char *end, const char **badPtr,
-                      const char **versionPtr, const char **versionEndPtr,
-                      const char **encodingNamePtr,
-                      const ENCODING **namedEncodingPtr, int *standalonePtr);
+int XmlParseXmlDeclNS(int isGeneralTextEntity, const ENCODING *enc, const char *ptr, const char *end, const char **badPtr,
+                      const char **versionPtr, const char **versionEndPtr, const char **encodingNamePtr, const ENCODING **namedEncodingPtr,
+                      int *standalonePtr);
 
-int XmlInitEncodingNS(INIT_ENCODING *p, const ENCODING **encPtr,
-                      const char *name);
+int XmlInitEncodingNS(INIT_ENCODING *p, const ENCODING **encPtr, const char *name);
 const ENCODING *XmlGetUtf8InternalEncodingNS(void);
 const ENCODING *XmlGetUtf16InternalEncodingNS(void);
-ENCODING *XmlInitUnknownEncodingNS(void *mem, const int *table,
-                                   CONVERTER convert, void *userData);
+ENCODING *XmlInitUnknownEncodingNS(void *mem, const int *table, CONVERTER convert, void *userData);
 #  ifdef __cplusplus
 }
 #  endif

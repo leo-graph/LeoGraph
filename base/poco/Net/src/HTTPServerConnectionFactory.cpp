@@ -11,33 +11,23 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #include "Poco/Net/HTTPServerConnectionFactory.h"
-#include "Poco/Net/HTTPServerConnection.h"
 #include "Poco/Net/HTTPRequestHandlerFactory.h"
-
+#include "Poco/Net/HTTPServerConnection.h"
 
 namespace Poco {
 namespace Net {
 
-
-HTTPServerConnectionFactory::HTTPServerConnectionFactory(HTTPServerParams::Ptr pParams, HTTPRequestHandlerFactory::Ptr pFactory):
-	_pParams(pParams),
-	_pFactory(pFactory)
-{
-	poco_check_ptr (pFactory);
+HTTPServerConnectionFactory::HTTPServerConnectionFactory(HTTPServerParams::Ptr pParams, HTTPRequestHandlerFactory::Ptr pFactory)
+    : _pParams(pParams), _pFactory(pFactory) {
+  poco_check_ptr(pFactory);
 }
 
+HTTPServerConnectionFactory::~HTTPServerConnectionFactory() {}
 
-HTTPServerConnectionFactory::~HTTPServerConnectionFactory()
-{
+TCPServerConnection* HTTPServerConnectionFactory::createConnection(const StreamSocket& socket) {
+  return new HTTPServerConnection(socket, _pParams, _pFactory);
 }
 
-
-TCPServerConnection* HTTPServerConnectionFactory::createConnection(const StreamSocket& socket)
-{
-	return new HTTPServerConnection(socket, _pParams, _pFactory);
-}
-
-
-} } // namespace Poco::Net
+}  // namespace Net
+}  // namespace Poco

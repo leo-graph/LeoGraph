@@ -2,12 +2,8 @@
 
 #include <Common/Scheduler/Nodes/SchedulerNodeFactory.h>
 
-namespace DB
-{
+namespace DB {
 
-void registerFairPolicy(SchedulerNodeFactory & factory)
-{
-    factory.registerMethod<FairPolicy>("fair");
-}
+void registerFairPolicy(SchedulerNodeFactory& factory) { factory.registerMethod<FairPolicy>("fair"); }
 
-}
+}  // namespace DB

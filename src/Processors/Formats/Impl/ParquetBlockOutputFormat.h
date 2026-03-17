@@ -3,158 +3,141 @@
 
 #if USE_PARQUET
 
-#include <Processors/Formats/IOutputFormat.h>
-#include <Processors/Formats/Impl/Parquet/Write.h>
-#include <Formats/FormatSettings.h>
-#include <Formats/FormatFilterInfo.h>
-#include <Common/ThreadPool.h>
+#  include <Common/ThreadPool.h>
+#  include <Formats/FormatFilterInfo.h>
+#  include <Formats/FormatSettings.h>
+#  include <Processors/Formats/Impl/Parquet/Write.h>
+#  include <Processors/Formats/IOutputFormat.h>
 
-namespace arrow
-{
+namespace arrow {
 class Array;
 class DataType;
-}
+}  // namespace arrow
 
-namespace parquet
-{
-namespace arrow
-{
-    class FileWriter;
+namespace parquet {
+namespace arrow {
+class FileWriter;
 }
-}
+}  // namespace parquet
 
-namespace DB
-{
+namespace DB {
 
 class CHColumnToArrowColumn;
 
-class ParquetBlockOutputFormat : public IOutputFormat
-{
-public:
-    ParquetBlockOutputFormat(WriteBuffer & out_, SharedHeader header_, const FormatSettings & format_settings_, FormatFilterInfoPtr format_filter_info_);
-    ~ParquetBlockOutputFormat() override;
+class ParquetBlockOutputFormat : public IOutputFormat {
+ public:
+  ParquetBlockOutputFormat(WriteBuffer& out_, SharedHeader header_, const FormatSettings& format_settings_,
+                           FormatFilterInfoPtr format_filter_info_);
+  ~ParquetBlockOutputFormat() override;
 
-    String getName() const override { return "ParquetBlockOutputFormat"; }
+  String getName() const override { return "ParquetBlockOutputFormat"; }
 
-private:
-    struct MemoryToken
+ private:
+  struct MemoryToken {
+    ParquetBlockOutputFormat* parent;
+    size_t bytes = 0;
+
+    explicit MemoryToken(ParquetBlockOutputFormat* p, size_t b = 0) : parent(p) { set(b); }
+
+    MemoryToken(MemoryToken&& t)  /// NOLINT
+        : parent(std::exchange(t.parent, nullptr)), bytes(std::exchange(t.bytes, 0)) {}
+
+    MemoryToken& operator=(MemoryToken&& t)  /// NOLINT
     {
-        ParquetBlockOutputFormat * parent;
-        size_t bytes = 0;
+      parent = std::exchange(t.parent, nullptr);
+      bytes = std::exchange(t.bytes, 0);
+      return *this;
+    }
 
-        explicit MemoryToken(ParquetBlockOutputFormat * p, size_t b = 0) : parent(p)
-        {
-            set(b);
-        }
+    ~MemoryToken() { set(0); }
 
-        MemoryToken(MemoryToken && t) /// NOLINT
-          : parent(std::exchange(t.parent, nullptr)), bytes(std::exchange(t.bytes, 0)) {}
+    void set(size_t new_size) {
+      if (new_size == bytes) return;
+      parent->bytes_in_flight += new_size - bytes;  // overflow is fine
+      bytes = new_size;
+    }
+  };
 
-        MemoryToken & operator=(MemoryToken && t) /// NOLINT
-        {
-            parent = std::exchange(t.parent, nullptr);
-            bytes = std::exchange(t.bytes, 0);
-            return *this;
-        }
+  struct ColumnChunk {
+    Parquet::ColumnChunkWriteState state;
+    PODArray<char> serialized;
 
-        ~MemoryToken()
-        {
-            set(0);
-        }
+    MemoryToken mem;
 
-        void set(size_t new_size)
-        {
-            if (new_size == bytes)
-                return;
-            parent->bytes_in_flight += new_size - bytes; // overflow is fine
-            bytes = new_size;
-        }
-    };
+    explicit ColumnChunk(ParquetBlockOutputFormat* p) : mem(p) {}
+  };
 
-    struct ColumnChunk
-    {
-        Parquet::ColumnChunkWriteState state;
-        PODArray<char> serialized;
+  struct RowGroupState {
+    size_t tasks_in_flight = 0;
+    std::vector<std::vector<ColumnChunk>> column_chunks;
+    size_t num_rows = 0;
+  };
 
-        MemoryToken mem;
+  struct Task {
+    RowGroupState* row_group;
+    size_t column_idx;
+    size_t subcolumn_idx = 0;
 
-        explicit ColumnChunk(ParquetBlockOutputFormat * p) : mem(p) {}
-    };
+    MemoryToken mem;
 
-    struct RowGroupState
-    {
-        size_t tasks_in_flight = 0;
-        std::vector<std::vector<ColumnChunk>> column_chunks;
-        size_t num_rows = 0;
-    };
+    /// If not null, we need to call prepareColumnForWrite().
+    /// Otherwise we need to call writeColumnChunkBody().
+    DataTypePtr column_type;
+    std::string column_name;
+    std::vector<ColumnPtr> column_pieces;
 
-    struct Task
-    {
-        RowGroupState * row_group;
-        size_t column_idx;
-        size_t subcolumn_idx = 0;
+    Parquet::ColumnChunkWriteState state;
 
-        MemoryToken mem;
+    Task(RowGroupState* rg, size_t ci, ParquetBlockOutputFormat* p) : row_group(rg), column_idx(ci), mem(p) {}
+  };
 
-        /// If not null, we need to call prepareColumnForWrite().
-        /// Otherwise we need to call writeColumnChunkBody().
-        DataTypePtr column_type;
-        std::string column_name;
-        std::vector<ColumnPtr> column_pieces;
+  void consume(Chunk) override;
+  void finalizeImpl() override;
+  void resetFormatterImpl() override;
+  void onCancel() noexcept override;
 
-        Parquet::ColumnChunkWriteState state;
+  void writeRowGroup(std::vector<Chunk> chunks);
+  void writeUsingArrow(std::vector<Chunk> chunks);
+  void writeRowGroupInOneThread(Chunk chunk);
+  void writeRowGroupInParallel(std::vector<Chunk> chunks);
 
-        Task(RowGroupState * rg, size_t ci, ParquetBlockOutputFormat * p)
-            : row_group(rg), column_idx(ci), mem(p) {}
-    };
+  void threadFunction();
+  void startMoreThreadsIfNeeded(const std::unique_lock<std::mutex>& lock);
 
-    void consume(Chunk) override;
-    void finalizeImpl() override;
-    void resetFormatterImpl() override;
-    void onCancel() noexcept override;
+  /// Called in single-threaded fashion. Writes to the file.
+  void reapCompletedRowGroups(std::unique_lock<std::mutex>& lock);
 
-    void writeRowGroup(std::vector<Chunk> chunks);
-    void writeUsingArrow(std::vector<Chunk> chunks);
-    void writeRowGroupInOneThread(Chunk chunk);
-    void writeRowGroupInParallel(std::vector<Chunk> chunks);
+  const FormatSettings format_settings;
 
-    void threadFunction();
-    void startMoreThreadsIfNeeded(const std::unique_lock<std::mutex> & lock);
+  /// Chunks to squash together to form a row group.
+  std::vector<Chunk> staging_chunks;
+  size_t staging_rows = 0;
+  size_t staging_bytes = 0;
 
-    /// Called in single-threaded fashion. Writes to the file.
-    void reapCompletedRowGroups(std::unique_lock<std::mutex> & lock);
+  std::unique_ptr<parquet::arrow::FileWriter> file_writer;
+  std::unique_ptr<CHColumnToArrowColumn> ch_column_to_arrow_column;
 
-    const FormatSettings format_settings;
+  Parquet::WriteOptions options;
+  Parquet::SchemaElements schema;
+  Parquet::FileWriteState file_state;
+  size_t base_offset = 0;  // initial out.count(), just for assert
 
-    /// Chunks to squash together to form a row group.
-    std::vector<Chunk> staging_chunks;
-    size_t staging_rows = 0;
-    size_t staging_bytes = 0;
+  std::mutex mutex;
+  std::condition_variable condvar;  // wakes up consume()
+  std::unique_ptr<ThreadPool> pool;
 
-    std::unique_ptr<parquet::arrow::FileWriter> file_writer;
-    std::unique_ptr<CHColumnToArrowColumn> ch_column_to_arrow_column;
+  std::atomic_bool is_stopped{false};
+  std::exception_ptr background_exception = nullptr;
 
-    Parquet::WriteOptions options;
-    Parquet::SchemaElements schema;
-    Parquet::FileWriteState file_state;
-    size_t base_offset = 0; // initial out.count(), just for assert
+  /// Invariant: if there's at least one task then there's at least one thread.
+  size_t threads_running = 0;
+  std::atomic<size_t> bytes_in_flight{0};
 
-    std::mutex mutex;
-    std::condition_variable condvar; // wakes up consume()
-    std::unique_ptr<ThreadPool> pool;
-
-    std::atomic_bool is_stopped{false};
-    std::exception_ptr background_exception = nullptr;
-
-    /// Invariant: if there's at least one task then there's at least one thread.
-    size_t threads_running = 0;
-    std::atomic<size_t> bytes_in_flight{0};
-
-    std::deque<Task> task_queue;
-    std::deque<RowGroupState> row_groups;
-    FormatFilterInfoPtr format_filter_info;
+  std::deque<Task> task_queue;
+  std::deque<RowGroupState> row_groups;
+  FormatFilterInfoPtr format_filter_info;
 };
 
-}
+}  // namespace DB
 
 #endif

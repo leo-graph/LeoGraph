@@ -13,19 +13,14 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_AutoPtr_INCLUDED
 #define Foundation_AutoPtr_INCLUDED
-
 
 #include <algorithm>
 #include "Poco/Exception.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class C>
 class AutoPtr
@@ -61,248 +56,210 @@ class AutoPtr
 /// AutoPtr also implements all relational operators.
 /// Note that AutoPtr allows casting of its encapsulated data types.
 {
-public:
-    AutoPtr() : _ptr(0) { }
+ public:
+  AutoPtr() : _ptr(0) {}
 
-    AutoPtr(C * ptr) : _ptr(ptr) { }
+  AutoPtr(C *ptr) : _ptr(ptr) {}
 
-    AutoPtr(C * ptr, bool shared) : _ptr(ptr)
-    {
-        if (shared && _ptr)
-            _ptr->duplicate();
+  AutoPtr(C *ptr, bool shared) : _ptr(ptr) {
+    if (shared && _ptr) _ptr->duplicate();
+  }
+
+  AutoPtr(const AutoPtr &ptr) : _ptr(ptr._ptr) {
+    if (_ptr) _ptr->duplicate();  // NOLINT
+  }
+
+  template <class Other>
+  AutoPtr(const AutoPtr<Other> &ptr) : _ptr(const_cast<Other *>(ptr.get())) {
+    if (_ptr) _ptr->duplicate();
+  }
+
+  ~AutoPtr() {
+    if (_ptr) _ptr->release();  // NOLINT
+  }
+
+  AutoPtr &assign(C *ptr) {
+    if (_ptr != ptr) {
+      if (_ptr) _ptr->release();
+      _ptr = ptr;
     }
+    return *this;
+  }
 
-    AutoPtr(const AutoPtr & ptr) : _ptr(ptr._ptr)
-    {
-        if (_ptr)
-            _ptr->duplicate(); // NOLINT
+  AutoPtr &assign(C *ptr, bool shared) {
+    if (_ptr != ptr) {
+      if (_ptr) _ptr->release();
+      _ptr = ptr;
+      if (shared && _ptr) _ptr->duplicate();
     }
+    return *this;
+  }
 
-    template <class Other>
-    AutoPtr(const AutoPtr<Other> & ptr) : _ptr(const_cast<Other *>(ptr.get()))
-    {
-        if (_ptr)
-            _ptr->duplicate();
+  AutoPtr &assign(const AutoPtr &ptr) {
+    if (&ptr != this) {
+      if (_ptr) _ptr->release();
+      _ptr = ptr._ptr;
+      if (_ptr) _ptr->duplicate();  // NOLINT
     }
+    return *this;
+  }
 
-    ~AutoPtr()
-    {
-        if (_ptr)
-            _ptr->release(); // NOLINT
+  template <class Other>
+  AutoPtr &assign(const AutoPtr<Other> &ptr) {
+    if (ptr.get() != _ptr) {
+      if (_ptr) _ptr->release();
+      _ptr = const_cast<Other *>(ptr.get());
+      if (_ptr) _ptr->duplicate();
     }
+    return *this;
+  }
 
-    AutoPtr & assign(C * ptr)
-    {
-        if (_ptr != ptr)
-        {
-            if (_ptr)
-                _ptr->release();
-            _ptr = ptr;
-        }
-        return *this;
+  void reset() {
+    if (_ptr) {
+      _ptr->release();
+      _ptr = 0;
     }
+  }
 
-    AutoPtr & assign(C * ptr, bool shared)
-    {
-        if (_ptr != ptr)
-        {
-            if (_ptr)
-                _ptr->release();
-            _ptr = ptr;
-            if (shared && _ptr)
-                _ptr->duplicate();
-        }
-        return *this;
-    }
+  void reset(C *ptr) { assign(ptr); }
 
-    AutoPtr & assign(const AutoPtr & ptr)
-    {
-        if (&ptr != this)
-        {
-            if (_ptr)
-                _ptr->release();
-            _ptr = ptr._ptr;
-            if (_ptr)
-                _ptr->duplicate(); // NOLINT
-        }
-        return *this;
-    }
+  void reset(C *ptr, bool shared) { assign(ptr, shared); }
 
-    template <class Other>
-    AutoPtr & assign(const AutoPtr<Other> & ptr)
-    {
-        if (ptr.get() != _ptr)
-        {
-            if (_ptr)
-                _ptr->release();
-            _ptr = const_cast<Other *>(ptr.get());
-            if (_ptr)
-                _ptr->duplicate();
-        }
-        return *this;
-    }
+  void reset(const AutoPtr &ptr) { assign(ptr); }
 
-    void reset()
-    {
-        if (_ptr)
-        {
-            _ptr->release();
-            _ptr = 0;
-        }
-    }
+  template <class Other>
+  void reset(const AutoPtr<Other> &ptr) {
+    assign<Other>(ptr);
+  }
 
-    void reset(C * ptr) { assign(ptr); }
+  AutoPtr &operator=(C *ptr) { return assign(ptr); }
 
-    void reset(C * ptr, bool shared) { assign(ptr, shared); }
+  AutoPtr &operator=(const AutoPtr &ptr) { return assign(ptr); }
 
-    void reset(const AutoPtr & ptr) { assign(ptr); }
+  template <class Other>
+  AutoPtr &operator=(const AutoPtr<Other> &ptr) {
+    return assign<Other>(ptr);
+  }
 
-    template <class Other>
-    void reset(const AutoPtr<Other> & ptr)
-    {
-        assign<Other>(ptr);
-    }
+  void swap(AutoPtr &ptr) { std::swap(_ptr, ptr._ptr); }
 
-    AutoPtr & operator=(C * ptr) { return assign(ptr); }
+  template <class Other>
+  AutoPtr<Other> cast() const
+  /// Casts the AutoPtr via a dynamic cast to the given type.
+  /// Returns an AutoPtr containing NULL if the cast fails.
+  /// Example: (assume class Sub: public Super)
+  ///    AutoPtr<Super> super(new Sub());
+  ///    AutoPtr<Sub> sub = super.cast<Sub>();
+  ///    poco_assert (sub.get());
+  {
+    Other *pOther = dynamic_cast<Other *>(_ptr);
+    return AutoPtr<Other>(pOther, true);
+  }
 
-    AutoPtr & operator=(const AutoPtr & ptr) { return assign(ptr); }
+  template <class Other>
+  AutoPtr<Other> unsafeCast() const
+  /// Casts the AutoPtr via a static cast to the given type.
+  /// Example: (assume class Sub: public Super)
+  ///    AutoPtr<Super> super(new Sub());
+  ///    AutoPtr<Sub> sub = super.unsafeCast<Sub>();
+  ///    poco_assert (sub.get());
+  {
+    Other *pOther = static_cast<Other *>(_ptr);
+    return AutoPtr<Other>(pOther, true);
+  }
 
-    template <class Other>
-    AutoPtr & operator=(const AutoPtr<Other> & ptr)
-    {
-        return assign<Other>(ptr);
-    }
+  C *operator->() {
+    if (_ptr)
+      return _ptr;  // NOLINT
+    else
+      throw NullPointerException();
+  }
 
-    void swap(AutoPtr & ptr) { std::swap(_ptr, ptr._ptr); }
+  const C *operator->() const {
+    if (_ptr)
+      return _ptr;
+    else
+      throw NullPointerException();
+  }
 
-    template <class Other>
-    AutoPtr<Other> cast() const
-    /// Casts the AutoPtr via a dynamic cast to the given type.
-    /// Returns an AutoPtr containing NULL if the cast fails.
-    /// Example: (assume class Sub: public Super)
-    ///    AutoPtr<Super> super(new Sub());
-    ///    AutoPtr<Sub> sub = super.cast<Sub>();
-    ///    poco_assert (sub.get());
-    {
-        Other * pOther = dynamic_cast<Other *>(_ptr);
-        return AutoPtr<Other>(pOther, true);
-    }
+  C &operator*() {
+    if (_ptr)
+      return *_ptr;  // NOLINT
+    else
+      throw NullPointerException();
+  }
 
-    template <class Other>
-    AutoPtr<Other> unsafeCast() const
-    /// Casts the AutoPtr via a static cast to the given type.
-    /// Example: (assume class Sub: public Super)
-    ///    AutoPtr<Super> super(new Sub());
-    ///    AutoPtr<Sub> sub = super.unsafeCast<Sub>();
-    ///    poco_assert (sub.get());
-    {
-        Other * pOther = static_cast<Other *>(_ptr);
-        return AutoPtr<Other>(pOther, true);
-    }
+  const C &operator*() const {
+    if (_ptr)
+      return *_ptr;
+    else
+      throw NullPointerException();
+  }
 
-    C * operator->()
-    {
-        if (_ptr)
-            return _ptr; // NOLINT
-        else
-            throw NullPointerException();
-    }
+  C *get() { return _ptr; }  // NOLINT
 
-    const C * operator->() const
-    {
-        if (_ptr)
-            return _ptr;
-        else
-            throw NullPointerException();
-    }
+  const C *get() const { return _ptr; }
 
-    C & operator*()
-    {
-        if (_ptr)
-            return *_ptr; // NOLINT
-        else
-            throw NullPointerException();
-    }
+  operator C *() {
+    return _ptr;  // NOLINT
+  }
 
-    const C & operator*() const
-    {
-        if (_ptr)
-            return *_ptr;
-        else
-            throw NullPointerException();
-    }
+  operator const C *() const { return _ptr; }
 
-    C * get() { return _ptr; }  // NOLINT
+  bool operator!() const { return _ptr == 0; }
 
-    const C * get() const { return _ptr; }
+  bool isNull() const { return _ptr == 0; }
 
-    operator C *()
-    {
-        return _ptr; // NOLINT
-    }
+  C *duplicate() {
+    if (_ptr) _ptr->duplicate();
+    return _ptr;
+  }
 
-    operator const C *() const { return _ptr; }
+  bool operator==(const AutoPtr &ptr) const { return _ptr == ptr._ptr; }
 
-    bool operator!() const { return _ptr == 0; }
+  bool operator==(const C *ptr) const { return _ptr == ptr; }
 
-    bool isNull() const { return _ptr == 0; }
+  bool operator==(C *ptr) const { return _ptr == ptr; }
 
-    C * duplicate()
-    {
-        if (_ptr)
-            _ptr->duplicate();
-        return _ptr;
-    }
+  bool operator!=(const AutoPtr &ptr) const { return _ptr != ptr._ptr; }
 
-    bool operator==(const AutoPtr & ptr) const { return _ptr == ptr._ptr; }
+  bool operator!=(const C *ptr) const { return _ptr != ptr; }
 
-    bool operator==(const C * ptr) const { return _ptr == ptr; }
+  bool operator!=(C *ptr) const { return _ptr != ptr; }
 
-    bool operator==(C * ptr) const { return _ptr == ptr; }
+  bool operator<(const AutoPtr &ptr) const { return _ptr < ptr._ptr; }
 
-    bool operator!=(const AutoPtr & ptr) const { return _ptr != ptr._ptr; }
+  bool operator<(const C *ptr) const { return _ptr < ptr; }
 
-    bool operator!=(const C * ptr) const { return _ptr != ptr; }
+  bool operator<(C *ptr) const { return _ptr < ptr; }
 
-    bool operator!=(C * ptr) const { return _ptr != ptr; }
+  bool operator<=(const AutoPtr &ptr) const { return _ptr <= ptr._ptr; }
 
-    bool operator<(const AutoPtr & ptr) const { return _ptr < ptr._ptr; }
+  bool operator<=(const C *ptr) const { return _ptr <= ptr; }
 
-    bool operator<(const C * ptr) const { return _ptr < ptr; }
+  bool operator<=(C *ptr) const { return _ptr <= ptr; }
 
-    bool operator<(C * ptr) const { return _ptr < ptr; }
+  bool operator>(const AutoPtr &ptr) const { return _ptr > ptr._ptr; }
 
-    bool operator<=(const AutoPtr & ptr) const { return _ptr <= ptr._ptr; }
+  bool operator>(const C *ptr) const { return _ptr > ptr; }
 
-    bool operator<=(const C * ptr) const { return _ptr <= ptr; }
+  bool operator>(C *ptr) const { return _ptr > ptr; }
 
-    bool operator<=(C * ptr) const { return _ptr <= ptr; }
+  bool operator>=(const AutoPtr &ptr) const { return _ptr >= ptr._ptr; }
 
-    bool operator>(const AutoPtr & ptr) const { return _ptr > ptr._ptr; }
+  bool operator>=(const C *ptr) const { return _ptr >= ptr; }
 
-    bool operator>(const C * ptr) const { return _ptr > ptr; }
+  bool operator>=(C *ptr) const { return _ptr >= ptr; }
 
-    bool operator>(C * ptr) const { return _ptr > ptr; }
-
-    bool operator>=(const AutoPtr & ptr) const { return _ptr >= ptr._ptr; }
-
-    bool operator>=(const C * ptr) const { return _ptr >= ptr; }
-
-    bool operator>=(C * ptr) const { return _ptr >= ptr; }
-
-private:
-    C * _ptr;
+ private:
+  C *_ptr;
 };
 
-
 template <class C>
-inline void swap(AutoPtr<C> & p1, AutoPtr<C> & p2)
-{
-    p1.swap(p2);
+inline void swap(AutoPtr<C> &p1, AutoPtr<C> &p2) {
+  p1.swap(p2);
 }
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_AutoPtr_INCLUDED
+#endif  // Foundation_AutoPtr_INCLUDED

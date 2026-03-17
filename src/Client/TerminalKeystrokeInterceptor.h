@@ -10,38 +10,36 @@
 
 struct termios;
 
-namespace DB
-{
+namespace DB {
 
-class TerminalKeystrokeInterceptor
-{
-    using Callback = std::function<void()>;
-    using CallbackMap = std::unordered_map<char, Callback>;
+class TerminalKeystrokeInterceptor {
+  using Callback = std::function<void()>;
+  using CallbackMap = std::unordered_map<char, Callback>;
 
-public:
-    explicit TerminalKeystrokeInterceptor(int fd_, std::ostream & error_stream_);
-    ~TerminalKeystrokeInterceptor();
-    void registerCallback(char key, Callback cb);
+ public:
+  explicit TerminalKeystrokeInterceptor(int fd_, std::ostream &error_stream_);
+  ~TerminalKeystrokeInterceptor();
+  void registerCallback(char key, Callback cb);
 
-    void startIntercept();
-    void stopIntercept();
+  void startIntercept();
+  void stopIntercept();
 
-private:
-    void run(CallbackMap);
-    void runImpl(const CallbackMap &) const;
+ private:
+  void run(CallbackMap);
+  void runImpl(const CallbackMap &) const;
 
-    const int fd;
-    std::ostream & error_stream;
+  const int fd;
+  std::ostream &error_stream;
 
-    std::mutex mutex;
+  std::mutex mutex;
 
-    CallbackMap callbacks;
-    std::unique_ptr<std::thread> intercept_thread;
-    std::unique_ptr<struct termios> orig_termios;
+  CallbackMap callbacks;
+  std::unique_ptr<std::thread> intercept_thread;
+  std::unique_ptr<struct termios> orig_termios;
 
-    bool stop_requested = false;
-    std::mutex stop_requested_mutex;
-    std::condition_variable stop_requested_cv;
+  bool stop_requested = false;
+  std::mutex stop_requested_mutex;
+  std::condition_variable stop_requested_cv;
 };
 
-}
+}  // namespace DB

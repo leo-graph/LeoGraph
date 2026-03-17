@@ -13,20 +13,15 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_PBKDF2Engine_INCLUDED
 #define Foundation_PBKDF2Engine_INCLUDED
-
 
 #include <algorithm>
 #include "Poco/ByteOrder.h"
 #include "Poco/DigestEngine.h"
 #include "Poco/Foundation.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class PRF>
 class PBKDF2Engine : public DigestEngine
@@ -61,79 +56,67 @@ class PBKDF2Engine : public DigestEngine
 ///     pbkdf2.update(passphrase);
 ///     DigestEngine::Digest d = pbkdf2.digest();
 {
-public:
-    enum
-    {
-        PRF_DIGEST_SIZE = PRF::DIGEST_SIZE
-    };
+ public:
+  enum { PRF_DIGEST_SIZE = PRF::DIGEST_SIZE };
 
-    PBKDF2Engine(const std::string & salt, unsigned c = 4096, Poco::UInt32 dkLen = PRF_DIGEST_SIZE) : _s(salt), _c(c), _dkLen(dkLen)
-    {
-        _result.reserve(_dkLen + PRF_DIGEST_SIZE);
+  PBKDF2Engine(const std::string &salt, unsigned c = 4096, Poco::UInt32 dkLen = PRF_DIGEST_SIZE) : _s(salt), _c(c), _dkLen(dkLen) {
+    _result.reserve(_dkLen + PRF_DIGEST_SIZE);
+  }
+
+  ~PBKDF2Engine() {}
+
+  std::size_t digestLength() const { return _dkLen; }
+
+  void reset() {
+    _p.clear();
+    _result.clear();
+  }
+
+  const DigestEngine::Digest &digest() {
+    Poco::UInt32 i = 1;
+    while (_result.size() < _dkLen) {
+      f(i++);
     }
+    _result.resize(_dkLen);
+    return _result;
+  }
 
-    ~PBKDF2Engine() { }
+ protected:
+  void updateImpl(const void *data, std::size_t length) { _p.append(reinterpret_cast<const char *>(data), length); }
 
-    std::size_t digestLength() const { return _dkLen; }
-
-    void reset()
-    {
-        _p.clear();
-        _result.clear();
+  void f(Poco::UInt32 i) {
+    PRF prf(_p);
+    prf.update(_s);
+    Poco::UInt32 iBE = Poco::ByteOrder::toBigEndian(i);
+    prf.update(&iBE, sizeof(iBE));
+    Poco::DigestEngine::Digest up = prf.digest();
+    Poco::DigestEngine::Digest ux = up;
+    poco_assert_dbg(ux.size() == PRF_DIGEST_SIZE);
+    for (unsigned k = 1; k < _c; k++) {
+      prf.reset();
+      prf.update(&up[0], up.size());
+      Poco::DigestEngine::Digest u = prf.digest();
+      poco_assert_dbg(u.size() == PRF_DIGEST_SIZE);
+      for (int ui = 0; ui < PRF_DIGEST_SIZE; ui++) {
+        ux[ui] ^= u[ui];
+      }
+      std::swap(up, u);
     }
+    _result.insert(_result.end(), ux.begin(), ux.end());
+  }
 
-    const DigestEngine::Digest & digest()
-    {
-        Poco::UInt32 i = 1;
-        while (_result.size() < _dkLen)
-        {
-            f(i++);
-        }
-        _result.resize(_dkLen);
-        return _result;
-    }
+ private:
+  PBKDF2Engine();
+  PBKDF2Engine(const PBKDF2Engine &);
+  PBKDF2Engine &operator=(const PBKDF2Engine &);
 
-protected:
-    void updateImpl(const void * data, std::size_t length) { _p.append(reinterpret_cast<const char *>(data), length); }
-
-    void f(Poco::UInt32 i)
-    {
-        PRF prf(_p);
-        prf.update(_s);
-        Poco::UInt32 iBE = Poco::ByteOrder::toBigEndian(i);
-        prf.update(&iBE, sizeof(iBE));
-        Poco::DigestEngine::Digest up = prf.digest();
-        Poco::DigestEngine::Digest ux = up;
-        poco_assert_dbg(ux.size() == PRF_DIGEST_SIZE);
-        for (unsigned k = 1; k < _c; k++)
-        {
-            prf.reset();
-            prf.update(&up[0], up.size());
-            Poco::DigestEngine::Digest u = prf.digest();
-            poco_assert_dbg(u.size() == PRF_DIGEST_SIZE);
-            for (int ui = 0; ui < PRF_DIGEST_SIZE; ui++)
-            {
-                ux[ui] ^= u[ui];
-            }
-            std::swap(up, u);
-        }
-        _result.insert(_result.end(), ux.begin(), ux.end());
-    }
-
-private:
-    PBKDF2Engine();
-    PBKDF2Engine(const PBKDF2Engine &);
-    PBKDF2Engine & operator=(const PBKDF2Engine &);
-
-    std::string _p;
-    std::string _s;
-    unsigned _c;
-    Poco::UInt32 _dkLen;
-    DigestEngine::Digest _result;
+  std::string _p;
+  std::string _s;
+  unsigned _c;
+  Poco::UInt32 _dkLen;
+  DigestEngine::Digest _result;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_PBKDF2Engine_INCLUDED
+#endif  // Foundation_PBKDF2Engine_INCLUDED

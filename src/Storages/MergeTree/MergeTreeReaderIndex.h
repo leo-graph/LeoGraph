@@ -2,8 +2,7 @@
 
 #include <Storages/MergeTree/IMergeTreeReader.h>
 
-namespace DB
-{
+namespace DB {
 
 struct MergeTreeIndexReadResult;
 using MergeTreeIndexReadResultPtr = std::shared_ptr<MergeTreeIndexReadResult>;
@@ -15,42 +14,37 @@ using LazyMaterializingRowsPtr = std::shared_ptr<LazyMaterializingRows>;
 /// projection indexes are used to identify which granules are relevant to the query, and only those are passed to
 /// subsequent readers. In addition, the projection index constructs a row-level filter to further reduce I/O within
 /// selected granules.
-class MergeTreeReaderIndex : public IMergeTreeReader
-{
-public:
-    using MatchingMarks = std::vector<bool>;
+class MergeTreeReaderIndex : public IMergeTreeReader {
+ public:
+  using MatchingMarks = std::vector<bool>;
 
-    MergeTreeReaderIndex(const IMergeTreeReader * main_reader_, MergeTreeIndexReadResultPtr index_read_result_, const PaddedPODArray<UInt64> * lazy_materializing_rows_, bool can_read_incomplete_granules_);
+  MergeTreeReaderIndex(const IMergeTreeReader* main_reader_, MergeTreeIndexReadResultPtr index_read_result_,
+                       const PaddedPODArray<UInt64>* lazy_materializing_rows_, bool can_read_incomplete_granules_);
 
-    size_t readRows(
-        size_t from_mark,
-        size_t current_task_last_mark,
-        bool continue_reading,
-        size_t max_rows_to_read,
-        size_t offset,
-        Columns & res_columns) override;
+  size_t readRows(size_t from_mark, size_t current_task_last_mark, bool continue_reading, size_t max_rows_to_read, size_t offset,
+                  Columns& res_columns) override;
 
-    bool canReadIncompleteGranules() const override { return can_read_incomplete_granules; }
+  bool canReadIncompleteGranules() const override { return can_read_incomplete_granules; }
 
-    bool canSkipMark(size_t mark, size_t current_task_last_mark) override;
+  bool canSkipMark(size_t mark, size_t current_task_last_mark) override;
 
-    size_t getResultColumnCount() const override { return 1; }
+  size_t getResultColumnCount() const override { return 1; }
 
-    bool producesFilterOnly() const override { return true; }
-    bool mustApplyFilter() const override { return lazy_materializing_rows != nullptr; }
+  bool producesFilterOnly() const override { return true; }
+  bool mustApplyFilter() const override { return lazy_materializing_rows != nullptr; }
 
-private:
-    /// Used to filter data during merge tree reading.
-    MergeTreeIndexReadResultPtr index_read_result;
+ private:
+  /// Used to filter data during merge tree reading.
+  MergeTreeIndexReadResultPtr index_read_result;
 
-    const PaddedPODArray<UInt64> * lazy_materializing_rows = nullptr;
+  const PaddedPODArray<UInt64>* lazy_materializing_rows = nullptr;
 
-    /// Determines if reading incomplete index granules is supported.
-    bool can_read_incomplete_granules;
+  /// Determines if reading incomplete index granules is supported.
+  bool can_read_incomplete_granules;
 
-    /// Current row position used when continuing reads across multiple calls.
-    size_t current_row = 0;
-    const UInt64 * next_lazy_row_it = nullptr;
+  /// Current row position used when continuing reads across multiple calls.
+  size_t current_row = 0;
+  const UInt64* next_lazy_row_it = nullptr;
 };
 
-}
+}  // namespace DB

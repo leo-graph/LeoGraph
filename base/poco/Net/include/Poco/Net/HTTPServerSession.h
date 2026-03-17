@@ -13,10 +13,8 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Net_HTTPServerSession_INCLUDED
 #define Net_HTTPServerSession_INCLUDED
-
 
 #include "Poco/Net/HTTPServerParams.h"
 #include "Poco/Net/HTTPServerSession.h"
@@ -25,61 +23,51 @@
 #include "Poco/Net/SocketAddress.h"
 #include "Poco/Timespan.h"
 
+namespace Poco {
+namespace Net {
 
-namespace Poco
+class Net_API HTTPServerSession : public HTTPSession
+/// This class handles the server side of a
+/// HTTP session. It is used internally by
+/// HTTPServer.
 {
-namespace Net
-{
+ public:
+  HTTPServerSession(const StreamSocket& socket, HTTPServerParams::Ptr pParams);
+  /// Creates the HTTPServerSession.
 
+  virtual ~HTTPServerSession();
+  /// Destroys the HTTPServerSession.
 
-    class Net_API HTTPServerSession : public HTTPSession
-    /// This class handles the server side of a
-    /// HTTP session. It is used internally by
-    /// HTTPServer.
-    {
-    public:
-        HTTPServerSession(const StreamSocket & socket, HTTPServerParams::Ptr pParams);
-        /// Creates the HTTPServerSession.
+  bool hasMoreRequests();
+  /// Returns true if there are requests available.
 
-        virtual ~HTTPServerSession();
-        /// Destroys the HTTPServerSession.
+  bool canKeepAlive() const;
+  /// Returns true if the session can be kept alive.
 
-        bool hasMoreRequests();
-        /// Returns true if there are requests available.
+  SocketAddress clientAddress();
+  /// Returns the client's address.
 
-        bool canKeepAlive() const;
-        /// Returns true if the session can be kept alive.
+  SocketAddress serverAddress();
+  /// Returns the server's address.
 
-        SocketAddress clientAddress();
-        /// Returns the client's address.
+  void setKeepAliveTimeout(Poco::Timespan keepAliveTimeout);
 
-        SocketAddress serverAddress();
-        /// Returns the server's address.
+  size_t getKeepAliveTimeout() const { return _keepAliveTimeout.totalSeconds(); }
 
-        void setKeepAliveTimeout(Poco::Timespan keepAliveTimeout);
+  size_t getMaxKeepAliveRequests() const { return _maxKeepAliveRequests; }
 
-        size_t getKeepAliveTimeout() const { return _keepAliveTimeout.totalSeconds(); }
+ private:
+  bool _firstRequest;
+  Poco::Timespan _keepAliveTimeout;
+  size_t _maxKeepAliveRequests;
+};
 
-        size_t getMaxKeepAliveRequests() const { return _maxKeepAliveRequests; }
+//
+// inlines
+//
+inline bool HTTPServerSession::canKeepAlive() const { return getKeepAlive() && _maxKeepAliveRequests > 0; }
 
-    private:
-        bool _firstRequest;
-        Poco::Timespan _keepAliveTimeout;
-        size_t _maxKeepAliveRequests;
-    };
+}  // namespace Net
+}  // namespace Poco
 
-
-    //
-    // inlines
-    //
-    inline bool HTTPServerSession::canKeepAlive() const
-    {
-        return getKeepAlive() && _maxKeepAliveRequests > 0;
-    }
-
-
-}
-} // namespace Poco::Net
-
-
-#endif // Net_HTTPServerSession_INCLUDED
+#endif  // Net_HTTPServerSession_INCLUDED

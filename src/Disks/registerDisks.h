@@ -1,7 +1,6 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 
 /// @param global_skip_access_check - skip access check regardless regardless
 ///                                   .skip_access_check config directive (used
@@ -10,4 +9,4 @@ void registerDisks(bool global_skip_access_check);
 
 void clearDiskRegistry();
 
-}
+}  // namespace DB

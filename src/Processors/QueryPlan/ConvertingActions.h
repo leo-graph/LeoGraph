@@ -1,9 +1,8 @@
 #pragma once
 
-namespace DB
-{
+namespace DB {
 class QueryPlan;
 class Block;
 
-void addConvertingActions(QueryPlan & plan, const Block & header, const ContextPtr & context);
-}
+void addConvertingActions(QueryPlan& plan, const Block& header, const ContextPtr& context);
+}  // namespace DB

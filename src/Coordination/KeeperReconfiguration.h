@@ -2,11 +2,10 @@
 #include <Coordination/KeeperSnapshotManager.h>
 #include <Coordination/RaftServerConfig.h>
 
-namespace DB
-{
+namespace DB {
 /// Not only adding/removing servers, but also changing their priorities.
-ClusterUpdateActions joiningToClusterUpdates(const ClusterConfigPtr & cfg, std::string_view joining);
+ClusterUpdateActions joiningToClusterUpdates(const ClusterConfigPtr& cfg, std::string_view joining);
 
-ClusterUpdateActions leavingToClusterUpdates(const ClusterConfigPtr & cfg, std::string_view leaving);
-String serializeClusterConfig(const ClusterConfigPtr & cfg, const ClusterUpdateActions & updates = {});
-}
+ClusterUpdateActions leavingToClusterUpdates(const ClusterConfigPtr& cfg, std::string_view leaving);
+String serializeClusterConfig(const ClusterConfigPtr& cfg, const ClusterUpdateActions& updates = {});
+}  // namespace DB

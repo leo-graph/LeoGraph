@@ -1,13 +1,12 @@
 #pragma once
+#include <chrono>
 #include <map>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <mutex>
-#include <chrono>
 
-namespace DB
-{
+namespace DB {
 
 /// Simple class for checking expired sessions. Main idea -- to round sessions
 /// timeouts and place all sessions into buckets rounded by their expired time.
@@ -18,51 +17,43 @@ namespace DB
 /// [1630580418500] -> {2, 3}
 /// ...
 /// When new session appear it's added to the existing bucket or create new bucket.
-class SessionExpiryQueue
-{
-private:
-    /// Session -> timeout ms
-    std::unordered_map<int64_t, int64_t> session_to_expiration_time;
+class SessionExpiryQueue {
+ private:
+  /// Session -> timeout ms
+  std::unordered_map<int64_t, int64_t> session_to_expiration_time;
 
-    /// Expire time -> session expire near this time
-    std::map<int64_t, std::unordered_set<int64_t>> expiry_to_sessions;
+  /// Expire time -> session expire near this time
+  std::map<int64_t, std::unordered_set<int64_t>> expiry_to_sessions;
 
-    int64_t expiration_interval;
+  int64_t expiration_interval;
 
-    mutable std::mutex mutex;
+  mutable std::mutex mutex;
 
-    static int64_t getNowMilliseconds()
-    {
-        using namespace std::chrono;
-        return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-    }
+  static int64_t getNowMilliseconds() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+  }
 
-    /// Round time to the next expiration interval. The result used as a key for
-    /// expiry_to_sessions map.
-    int64_t roundToNextInterval(int64_t time) const
-    {
-        return (time / expiration_interval + 1) * expiration_interval;
-    }
+  /// Round time to the next expiration interval. The result used as a key for
+  /// expiry_to_sessions map.
+  int64_t roundToNextInterval(int64_t time) const { return (time / expiration_interval + 1) * expiration_interval; }
 
-public:
-    /// expiration_interval -- how often we will check new sessions and how small
-    /// buckets we will have. In ZooKeeper normal session timeout is around 30 seconds
-    /// and expiration_interval is about 500ms.
-    explicit SessionExpiryQueue(int64_t expiration_interval_)
-        : expiration_interval(expiration_interval_)
-    {
-    }
+ public:
+  /// expiration_interval -- how often we will check new sessions and how small
+  /// buckets we will have. In ZooKeeper normal session timeout is around 30 seconds
+  /// and expiration_interval is about 500ms.
+  explicit SessionExpiryQueue(int64_t expiration_interval_) : expiration_interval(expiration_interval_) {}
 
-    /// Session was actually removed
-    bool remove(int64_t session_id);
+  /// Session was actually removed
+  bool remove(int64_t session_id);
 
-    /// Update session expiry time (must be called on heartbeats)
-    void addNewSessionOrUpdate(int64_t session_id, int64_t timeout_ms);
+  /// Update session expiry time (must be called on heartbeats)
+  void addNewSessionOrUpdate(int64_t session_id, int64_t timeout_ms);
 
-    /// Get all expired sessions
-    std::vector<int64_t> getExpiredSessions() const;
+  /// Get all expired sessions
+  std::vector<int64_t> getExpiredSessions() const;
 
-    void clear();
+  void clear();
 };
 
-}
+}  // namespace DB

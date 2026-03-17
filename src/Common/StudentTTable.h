@@ -1,9 +1,8 @@
 #pragma once
 
-namespace impl
-{
+namespace impl {
 
 extern const double students_table[101][6];
 extern const double confidence_level[6];
 
-}
+}  // namespace impl

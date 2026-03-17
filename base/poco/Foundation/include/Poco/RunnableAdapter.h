@@ -13,18 +13,13 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-
 #ifndef Foundation_RunnableAdapter_INCLUDED
 #define Foundation_RunnableAdapter_INCLUDED
-
 
 #include "Poco/Foundation.h"
 #include "Poco/Runnable.h"
 
-
-namespace Poco
-{
-
+namespace Poco {
 
 template <class C>
 class RunnableAdapter : public Runnable
@@ -38,33 +33,30 @@ class RunnableAdapter : public Runnable
 /// For using a freestanding or static member function as a thread
 /// target, please see the ThreadTarget class.
 {
-public:
-    typedef void (C::*Callback)();
+ public:
+  typedef void (C::*Callback)();
 
-    RunnableAdapter(C & object, Callback method) : _pObject(&object), _method(method) { }
+  RunnableAdapter(C& object, Callback method) : _pObject(&object), _method(method) {}
 
-    RunnableAdapter(const RunnableAdapter & ra) : _pObject(ra._pObject), _method(ra._method) { }
+  RunnableAdapter(const RunnableAdapter& ra) : _pObject(ra._pObject), _method(ra._method) {}
 
-    ~RunnableAdapter() { }
+  ~RunnableAdapter() {}
 
-    RunnableAdapter & operator=(const RunnableAdapter & ra)
-    {
-        _pObject = ra._pObject;
-        _method = ra._method;
-        return *this;
-    }
+  RunnableAdapter& operator=(const RunnableAdapter& ra) {
+    _pObject = ra._pObject;
+    _method = ra._method;
+    return *this;
+  }
 
-    void run() { (_pObject->*_method)(); }
+  void run() { (_pObject->*_method)(); }
 
-private:
-    RunnableAdapter();
+ private:
+  RunnableAdapter();
 
-    C * _pObject;
-    Callback _method;
+  C* _pObject;
+  Callback _method;
 };
 
+}  // namespace Poco
 
-} // namespace Poco
-
-
-#endif // Foundation_RunnableAdapter_INCLUDED
+#endif  // Foundation_RunnableAdapter_INCLUDED

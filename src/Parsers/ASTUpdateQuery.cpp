@@ -1,61 +1,52 @@
-#include <Parsers/ASTUpdateQuery.h>
 #include <Common/quoteString.h>
+#include <Parsers/ASTUpdateQuery.h>
 
-namespace DB
-{
+namespace DB {
 
-String ASTUpdateQuery::getID(char delim) const
-{
-    return "UpdateQuery" + (delim + getDatabase()) + delim + getTable();
+String ASTUpdateQuery::getID(char delim) const { return "UpdateQuery" + (delim + getDatabase()) + delim + getTable(); }
+
+ASTPtr ASTUpdateQuery::clone() const {
+  auto res = make_intrusive<ASTUpdateQuery>(*this);
+  res->children.clear();
+
+  const auto add_children_if_needed = [&](const auto& src, auto& dst) {
+    if (!src) return;
+
+    dst = src->clone();
+    res->children.push_back(dst);
+  };
+
+  add_children_if_needed(partition, res->partition);
+  add_children_if_needed(predicate, res->predicate);
+  add_children_if_needed(assignments, res->assignments);
+  add_children_if_needed(settings_ast, res->settings_ast);
+
+  cloneTableOptions(*res);
+  return res;
 }
 
-ASTPtr ASTUpdateQuery::clone() const
-{
-    auto res = make_intrusive<ASTUpdateQuery>(*this);
-    res->children.clear();
+void ASTUpdateQuery::formatQueryImpl(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
+                                     FormatStateStacked frame) const {
+  ostr << "UPDATE ";
 
-    const auto add_children_if_needed = [&](const auto & src, auto & dst)
-    {
-        if (!src)
-            return;
+  if (database) {
+    ostr << backQuoteIfNeed(getDatabase());
+    ostr << ".";
+  }
 
-        dst = src->clone();
-        res->children.push_back(dst);
-    };
+  ostr << backQuoteIfNeed(getTable());
+  formatOnCluster(ostr, settings);
 
-    add_children_if_needed(partition, res->partition);
-    add_children_if_needed(predicate, res->predicate);
-    add_children_if_needed(assignments, res->assignments);
-    add_children_if_needed(settings_ast, res->settings_ast);
+  ostr << " SET ";
+  assignments->format(ostr, settings, state, frame);
 
-    cloneTableOptions(*res);
-    return res;
+  if (partition) {
+    ostr << " IN PARTITION ";
+    partition->format(ostr, settings, state, frame);
+  }
+
+  ostr << " WHERE ";
+  predicate->format(ostr, settings, state, frame);
 }
 
-void ASTUpdateQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const
-{
-    ostr << "UPDATE ";
-
-    if (database)
-    {
-        ostr << backQuoteIfNeed(getDatabase());
-        ostr << ".";
-    }
-
-    ostr << backQuoteIfNeed(getTable());
-    formatOnCluster(ostr, settings);
-
-    ostr << " SET ";
-    assignments->format(ostr, settings, state, frame);
-
-    if (partition)
-    {
-        ostr << " IN PARTITION ";
-        partition->format(ostr, settings, state, frame);
-    }
-
-    ostr << " WHERE ";
-    predicate->format(ostr, settings, state, frame);
-}
-
-}
+}  // namespace DB
