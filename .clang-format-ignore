@@ -1,0 +1,2 @@
+# Keep repo-wide `clang-format` runs scoped to the ClickHouse superproject.
+contrib/**
