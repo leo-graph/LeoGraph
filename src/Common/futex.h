@@ -4,7 +4,11 @@
 
 #  include <base/types.h>
 
+#  include <algorithm>
+#  include <atomic>
 #  include <bit>
+#  include <climits>
+#  include <limits>
 
 #  include <linux/futex.h>
 #  include <sys/syscall.h>
