@@ -1,5 +1,5 @@
 option(ENABLE_CLANG_FORMAT "Enable `clang-format` integration targets" ON)
-option(ENABLE_CLANG_FORMAT_ON_BUILD "Run target-scoped `clang-format` before building registered targets" OFF)
+option(ENABLE_CLANG_FORMAT_ON_BUILD "Run target-scoped `clang-format` before building registered targets" ON)
 
 if (NOT ENABLE_CLANG_FORMAT)
     return()

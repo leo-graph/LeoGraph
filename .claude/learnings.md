@@ -1,3 +1,4 @@
 - In the `graph` parser, attach the `MATCH`-level `WHERE` inside `visitSimpleMatchStatement` rather than patching it in `parseMatchQuery`, otherwise `parseGQLStatement` and `parseMatchQuery` can diverge and drop the predicate.
 - For `IAST`-based graph nodes, keep ownership in `children` and use raw pointer child references plus setters like `setOrReplace`; this makes `clone`, rewrites, and visitor bindings much more predictable.
 - For build-native auto-formatting in ClickHouse, keep repo-wide `clang-format-all` for one-shot sweeps, but use target-scoped `CLANG_FORMAT_SETUP` for automatic formatting during normal builds.
+- If `build/build.ninja` exists but `build/CMakeFiles/rules.ninja` is missing, treat the build directory as configure-incomplete; rerun `cmake` first, because `ninja` targets like `clang-format-all` cannot work on that directory.
