@@ -543,6 +543,7 @@ File `.clang-format` is located at the sources root.
 It mostly corresponding with our actual code style.
 But it's not recommended to apply `clang-format` to existing files because it makes formatting worse.
 The build defines `clang-format-all` and `check-clang-format` targets. They enumerate tracked sources via `git ls-files`, so they do not descend into `contrib` submodules. If you want formatting to run as part of every build, configure CMake with `-DENABLE_CLANG_FORMAT_ON_BUILD=ON`.
+Targets that opt into `CLANG_FORMAT_SETUP` will then run `clang-format` before they build, instead of rerunning repo-wide formatting on every build.
 You can use `clang-format-diff` tool that you can find in clang source repository.
 
 Alternatively you can try `uncrustify` tool to reformat your code.

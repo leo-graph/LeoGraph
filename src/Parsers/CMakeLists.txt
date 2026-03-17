@@ -24,6 +24,7 @@ endif ()
 
 add_library(clickhouse_parsers ${clickhouse_parsers_headers} ${clickhouse_parsers_sources})
 target_link_libraries(clickhouse_parsers PUBLIC clickhouse_common_io clickhouse_common_access)
+CLANG_FORMAT_SETUP(clickhouse_parsers)
 
 if (TARGET ch_rust::prql)
     target_link_libraries(clickhouse_parsers PRIVATE ch_rust::prql)
@@ -35,6 +36,10 @@ endif ()
 
 if (TARGET ch_contrib::gql_grammar)
     target_link_libraries(clickhouse_parsers PRIVATE ch_contrib::gql_grammar)
+endif ()
+
+if (TARGET _gql_grammar)
+    CLANG_FORMAT_SETUP(_gql_grammar)
 endif ()
 
 if(ENABLE_EXAMPLES)
@@ -72,4 +77,3 @@ if (LEXER_STANDALONE_BUILD)
         DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Lexer.wasm
     )
 endif ()
-

@@ -18,45 +18,53 @@ if (NOT EXISTS "${CLICKHOUSE_SOURCE_DIR}/.git")
     message(FATAL_ERROR "Cannot find `.git` in `${CLICKHOUSE_SOURCE_DIR}`")
 endif ()
 
-execute_process(
-    COMMAND git
-        -C "${CLICKHOUSE_SOURCE_DIR}"
-        ls-files
-        --
-        *.c
-        *.cc
-        *.cpp
-        *.cxx
-        *.h
-        *.hh
-        *.hpp
-        *.hxx
-        *.inc
-        *.ipp
-        *.tpp
-    OUTPUT_VARIABLE GIT_LS_FILES_OUTPUT
-    RESULT_VARIABLE GIT_LS_FILES_RESULT
-    ERROR_VARIABLE GIT_LS_FILES_ERROR
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+if (DEFINED CLANG_FORMAT_INPUT_FILE)
+    if (NOT EXISTS "${CLANG_FORMAT_INPUT_FILE}")
+        message(FATAL_ERROR "Cannot find `CLANG_FORMAT_INPUT_FILE`: ${CLANG_FORMAT_INPUT_FILE}")
+    endif ()
 
-if (NOT GIT_LS_FILES_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to enumerate tracked files with `git ls-files`: ${GIT_LS_FILES_ERROR}")
+    file(STRINGS "${CLANG_FORMAT_INPUT_FILE}" CLANG_FORMAT_FILES)
+else ()
+    execute_process(
+        COMMAND git
+            -C "${CLICKHOUSE_SOURCE_DIR}"
+            ls-files
+            --
+            *.c
+            *.cc
+            *.cpp
+            *.cxx
+            *.h
+            *.hh
+            *.hpp
+            *.hxx
+            *.inc
+            *.ipp
+            *.tpp
+        OUTPUT_VARIABLE GIT_LS_FILES_OUTPUT
+        RESULT_VARIABLE GIT_LS_FILES_RESULT
+        ERROR_VARIABLE GIT_LS_FILES_ERROR
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+    if (NOT GIT_LS_FILES_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to enumerate tracked files with `git ls-files`: ${GIT_LS_FILES_ERROR}")
+    endif ()
+
+    string(REPLACE "\n" ";" GIT_LS_FILES_LIST "${GIT_LS_FILES_OUTPUT}")
+
+    set(CLANG_FORMAT_FILES)
+    foreach(relative_file IN LISTS GIT_LS_FILES_LIST)
+        if (relative_file STREQUAL "")
+            continue()
+        endif ()
+
+        if (relative_file MATCHES "^contrib/")
+            continue()
+        endif ()
+
+        list(APPEND CLANG_FORMAT_FILES "${CLICKHOUSE_SOURCE_DIR}/${relative_file}")
+    endforeach ()
 endif ()
-
-string(REPLACE "\n" ";" GIT_LS_FILES_LIST "${GIT_LS_FILES_OUTPUT}")
-
-set(CLANG_FORMAT_FILES)
-foreach(relative_file IN LISTS GIT_LS_FILES_LIST)
-    if (relative_file STREQUAL "")
-        continue()
-    endif ()
-
-    if (relative_file MATCHES "^contrib/")
-        continue()
-    endif ()
-
-    list(APPEND CLANG_FORMAT_FILES "${CLICKHOUSE_SOURCE_DIR}/${relative_file}")
-endforeach ()
 
 list(LENGTH CLANG_FORMAT_FILES CLANG_FORMAT_FILE_COUNT)
 if (CLANG_FORMAT_FILE_COUNT EQUAL 0)
