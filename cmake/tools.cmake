@@ -4,6 +4,28 @@ if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     message (FATAL_ERROR "Compiler ${CMAKE_CXX_COMPILER_ID} is not supported. Please switch to Clang")
 endif ()
 
+if (NOT CMAKE_CXX_COMPILER_TARGET)
+    set (_COMPILER_TARGET_FALLBACK "${CMAKE_LIBRARY_ARCHITECTURE}")
+
+    if (NOT _COMPILER_TARGET_FALLBACK)
+        execute_process(
+            COMMAND ${CMAKE_CXX_COMPILER} -dumpmachine
+            OUTPUT_VARIABLE _COMPILER_TARGET_FALLBACK
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+
+        string(REGEX REPLACE "^([^-]+)-unknown-(linux-(gnu|musl))$" "\\1-\\2"
+            _COMPILER_TARGET_FALLBACK "${_COMPILER_TARGET_FALLBACK}")
+    endif ()
+
+    if (_COMPILER_TARGET_FALLBACK)
+        set (CMAKE_C_COMPILER_TARGET "${_COMPILER_TARGET_FALLBACK}" CACHE INTERNAL "")
+        set (CMAKE_CXX_COMPILER_TARGET "${_COMPILER_TARGET_FALLBACK}" CACHE INTERNAL "")
+        set (CMAKE_ASM_COMPILER_TARGET "${_COMPILER_TARGET_FALLBACK}" CACHE INTERNAL "")
+        message (STATUS "Using compiler target fallback: ${_COMPILER_TARGET_FALLBACK}")
+    endif ()
+endif ()
+
 # Print details to output
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} --version --target=${CMAKE_CXX_COMPILER_TARGET} --sysroot=${CMAKE_SYSROOT}
     OUTPUT_VARIABLE COMPILER_SELF_IDENTIFICATION
