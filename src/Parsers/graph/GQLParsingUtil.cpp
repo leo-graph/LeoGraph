@@ -4,6 +4,8 @@
 #if USE_GQL_GRAMMAR
 
 #include <Parsers/graph/ASTGraphQuery.h>
+#include <Parsers/ASTAsterisk.h>
+#include <Parsers/ASTOrderByElement.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTFunction.h>
@@ -83,7 +85,7 @@ public:
         return aggregate.has_value() ? aggregate : next_result;
     }
 
-    static ASTPtr anyToAST(std::any & val)
+    static ASTPtr anyToAST(const std::any & val)
     {
         if (!val.has_value())
             return nullptr;
@@ -122,11 +124,8 @@ public:
             if (query_ast && ret_ast)
             {
                 auto * graph_query = query_ast->as<ASTGraphQuery>();
-                if (auto * ret_clause = ret_ast->as<ASTGraphReturnClause>())
-                {
-                    graph_query->return_clause = ret_clause;
-                    graph_query->children.push_back(ret_ast);
-                }
+                if (ret_ast->as<ASTGraphReturnClause>())
+                    graph_query->setReturnClause(ret_ast);
             }
             else if (!query_ast && ret_ast)
             {
@@ -149,12 +148,12 @@ public:
             {
                 auto pattern_any = visitGraphPattern(gp);
                 if (auto pattern = anyToAST(pattern_any))
-                {
-                    query->match_pattern = pattern->as<ASTGraphPattern>();
-                    query->children.push_back(pattern);
-                }
+                    query->setMatchPattern(pattern);
             }
         }
+
+        if (auto where = takePatternWhereCondition())
+            query->setWhereCondition(where);
 
         return ASTPtr(query);
     }
@@ -164,6 +163,7 @@ public:
     std::any visitGraphPattern(GQLParser::GraphPatternContext * ctx) override
     {
         auto pattern = make_intrusive<ASTGraphPattern>();
+        pattern_where_condition_ = nullptr;
 
         if (auto * path_list = ctx->pathPatternList())
         {
@@ -171,7 +171,7 @@ public:
             {
                 auto path_any = visitPathPattern(pp);
                 if (auto path = anyToAST(path_any))
-                    pattern->children.push_back(path);
+                    pattern->addPath(path);
             }
         }
 
@@ -187,8 +187,6 @@ public:
 
         return ASTPtr(pattern);
     }
-
-    ASTPtr getPatternWhereCondition() { return pattern_where_condition_; }
 
     // ==================== Path Pattern ====================
 
@@ -214,9 +212,7 @@ public:
         }
 
         if (auto * ppe = ctx->pathPatternExpression())
-        {
             collectPathElements(ppe, path.get());
-        }
 
         return ASTPtr(path);
     }
@@ -262,14 +258,9 @@ public:
         {
             auto quant = buildQuantifier(quant_ctx);
             if (auto * edge = elem->as<ASTEdgePattern>())
-            {
-                edge->quantifier = quant->as<ASTPathQuantifier>();
-                edge->children.push_back(quant);
-            }
+                edge->setQuantifier(quant);
             else if (auto * sub_path = elem->as<ASTPathPattern>())
-            {
-                sub_path->children.push_back(quant);
-            }
+                sub_path->setQuantifier(quant);
         }
 
         return ASTPtr(elem);
@@ -287,10 +278,9 @@ public:
         quant->max_hops = 1;
 
         if (auto * edge = elem->as<ASTEdgePattern>())
-        {
-            edge->quantifier = quant.get();
-            edge->children.push_back(quant);
-        }
+            edge->setQuantifier(quant);
+        else if (auto * sub_path = elem->as<ASTPathPattern>())
+            sub_path->setQuantifier(quant);
 
         return ASTPtr(elem);
     }
@@ -336,10 +326,7 @@ public:
             {
                 auto cond_any = visit(sc);
                 if (auto cond = anyToAST(cond_any))
-                {
-                    sub_path->where_predicate = cond;
-                    sub_path->children.push_back(cond);
-                }
+                    sub_path->setWherePredicate(cond);
             }
         }
 
@@ -466,7 +453,7 @@ public:
         {
             auto inner_any = visit(inner);
             if (auto inner_ast = anyToAST(inner_any))
-                label->children.push_back(inner_ast);
+                label->addArgument(inner_ast);
         }
 
         return ASTPtr(label);
@@ -482,7 +469,7 @@ public:
         {
             auto expr_any = visit(expr);
             if (auto expr_ast = anyToAST(expr_any))
-                label->children.push_back(expr_ast);
+                label->addArgument(expr_ast);
         }
 
         return ASTPtr(label);
@@ -498,7 +485,7 @@ public:
         {
             auto expr_any = visit(expr);
             if (auto expr_ast = anyToAST(expr_any))
-                label->children.push_back(expr_ast);
+                label->addArgument(expr_ast);
         }
 
         return ASTPtr(label);
@@ -567,16 +554,7 @@ public:
             else if (op->GREATER_THAN_OR_EQUALS_OPERATOR()) func_name = "greaterOrEquals";
         }
 
-        auto args = make_intrusive<ASTExpressionList>();
-        args->children.push_back(lhs);
-        args->children.push_back(rhs);
-
-        auto func = make_intrusive<ASTFunction>();
-        func->name = func_name;
-        func->arguments = args;
-        func->children.push_back(args);
-
-        return ASTPtr(func);
+        return ASTPtr(makeASTOperator(func_name, lhs, rhs));
     }
 
     std::any visitConjunctiveExprAlt(GQLParser::ConjunctiveExprAltContext * ctx) override
@@ -599,15 +577,7 @@ public:
         if (!operand)
             return {};
 
-        auto args = make_intrusive<ASTExpressionList>();
-        args->children.push_back(operand);
-
-        auto func = make_intrusive<ASTFunction>();
-        func->name = "not";
-        func->arguments = args;
-        func->children.push_back(args);
-
-        return ASTPtr(func);
+        return ASTPtr(makeASTOperator("not", operand));
     }
 
     std::any visitAddSubtractExprAlt(GQLParser::AddSubtractExprAltContext * ctx) override
@@ -635,17 +605,7 @@ public:
             return {};
 
         if (ctx->MINUS_SIGN())
-        {
-            auto args = make_intrusive<ASTExpressionList>();
-            args->children.push_back(operand);
-
-            auto func = make_intrusive<ASTFunction>();
-            func->name = "negate";
-            func->arguments = args;
-            func->children.push_back(args);
-
-            return ASTPtr(func);
-        }
+            return ASTPtr(makeASTOperator("negate", operand));
 
         return ASTPtr(operand);
     }
@@ -669,16 +629,7 @@ public:
         if (ctx->NOT())
             func_name = is_true ? "notEquals" : "equals";
 
-        auto args = make_intrusive<ASTExpressionList>();
-        args->children.push_back(operand);
-        args->children.push_back(make_intrusive<ASTLiteral>(Field(static_cast<UInt64>(1))));
-
-        auto func = make_intrusive<ASTFunction>();
-        func->name = func_name;
-        func->arguments = args;
-        func->children.push_back(args);
-
-        return ASTPtr(func);
+        return ASTPtr(makeASTOperator(func_name, operand, make_intrusive<ASTLiteral>(Field(static_cast<UInt64>(1)))));
     }
 
     // ==================== Value Expression Primary ====================
@@ -693,16 +644,7 @@ public:
                 return {};
 
             String prop = ctx->propertyName()->getText();
-            auto args = make_intrusive<ASTExpressionList>();
-            args->children.push_back(obj);
-            args->children.push_back(make_intrusive<ASTLiteral>(Field(prop)));
-
-            auto func = make_intrusive<ASTFunction>();
-            func->name = "tupleElement";
-            func->arguments = args;
-            func->children.push_back(args);
-
-            return ASTPtr(func);
+            return ASTPtr(makeASTFunction("tupleElement", obj, make_intrusive<ASTLiteral>(Field(prop))));
         }
 
         if (auto * pve = ctx->parenthesizedValueExpression())
@@ -840,8 +782,8 @@ public:
             if (body->ASTERISK())
             {
                 auto item = make_intrusive<ASTGraphReturnItem>();
-                item->alias = "*";
-                ret->children.push_back(item);
+                item->setExpression(make_intrusive<ASTAsterisk>());
+                ret->addItem(item);
             }
             else if (auto * ril = body->returnItemList())
             {
@@ -853,16 +795,16 @@ public:
                     {
                         auto expr_any = visit(ave);
                         if (auto expr = anyToAST(expr_any))
-                            item->children.push_back(expr);
+                            item->setExpression(expr);
                     }
 
                     if (auto * alias_ctx = ri->returnItemAlias())
                     {
                         if (auto * id = alias_ctx->identifier())
-                            item->alias = id->getText();
+                            item->setAlias(id->getText());
                     }
 
-                    ret->children.push_back(item);
+                    ret->addItem(item);
                 }
             }
 
@@ -882,10 +824,7 @@ public:
                     }
                 }
                 if (!group_list->children.empty())
-                {
-                    ret->group_by = group_list;
-                    ret->children.push_back(group_list);
-                }
+                    ret->setGroupBy(group_list);
             }
         }
 
@@ -911,7 +850,15 @@ private:
 
     // ==================== Helpers ====================
 
-    void fillElement(GQLParser::ElementPatternFillerContext * filler, String & variable, IAST * owner)
+    ASTPtr takePatternWhereCondition()
+    {
+        auto where = pattern_where_condition_;
+        pattern_where_condition_ = nullptr;
+        return where;
+    }
+
+    template <typename TPattern>
+    void fillElement(GQLParser::ElementPatternFillerContext * filler, String & variable, TPattern * owner)
     {
         if (!filler)
             return;
@@ -931,26 +878,7 @@ private:
             {
                 auto label_any = visit(le);
                 if (auto label_ast = anyToAST(label_any))
-                {
-                    auto * label_expr = label_ast->as<ASTLabelExpression>();
-                    if (label_expr)
-                    {
-                        if (auto * node = dynamic_cast<ASTNodePattern *>(owner))
-                        {
-                            if (label_expr->op == GraphLabelOp::NAME)
-                                node->label = label_expr->label_name;
-                            node->label_expression = label_expr;
-                            node->children.push_back(label_ast);
-                        }
-                        else if (auto * edge = dynamic_cast<ASTEdgePattern *>(owner))
-                        {
-                            if (label_expr->op == GraphLabelOp::NAME)
-                                edge->label = label_expr->label_name;
-                            edge->label_expression = label_expr;
-                            edge->children.push_back(label_ast);
-                        }
-                    }
-                }
+                    owner->setLabelExpression(label_ast);
             }
         }
 
@@ -962,18 +890,7 @@ private:
                 {
                     auto cond_any = visit(sc);
                     if (auto cond = anyToAST(cond_any))
-                    {
-                        if (auto * node = dynamic_cast<ASTNodePattern *>(owner))
-                        {
-                            node->where_predicate = cond;
-                            node->children.push_back(cond);
-                        }
-                        else if (auto * edge = dynamic_cast<ASTEdgePattern *>(owner))
-                        {
-                            edge->where_predicate = cond;
-                            edge->children.push_back(cond);
-                        }
-                    }
+                        owner->setWherePredicate(cond);
                 }
             }
         }
@@ -990,7 +907,7 @@ private:
                 {
                     auto elem_any = visit(pf);
                     if (auto elem = anyToAST(elem_any))
-                        path->children.push_back(elem);
+                        path->addElement(elem);
                 }
             }
         }
@@ -1002,7 +919,7 @@ private:
                 {
                     auto elem_any = visit(pf);
                     if (auto elem = anyToAST(elem_any))
-                        path->children.push_back(elem);
+                        path->addElement(elem);
                 }
             }
         }
@@ -1014,7 +931,7 @@ private:
                 {
                     auto elem_any = visit(pf);
                     if (auto elem = anyToAST(elem_any))
-                        path->children.push_back(elem);
+                        path->addElement(elem);
                 }
             }
         }
@@ -1133,16 +1050,7 @@ private:
         if (!lhs || !rhs)
             return {};
 
-        auto args = make_intrusive<ASTExpressionList>();
-        args->children.push_back(lhs);
-        args->children.push_back(rhs);
-
-        auto func = make_intrusive<ASTFunction>();
-        func->name = func_name;
-        func->arguments = args;
-        func->children.push_back(args);
-
-        return ASTPtr(func);
+        return ASTPtr(makeASTOperator(func_name, lhs, rhs));
     }
 
 
@@ -1159,15 +1067,32 @@ private:
                     {
                         auto key_any = visit(sk->aggregatingValueExpression());
                         if (auto key = anyToAST(key_any))
-                            order_list->children.push_back(key);
+                        {
+                            auto elem = make_intrusive<ASTOrderByElement>();
+                            elem->children.push_back(key);
+                            elem->direction = 1;
+                            elem->nulls_direction = elem->direction;
+
+                            if (auto * ordering = ss->orderingSpecification())
+                            {
+                                if (ordering->DESC() || ordering->DESCENDING())
+                                    elem->direction = -1;
+                                elem->nulls_direction = elem->direction;
+                            }
+
+                            if (auto * null_ordering = ss->nullOrdering())
+                            {
+                                elem->nulls_direction_was_explicitly_specified = true;
+                                elem->nulls_direction = null_ordering->LAST() ? elem->direction : -elem->direction;
+                            }
+
+                            order_list->children.push_back(elem);
+                        }
                     }
                 }
             }
             if (!order_list->children.empty())
-            {
-                ret->order_by = order_list;
-                ret->children.push_back(order_list);
-            }
+                ret->setOrderBy(order_list);
         }
 
         if (auto * oc = ctx->offsetClause())
@@ -1176,10 +1101,7 @@ private:
             {
                 auto val_any = visit(nnis);
                 if (auto val = anyToAST(val_any))
-                {
-                    ret->offset = val;
-                    ret->children.push_back(val);
-                }
+                    ret->setOffset(val);
             }
         }
 
@@ -1189,10 +1111,7 @@ private:
             {
                 auto val_any = visit(nnis);
                 if (auto val = anyToAST(val_any))
-                {
-                    ret->limit = val;
-                    ret->children.push_back(val);
-                }
+                    ret->setLimit(val);
             }
         }
     }
@@ -1235,16 +1154,6 @@ GQLParsingUtil::Result GQLParsingUtil::parseMatchQuery(const String & gql_text)
     {
         result.error_message = "Failed to build Graph AST from parse tree";
         return result;
-    }
-
-    if (auto where = builder.getPatternWhereCondition())
-    {
-        auto * graph_query = query_ast->as<ASTGraphQuery>();
-        if (graph_query)
-        {
-            graph_query->where_condition = where;
-            graph_query->children.push_back(where);
-        }
     }
 
     result.ast = query_ast;

@@ -1,0 +1,2 @@
+- In the `graph` parser, attach the `MATCH`-level `WHERE` inside `visitSimpleMatchStatement` rather than patching it in `parseMatchQuery`, otherwise `parseGQLStatement` and `parseMatchQuery` can diverge and drop the predicate.
+- For `IAST`-based graph nodes, keep ownership in `children` and use raw pointer child references plus setters like `setOrReplace`; this makes `clone`, rewrites, and visitor bindings much more predictable.

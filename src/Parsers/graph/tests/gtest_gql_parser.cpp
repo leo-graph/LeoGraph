@@ -9,6 +9,7 @@
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTFunction.h>
+#include <Parsers/ASTOrderByElement.h>
 #include <IO/WriteBufferFromString.h>
 
 using namespace DB;
@@ -354,6 +355,51 @@ TEST(GQLParser, ReturnDistinct)
     EXPECT_TRUE(query->return_clause->distinct);
 }
 
+TEST(GQLParser, StatementKeepsMatchWhere)
+{
+    auto result = GQLParsingUtil::parseGQLStatement("MATCH (a:Person) WHERE a.age > 30 RETURN a");
+    ASSERT_TRUE(result.ast) << result.error_message;
+
+    auto * query = result.ast->as<ASTGraphQuery>();
+    ASSERT_NE(query, nullptr);
+    ASSERT_NE(query->where_condition, nullptr);
+
+    auto * func = query->where_condition->as<ASTFunction>();
+    ASSERT_NE(func, nullptr);
+    EXPECT_EQ(func->name, "greater");
+}
+
+TEST(GQLParser, ReturnOrderByLimitOffset)
+{
+    auto result = GQLParsingUtil::parseGQLStatement(
+        "MATCH (a:Person) RETURN a.name ORDER BY a.age DESC NULLS FIRST OFFSET 2 LIMIT 5");
+    ASSERT_TRUE(result.ast) << result.error_message;
+
+    auto * query = result.ast->as<ASTGraphQuery>();
+    ASSERT_NE(query, nullptr);
+    ASSERT_NE(query->return_clause, nullptr);
+    ASSERT_NE(query->return_clause->order_by, nullptr);
+    ASSERT_NE(query->return_clause->offset, nullptr);
+    ASSERT_NE(query->return_clause->limit, nullptr);
+
+    auto * order_list = query->return_clause->order_by->as<ASTExpressionList>();
+    ASSERT_NE(order_list, nullptr);
+    ASSERT_EQ(order_list->children.size(), 1);
+
+    auto * order_elem = order_list->children[0]->as<ASTOrderByElement>();
+    ASSERT_NE(order_elem, nullptr);
+    EXPECT_EQ(order_elem->direction, -1);
+    EXPECT_TRUE(order_elem->nulls_direction_was_explicitly_specified);
+    EXPECT_EQ(order_elem->nulls_direction, 1);
+
+    auto * offset = query->return_clause->offset->as<ASTLiteral>();
+    auto * limit = query->return_clause->limit->as<ASTLiteral>();
+    ASSERT_NE(offset, nullptr);
+    ASSERT_NE(limit, nullptr);
+    EXPECT_EQ(offset->value.safeGet<UInt64>(), 2u);
+    EXPECT_EQ(limit->value.safeGet<UInt64>(), 5u);
+}
+
 // ==================== AST Format Roundtrip ====================
 
 TEST(GQLParser, FormatNodePattern)
@@ -468,8 +514,7 @@ TEST(GQLParser, CloneEdgeWithQuantifier)
     edge->variable = "e";
     edge->label = "KNOWS";
     edge->direction = GraphEdgeDirection::RIGHT;
-    edge->quantifier = quant.get();
-    edge->children.push_back(quant);
+    edge->setQuantifier(quant);
 
     auto cloned = edge->clone();
     auto * cloned_edge = cloned->as<ASTEdgePattern>();
