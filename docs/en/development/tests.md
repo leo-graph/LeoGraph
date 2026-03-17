@@ -542,7 +542,7 @@ To force proper style of your code, you can use `clang-format`.
 File `.clang-format` is located at the sources root.
 It mostly corresponding with our actual code style.
 But it's not recommended to apply `clang-format` to existing files because it makes formatting worse.
-For repo-wide formatting in the superproject, prefer `utils/clang-format-superproject.sh`; it enumerates tracked sources via `git ls-files` and does not descend into `contrib` submodules.
+The build defines `clang-format-all` and `check-clang-format` targets. They enumerate tracked sources via `git ls-files`, so they do not descend into `contrib` submodules. If you want formatting to run as part of every build, configure CMake with `-DENABLE_CLANG_FORMAT_ON_BUILD=ON`.
 You can use `clang-format-diff` tool that you can find in clang source repository.
 
 Alternatively you can try `uncrustify` tool to reformat your code.
