@@ -487,12 +487,12 @@ extern "C" {
 
 size_t clickhouse_lexer_size = sizeof(Lexer);
 
-void clickhouse_lexer_create(void *ptr, const char *begin, const char *end, size_t max_query_size) {
+void clickhouse_lexer_create(void* ptr, const char* begin, const char* end, size_t max_query_size) {
   new (ptr) Lexer(begin, end, max_query_size);
 }
 
-unsigned char clickhouse_lexer_next_token(void *ptr, const char **out_token_begin, const char **out_token_end) {
-  Token res = reinterpret_cast<Lexer *>(ptr)->nextToken();
+unsigned char clickhouse_lexer_next_token(void* ptr, const char** out_token_begin, const char** out_token_end) {
+  Token res = reinterpret_cast<Lexer*>(ptr)->nextToken();
   *out_token_begin = res.begin;
   *out_token_end = res.end;
   return static_cast<unsigned char>(res.type);

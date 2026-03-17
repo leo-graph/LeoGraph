@@ -3,7 +3,7 @@
 #include <Interpreters/Context_fwd.h>
 #include <Parsers/IAST_fwd.h>
 #include <QueryPipeline/BlockIO.h>
-#include <Storages  //IStorage_fwd.h>
+#include <Storages/IStorage_fwd.h>
 
 namespace DB {
 

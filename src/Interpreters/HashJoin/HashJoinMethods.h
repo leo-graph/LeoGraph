@@ -1,5 +1,5 @@
 #pragma once
-#include <Interpreters  //HashJoin/JoinUsedFlags.h>
+#include <Interpreters/HashJoin/JoinUsedFlags.h>
 #include <Interpreters/castColumn.h>
 #include <Interpreters/HashJoin/AddedColumns.h>
 #include <Interpreters/HashJoin/HashJoin.h>

@@ -3,6 +3,7 @@
 #include <Core/Types.h>
 
 #include <mutex>
+#include <stdatomic.h>
 
 #include "config.h"
 

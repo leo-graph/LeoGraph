@@ -3,8 +3,8 @@
 #include <amqpcpp.h>
 #include <amqpcpp/libuv.h>
 #include <amqpcpp/linux_tcp.h>
+#include <Common/Logger.h>
 #include <base/types.h>
-#include <Poco/Logger.h>
 #include <memory>
 #include <mutex>
 #include <thread>

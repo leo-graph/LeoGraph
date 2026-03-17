@@ -7,6 +7,7 @@
 #include <base/sort.h>
 
 #include <Common/ArenaAllocator.h>
+#include <Common/PODArray.h>
 #include <Common/iota.h>
 
 #include <Common/VectorWithMemoryTracking.h>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iterator>
+
 /// Extend @p to by moving elements from @p from to @p to end
 /// @return @p to iterator to first of moved elements.
 template <class To, class From>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <amqpcpp.h>
 #include <amqpcpp/libuv.h>
 #include <Common/thread_local_rng.h>
 #include <Core/BackgroundSchedulePoolTaskHolder.h>

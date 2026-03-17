@@ -5,3 +5,4 @@
 - A target-scoped `clang-format` custom target without an output file is always dirty in Ninja; use a stamp-producing `add_custom_command` plus a wrapper target to make build-time formatting incremental.
 - To make target-scoped `clang-format` incremental within a large target, keep a per-target stamp and have the runner format only files newer than that stamp unless `.clang-format`, the ignore file, or the manifest changed.
 - After a repo-wide reformat, headers that relied on transitive standard-library includes can start failing in unrelated translation units; make headers like `futex.h` self-contained instead of depending on include order.
+- After a repo-wide reformat, comments can accidentally get spliced into `#include` paths; scan for `#include` lines containing `//` inside the path when seemingly impossible header-not-found exceptions appear.

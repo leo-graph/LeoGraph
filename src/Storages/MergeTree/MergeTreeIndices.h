@@ -12,6 +12,18 @@
 #include <unordered_map>
 #include <vector>
 
+#if defined(TRUE)
+#  pragma push_macro("TRUE")
+#  undef TRUE
+#  define DB_RESTORE_TRUE_MACRO
+#endif
+
+#if defined(FALSE)
+#  pragma push_macro("FALSE")
+#  undef FALSE
+#  define DB_RESTORE_FALSE_MACRO
+#endif
+
 namespace DB {
 
 namespace Internal {
@@ -317,3 +329,13 @@ String getIndexFileName(const String &index_name, bool escape_filename);
 /// This supports long index names that were hashed due to replace_long_file_name_to_hash setting.
 bool indexFileExistsInChecksums(const MergeTreeDataPartChecksums &checksums, const std::string &path_prefix, const std::string &extension);
 }  // namespace DB
+
+#ifdef DB_RESTORE_FALSE_MACRO
+#  pragma pop_macro("FALSE")
+#  undef DB_RESTORE_FALSE_MACRO
+#endif
+
+#ifdef DB_RESTORE_TRUE_MACRO
+#  pragma pop_macro("TRUE")
+#  undef DB_RESTORE_TRUE_MACRO
+#endif

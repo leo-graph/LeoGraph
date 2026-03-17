@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace DB {
 
 enum class SettingConstraintWritability : uint8_t {

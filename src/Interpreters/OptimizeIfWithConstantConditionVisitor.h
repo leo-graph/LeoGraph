@@ -4,6 +4,9 @@
 #include <Interpreters/InDepthNodeVisitor.h>
 
 namespace DB {
+
+class ASTFunction;
+
 struct OptimizeIfWithConstantConditionVisitorData {
   using TypeToVisit = ASTFunction;
 
