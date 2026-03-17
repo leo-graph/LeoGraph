@@ -105,6 +105,14 @@ function(CLANG_FORMAT_SETUP TARGET)
     set(FORMAT_STAMP_FILE "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${FORMAT_TARGET_NAME}.stamp")
     string(REPLACE ";" "\n" FORMAT_FILE_LIST_CONTENT "${TARGET_SOURCES}")
     file(GENERATE OUTPUT "${FORMAT_FILE_LIST}" CONTENT "${FORMAT_FILE_LIST_CONTENT}\n")
+    set(FORMAT_COMMAND_ARGS
+        ${CLANG_FORMAT_TARGET_ARGS}
+        -DCLANG_FORMAT_MODE=format
+        -DCLANG_FORMAT_INPUT_FILE=${FORMAT_FILE_LIST}
+        -DCLANG_FORMAT_REFERENCE_FILE=${FORMAT_STAMP_FILE}
+        -DCLANG_FORMAT_STYLE_FILE=${ClickHouse_SOURCE_DIR}/.clang-format
+        -DCLANG_FORMAT_RUNNER_FILE=${CLANG_FORMAT_RUNNER}
+        -DCLANG_FORMAT_MANIFEST_FILE=${FORMAT_FILE_LIST})
     set(FORMAT_DEPENDS
         ${TARGET_SOURCES}
         "${FORMAT_FILE_LIST}"
@@ -113,15 +121,14 @@ function(CLANG_FORMAT_SETUP TARGET)
 
     if (EXISTS "${ClickHouse_SOURCE_DIR}/.clang-format-ignore")
         list(APPEND FORMAT_DEPENDS "${ClickHouse_SOURCE_DIR}/.clang-format-ignore")
+        list(APPEND FORMAT_COMMAND_ARGS -DCLANG_FORMAT_IGNORE_FILE=${ClickHouse_SOURCE_DIR}/.clang-format-ignore)
     endif ()
 
     add_custom_command(
         OUTPUT "${FORMAT_STAMP_FILE}"
         COMMAND ${CMAKE_COMMAND}
-            ${CLANG_FORMAT_TARGET_ARGS}
-            -DCLANG_FORMAT_MODE=format
-            -DCLANG_FORMAT_INPUT_FILE=${FORMAT_FILE_LIST}
-        -P ${CLANG_FORMAT_RUNNER}
+            ${FORMAT_COMMAND_ARGS}
+            -P ${CLANG_FORMAT_RUNNER}
         COMMAND ${CMAKE_COMMAND} -E touch "${FORMAT_STAMP_FILE}"
         DEPENDS ${FORMAT_DEPENDS}
         COMMENT "Formatting target ${TARGET} sources with `clang-format`"

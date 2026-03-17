@@ -3,3 +3,4 @@
 - For build-native auto-formatting in ClickHouse, keep repo-wide `clang-format-all` for one-shot sweeps, but use target-scoped `CLANG_FORMAT_SETUP` for automatic formatting during normal builds.
 - If `build/build.ninja` exists but `build/CMakeFiles/rules.ninja` is missing, treat the build directory as configure-incomplete; rerun `cmake` first, because `ninja` targets like `clang-format-all` cannot work on that directory.
 - A target-scoped `clang-format` custom target without an output file is always dirty in Ninja; use a stamp-producing `add_custom_command` plus a wrapper target to make build-time formatting incremental.
+- To make target-scoped `clang-format` incremental within a large target, keep a per-target stamp and have the runner format only files newer than that stamp unless `.clang-format`, the ignore file, or the manifest changed.

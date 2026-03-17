@@ -66,9 +66,36 @@ else ()
     endforeach ()
 endif ()
 
+if (DEFINED CLANG_FORMAT_REFERENCE_FILE AND EXISTS "${CLANG_FORMAT_REFERENCE_FILE}")
+    set(CLANG_FORMAT_FORCE_FULL OFF)
+
+    foreach(format_dependency_var
+        CLANG_FORMAT_STYLE_FILE
+        CLANG_FORMAT_IGNORE_FILE
+        CLANG_FORMAT_RUNNER_FILE
+        CLANG_FORMAT_MANIFEST_FILE)
+        if (DEFINED ${format_dependency_var} AND EXISTS "${${format_dependency_var}}")
+            if ("${${format_dependency_var}}" IS_NEWER_THAN "${CLANG_FORMAT_REFERENCE_FILE}")
+                set(CLANG_FORMAT_FORCE_FULL ON)
+                break()
+            endif ()
+        endif ()
+    endforeach ()
+
+    if (NOT CLANG_FORMAT_FORCE_FULL)
+        set(CLANG_FORMAT_CHANGED_FILES)
+        foreach(clang_format_file IN LISTS CLANG_FORMAT_FILES)
+            if ("${clang_format_file}" IS_NEWER_THAN "${CLANG_FORMAT_REFERENCE_FILE}")
+                list(APPEND CLANG_FORMAT_CHANGED_FILES "${clang_format_file}")
+            endif ()
+        endforeach ()
+        set(CLANG_FORMAT_FILES "${CLANG_FORMAT_CHANGED_FILES}")
+    endif ()
+endif ()
+
 list(LENGTH CLANG_FORMAT_FILES CLANG_FORMAT_FILE_COUNT)
 if (CLANG_FORMAT_FILE_COUNT EQUAL 0)
-    message(STATUS "No tracked C/C++ files matched for `clang-format`")
+    message(STATUS "No C/C++ files matched for `clang-format`")
     return()
 endif ()
 
