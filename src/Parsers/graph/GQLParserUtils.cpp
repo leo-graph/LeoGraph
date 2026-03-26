@@ -23,8 +23,8 @@
 namespace DB {
 
 namespace ErrorCodes {
-extern const int CANNOT_PARSE_QUERY;
 extern const int LOGICAL_ERROR;
+extern const int SYNTAX_ERROR;
 extern const int INPUT_TEXT_INVALID_UTF8;
 }  // namespace ErrorCodes
 
@@ -32,23 +32,25 @@ using namespace antlr4;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
-extern "C" {
-#ifdef ADDRESS_SANITIZER
-void __lsan_ignore_object(const void *);
+#if defined(__APPLE__)
+extern "C" void __lsan_ignore_object(const void *) __attribute__((weak_import));
 #else
-void __lsan_ignore_object(const void *) {}  // NOLINT
+extern "C" void __lsan_ignore_object(const void *) __attribute__((weak));
 #endif
-}
 #pragma clang diagnostic pop
 
 namespace {
+
+void ignoreLSanObject(const void *ptr) {
+  if (__lsan_ignore_object) __lsan_ignore_object(ptr);
+}
 
 ANTLRInputStream *getLexerInput() {
   static thread_local ANTLRInputStream *input;
 
   if (unlikely(!input)) {
     input = new ANTLRInputStream();
-    __lsan_ignore_object(input);
+    ignoreLSanObject(input);
   }
 
   return input;
@@ -61,10 +63,10 @@ OPENGQL::GQLLexer *getLexerImpl() {
 
   if (unlikely(!lexer)) {
     lexer = new OPENGQL::GQLLexer(input);
-    __lsan_ignore_object(lexer);
+    ignoreLSanObject(lexer);
 
     lexer_error_listener = new OPENGQL::LexerErrorListener();
-    __lsan_ignore_object(lexer_error_listener);
+    ignoreLSanObject(lexer_error_listener);
 
     lexer->removeErrorListeners();
     lexer->addErrorListener(lexer_error_listener);
@@ -88,7 +90,7 @@ Context *parseWithFallback(std::string_view query, Context *(OPENGQL::GQLParser:
     e.addMessage("\nerror when parse gql query: {}.", query);
     throw;
   } catch (...) {
-    throw Exception(ErrorCodes::CANNOT_PARSE_QUERY, "error when parse query: {}.", query);
+    throw Exception(ErrorCodes::SYNTAX_ERROR, "error when parse query: {}.", query);
   }
 }
 
@@ -116,10 +118,10 @@ GQLParser *GQLParserUtils::getParserLL(IntStream *input) {
 
   if (unlikely(!parser)) {
     parser = new GQLParser(nullptr);
-    __lsan_ignore_object(parser);
+    ignoreLSanObject(parser);
 
     parser_error_listener = new ParserErrorListener();
-    __lsan_ignore_object(parser_error_listener);
+    ignoreLSanObject(parser_error_listener);
 
     parser->removeErrorListeners();
     parser->addErrorListener(parser_error_listener);
@@ -139,10 +141,10 @@ GQLParser *GQLParserUtils::getParserSLL(IntStream *input) {
 
   if (unlikely(!parser)) {
     parser = new GQLParser(nullptr);
-    __lsan_ignore_object(parser);
+    ignoreLSanObject(parser);
 
     parser_error_listener = new ParserErrorListener();
-    __lsan_ignore_object(parser_error_listener);
+    ignoreLSanObject(parser_error_listener);
 
     parser->removeErrorListeners();
     parser->addErrorListener(parser_error_listener);
@@ -157,6 +159,10 @@ GQLParser *GQLParserUtils::getParserSLL(IntStream *input) {
 }
 
 void GQLParserUtils::parseProgram(std::string_view query) { parseWithFallback(query, &GQLParser::gqlProgram); }
+
+antlr4::ParserRuleContext *GQLParserUtils::parseCompositeQueryStatement(std::string_view query) {
+  return parseWithFallback(query, &GQLParser::compositeQueryStatement);
+}
 
 }  // namespace OPENGQL
 

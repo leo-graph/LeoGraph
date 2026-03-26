@@ -4,7 +4,8 @@
 
 namespace antlr4 {
 class IntStream;
-}
+class ParserRuleContext;
+}  // namespace antlr4
 
 namespace DB::OPENGQL {
 
@@ -18,6 +19,7 @@ class GQLParserUtils {
   static GQLParser *getParserSLL(antlr4::IntStream *input);
 
   static void parseProgram(std::string_view query);
+  static antlr4::ParserRuleContext *parseCompositeQueryStatement(std::string_view query);
 };
 
 }  // namespace DB::OPENGQL
