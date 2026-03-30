@@ -22,6 +22,8 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitCompositeQueryExpression(GQLParser::CompositeQueryExpressionContext* context) override;
   std::any visitCompositeQueryPrimary(GQLParser::CompositeQueryPrimaryContext* context) override;
   std::any visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext* context) override;
+  std::any visitFocusedNestedQuerySpecification(GQLParser::FocusedNestedQuerySpecificationContext* context) override;
+  std::any visitSelectStatement(GQLParser::SelectStatementContext* context) override;
   std::any visitLinearQueryStatement(GQLParser::LinearQueryStatementContext* context) override;
   std::any visitAmbientLinearQueryStatement(GQLParser::AmbientLinearQueryStatementContext* context) override;
   std::any visitSimpleLinearQueryStatement(GQLParser::SimpleLinearQueryStatementContext* context) override;

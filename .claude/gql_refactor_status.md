@@ -39,7 +39,9 @@ The currently supported minimal path is:
 - `FINISH` as a raw-text clause fallback
 - standalone `ORDER BY` / paging statements as raw-text clause fallbacks
 - focused `USE` query parts flattened into clause sequences with raw-text `USE` clauses
+- focused nested queries now flatten `USE` plus the inner query result instead of falling back wholesale
 - simple nested query specifications that contain one plain query statement
+- top-level `SELECT` statements now build a minimal `GQLProjectClause::Type::Select` with raw-text `FROM` / `HAVING` preservation and structured tails
 - `CALL`, `LET`, and `FOR` preserved as raw-text clause fallbacks
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
 - basic path / node / edge patterns
@@ -62,8 +64,8 @@ Keep working in `src/Parsers/graph/GQLParseTreeVisitor.cpp` and reduce the query
 
 Suggested order:
 
-- decide whether focused `USE` forms should stay as raw-text clauses or gain a dedicated `GQL` node only when lowering starts to need graph-selection semantics
-- replace the remaining raw-text fallbacks for `CALL`, `LET`, `FOR`, `FINISH`, and standalone paging clauses with structured `GQL*` nodes only if later lowering work needs them
+- decide whether focused `USE` forms and `SELECT` sources should stay as raw-text clauses or gain dedicated `GQL` nodes only when lowering starts to need graph-selection semantics
+- replace the remaining raw-text fallbacks for `CALL`, `LET`, `FOR`, `FINISH`, standalone paging clauses, and `HAVING` with structured `GQL*` nodes only if later lowering work needs them
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
 

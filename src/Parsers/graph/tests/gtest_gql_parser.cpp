@@ -166,6 +166,57 @@ TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause)
     ASSERT_NE(project, nullptr);
 }
 
+TEST(GQLParser, FocusedNestedQueryIsFlattened)
+{
+    auto ast = parseGraphOrThrow("USE foo { MATCH (a) RETURN a }");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 3);
+
+    const auto * use_clause = getExpr(clauses->clauses[0]);
+    ASSERT_NE(use_clause, nullptr);
+    EXPECT_EQ(use_clause->text, "USE foo");
+
+    const auto * match = getMatchClause(*clauses, 1);
+    const auto * project = getProjectClause(*clauses, 2);
+    ASSERT_NE(match, nullptr);
+    ASSERT_NE(project, nullptr);
+}
+
+TEST(GQLParser, SelectStatementBuildsTopLevelProject)
+{
+    auto ast = parseGraphOrThrow("SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE a IS NOT NULL GROUP BY a ORDER BY a DESC OFFSET 1 LIMIT 2");
+    const auto * project = ast->as<GAST::GQLProjectClause>();
+    ASSERT_NE(project, nullptr);
+    EXPECT_EQ(project->type, GAST::GQLProjectClause::Type::Select);
+    EXPECT_TRUE(project->distinct);
+    ASSERT_EQ(project->items.size(), 1);
+
+    const auto * item = getExpr(project->items[0]);
+    ASSERT_NE(item, nullptr);
+    EXPECT_EQ(item->text, "a");
+    EXPECT_EQ(item->tryGetAlias(), "x");
+
+    const auto * source = getExpr(project->source);
+    ASSERT_NE(source, nullptr);
+    EXPECT_EQ(source->kind, GAST::GQLExpr::Kind::RawText);
+
+    const auto * where = project->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+    const auto * group_by = getExpr(project->group_by);
+    ASSERT_NE(group_by, nullptr);
+    EXPECT_EQ(group_by->text, "GROUP BY a");
+
+    const auto * order_by = project->order_by->as<GAST::GQLOrderByClause>();
+    ASSERT_NE(order_by, nullptr);
+    const auto * offset = getExpr(project->offset);
+    const auto * limit = getExpr(project->limit);
+    ASSERT_NE(offset, nullptr);
+    ASSERT_NE(limit, nullptr);
+    EXPECT_EQ(offset->text, "1");
+    EXPECT_EQ(limit->text, "2");
+}
+
 TEST(GQLParser, RightEdgeWithRangeQuantifier)
 {
     auto ast = parseGraphOrThrow("MATCH (a)-[e:KNOWS]->{2,5}(b) RETURN e");

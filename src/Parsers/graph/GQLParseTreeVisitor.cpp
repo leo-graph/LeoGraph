@@ -102,6 +102,24 @@ void appendClauseList(PtrList & clauses, PtrList && extra_clauses)
     appendClause(clauses, std::move(clause));
 }
 
+void appendQueryResult(PtrList & clauses, Ptr query)
+{
+  if (!query)
+    return;
+
+  if (auto * clauses_query = query->as<GQLClausesQuery>())
+  {
+    for (auto & clause : clauses_query->clauses)
+      appendClause(clauses, std::move(clause));
+
+    clauses_query->children.clear();
+    clauses_query->clauses.clear();
+    return;
+  }
+
+  appendClause(clauses, std::move(query));
+}
+
 Ptr makeOrderByAndPageClause(const ResultTail & tail)
 {
   String text;
@@ -216,6 +234,89 @@ std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQue
   return castAny<Ptr>(visit(statement->compositeQueryStatement()));
 }
 
+std::any GQLParseTreeVisitor::visitFocusedNestedQuerySpecification(GQLParser::FocusedNestedQuerySpecificationContext *context)
+{
+  PtrList clauses;
+  appendClause(clauses, makeUseGraphClause(context->useGraphClause()));
+  appendQueryResult(clauses, castAny<Ptr>(visit(context->nestedQuerySpecification())));
+  return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
+}
+
+std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementContext *context)
+{
+  auto clause = make_intrusive<GQLProjectClause>(GQLProjectClause::Type::Select);
+
+  if (context->setQuantifier() && context->setQuantifier()->DISTINCT())
+    clause->distinct = true;
+
+  if (context->ASTERISK())
+  {
+    clause->return_all = true;
+  }
+  else if (auto * items_context = context->selectItemList())
+  {
+    for (auto * item_context : items_context->selectItem())
+    {
+      auto expression = castAny<Ptr>(visit(item_context->aggregatingValueExpression()));
+
+      if (item_context->selectItemAlias())
+      {
+        if (auto * with_alias = dynamic_cast<ASTWithAlias *>(expression.get()))
+          with_alias->setAlias(getText(item_context->selectItemAlias()->identifier()));
+        else
+          throwUnsupported("select item alias on non-aliasable expression", item_context);
+      }
+
+      clause->items.push_back(expression);
+      appendClause(clause->children, expression);
+    }
+  }
+
+  if (context->selectStatementBody())
+  {
+    clause->source = makeRawTextClause(getText(context->selectStatementBody()));
+    appendClause(clause->children, clause->source);
+  }
+
+  if (context->whereClause())
+  {
+    clause->where = castAny<Ptr>(visit(context->whereClause()));
+    appendClause(clause->children, clause->where);
+  }
+
+  if (context->groupByClause())
+  {
+    clause->group_by = castAny<Ptr>(visit(context->groupByClause()));
+    appendClause(clause->children, clause->group_by);
+  }
+
+  if (context->havingClause())
+  {
+    clause->having = makeRawTextClause(getText(context->havingClause()));
+    appendClause(clause->children, clause->having);
+  }
+
+  if (context->orderByClause())
+  {
+    clause->order_by = castAny<Ptr>(visit(context->orderByClause()));
+    appendClause(clause->children, clause->order_by);
+  }
+
+  if (context->offsetClause())
+  {
+    clause->offset = castAny<Ptr>(visit(context->offsetClause()));
+    appendClause(clause->children, clause->offset);
+  }
+
+  if (context->limitClause())
+  {
+    clause->limit = castAny<Ptr>(visit(context->limitClause()));
+    appendClause(clause->children, clause->limit);
+  }
+
+  return Ptr(clause);
+}
+
 std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQueryStatementContext *context) {
   if (context->ambientLinearQueryStatement()) {
     return castAny<Ptr>(visit(context->ambientLinearQueryStatement()));
@@ -226,8 +327,11 @@ std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQuerySt
   if (!focused)
     throwUnsupported("focused linear query statement", context);
 
-  if (focused->selectStatement() || focused->focusedNestedQuerySpecification())
-    return makeRawTextExpr(focused);
+  if (focused->selectStatement())
+    return castAny<Ptr>(visit(focused->selectStatement()));
+
+  if (focused->focusedNestedQuerySpecification())
+    return castAny<Ptr>(visit(focused->focusedNestedQuerySpecification()));
 
   PtrList clauses;
 
