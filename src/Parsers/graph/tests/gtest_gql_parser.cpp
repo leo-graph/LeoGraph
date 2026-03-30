@@ -148,6 +148,24 @@ TEST(GQLParser, OptionalMatchIsAcceptedByTopLevelParser)
     ASSERT_EQ(project->items.size(), 1);
 }
 
+TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause)
+{
+    auto ast = parseGraphOrThrow("USE foo MATCH (a) RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 3);
+
+    const auto * use_clause = getExpr(clauses->clauses[0]);
+    ASSERT_NE(use_clause, nullptr);
+    EXPECT_EQ(use_clause->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(use_clause->text, "USE foo");
+
+    const auto * match = getMatchClause(*clauses, 1);
+    const auto * project = getProjectClause(*clauses, 2);
+    ASSERT_NE(match, nullptr);
+    ASSERT_NE(project, nullptr);
+}
+
 TEST(GQLParser, RightEdgeWithRangeQuantifier)
 {
     auto ast = parseGraphOrThrow("MATCH (a)-[e:KNOWS]->{2,5}(b) RETURN e");
@@ -266,6 +284,102 @@ TEST(GQLParser, PropertyAccessExpression)
     ASSERT_NE(literal, nullptr);
     EXPECT_EQ(literal->kind, GAST::GQLExpr::Kind::Literal);
     EXPECT_EQ(literal->text, "'Bob'");
+}
+
+TEST(GQLParser, TruthValuePredicateKeepsStructure)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) WHERE a IS NOT TRUE RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
+
+    const auto * where = match->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+
+    const auto * predicate = getExpr(where->expression);
+    ASSERT_NE(predicate, nullptr);
+    EXPECT_EQ(predicate->kind, GAST::GQLExpr::Kind::BinaryOp);
+    EXPECT_EQ(predicate->text, "IS NOT");
+
+    const auto * left = getExpr(predicate->children[0]);
+    const auto * right = getExpr(predicate->children[1]);
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    EXPECT_EQ(left->text, "a");
+    EXPECT_EQ(right->kind, GAST::GQLExpr::Kind::Literal);
+    EXPECT_EQ(right->text, "TRUE");
+}
+
+TEST(GQLParser, NullPredicateKeepsStructure)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name IS NOT NULL RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
+
+    const auto * where = match->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+
+    const auto * predicate = getExpr(where->expression);
+    ASSERT_NE(predicate, nullptr);
+    EXPECT_EQ(predicate->text, "IS NOT");
+
+    const auto * property = getExpr(predicate->children[0]);
+    const auto * null_literal = getExpr(predicate->children[1]);
+    ASSERT_NE(property, nullptr);
+    ASSERT_NE(null_literal, nullptr);
+    EXPECT_EQ(property->kind, GAST::GQLExpr::Kind::Property);
+    EXPECT_EQ(property->text, "name");
+    EXPECT_EQ(null_literal->text, "NULL");
+}
+
+TEST(GQLParser, PropertyExistsPredicateBecomesFunctionCall)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) WHERE PROPERTY_EXISTS(a, name) RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
+
+    const auto * where = match->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+
+    const auto * function = getExpr(where->expression);
+    ASSERT_NE(function, nullptr);
+    EXPECT_EQ(function->kind, GAST::GQLExpr::Kind::FunctionCall);
+    EXPECT_EQ(function->text, "PROPERTY_EXISTS");
+    ASSERT_EQ(function->children.size(), 2);
+
+    const auto * element = getExpr(function->children[0]);
+    const auto * property = getExpr(function->children[1]);
+    ASSERT_NE(element, nullptr);
+    ASSERT_NE(property, nullptr);
+    EXPECT_EQ(element->text, "a");
+    EXPECT_EQ(property->text, "name");
+}
+
+TEST(GQLParser, AllDifferentPredicateBecomesFunctionCall)
+{
+    auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) WHERE ALL_DIFFERENT(a, b, e) RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
+
+    const auto * where = match->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+
+    const auto * function = getExpr(where->expression);
+    ASSERT_NE(function, nullptr);
+    EXPECT_EQ(function->kind, GAST::GQLExpr::Kind::FunctionCall);
+    EXPECT_EQ(function->text, "ALL_DIFFERENT");
+    ASSERT_EQ(function->children.size(), 3);
 }
 
 TEST(GQLParser, ReturnClauseKeepsAliasAndTail)

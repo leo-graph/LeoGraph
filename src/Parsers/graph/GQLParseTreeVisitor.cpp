@@ -85,6 +85,23 @@ Ptr makeRawTextClause(const String & text)
   return GQLExpr::rawText(text);
 }
 
+Ptr makeUseGraphClause(GQLParser::UseGraphClauseContext * context)
+{
+  return makeRawTextClause("USE " + getText(context->graphExpression()));
+}
+
+void appendClause(PtrList & clauses, Ptr clause)
+{
+  if (clause)
+    clauses.push_back(std::move(clause));
+}
+
+void appendClauseList(PtrList & clauses, PtrList && extra_clauses)
+{
+  for (auto & clause : extra_clauses)
+    appendClause(clauses, std::move(clause));
+}
+
 Ptr makeOrderByAndPageClause(const ResultTail & tail)
 {
   String text;
@@ -204,7 +221,38 @@ std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQuerySt
     return castAny<Ptr>(visit(context->ambientLinearQueryStatement()));
   }
 
-  throwUnsupported("focused linear query statement", context);
+  auto * focused = context->focusedLinearQueryStatement();
+
+  if (!focused)
+    throwUnsupported("focused linear query statement", context);
+
+  if (focused->selectStatement() || focused->focusedNestedQuerySpecification())
+    return makeRawTextExpr(focused);
+
+  PtrList clauses;
+
+  for (auto * part : focused->focusedLinearQueryStatementPart())
+  {
+    appendClause(clauses, makeUseGraphClause(part->useGraphClause()));
+    appendClauseList(clauses, castAny<PtrList>(visit(part->simpleLinearQueryStatement())));
+  }
+
+  if (auto * part = focused->focusedLinearQueryAndPrimitiveResultStatementPart())
+  {
+    appendClause(clauses, makeUseGraphClause(part->useGraphClause()));
+    appendClauseList(clauses, castAny<PtrList>(visit(part->simpleLinearQueryStatement())));
+    appendClause(clauses, castAny<Ptr>(visit(part->primitiveResultStatement())));
+  }
+  else if (auto * part = focused->focusedPrimitiveResultStatement())
+  {
+    appendClause(clauses, makeUseGraphClause(part->useGraphClause()));
+    appendClause(clauses, castAny<Ptr>(visit(part->primitiveResultStatement())));
+  }
+
+  if (!clauses.empty())
+    return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
+
+  return makeRawTextExpr(focused);
 }
 
 std::any GQLParseTreeVisitor::visitAmbientLinearQueryStatement(GQLParser::AmbientLinearQueryStatementContext *context) {
@@ -775,7 +823,11 @@ std::any GQLParseTreeVisitor::visitSignedExprAlt(GQLParser::SignedExprAltContext
   return GQLExpr::unaryOp("-", castAny<Ptr>(visit(context->valueExpression())));
 }
 
-std::any GQLParseTreeVisitor::visitIsNotExprAlt(GQLParser::IsNotExprAltContext *context) { return makeRawTextExpr(context); }
+std::any GQLParseTreeVisitor::visitIsNotExprAlt(GQLParser::IsNotExprAltContext *context)
+{
+  const String op = context->NOT() ? "IS NOT" : "IS";
+  return GQLExpr::binaryOp(op, castAny<Ptr>(visit(context->valueExpression())), GQLExpr::literal(getText(context->truthValue())));
+}
 
 std::any GQLParseTreeVisitor::visitNotExprAlt(GQLParser::NotExprAltContext *context) {
   return GQLExpr::unaryOp("NOT ", castAny<Ptr>(visit(context->valueExpression())));
@@ -808,7 +860,106 @@ std::any GQLParseTreeVisitor::visitAddSubtractExprAlt(GQLParser::AddSubtractExpr
                            castAny<Ptr>(visit(context->valueExpression(1))));
 }
 
-std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltContext *context) { return makeRawTextExpr(context); }
+std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltContext *context)
+{
+  auto * predicate = context->predicate();
+
+  if (auto * null_predicate = predicate->nullPredicate())
+  {
+    const String op = null_predicate->nullPredicatePart2()->NOT() ? "IS NOT" : "IS";
+    return GQLExpr::binaryOp(op, castAny<Ptr>(visit(null_predicate->valueExpressionPrimary())), GQLExpr::literal("NULL"));
+  }
+
+  if (auto * value_type_predicate = predicate->valueTypePredicate())
+  {
+    const String op = value_type_predicate->valueTypePredicatePart2()->NOT() ? "IS NOT" : "IS";
+    return GQLExpr::binaryOp(
+        op,
+        castAny<Ptr>(visit(value_type_predicate->valueExpressionPrimary())),
+        GQLExpr::rawText(getText(value_type_predicate->valueTypePredicatePart2()->valueType())));
+  }
+
+  if (auto * directed_predicate = predicate->directedPredicate())
+  {
+    const String op = directed_predicate->directedPredicatePart2()->NOT() ? "IS NOT" : "IS";
+    return GQLExpr::binaryOp(op, GQLExpr::identifier(getText(directed_predicate->elementVariableReference()->bindingVariable())),
+                             GQLExpr::literal("DIRECTED"));
+  }
+
+  if (auto * labeled_predicate = predicate->labeledPredicate())
+  {
+    auto * label_part = labeled_predicate->labeledPredicatePart2()->isLabeledOrColon();
+    String op = ":";
+
+    if (label_part->IS())
+      op = label_part->NOT() ? "IS NOT LABELED" : "IS LABELED";
+
+    return GQLExpr::binaryOp(op, GQLExpr::identifier(getText(labeled_predicate->elementVariableReference()->bindingVariable())),
+                             castAny<Ptr>(visit(labeled_predicate->labeledPredicatePart2()->labelExpression())));
+  }
+
+  if (auto * source_destination_predicate = predicate->sourceDestinationPredicate())
+  {
+    auto left = GQLExpr::identifier(getText(source_destination_predicate->nodeReference()->elementVariableReference()->bindingVariable()));
+
+    if (auto * source = source_destination_predicate->sourcePredicatePart2())
+    {
+      const String op = source->NOT() ? "IS NOT SOURCE OF" : "IS SOURCE OF";
+      auto right = GQLExpr::identifier(getText(source->edgeReference()->elementVariableReference()->bindingVariable()));
+      return GQLExpr::binaryOp(op, left, right);
+    }
+
+    auto * destination = source_destination_predicate->destinationPredicatePart2();
+    const String op = destination->NOT() ? "IS NOT DESTINATION OF" : "IS DESTINATION OF";
+    auto right = GQLExpr::identifier(getText(destination->edgeReference()->elementVariableReference()->bindingVariable()));
+    return GQLExpr::binaryOp(op, left, right);
+  }
+
+  if (auto * all_different_predicate = predicate->all_differentPredicate())
+  {
+    PtrList arguments;
+
+    for (auto * reference : all_different_predicate->elementVariableReference())
+      arguments.push_back(GQLExpr::identifier(getText(reference->bindingVariable())));
+
+    return GQLExpr::functionCall("ALL_DIFFERENT", std::move(arguments));
+  }
+
+  if (auto * same_predicate = predicate->samePredicate())
+  {
+    PtrList arguments;
+
+    for (auto * reference : same_predicate->elementVariableReference())
+      arguments.push_back(GQLExpr::identifier(getText(reference->bindingVariable())));
+
+    return GQLExpr::functionCall("SAME", std::move(arguments));
+  }
+
+  if (auto * property_exists_predicate = predicate->property_existsPredicate())
+  {
+    PtrList arguments;
+    arguments.push_back(GQLExpr::identifier(getText(property_exists_predicate->elementVariableReference()->bindingVariable())));
+    arguments.push_back(GQLExpr::literal(getText(property_exists_predicate->propertyName()->identifier())));
+    return GQLExpr::functionCall("PROPERTY_EXISTS", std::move(arguments));
+  }
+
+  if (auto * exists_predicate = predicate->existsPredicate())
+  {
+    String body;
+
+    if (exists_predicate->graphPattern())
+      body = "{" + getText(exists_predicate->graphPattern()) + "}";
+    else if (exists_predicate->matchStatementBlock())
+      body = (exists_predicate->LEFT_PAREN() ? "(" : "{") + getText(exists_predicate->matchStatementBlock())
+          + (exists_predicate->RIGHT_PAREN() ? ")" : "}");
+    else if (exists_predicate->nestedQuerySpecification())
+      body = getText(exists_predicate->nestedQuerySpecification());
+
+    return GQLExpr::unaryOp("EXISTS ", GQLExpr::rawText(body));
+  }
+
+  return makeRawTextExpr(context);
+}
 
 std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpressionPrimaryContext *context) {
   if (context->bindingVariableReference()) {
