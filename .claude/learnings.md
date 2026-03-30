@@ -14,3 +14,4 @@
 - If `cmake` generation fails because `ninja -t recompact` segfaults before compilation starts, check stale `build/.ninja_deps`; moving it aside can recover both `cmake` regeneration and default `ninja`.
 - In `graph` parser code, do not add a local fallback definition of `__lsan_ignore_object`; `base/base/phdr_cache.cpp` already provides one on Linux builds, so use a declaration plus guarded call to avoid duplicate-symbol link failures.
 - For `graph` parser exceptions, use an existing error code like `SYNTAX_ERROR`; `ErrorCodes::CANNOT_PARSE_QUERY` is not defined and only shows up as a linker exception late in full builds.
+- For the long-lived `graph` parser refactor, keep the live roadmap in `.claude/gql_refactor_status.md` so future sessions can recover the agreed scope and next steps quickly.

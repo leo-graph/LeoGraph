@@ -2,493 +2,425 @@
 
 #if USE_GQL_GRAMMAR
 
-#  include <gtest/gtest.h>
-
-#  include <IO/WriteBufferFromString.h>
-#  include <Parsers/ASTFunction.h>
-#  include <Parsers/ASTIdentifier.h>
-#  include <Parsers/ASTLiteral.h>
-#  include <Parsers/ASTOrderByElement.h>
-#  include <Parsers/graph/ASTGraphQuery.h>
-#  include <Parsers/graph/GQLParsingUtil.h>
+#    include <Common/Exception.h>
+#    include <IO/WriteBufferFromString.h>
+#    include <Parsers/ParserQuery.h>
+#    include <Parsers/graph/GraphAST.h>
+#    include <Parsers/graph/ParserGraphQuery.h>
+#    include <Parsers/parseQuery.h>
+#    include <gtest/gtest.h>
 
 using namespace DB;
 
-// ==================== Basic Node Pattern ====================
+namespace GAST = DB::OPENGQL::AST;
 
-TEST(GQLParser, SimpleNodeScan) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (n:Person)");
-  ASSERT_TRUE(result.ast) << result.error_message;
+namespace
+{
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  ASSERT_NE(query->match_pattern, nullptr);
-  ASSERT_EQ(query->match_pattern->children.size(), 1);
-
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->children.size(), 1);
-
-  auto* node = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node, nullptr);
-  EXPECT_EQ(node->variable, "n");
-  EXPECT_EQ(node->label, "Person");
+ASTPtr parseGraphOrThrow(std::string_view query)
+{
+    return DB::parseQuery(query);
 }
 
-TEST(GQLParser, NodeWithoutLabel) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (x)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  ASSERT_NE(path, nullptr);
-
-  auto* node = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node, nullptr);
-  EXPECT_EQ(node->variable, "x");
-  EXPECT_TRUE(node->label.empty());
+ASTPtr parseTopLevelOrThrow(const String & query)
+{
+    ParserQuery parser(query.data() + query.size());
+    return DB::parseQuery(parser, query, 0, 0, 0);
 }
 
-// ==================== Edge Pattern ====================
-
-TEST(GQLParser, RightEdge) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person)-[e:KNOWS]->(b:Person)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->children.size(), 3);
-
-  auto* node_a = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node_a, nullptr);
-  EXPECT_EQ(node_a->variable, "a");
-  EXPECT_EQ(node_a->label, "Person");
-
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  EXPECT_EQ(edge->variable, "e");
-  EXPECT_EQ(edge->label, "KNOWS");
-  EXPECT_EQ(edge->direction, GraphEdgeDirection::RIGHT);
-
-  auto* node_b = path->children[2]->as<ASTNodePattern>();
-  ASSERT_NE(node_b, nullptr);
-  EXPECT_EQ(node_b->variable, "b");
-  EXPECT_EQ(node_b->label, "Person");
+String formatAST(const IAST & ast)
+{
+    WriteBufferFromOwnString out;
+    IAST::FormatSettings settings(false);
+    IAST::FormatState state;
+    ast.format(out, settings, state, {});
+    return out.str();
 }
 
-TEST(GQLParser, LeftEdge) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person)<-[e:FOLLOWS]-(b:Person)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  EXPECT_EQ(edge->direction, GraphEdgeDirection::LEFT);
-  EXPECT_EQ(edge->label, "FOLLOWS");
+const GAST::GQLClausesQuery * getClausesQuery(const ASTPtr & ast)
+{
+    const auto * clauses = ast->as<GAST::GQLClausesQuery>();
+    EXPECT_NE(clauses, nullptr);
+    return clauses;
 }
 
-TEST(GQLParser, MultiHopPath) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person)-[e1:FOLLOWS]->(b:Person)-[e2:WORKS_AT]->(c:Company)");
-  ASSERT_TRUE(result.ast) << result.error_message;
+const GAST::GQLMatchClause * getMatchClause(const GAST::GQLClausesQuery & clauses, size_t index = 0)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->children.size(), 5);
-
-  EXPECT_NE(path->children[0]->as<ASTNodePattern>(), nullptr);
-  EXPECT_NE(path->children[1]->as<ASTEdgePattern>(), nullptr);
-  EXPECT_NE(path->children[2]->as<ASTNodePattern>(), nullptr);
-  EXPECT_NE(path->children[3]->as<ASTEdgePattern>(), nullptr);
-  EXPECT_NE(path->children[4]->as<ASTNodePattern>(), nullptr);
-
-  EXPECT_EQ(path->children[4]->as<ASTNodePattern>()->label, "Company");
+    const auto * match = clauses.clauses[index]->as<GAST::GQLMatchClause>();
+    EXPECT_NE(match, nullptr);
+    return match;
 }
 
-// ==================== Label Expression ====================
+const GAST::GQLProjectClause * getProjectClause(const GAST::GQLClausesQuery & clauses, size_t index = 1)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
 
-TEST(GQLParser, LabelConjunction) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (n:Person&Employee)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* node = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node, nullptr);
-  ASSERT_NE(node->label_expression, nullptr);
-  EXPECT_EQ(node->label_expression->op, GraphLabelOp::CONJUNCTION);
-  ASSERT_EQ(node->label_expression->children.size(), 2);
-
-  auto* left = node->label_expression->children[0]->as<ASTLabelExpression>();
-  auto* right = node->label_expression->children[1]->as<ASTLabelExpression>();
-  ASSERT_NE(left, nullptr);
-  ASSERT_NE(right, nullptr);
-  EXPECT_EQ(left->label_name, "Person");
-  EXPECT_EQ(right->label_name, "Employee");
+    const auto * project = clauses.clauses[index]->as<GAST::GQLProjectClause>();
+    EXPECT_NE(project, nullptr);
+    return project;
 }
 
-TEST(GQLParser, LabelDisjunction) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (n:Person|Company)");
-  ASSERT_TRUE(result.ast) << result.error_message;
+const GAST::GQLPathPattern * getOnlyPathPattern(const GAST::GQLMatchClause & match)
+{
+    if (match.path_patterns.size() != 1)
+        return nullptr;
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* node = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node, nullptr);
-  ASSERT_NE(node->label_expression, nullptr);
-  EXPECT_EQ(node->label_expression->op, GraphLabelOp::DISJUNCTION);
+    const auto * path = match.path_patterns.front()->as<GAST::GQLPathPattern>();
+    EXPECT_NE(path, nullptr);
+    return path;
 }
 
-TEST(GQLParser, LabelNegation) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (n:!Person)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* node = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node, nullptr);
-  ASSERT_NE(node->label_expression, nullptr);
-  EXPECT_EQ(node->label_expression->op, GraphLabelOp::NEGATION);
+const GAST::GQLExpr * getExpr(const ASTPtr & ast)
+{
+    const auto * expression = ast->as<GAST::GQLExpr>();
+    EXPECT_NE(expression, nullptr);
+    return expression;
 }
 
-TEST(GQLParser, LabelWildcard) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (n:%)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* node = path->children[0]->as<ASTNodePattern>();
-  ASSERT_NE(node, nullptr);
-  ASSERT_NE(node->label_expression, nullptr);
-  EXPECT_EQ(node->label_expression->op, GraphLabelOp::WILDCARD);
+const GAST::GQLLabelExpression * getLabelExpr(const ASTPtr & ast)
+{
+    const auto * expression = ast->as<GAST::GQLLabelExpression>();
+    EXPECT_NE(expression, nullptr);
+    return expression;
 }
 
-// ==================== Path Quantifiers ====================
-
-TEST(GQLParser, QuantifierStar) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a)-[e:KNOWS]->*(b)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  ASSERT_NE(edge->quantifier, nullptr);
-  EXPECT_EQ(edge->quantifier->min_hops, 0u);
-  EXPECT_EQ(edge->quantifier->max_hops, ASTPathQuantifier::UNLIMITED);
+const GAST::GQLQuantifier * getQuantifier(const ASTPtr & ast)
+{
+    const auto * quantifier = ast->as<GAST::GQLQuantifier>();
+    EXPECT_NE(quantifier, nullptr);
+    return quantifier;
 }
 
-TEST(GQLParser, QuantifierPlus) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a)-[e:KNOWS]->+(b)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  ASSERT_NE(edge->quantifier, nullptr);
-  EXPECT_EQ(edge->quantifier->min_hops, 1u);
-  EXPECT_EQ(edge->quantifier->max_hops, ASTPathQuantifier::UNLIMITED);
+void attachChildIfPresent(IAST & owner, const ASTPtr & child)
+{
+    if (child)
+        owner.children.push_back(child);
 }
 
-TEST(GQLParser, QuantifierQuestion) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a)-[e:KNOWS]->?(b)");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  ASSERT_NE(edge->quantifier, nullptr);
-  EXPECT_EQ(edge->quantifier->min_hops, 0u);
-  EXPECT_EQ(edge->quantifier->max_hops, 1u);
 }
 
-TEST(GQLParser, QuantifierFixed) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a)-[e:KNOWS]->{3}(b)");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, SimpleMatchClause)
+{
+    auto ast = parseGraphOrThrow("MATCH (n:Person) RETURN n");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  ASSERT_NE(edge->quantifier, nullptr);
-  EXPECT_EQ(edge->quantifier->min_hops, 3u);
-  EXPECT_EQ(edge->quantifier->max_hops, 3u);
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
+    EXPECT_FALSE(match->optional);
+
+    const auto * path = getOnlyPathPattern(*match);
+    ASSERT_NE(path, nullptr);
+    ASSERT_EQ(path->elements.size(), 1);
+
+    const auto * node = path->elements[0]->as<GAST::GQLNodePattern>();
+    ASSERT_NE(node, nullptr);
+
+    const auto * variable = getExpr(node->variable);
+    ASSERT_NE(variable, nullptr);
+    EXPECT_EQ(variable->kind, GAST::GQLExpr::Kind::Identifier);
+    EXPECT_EQ(variable->text, "n");
+
+    const auto * label = getLabelExpr(node->label_expression);
+    ASSERT_NE(label, nullptr);
+    EXPECT_EQ(label->kind, GAST::GQLLabelExpression::Kind::Name);
+    EXPECT_EQ(label->text, "Person");
 }
 
-TEST(GQLParser, QuantifierRange) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a)-[e:KNOWS]->{2,5}(b)");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, OptionalMatchIsAcceptedByTopLevelParser)
+{
+    auto ast = parseTopLevelOrThrow("OPTIONAL MATCH (a) RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* path = query->match_pattern->children[0]->as<ASTPathPattern>();
-  auto* edge = path->children[1]->as<ASTEdgePattern>();
-  ASSERT_NE(edge, nullptr);
-  ASSERT_NE(edge->quantifier, nullptr);
-  EXPECT_EQ(edge->quantifier->min_hops, 2u);
-  EXPECT_EQ(edge->quantifier->max_hops, 5u);
+    const auto * match = getMatchClause(*clauses, 0);
+    ASSERT_NE(match, nullptr);
+    EXPECT_TRUE(match->optional);
+
+    const auto * project = getProjectClause(*clauses, 1);
+    ASSERT_NE(project, nullptr);
+    ASSERT_EQ(project->items.size(), 1);
 }
 
-// ==================== WHERE Clause ====================
+TEST(GQLParser, RightEdgeWithRangeQuantifier)
+{
+    auto ast = parseGraphOrThrow("MATCH (a)-[e:KNOWS]->{2,5}(b) RETURN e");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
 
-TEST(GQLParser, WhereSimpleComparison) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person) WHERE a.age > 30");
-  ASSERT_TRUE(result.ast) << result.error_message;
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  ASSERT_NE(query->where_condition, nullptr);
+    const auto * path = getOnlyPathPattern(*match);
+    ASSERT_NE(path, nullptr);
+    ASSERT_EQ(path->elements.size(), 3);
 
-  auto* func = query->where_condition->as<ASTFunction>();
-  ASSERT_NE(func, nullptr);
-  EXPECT_EQ(func->name, "greater");
+    const auto * edge = path->elements[1]->as<GAST::GQLEdgePattern>();
+    ASSERT_NE(edge, nullptr);
+    EXPECT_EQ(edge->direction, GAST::EdgeDirection::Right);
+
+    const auto * variable = getExpr(edge->variable);
+    ASSERT_NE(variable, nullptr);
+    EXPECT_EQ(variable->text, "e");
+
+    const auto * label = getLabelExpr(edge->label_expression);
+    ASSERT_NE(label, nullptr);
+    EXPECT_EQ(label->text, "KNOWS");
+
+    const auto * quantifier = getQuantifier(edge->quantifier);
+    ASSERT_NE(quantifier, nullptr);
+    EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Range);
+    EXPECT_EQ(quantifier->lower, "2");
+    EXPECT_EQ(quantifier->upper, "5");
 }
 
-TEST(GQLParser, WhereEquality) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person) WHERE a.name = 'Alice'");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, LabelConjunction)
+{
+    auto ast = parseGraphOrThrow("MATCH (n:Person&Employee) RETURN n");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query->where_condition, nullptr);
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
 
-  auto* func = query->where_condition->as<ASTFunction>();
-  ASSERT_NE(func, nullptr);
-  EXPECT_EQ(func->name, "equals");
+    const auto * path = getOnlyPathPattern(*match);
+    ASSERT_NE(path, nullptr);
+
+    const auto * node = path->elements[0]->as<GAST::GQLNodePattern>();
+    ASSERT_NE(node, nullptr);
+
+    const auto * conjunction = getLabelExpr(node->label_expression);
+    ASSERT_NE(conjunction, nullptr);
+    EXPECT_EQ(conjunction->kind, GAST::GQLLabelExpression::Kind::Conjunction);
+    ASSERT_EQ(conjunction->children.size(), 2);
+
+    const auto * left = getLabelExpr(conjunction->children[0]);
+    const auto * right = getLabelExpr(conjunction->children[1]);
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    EXPECT_EQ(left->text, "Person");
+    EXPECT_EQ(right->text, "Employee");
 }
 
-TEST(GQLParser, WhereBooleanAnd) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person) WHERE a.age > 20 AND a.age < 40");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, WhereExpressionKeepsStructure)
+{
+    auto ast = parseGraphOrThrow("MATCH (a:Person) WHERE a.age > 20 AND a.age < 40 RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query->where_condition, nullptr);
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
 
-  auto* func = query->where_condition->as<ASTFunction>();
-  ASSERT_NE(func, nullptr);
-  EXPECT_EQ(func->name, "and");
-  ASSERT_EQ(func->arguments->children.size(), 2);
+    const auto * where = match->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
 
-  auto* left = func->arguments->children[0]->as<ASTFunction>();
-  auto* right = func->arguments->children[1]->as<ASTFunction>();
-  ASSERT_NE(left, nullptr);
-  ASSERT_NE(right, nullptr);
-  EXPECT_EQ(left->name, "greater");
-  EXPECT_EQ(right->name, "less");
+    const auto * root = getExpr(where->expression);
+    ASSERT_NE(root, nullptr);
+    EXPECT_EQ(root->kind, GAST::GQLExpr::Kind::BinaryOp);
+    EXPECT_EQ(root->text, "AND");
+    ASSERT_EQ(root->children.size(), 2);
+
+    const auto * left = getExpr(root->children[0]);
+    const auto * right = getExpr(root->children[1]);
+    ASSERT_NE(left, nullptr);
+    ASSERT_NE(right, nullptr);
+    EXPECT_EQ(left->text, ">");
+    EXPECT_EQ(right->text, "<");
 }
 
-TEST(GQLParser, WherePropertyAccess) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH (a:Person) WHERE a.name = 'Bob'");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, PropertyAccessExpression)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name = 'Bob' RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  auto* eq = query->where_condition->as<ASTFunction>();
-  ASSERT_NE(eq, nullptr);
-  ASSERT_EQ(eq->arguments->children.size(), 2);
+    const auto * match = getMatchClause(*clauses);
+    ASSERT_NE(match, nullptr);
 
-  auto* prop = eq->arguments->children[0]->as<ASTFunction>();
-  ASSERT_NE(prop, nullptr);
-  EXPECT_EQ(prop->name, "tupleElement");
-  ASSERT_EQ(prop->arguments->children.size(), 2);
+    const auto * where = match->where->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
 
-  auto* ident = prop->arguments->children[0]->as<ASTIdentifier>();
-  ASSERT_NE(ident, nullptr);
-  EXPECT_EQ(ident->name(), "a");
+    const auto * equals = getExpr(where->expression);
+    ASSERT_NE(equals, nullptr);
+    EXPECT_EQ(equals->text, "=");
+    ASSERT_EQ(equals->children.size(), 2);
 
-  auto* field_name = prop->arguments->children[1]->as<ASTLiteral>();
-  ASSERT_NE(field_name, nullptr);
-  EXPECT_EQ(field_name->value.safeGet<String>(), "name");
+    const auto * property = getExpr(equals->children[0]);
+    ASSERT_NE(property, nullptr);
+    EXPECT_EQ(property->kind, GAST::GQLExpr::Kind::Property);
+    EXPECT_EQ(property->text, "name");
+    ASSERT_EQ(property->children.size(), 1);
+
+    const auto * identifier = getExpr(property->children[0]);
+    ASSERT_NE(identifier, nullptr);
+    EXPECT_EQ(identifier->kind, GAST::GQLExpr::Kind::Identifier);
+    EXPECT_EQ(identifier->text, "a");
+
+    const auto * literal = getExpr(equals->children[1]);
+    ASSERT_NE(literal, nullptr);
+    EXPECT_EQ(literal->kind, GAST::GQLExpr::Kind::Literal);
+    EXPECT_EQ(literal->text, "'Bob'");
 }
 
-// ==================== RETURN Clause ====================
+TEST(GQLParser, ReturnClauseKeepsAliasAndTail)
+{
+    auto ast = parseGraphOrThrow("MATCH (a:Person) RETURN a.name AS name, a.age ORDER BY a.age DESC OFFSET 2 LIMIT 5");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
 
-TEST(GQLParser, ReturnStatement) {
-  auto result = GQLParsingUtil::parseGQLStatement("MATCH (a:Person) RETURN a.name AS name, a.age");
-  ASSERT_TRUE(result.ast) << result.error_message;
+    const auto * project = getProjectClause(*clauses);
+    ASSERT_NE(project, nullptr);
+    EXPECT_FALSE(project->distinct);
+    ASSERT_EQ(project->items.size(), 2);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  ASSERT_NE(query->return_clause, nullptr);
-  EXPECT_FALSE(query->return_clause->distinct);
+    const auto * aliased = getExpr(project->items[0]);
+    ASSERT_NE(aliased, nullptr);
+    EXPECT_EQ(aliased->tryGetAlias(), "name");
 
-  size_t return_items = 0;
-  for (const auto& child : query->return_clause->children) {
-    if (child->as<ASTGraphReturnItem>()) ++return_items;
-  }
-  EXPECT_EQ(return_items, 2);
+    const auto * order_by = project->order_by->as<GAST::GQLOrderByClause>();
+    ASSERT_NE(order_by, nullptr);
+    ASSERT_EQ(order_by->items.size(), 1);
+
+    const auto * order_item = order_by->items[0]->as<GAST::GQLOrderByItem>();
+    ASSERT_NE(order_item, nullptr);
+    EXPECT_TRUE(order_item->descending);
+
+    const auto * offset = getExpr(project->offset);
+    const auto * limit = getExpr(project->limit);
+    ASSERT_NE(offset, nullptr);
+    ASSERT_NE(limit, nullptr);
+    EXPECT_EQ(offset->kind, GAST::GQLExpr::Kind::Literal);
+    EXPECT_EQ(limit->kind, GAST::GQLExpr::Kind::Literal);
+    EXPECT_EQ(offset->text, "2");
+    EXPECT_EQ(limit->text, "5");
 }
 
-TEST(GQLParser, ReturnDistinct) {
-  auto result = GQLParsingUtil::parseGQLStatement("MATCH (a:Person) RETURN DISTINCT a.city");
-  ASSERT_TRUE(result.ast) << result.error_message;
-
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  ASSERT_NE(query->return_clause, nullptr);
-  EXPECT_TRUE(query->return_clause->distinct);
+TEST(GQLParser, CompositeUnionQuery)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) RETURN a UNION MATCH (b) RETURN b");
+    const auto * set_query = ast->as<GAST::GQLSetQuery>();
+    ASSERT_NE(set_query, nullptr);
+    EXPECT_EQ(set_query->operation, GAST::SetOperation::Union);
+    EXPECT_NE(set_query->left.get(), nullptr);
+    EXPECT_NE(set_query->right.get(), nullptr);
 }
 
-TEST(GQLParser, StatementKeepsMatchWhere) {
-  auto result = GQLParsingUtil::parseGQLStatement("MATCH (a:Person) WHERE a.age > 30 RETURN a");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, NestedQuerySpecificationIsUnwrapped)
+{
+    auto ast = parseGraphOrThrow("{ MATCH (a) RETURN a }");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  ASSERT_NE(query->where_condition, nullptr);
-
-  auto* func = query->where_condition->as<ASTFunction>();
-  ASSERT_NE(func, nullptr);
-  EXPECT_EQ(func->name, "greater");
+    const auto * match = getMatchClause(*clauses);
+    const auto * project = getProjectClause(*clauses);
+    ASSERT_NE(match, nullptr);
+    ASSERT_NE(project, nullptr);
 }
 
-TEST(GQLParser, ReturnOrderByLimitOffset) {
-  auto result = GQLParsingUtil::parseGQLStatement("MATCH (a:Person) RETURN a.name ORDER BY a.age DESC NULLS FIRST OFFSET 2 LIMIT 5");
-  ASSERT_TRUE(result.ast) << result.error_message;
+TEST(GQLParser, StandaloneOrderByStatementFallsBackToRawTextClause)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) ORDER BY a DESC LIMIT 3 RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 3);
 
-  auto* query = result.ast->as<ASTGraphQuery>();
-  ASSERT_NE(query, nullptr);
-  ASSERT_NE(query->return_clause, nullptr);
-  ASSERT_NE(query->return_clause->order_by, nullptr);
-  ASSERT_NE(query->return_clause->offset, nullptr);
-  ASSERT_NE(query->return_clause->limit, nullptr);
-
-  auto* order_list = query->return_clause->order_by->as<ASTExpressionList>();
-  ASSERT_NE(order_list, nullptr);
-  ASSERT_EQ(order_list->children.size(), 1);
-
-  auto* order_elem = order_list->children[0]->as<ASTOrderByElement>();
-  ASSERT_NE(order_elem, nullptr);
-  EXPECT_EQ(order_elem->direction, -1);
-  EXPECT_TRUE(order_elem->nulls_direction_was_explicitly_specified);
-  EXPECT_EQ(order_elem->nulls_direction, 1);
-
-  auto* offset = query->return_clause->offset->as<ASTLiteral>();
-  auto* limit = query->return_clause->limit->as<ASTLiteral>();
-  ASSERT_NE(offset, nullptr);
-  ASSERT_NE(limit, nullptr);
-  EXPECT_EQ(offset->value.safeGet<UInt64>(), 2u);
-  EXPECT_EQ(limit->value.safeGet<UInt64>(), 5u);
+    const auto * clause = getExpr(clauses->clauses[1]);
+    ASSERT_NE(clause, nullptr);
+    EXPECT_EQ(clause->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(clause->text, "ORDER BY a DESC LIMIT 3");
 }
 
-// ==================== AST Format Roundtrip ====================
+TEST(GQLParser, FinishStatementFallsBackToRawTextClause)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) FINISH");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
 
-TEST(GQLParser, FormatNodePattern) {
-  auto node = make_intrusive<ASTNodePattern>();
-  node->variable = "n";
-  node->label = "Person";
-
-  WriteBufferFromOwnString buf;
-  IAST::FormatSettings settings(false);
-  IAST::FormatState state;
-  IAST::FormatStateStacked frame;
-  node->format(buf, settings, state, frame);
-
-  EXPECT_EQ(buf.str(), "(n:Person)");
+    const auto * finish = getExpr(clauses->clauses[1]);
+    ASSERT_NE(finish, nullptr);
+    EXPECT_EQ(finish->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(finish->text, "FINISH");
 }
 
-TEST(GQLParser, FormatEdgePattern) {
-  auto edge = make_intrusive<ASTEdgePattern>();
-  edge->variable = "e";
-  edge->label = "KNOWS";
-  edge->direction = GraphEdgeDirection::RIGHT;
+TEST(GQLParser, ReturnClauseKeepsGroupBy)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) RETURN a GROUP BY a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
 
-  WriteBufferFromOwnString buf;
-  IAST::FormatSettings settings(false);
-  IAST::FormatState state;
-  IAST::FormatStateStacked frame;
-  edge->format(buf, settings, state, frame);
+    const auto * project = getProjectClause(*clauses);
+    ASSERT_NE(project, nullptr);
 
-  EXPECT_EQ(buf.str(), "-[e:KNOWS]->");
+    const auto * group_by = getExpr(project->group_by);
+    ASSERT_NE(group_by, nullptr);
+    EXPECT_EQ(group_by->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(group_by->text, "GROUP BY a");
+    EXPECT_EQ(formatAST(*project), "RETURN a GROUP BY a");
 }
 
-TEST(GQLParser, FormatLeftEdge) {
-  auto edge = make_intrusive<ASTEdgePattern>();
-  edge->variable = "e";
-  edge->label = "FOLLOWS";
-  edge->direction = GraphEdgeDirection::LEFT;
+TEST(GQLParser, FormatNodePattern)
+{
+    auto node = make_intrusive<GAST::GQLNodePattern>();
+    node->variable = GAST::GQLExpr::identifier("n");
+    node->label_expression = GAST::GQLLabelExpression::name("Person");
+    attachChildIfPresent(*node, node->variable);
+    attachChildIfPresent(*node, node->label_expression);
 
-  WriteBufferFromOwnString buf;
-  IAST::FormatSettings settings(false);
-  IAST::FormatState state;
-  IAST::FormatStateStacked frame;
-  edge->format(buf, settings, state, frame);
-
-  EXPECT_EQ(buf.str(), "<-[e:FOLLOWS]-");
+    EXPECT_EQ(formatAST(*node), "(n:Person)");
 }
 
-TEST(GQLParser, FormatQuantifierStar) {
-  auto quant = make_intrusive<ASTPathQuantifier>();
-  quant->min_hops = 0;
-  quant->max_hops = ASTPathQuantifier::UNLIMITED;
+TEST(GQLParser, FormatEdgePatternWithQuantifier)
+{
+    auto edge = make_intrusive<GAST::GQLEdgePattern>(GAST::EdgeDirection::Right);
+    edge->variable = GAST::GQLExpr::identifier("e");
+    edge->label_expression = GAST::GQLLabelExpression::name("KNOWS");
+    edge->quantifier = GAST::Ptr(make_intrusive<GAST::GQLQuantifier>(GAST::GQLQuantifier::Kind::Plus));
+    attachChildIfPresent(*edge, edge->variable);
+    attachChildIfPresent(*edge, edge->label_expression);
+    attachChildIfPresent(*edge, edge->quantifier);
 
-  WriteBufferFromOwnString buf;
-  IAST::FormatSettings settings(false);
-  IAST::FormatState state;
-  IAST::FormatStateStacked frame;
-  quant->format(buf, settings, state, frame);
-
-  EXPECT_EQ(buf.str(), "*");
+    EXPECT_EQ(formatAST(*edge), "-[e:KNOWS]->+");
 }
 
-TEST(GQLParser, FormatQuantifierRange) {
-  auto quant = make_intrusive<ASTPathQuantifier>();
-  quant->min_hops = 2;
-  quant->max_hops = 5;
+TEST(GQLParser, CloneEdgeWithQuantifier)
+{
+    auto edge = make_intrusive<GAST::GQLEdgePattern>(GAST::EdgeDirection::Right);
+    edge->variable = GAST::GQLExpr::identifier("e");
+    edge->label_expression = GAST::GQLLabelExpression::name("KNOWS");
+    edge->quantifier = GAST::Ptr(make_intrusive<GAST::GQLQuantifier>(GAST::GQLQuantifier::Kind::Range, "1", "5"));
+    attachChildIfPresent(*edge, edge->variable);
+    attachChildIfPresent(*edge, edge->label_expression);
+    attachChildIfPresent(*edge, edge->quantifier);
 
-  WriteBufferFromOwnString buf;
-  IAST::FormatSettings settings(false);
-  IAST::FormatState state;
-  IAST::FormatStateStacked frame;
-  quant->format(buf, settings, state, frame);
-
-  EXPECT_EQ(buf.str(), "{2,5}");
+    auto cloned = edge->clone();
+    const auto * cloned_edge = cloned->as<GAST::GQLEdgePattern>();
+    ASSERT_NE(cloned_edge, nullptr);
+    EXPECT_EQ(cloned_edge->direction, GAST::EdgeDirection::Right);
+    EXPECT_NE(cloned_edge->variable.get(), edge->variable.get());
+    EXPECT_NE(cloned_edge->quantifier.get(), edge->quantifier.get());
+    EXPECT_EQ(formatAST(*cloned_edge), "-[e:KNOWS]->{1, 5}");
 }
 
-// ==================== Error Handling ====================
-
-TEST(GQLParser, InvalidSyntaxReturnsError) {
-  auto result = GQLParsingUtil::parseMatchQuery("MATCH INVALID SYNTAX !!!");
-  EXPECT_FALSE(result.ast);
-  EXPECT_FALSE(result.error_message.empty());
-}
-
-// ==================== Clone ====================
-
-TEST(GQLParser, CloneNodePattern) {
-  auto node = make_intrusive<ASTNodePattern>();
-  node->variable = "n";
-  node->label = "Person";
-
-  auto cloned = node->clone();
-  auto* cloned_node = cloned->as<ASTNodePattern>();
-  ASSERT_NE(cloned_node, nullptr);
-  EXPECT_EQ(cloned_node->variable, "n");
-  EXPECT_EQ(cloned_node->label, "Person");
-  EXPECT_NE(cloned_node, node.get());
-}
-
-TEST(GQLParser, CloneEdgeWithQuantifier) {
-  auto quant = make_intrusive<ASTPathQuantifier>();
-  quant->min_hops = 1;
-  quant->max_hops = 5;
-
-  auto edge = make_intrusive<ASTEdgePattern>();
-  edge->variable = "e";
-  edge->label = "KNOWS";
-  edge->direction = GraphEdgeDirection::RIGHT;
-  edge->setQuantifier(quant);
-
-  auto cloned = edge->clone();
-  auto* cloned_edge = cloned->as<ASTEdgePattern>();
-  ASSERT_NE(cloned_edge, nullptr);
-  EXPECT_EQ(cloned_edge->variable, "e");
-  ASSERT_NE(cloned_edge->quantifier, nullptr);
-  EXPECT_EQ(cloned_edge->quantifier->min_hops, 1u);
-  EXPECT_EQ(cloned_edge->quantifier->max_hops, 5u);
-  EXPECT_NE(cloned_edge->quantifier, edge->quantifier);
+TEST(GQLParser, InvalidSyntaxThrowsException)
+{
+    try
+    {
+        (void)parseGraphOrThrow("MATCH INVALID SYNTAX !!!");
+        FAIL() << "Expected `DB::Exception`";
+    }
+    catch (const DB::Exception & e)
+    {
+        EXPECT_FALSE(e.message().empty());
+    }
 }
 
 #endif

@@ -80,6 +80,37 @@ Ptr makeQuantifier(GQLParser::GraphPatternQuantifierContext *context) {
 
 Ptr makeQuestionQuantifier() { return Ptr(make_intrusive<GQLQuantifier>(GQLQuantifier::Kind::Question)); }
 
+Ptr makeRawTextClause(const String & text)
+{
+  return GQLExpr::rawText(text);
+}
+
+Ptr makeOrderByAndPageClause(const ResultTail & tail)
+{
+  String text;
+
+  if (tail.order_by)
+    text += detail::formatNodeToString(*tail.order_by);
+
+  if (tail.offset)
+  {
+    if (!text.empty())
+      text += " ";
+
+    text += "OFFSET " + detail::formatNodeToString(*tail.offset);
+  }
+
+  if (tail.limit)
+  {
+    if (!text.empty())
+      text += " ";
+
+    text += "LIMIT " + detail::formatNodeToString(*tail.limit);
+  }
+
+  return makeRawTextClause(text);
+}
+
 Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirection direction = EdgeDirection::Right) {
   if (is_edge) {
     auto edge = make_intrusive<GQLEdgePattern>(direction);
@@ -148,6 +179,26 @@ std::any GQLParseTreeVisitor::visitCompositeQueryPrimary(GQLParser::CompositeQue
   return castAny<Ptr>(visit(context->linearQueryStatement()));
 }
 
+std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext *context)
+{
+  auto * procedure_body = context->procedureBody();
+
+  if (!procedure_body || procedure_body->atSchemaClause() || procedure_body->bindingVariableDefinitionBlock() || !procedure_body->statementBlock())
+    return makeRawTextExpr(context);
+
+  auto * statement_block = procedure_body->statementBlock();
+
+  if (!statement_block->statement() || !statement_block->nextStatement().empty())
+    return makeRawTextExpr(context);
+
+  auto * statement = statement_block->statement();
+
+  if (!statement->compositeQueryStatement())
+    return makeRawTextExpr(context);
+
+  return castAny<Ptr>(visit(statement->compositeQueryStatement()));
+}
+
 std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQueryStatementContext *context) {
   if (context->ambientLinearQueryStatement()) {
     return castAny<Ptr>(visit(context->ambientLinearQueryStatement()));
@@ -158,7 +209,7 @@ std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQuerySt
 
 std::any GQLParseTreeVisitor::visitAmbientLinearQueryStatement(GQLParser::AmbientLinearQueryStatementContext *context) {
   if (context->nestedQuerySpecification()) {
-    throwUnsupported("nested query specification", context);
+    return castAny<Ptr>(visit(context->nestedQuerySpecification()));
   }
 
   PtrList clauses;
@@ -192,7 +243,12 @@ std::any GQLParseTreeVisitor::visitSimpleQueryStatement(GQLParser::SimpleQuerySt
     return castAny<Ptr>(visit(context->primitiveQueryStatement()));
   }
 
-  throwUnsupported("call query statement", context);
+  return castAny<Ptr>(visit(context->callQueryStatement()));
+}
+
+std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatementContext *context)
+{
+  return makeRawTextExpr(context);
 }
 
 std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQueryStatementContext *context) {
@@ -204,7 +260,13 @@ std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQ
     return castAny<Ptr>(visit(context->filterStatement()));
   }
 
-  throwUnsupported("primitive query statement", context);
+  if (context->orderByAndPageStatement())
+  {
+    auto tail = castAny<ResultTail>(visit(context->orderByAndPageStatement()));
+    return makeOrderByAndPageClause(tail);
+  }
+
+  return makeRawTextExpr(context);
 }
 
 std::any GQLParseTreeVisitor::visitMatchStatement(GQLParser::MatchStatementContext *context) {
@@ -529,7 +591,7 @@ std::any GQLParseTreeVisitor::visitLabelExpressionParenthesized(GQLParser::Label
 
 std::any GQLParseTreeVisitor::visitPrimitiveResultStatement(GQLParser::PrimitiveResultStatementContext *context) {
   if (context->FINISH()) {
-    throwUnsupported("`FINISH` result statement", context);
+    return makeRawTextClause("FINISH");
   }
 
   auto clause = castAny<Ptr>(visit(context->returnStatement()));
@@ -562,10 +624,6 @@ std::any GQLParseTreeVisitor::visitReturnStatement(GQLParser::ReturnStatementCon
 }
 
 std::any GQLParseTreeVisitor::visitReturnStatementBody(GQLParser::ReturnStatementBodyContext *context) {
-  if (context->groupByClause()) {
-    throwUnsupported("`GROUP BY` in `RETURN`", context);
-  }
-
   auto clause = make_intrusive<GQLProjectClause>();
 
   if (context->setQuantifier() && context->setQuantifier()->DISTINCT()) {
@@ -582,6 +640,14 @@ std::any GQLParseTreeVisitor::visitReturnStatementBody(GQLParser::ReturnStatemen
         clause->children.push_back(item);
       }
     }
+  }
+
+  if (context->groupByClause())
+  {
+    clause->group_by = castAny<Ptr>(visit(context->groupByClause()));
+
+    if (clause->group_by)
+      clause->children.push_back(clause->group_by);
   }
 
   return Ptr(clause);
@@ -609,6 +675,32 @@ std::any GQLParseTreeVisitor::visitReturnItem(GQLParser::ReturnItemContext *cont
   }
 
   return expression;
+}
+
+std::any GQLParseTreeVisitor::visitGroupByClause(GQLParser::GroupByClauseContext *context)
+{
+  String text = "GROUP BY";
+
+  if (auto * grouping_list = context->groupingElementList())
+  {
+    if (grouping_list->emptyGroupingSet())
+    {
+      text += " ()";
+    }
+    else
+    {
+      bool first = true;
+
+      for (auto * element : grouping_list->groupingElement())
+      {
+        text += first ? " " : ", ";
+        text += getText(element->bindingVariableReference()->bindingVariable());
+        first = false;
+      }
+    }
+  }
+
+  return makeRawTextClause(text);
 }
 
 std::any GQLParseTreeVisitor::visitOrderByAndPageStatement(GQLParser::OrderByAndPageStatementContext *context) {

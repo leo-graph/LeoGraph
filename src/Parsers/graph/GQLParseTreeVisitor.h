@@ -21,10 +21,12 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitCompositeQueryStatement(GQLParser::CompositeQueryStatementContext* context) override;
   std::any visitCompositeQueryExpression(GQLParser::CompositeQueryExpressionContext* context) override;
   std::any visitCompositeQueryPrimary(GQLParser::CompositeQueryPrimaryContext* context) override;
+  std::any visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext* context) override;
   std::any visitLinearQueryStatement(GQLParser::LinearQueryStatementContext* context) override;
   std::any visitAmbientLinearQueryStatement(GQLParser::AmbientLinearQueryStatementContext* context) override;
   std::any visitSimpleLinearQueryStatement(GQLParser::SimpleLinearQueryStatementContext* context) override;
   std::any visitSimpleQueryStatement(GQLParser::SimpleQueryStatementContext* context) override;
+  std::any visitCallQueryStatement(GQLParser::CallQueryStatementContext* context) override;
   std::any visitPrimitiveQueryStatement(GQLParser::PrimitiveQueryStatementContext* context) override;
   std::any visitMatchStatement(GQLParser::MatchStatementContext* context) override;
   std::any visitSimpleMatchStatement(GQLParser::SimpleMatchStatementContext* context) override;
@@ -70,6 +72,7 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitReturnStatementBody(GQLParser::ReturnStatementBodyContext* context) override;
   std::any visitReturnItemList(GQLParser::ReturnItemListContext* context) override;
   std::any visitReturnItem(GQLParser::ReturnItemContext* context) override;
+  std::any visitGroupByClause(GQLParser::GroupByClauseContext* context) override;
   std::any visitOrderByAndPageStatement(GQLParser::OrderByAndPageStatementContext* context) override;
   std::any visitOrderByClause(GQLParser::OrderByClauseContext* context) override;
   std::any visitSortSpecificationList(GQLParser::SortSpecificationListContext* context) override;
