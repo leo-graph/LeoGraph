@@ -272,9 +272,20 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
     }
   }
 
-  if (context->selectStatementBody())
+  if (auto * select_body = context->selectStatementBody())
   {
-    clause->source = makeRawTextClause(getText(context->selectStatementBody()));
+    if (auto * query_spec = select_body->selectQuerySpecification())
+    {
+      if (!query_spec->graphExpression() && query_spec->nestedQuerySpecification())
+        clause->source = castAny<Ptr>(visit(query_spec->nestedQuerySpecification()));
+      else
+        clause->source = makeRawTextClause(getText(query_spec));
+    }
+    else if (auto * match_list = select_body->selectGraphMatchList())
+    {
+      clause->source = makeRawTextClause(getText(match_list));
+    }
+
     appendClause(clause->children, clause->source);
   }
 
@@ -292,7 +303,7 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
 
   if (context->havingClause())
   {
-    clause->having = makeRawTextClause(getText(context->havingClause()));
+    clause->having = Ptr(make_intrusive<GQLWhereClause>(GQLWhereClause::Type::Having, castAny<Ptr>(visit(context->havingClause()->searchCondition()))));
     appendClause(clause->children, clause->having);
   }
 

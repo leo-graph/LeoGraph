@@ -6,9 +6,18 @@ namespace DB::OPENGQL::AST {
 
 class GQLWhereClause final : public DB::IAST {
  public:
+  enum class Type : UInt8 {
+    Where,
+    Having,
+  };
+
   GQLWhereClause() = default;
 
   explicit GQLWhereClause(Ptr expression_) : expression(std::move(expression_)) {
+    if (expression) children.push_back(expression);
+  }
+
+  GQLWhereClause(Type type_, Ptr expression_) : type(type_), expression(std::move(expression_)) {
     if (expression) children.push_back(expression);
   }
 
@@ -24,11 +33,12 @@ class GQLWhereClause final : public DB::IAST {
     return result;
   }
 
+  Type type = Type::Where;
   Ptr expression;
 
  protected:
   void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state, FormatStateStacked frame) const override {
-    ostr << "WHERE ";
+    ostr << (type == Type::Having ? "HAVING " : "WHERE ");
 
     if (expression) expression->format(ostr, settings, state, frame);
   }

@@ -66,7 +66,7 @@ class GQLProjectClause final : public DB::IAST {
       detail::formatChildren(ostr, settings, state, frame, items, ", ");
 
     if (source) {
-      ostr << " ";
+      ostr << " FROM ";
       source->format(ostr, settings, state, frame);
     }
 

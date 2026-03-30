@@ -185,7 +185,7 @@ TEST(GQLParser, FocusedNestedQueryIsFlattened)
 
 TEST(GQLParser, SelectStatementBuildsTopLevelProject)
 {
-    auto ast = parseGraphOrThrow("SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE a IS NOT NULL GROUP BY a ORDER BY a DESC OFFSET 1 LIMIT 2");
+    auto ast = parseGraphOrThrow("SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE a IS NOT NULL GROUP BY a HAVING a IS NOT NULL ORDER BY a DESC OFFSET 1 LIMIT 2");
     const auto * project = ast->as<GAST::GQLProjectClause>();
     ASSERT_NE(project, nullptr);
     EXPECT_EQ(project->type, GAST::GQLProjectClause::Type::Select);
@@ -197,12 +197,14 @@ TEST(GQLParser, SelectStatementBuildsTopLevelProject)
     EXPECT_EQ(item->text, "a");
     EXPECT_EQ(item->tryGetAlias(), "x");
 
-    const auto * source = getExpr(project->source);
+    const auto * source = getClausesQuery(project->source);
     ASSERT_NE(source, nullptr);
-    EXPECT_EQ(source->kind, GAST::GQLExpr::Kind::RawText);
+    ASSERT_EQ(source->clauses.size(), 2);
 
     const auto * where = project->where->as<GAST::GQLWhereClause>();
     ASSERT_NE(where, nullptr);
+    const auto * having = project->having->as<GAST::GQLWhereClause>();
+    ASSERT_NE(having, nullptr);
     const auto * group_by = getExpr(project->group_by);
     ASSERT_NE(group_by, nullptr);
     EXPECT_EQ(group_by->text, "GROUP BY a");
@@ -215,6 +217,7 @@ TEST(GQLParser, SelectStatementBuildsTopLevelProject)
     ASSERT_NE(limit, nullptr);
     EXPECT_EQ(offset->text, "1");
     EXPECT_EQ(limit->text, "2");
+    EXPECT_EQ(formatAST(*project), "SELECT DISTINCT a AS x FROM MATCH (a) RETURN a WHERE (a IS NOT NULL) GROUP BY a HAVING (a IS NOT NULL) ORDER BY a DESC OFFSET 1 LIMIT 2");
 }
 
 TEST(GQLParser, RightEdgeWithRangeQuantifier)
