@@ -15,6 +15,8 @@
 #include <Parsers/graph/AST/GQLOrderByItem.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
 #include <Parsers/graph/AST/GQLProjectClause.h>
+#include <Parsers/graph/AST/GQLSelectSourceItem.h>
+#include <Parsers/graph/AST/GQLSelectSourceList.h>
 #include <Parsers/graph/AST/GQLPropertyItem.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>

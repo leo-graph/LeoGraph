@@ -111,6 +111,20 @@ const GAST::GQLAssignmentItem * getAssignmentItem(const ASTPtr & ast)
     return assignment;
 }
 
+const GAST::GQLSelectSourceItem * getSelectSourceItem(const ASTPtr & ast)
+{
+    const auto * source_item = ast->as<GAST::GQLSelectSourceItem>();
+    EXPECT_NE(source_item, nullptr);
+    return source_item;
+}
+
+const GAST::GQLSelectSourceList * getSelectSourceList(const ASTPtr & ast)
+{
+    const auto * source_list = ast->as<GAST::GQLSelectSourceList>();
+    EXPECT_NE(source_list, nullptr);
+    return source_list;
+}
+
 const GAST::GQLPathPattern * getOnlyPathPattern(const GAST::GQLMatchClause & match)
 {
     if (match.path_patterns.size() != 1)
@@ -265,6 +279,49 @@ TEST(GQLParser, SelectStatementBuildsTopLevelProject)
     EXPECT_EQ(offset->text, "1");
     EXPECT_EQ(limit->text, "2");
     EXPECT_EQ(formatAST(*project), "SELECT DISTINCT a AS x FROM MATCH (a) RETURN a WHERE (a IS NOT NULL) GROUP BY a HAVING (a IS NOT NULL) ORDER BY a DESC OFFSET 1 LIMIT 2");
+}
+
+TEST(GQLParser, SelectStatementPreservesGraphQualifiedQuerySource)
+{
+    auto ast = parseGraphOrThrow("SELECT a FROM foo { MATCH (a) RETURN a }");
+    const auto * project = ast->as<GAST::GQLProjectClause>();
+    ASSERT_NE(project, nullptr);
+
+    const auto * source_item = getSelectSourceItem(project->source);
+    ASSERT_NE(source_item, nullptr);
+
+    const auto * graph_reference = getExpr(source_item->graph_reference);
+    ASSERT_NE(graph_reference, nullptr);
+    EXPECT_EQ(graph_reference->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(graph_reference->text, "foo");
+
+    const auto * nested_query = getClausesQuery(source_item->source);
+    ASSERT_NE(nested_query, nullptr);
+    ASSERT_EQ(nested_query->clauses.size(), 2);
+    EXPECT_EQ(formatAST(*project), "SELECT a FROM foo MATCH (a) RETURN a");
+}
+
+TEST(GQLParser, SelectStatementBuildsStructuredGraphMatchSourceList)
+{
+    auto ast = parseGraphOrThrow("SELECT a, b FROM foo MATCH (a), bar MATCH (b) WHERE a = b");
+    const auto * project = ast->as<GAST::GQLProjectClause>();
+    ASSERT_NE(project, nullptr);
+
+    const auto * source_list = getSelectSourceList(project->source);
+    ASSERT_NE(source_list, nullptr);
+    ASSERT_EQ(source_list->items.size(), 2);
+
+    const auto * first_item = getSelectSourceItem(source_list->items[0]);
+    ASSERT_NE(first_item, nullptr);
+    EXPECT_EQ(getExpr(first_item->graph_reference)->text, "foo");
+    ASSERT_NE(first_item->source->as<GAST::GQLMatchClause>(), nullptr);
+
+    const auto * second_item = getSelectSourceItem(source_list->items[1]);
+    ASSERT_NE(second_item, nullptr);
+    EXPECT_EQ(getExpr(second_item->graph_reference)->text, "bar");
+    ASSERT_NE(second_item->source->as<GAST::GQLMatchClause>(), nullptr);
+
+    EXPECT_EQ(formatAST(*project), "SELECT a, b FROM foo MATCH (a), bar MATCH (b) WHERE (a = b)");
 }
 
 TEST(GQLParser, CallClauseBuildsStructuredNode)

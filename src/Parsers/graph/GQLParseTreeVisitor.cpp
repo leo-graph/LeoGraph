@@ -96,6 +96,16 @@ void appendClause(PtrList & clauses, Ptr clause)
     clauses.push_back(std::move(clause));
 }
 
+Ptr makeSelectSourceItem(Ptr graph_reference, Ptr source)
+{
+  auto item = make_intrusive<GQLSelectSourceItem>();
+  item->graph_reference = std::move(graph_reference);
+  item->source = std::move(source);
+  appendClause(item->children, item->graph_reference);
+  appendClause(item->children, item->source);
+  return Ptr(item);
+}
+
 void appendClauseList(PtrList & clauses, PtrList && extra_clauses)
 {
   for (auto & clause : extra_clauses)
@@ -276,14 +286,34 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
   {
     if (auto * query_spec = select_body->selectQuerySpecification())
     {
-      if (!query_spec->graphExpression() && query_spec->nestedQuerySpecification())
-        clause->source = castAny<Ptr>(visit(query_spec->nestedQuerySpecification()));
+      if (auto * nested_query = query_spec->nestedQuerySpecification())
+      {
+        auto source_query = castAny<Ptr>(visit(nested_query));
+
+        if (query_spec->graphExpression())
+          clause->source = makeSelectSourceItem(makeRawTextClause(getText(query_spec->graphExpression())), std::move(source_query));
+        else
+          clause->source = std::move(source_query);
+      }
       else
+      {
         clause->source = makeRawTextClause(getText(query_spec));
+      }
     }
     else if (auto * match_list = select_body->selectGraphMatchList())
     {
-      clause->source = makeRawTextClause(getText(match_list));
+      auto source_list = make_intrusive<GQLSelectSourceList>();
+
+      for (auto * match_item : match_list->selectGraphMatch())
+      {
+        auto source_item = makeSelectSourceItem(
+            makeRawTextClause(getText(match_item->graphExpression())),
+            castAny<Ptr>(visit(match_item->matchStatement())));
+        source_list->items.push_back(source_item);
+        appendClause(source_list->children, source_item);
+      }
+
+      clause->source = Ptr(source_list);
     }
 
     appendClause(clause->children, clause->source);

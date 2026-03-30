@@ -41,7 +41,7 @@ The currently supported minimal path is:
 - focused `USE` query parts flattened into clause sequences with raw-text `USE` clauses
 - focused nested queries now flatten `USE` plus the inner query result instead of falling back wholesale
 - simple nested query specifications that contain one plain query statement
-- top-level `SELECT` statements now build a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails and nested-query `FROM` sources preserved as inner query AST
+- top-level `SELECT` statements now build a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails, graph-qualified nested-query `FROM` sources, and graph-match `FROM` lists preserved as structured source nodes
 - structured `CALL`, `LET`, and `FOR` clauses, including `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
 - basic path / node / edge patterns
@@ -65,7 +65,7 @@ Keep working in `src/Parsers/graph/GQLParseTreeVisitor.cpp` and reduce the query
 Suggested order:
 
 - decide whether focused `USE` forms and graph-expression `SELECT` sources should stay as raw-text clauses or gain dedicated `GQL` nodes only when lowering starts to need graph-selection semantics
-- keep the remaining raw-text top-level fields focused on `SELECT ... FROM` graph-match content, graph-expression `SELECT` sources, and standalone paging clauses until lowering work actually needs dedicated nodes
+- keep the remaining raw-text top-level fields focused on standalone paging clauses and any future graph-selection forms that lowering proves it needs beyond the current `SELECT FROM` source wrappers
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
 
