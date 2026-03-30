@@ -411,12 +411,108 @@ std::any GQLParseTreeVisitor::visitSimpleQueryStatement(GQLParser::SimpleQuerySt
 
 std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatementContext *context)
 {
-  return makeRawTextExpr(context);
+  auto clause = make_intrusive<GQLCallClause>();
+  auto * statement = context->callProcedureStatement();
+  clause->optional = statement->OPTIONAL() != nullptr;
+  auto * procedure_call = statement->procedureCall();
+
+  if (auto * named = procedure_call->namedProcedureCall())
+  {
+    clause->procedure = GQLExpr::rawText(getText(named->procedureReference()));
+
+    if (auto * argument_list = named->procedureArgumentList())
+    {
+      for (auto * argument : argument_list->procedureArgument())
+        clause->arguments.push_back(castAny<Ptr>(visit(argument->valueExpression())));
+    }
+
+    if (auto * yield_clause = named->yieldClause())
+    {
+      for (auto * item : yield_clause->yieldItemList()->yieldItem())
+      {
+        auto expression = GQLExpr::identifier(getText(item->yieldItemName()->fieldName()));
+
+        if (item->yieldItemAlias())
+        {
+          if (auto * with_alias = dynamic_cast<ASTWithAlias *>(expression.get()))
+            with_alias->setAlias(getText(item->yieldItemAlias()->bindingVariable()));
+          else
+            throwUnsupported("yield item alias on non-aliasable expression", item);
+        }
+
+        clause->yield_items.push_back(expression);
+      }
+    }
+  }
+  else if (auto * inline_call = procedure_call->inlineProcedureCall())
+  {
+    clause->inline_procedure = true;
+    clause->procedure = GQLExpr::rawText(getText(inline_call));
+  }
+
+  appendClause(clause->children, clause->procedure);
+  for (auto & argument : clause->arguments) appendClause(clause->children, argument);
+  for (auto & item : clause->yield_items) appendClause(clause->children, item);
+  return Ptr(clause);
 }
 
 std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQueryStatementContext *context) {
   if (context->matchStatement()) {
     return castAny<Ptr>(visit(context->matchStatement()));
+  }
+
+  if (context->letStatement())
+  {
+    auto clause = make_intrusive<GQLLetClause>();
+
+    for (auto * item : context->letStatement()->letVariableDefinitionList()->letVariableDefinition())
+    {
+      Ptr assignment;
+
+      if (auto * value_definition = item->valueVariableDefinition())
+      {
+        Ptr value;
+        String raw_type;
+
+        if (auto * initializer = value_definition->optTypedValueInitializer())
+        {
+          if (initializer->valueType())
+            raw_type = getText(initializer->valueType());
+
+          if (initializer->valueInitializer())
+            value = castAny<Ptr>(visit(initializer->valueInitializer()->valueExpression()));
+        }
+
+        assignment = Ptr(make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(raw_type)));
+      }
+      else
+      {
+        assignment = Ptr(make_intrusive<GQLAssignmentItem>(getText(item->bindingVariable()), castAny<Ptr>(visit(item->valueExpression()))));
+      }
+
+      clause->items.push_back(assignment);
+      appendClause(clause->children, assignment);
+    }
+
+    return Ptr(clause);
+  }
+
+  if (context->forStatement())
+  {
+    auto clause = make_intrusive<GQLForClause>();
+    auto * statement = context->forStatement();
+    clause->alias = getText(statement->forItem()->forItemAlias()->bindingVariable());
+    clause->source = castAny<Ptr>(visit(statement->forItem()->forItemSource()->valueExpression()));
+    appendClause(clause->children, clause->source);
+
+    if (auto * ordinality_or_offset = statement->forOrdinalityOrOffset())
+    {
+      clause->with_ordinality = ordinality_or_offset->ORDINALITY();
+      clause->with_offset = ordinality_or_offset->OFFSET();
+      clause->ordinality_or_offset_alias = getText(ordinality_or_offset->bindingVariable());
+    }
+
+    return Ptr(clause);
   }
 
   if (context->filterStatement()) {
@@ -754,7 +850,7 @@ std::any GQLParseTreeVisitor::visitLabelExpressionParenthesized(GQLParser::Label
 
 std::any GQLParseTreeVisitor::visitPrimitiveResultStatement(GQLParser::PrimitiveResultStatementContext *context) {
   if (context->FINISH()) {
-    return makeRawTextClause("FINISH");
+    return Ptr(make_intrusive<GQLFinishClause>());
   }
 
   auto clause = castAny<Ptr>(visit(context->returnStatement()));

@@ -64,6 +64,53 @@ const GAST::GQLProjectClause * getProjectClause(const GAST::GQLClausesQuery & cl
     return project;
 }
 
+const GAST::GQLCallClause * getCallClause(const GAST::GQLClausesQuery & clauses, size_t index = 0)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
+
+    const auto * call = clauses.clauses[index]->as<GAST::GQLCallClause>();
+    EXPECT_NE(call, nullptr);
+    return call;
+}
+
+const GAST::GQLLetClause * getLetClause(const GAST::GQLClausesQuery & clauses, size_t index = 0)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
+
+    const auto * let_clause = clauses.clauses[index]->as<GAST::GQLLetClause>();
+    EXPECT_NE(let_clause, nullptr);
+    return let_clause;
+}
+
+const GAST::GQLForClause * getForClause(const GAST::GQLClausesQuery & clauses, size_t index = 0)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
+
+    const auto * for_clause = clauses.clauses[index]->as<GAST::GQLForClause>();
+    EXPECT_NE(for_clause, nullptr);
+    return for_clause;
+}
+
+const GAST::GQLFinishClause * getFinishClause(const GAST::GQLClausesQuery & clauses, size_t index)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
+
+    const auto * finish_clause = clauses.clauses[index]->as<GAST::GQLFinishClause>();
+    EXPECT_NE(finish_clause, nullptr);
+    return finish_clause;
+}
+
+const GAST::GQLAssignmentItem * getAssignmentItem(const ASTPtr & ast)
+{
+    const auto * assignment = ast->as<GAST::GQLAssignmentItem>();
+    EXPECT_NE(assignment, nullptr);
+    return assignment;
+}
+
 const GAST::GQLPathPattern * getOnlyPathPattern(const GAST::GQLMatchClause & match)
 {
     if (match.path_patterns.size() != 1)
@@ -218,6 +265,120 @@ TEST(GQLParser, SelectStatementBuildsTopLevelProject)
     EXPECT_EQ(offset->text, "1");
     EXPECT_EQ(limit->text, "2");
     EXPECT_EQ(formatAST(*project), "SELECT DISTINCT a AS x FROM MATCH (a) RETURN a WHERE (a IS NOT NULL) GROUP BY a HAVING (a IS NOT NULL) ORDER BY a DESC OFFSET 1 LIMIT 2");
+}
+
+TEST(GQLParser, CallClauseBuildsStructuredNode)
+{
+    auto ast = parseGraphOrThrow("CALL foo(a, b) YIELD x AS y RETURN y");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
+
+    const auto * call = getCallClause(*clauses, 0);
+    ASSERT_NE(call, nullptr);
+    EXPECT_FALSE(call->optional);
+    EXPECT_FALSE(call->inline_procedure);
+
+    const auto * procedure = getExpr(call->procedure);
+    ASSERT_NE(procedure, nullptr);
+    EXPECT_EQ(procedure->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(procedure->text, "foo");
+
+    ASSERT_EQ(call->arguments.size(), 2);
+    EXPECT_EQ(getExpr(call->arguments[0])->text, "a");
+    EXPECT_EQ(getExpr(call->arguments[1])->text, "b");
+
+    ASSERT_EQ(call->yield_items.size(), 1);
+    const auto * yield_item = getExpr(call->yield_items[0]);
+    ASSERT_NE(yield_item, nullptr);
+    EXPECT_EQ(yield_item->kind, GAST::GQLExpr::Kind::Identifier);
+    EXPECT_EQ(yield_item->text, "x");
+    EXPECT_EQ(yield_item->tryGetAlias(), "y");
+    EXPECT_EQ(formatAST(*call), "CALL foo(a, b) YIELD x AS y");
+}
+
+TEST(GQLParser, InlineOptionalCallKeepsInlineProcedureShape)
+{
+    auto ast = parseGraphOrThrow("OPTIONAL CALL { RETURN 1 } RETURN *");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
+
+    const auto * call = getCallClause(*clauses, 0);
+    ASSERT_NE(call, nullptr);
+    EXPECT_TRUE(call->optional);
+    EXPECT_TRUE(call->inline_procedure);
+    EXPECT_TRUE(call->arguments.empty());
+    EXPECT_TRUE(call->yield_items.empty());
+
+    const auto * procedure = getExpr(call->procedure);
+    ASSERT_NE(procedure, nullptr);
+    EXPECT_EQ(procedure->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(procedure->text, "{RETURN1}");
+    EXPECT_EQ(formatAST(*call), "OPTIONAL CALL {RETURN1}");
+}
+
+TEST(GQLParser, LetClauseBuildsStructuredItems)
+{
+    auto ast = parseGraphOrThrow("LET x = 1, VALUE y INT = 2 RETURN x");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
+
+    const auto * let_clause = getLetClause(*clauses, 0);
+    ASSERT_NE(let_clause, nullptr);
+    ASSERT_EQ(let_clause->items.size(), 2);
+
+    const auto * binding_assignment = getAssignmentItem(let_clause->items[0]);
+    ASSERT_NE(binding_assignment, nullptr);
+    EXPECT_EQ(binding_assignment->name, "x");
+    EXPECT_FALSE(binding_assignment->value_keyword);
+    EXPECT_TRUE(binding_assignment->raw_type.empty());
+    EXPECT_EQ(getExpr(binding_assignment->value)->text, "1");
+
+    const auto * value_assignment = getAssignmentItem(let_clause->items[1]);
+    ASSERT_NE(value_assignment, nullptr);
+    EXPECT_EQ(value_assignment->name, "y");
+    EXPECT_TRUE(value_assignment->value_keyword);
+    EXPECT_EQ(value_assignment->raw_type, "INT");
+    EXPECT_EQ(getExpr(value_assignment->value)->text, "2");
+    EXPECT_EQ(formatAST(*let_clause), "LET x = 1, VALUE y INT = 2");
+}
+
+TEST(GQLParser, ForClauseBuildsStructuredFields)
+{
+    auto ast = parseGraphOrThrow("FOR x IN [1, 2] WITH OFFSET i RETURN x");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
+
+    const auto * for_clause = getForClause(*clauses, 0);
+    ASSERT_NE(for_clause, nullptr);
+    EXPECT_EQ(for_clause->alias, "x");
+    EXPECT_FALSE(for_clause->with_ordinality);
+    EXPECT_TRUE(for_clause->with_offset);
+    EXPECT_EQ(for_clause->ordinality_or_offset_alias, "i");
+
+    const auto * source = getExpr(for_clause->source);
+    ASSERT_NE(source, nullptr);
+    EXPECT_EQ(source->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(source->text, "[1,2]");
+    EXPECT_EQ(formatAST(*for_clause), "FOR x IN [1,2] WITH OFFSET i");
+}
+
+TEST(GQLParser, FinishClauseBuildsStructuredNode)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) FINISH");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
+
+    const auto * match = getMatchClause(*clauses, 0);
+    ASSERT_NE(match, nullptr);
+    const auto * finish_clause = getFinishClause(*clauses, 1);
+    ASSERT_NE(finish_clause, nullptr);
+    EXPECT_EQ(formatAST(*finish_clause), "FINISH");
+    EXPECT_EQ(formatAST(*clauses), "MATCH (a) FINISH");
 }
 
 TEST(GQLParser, RightEdgeWithRangeQuantifier)

@@ -18,3 +18,4 @@
 - In the `graph` visitor refactor, focused `USE` queries can be flattened by preserving `USE graphExpression` as a raw-text clause and appending the existing simple/result clauses, which expands coverage without introducing graph-selection AST yet.
 - For top-level `graph` visitor coverage, a minimal `SELECT` path can reuse `GQLProjectClause` with `Type::Select` plus raw-text `FROM` / `HAVING` fields, which improves the visitor shape without committing to a dedicated relational AST yet.
 - For minimal top-level `SELECT` support in the `graph` visitor, store nested-query `FROM` sources as the inner query AST and let `GQLProjectClause` own the `FROM` / `HAVING` keywords in formatting, so field content can become more structured without introducing dedicated source nodes.
+- In the `GQL` visitor, `CALL` needs an explicit inline-vs-named shape bit; otherwise `CALL { ... }` gets reformatted like `CALL foo(...)` and picks up invalid parentheses.

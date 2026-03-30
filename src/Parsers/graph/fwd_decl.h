@@ -28,7 +28,11 @@ using PtrList = DB::ASTs;
 template <typename T>
 using PtrTo = boost::intrusive_ptr<T>;
 
+class GQLAssignmentItem;
+class GQLCallClause;
 class GQLExpr;
+class GQLFinishClause;
+class GQLForClause;
 class GQLLabelExpression;
 class GQLPropertyItem;
 class GQLPropertyMap;
@@ -37,6 +41,7 @@ class GQLNodePattern;
 class GQLEdgePattern;
 class GQLPathPattern;
 class GQLWhereClause;
+class GQLLetClause;
 class GQLMatchClause;
 class GQLOrderByItem;
 class GQLOrderByClause;

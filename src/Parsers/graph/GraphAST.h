@@ -1,9 +1,14 @@
 #pragma once
 
 #include <Parsers/graph/AST/GQLClausesQuery.h>
+#include <Parsers/graph/AST/GQLAssignmentItem.h>
+#include <Parsers/graph/AST/GQLCallClause.h>
 #include <Parsers/graph/AST/GQLEdgePattern.h>
 #include <Parsers/graph/AST/GQLExpr.h>
+#include <Parsers/graph/AST/GQLFinishClause.h>
+#include <Parsers/graph/AST/GQLForClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
+#include <Parsers/graph/AST/GQLLetClause.h>
 #include <Parsers/graph/AST/GQLMatchClause.h>
 #include <Parsers/graph/AST/GQLNodePattern.h>
 #include <Parsers/graph/AST/GQLOrderByClause.h>
