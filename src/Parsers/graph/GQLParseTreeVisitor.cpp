@@ -87,7 +87,7 @@ Ptr makeRawTextClause(const String & text)
 
 Ptr makeUseGraphClause(GQLParser::UseGraphClauseContext * context)
 {
-  return makeRawTextClause("USE " + getText(context->graphExpression()));
+  return Ptr(make_intrusive<GQLUseClause>(makeRawTextClause(getText(context->graphExpression()))));
 }
 
 void appendClause(PtrList & clauses, Ptr clause)

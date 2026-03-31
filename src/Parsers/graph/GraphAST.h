@@ -22,4 +22,5 @@
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
 #include <Parsers/graph/AST/GQLSetQuery.h>
+#include <Parsers/graph/AST/GQLUseClause.h>
 #include <Parsers/graph/AST/GQLWhereClause.h>

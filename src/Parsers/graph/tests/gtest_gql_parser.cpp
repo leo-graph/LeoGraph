@@ -135,6 +135,16 @@ const GAST::GQLPageClause * getPageClause(const GAST::GQLClausesQuery & clauses,
     return page_clause;
 }
 
+const GAST::GQLUseClause * getUseClause(const GAST::GQLClausesQuery & clauses, size_t index = 0)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
+
+    const auto * use_clause = clauses.clauses[index]->as<GAST::GQLUseClause>();
+    EXPECT_NE(use_clause, nullptr);
+    return use_clause;
+}
+
 const GAST::GQLPathPattern * getOnlyPathPattern(const GAST::GQLMatchClause & match)
 {
     if (match.path_patterns.size() != 1)
@@ -226,10 +236,13 @@ TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause)
     ASSERT_NE(clauses, nullptr);
     ASSERT_EQ(clauses->clauses.size(), 3);
 
-    const auto * use_clause = getExpr(clauses->clauses[0]);
+    const auto * use_clause = getUseClause(*clauses, 0);
     ASSERT_NE(use_clause, nullptr);
-    EXPECT_EQ(use_clause->kind, GAST::GQLExpr::Kind::RawText);
-    EXPECT_EQ(use_clause->text, "USE foo");
+    const auto * graph_reference = getExpr(use_clause->graph_reference);
+    ASSERT_NE(graph_reference, nullptr);
+    EXPECT_EQ(graph_reference->kind, GAST::GQLExpr::Kind::RawText);
+    EXPECT_EQ(graph_reference->text, "foo");
+    EXPECT_EQ(formatAST(*use_clause), "USE foo");
 
     const auto * match = getMatchClause(*clauses, 1);
     const auto * project = getProjectClause(*clauses, 2);
@@ -244,9 +257,12 @@ TEST(GQLParser, FocusedNestedQueryIsFlattened)
     ASSERT_NE(clauses, nullptr);
     ASSERT_EQ(clauses->clauses.size(), 3);
 
-    const auto * use_clause = getExpr(clauses->clauses[0]);
+    const auto * use_clause = getUseClause(*clauses, 0);
     ASSERT_NE(use_clause, nullptr);
-    EXPECT_EQ(use_clause->text, "USE foo");
+    const auto * graph_reference = getExpr(use_clause->graph_reference);
+    ASSERT_NE(graph_reference, nullptr);
+    EXPECT_EQ(graph_reference->text, "foo");
+    EXPECT_EQ(formatAST(*use_clause), "USE foo");
 
     const auto * match = getMatchClause(*clauses, 1);
     const auto * project = getProjectClause(*clauses, 2);

@@ -21,3 +21,4 @@
 - In the `GQL` visitor, `CALL` needs an explicit inline-vs-named shape bit; otherwise `CALL { ... }` gets reformatted like `CALL foo(...)` and picks up invalid parentheses.
 - For top-level `SELECT FROM` work in the `GQL` visitor, a thin `source item` / `source list` wrapper is enough to preserve graph-qualified query sources and graph-match lists without reshaping `GQLProjectClause`.
 - For standalone top-level paging in the `GQL` visitor, a thin `GQLPageClause` wrapper is enough to preserve `ORDER BY` / `OFFSET` / `LIMIT` structure without changing `GQLProjectClause`.
+- For top-level focused queries in the `GQL` visitor, a thin `GQLUseClause` wrapper is enough to make `USE graphExpression` structured while still keeping the graph selector itself as a raw-text expression.
