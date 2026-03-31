@@ -45,6 +45,7 @@ class GQLLetClause;
 class GQLMatchClause;
 class GQLOrderByItem;
 class GQLOrderByClause;
+class GQLPageClause;
 class GQLProjectClause;
 class GQLSelectSourceItem;
 class GQLSelectSourceList;

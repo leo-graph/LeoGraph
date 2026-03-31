@@ -37,7 +37,7 @@ The currently supported minimal path is:
 - `OFFSET`
 - `LIMIT`
 - structured `FINISH` clauses
-- standalone `ORDER BY` / paging statements as raw-text clause fallbacks
+- structured standalone `ORDER BY` / `OFFSET` / `LIMIT` paging clauses
 - focused `USE` query parts flattened into clause sequences with raw-text `USE` clauses
 - focused nested queries now flatten `USE` plus the inner query result instead of falling back wholesale
 - simple nested query specifications that contain one plain query statement
@@ -65,7 +65,7 @@ Keep working in `src/Parsers/graph/GQLParseTreeVisitor.cpp` and reduce the query
 Suggested order:
 
 - decide whether focused `USE` forms and graph-expression `SELECT` sources should stay as raw-text clauses or gain dedicated `GQL` nodes only when lowering starts to need graph-selection semantics
-- keep the remaining raw-text top-level fields focused on standalone paging clauses and any future graph-selection forms that lowering proves it needs beyond the current `SELECT FROM` source wrappers
+- keep the remaining top-level gaps focused on wider nested-query shapes and any future graph-selection forms that lowering proves it needs beyond the current `SELECT FROM` source wrappers
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
 

@@ -125,6 +125,16 @@ const GAST::GQLSelectSourceList * getSelectSourceList(const ASTPtr & ast)
     return source_list;
 }
 
+const GAST::GQLPageClause * getPageClause(const GAST::GQLClausesQuery & clauses, size_t index)
+{
+    if (index >= clauses.clauses.size())
+        return nullptr;
+
+    const auto * page_clause = clauses.clauses[index]->as<GAST::GQLPageClause>();
+    EXPECT_NE(page_clause, nullptr);
+    return page_clause;
+}
+
 const GAST::GQLPathPattern * getOnlyPathPattern(const GAST::GQLMatchClause & match)
 {
     if (match.path_patterns.size() != 1)
@@ -436,6 +446,32 @@ TEST(GQLParser, FinishClauseBuildsStructuredNode)
     ASSERT_NE(finish_clause, nullptr);
     EXPECT_EQ(formatAST(*finish_clause), "FINISH");
     EXPECT_EQ(formatAST(*clauses), "MATCH (a) FINISH");
+}
+
+TEST(GQLParser, StandalonePagingBuildsStructuredClause)
+{
+    auto ast = parseGraphOrThrow("MATCH (a) ORDER BY a DESC OFFSET 1 LIMIT 2 RETURN a");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 3);
+
+    ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+
+    const auto * page_clause = getPageClause(*clauses, 1);
+    ASSERT_NE(page_clause, nullptr);
+
+    const auto * order_by = page_clause->order_by->as<GAST::GQLOrderByClause>();
+    ASSERT_NE(order_by, nullptr);
+    const auto * offset = getExpr(page_clause->offset);
+    const auto * limit = getExpr(page_clause->limit);
+    ASSERT_NE(offset, nullptr);
+    ASSERT_NE(limit, nullptr);
+    EXPECT_EQ(offset->text, "1");
+    EXPECT_EQ(limit->text, "2");
+    EXPECT_EQ(formatAST(*page_clause), "ORDER BY a DESC OFFSET 1 LIMIT 2");
+
+    ASSERT_NE(getProjectClause(*clauses, 2), nullptr);
+    EXPECT_EQ(formatAST(*clauses), "MATCH (a) ORDER BY a DESC OFFSET 1 LIMIT 2 RETURN a");
 }
 
 TEST(GQLParser, RightEdgeWithRangeQuantifier)

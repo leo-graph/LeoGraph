@@ -130,30 +130,18 @@ void appendQueryResult(PtrList & clauses, Ptr query)
   appendClause(clauses, std::move(query));
 }
 
-Ptr makeOrderByAndPageClause(const ResultTail & tail)
+Ptr makeOrderByAndPageClause(ResultTail && tail)
 {
-  String text;
+  auto clause = make_intrusive<GQLPageClause>();
+  clause->order_by = std::move(tail.order_by);
+  clause->offset = std::move(tail.offset);
+  clause->limit = std::move(tail.limit);
 
-  if (tail.order_by)
-    text += detail::formatNodeToString(*tail.order_by);
+  appendClause(clause->children, clause->order_by);
+  appendClause(clause->children, clause->offset);
+  appendClause(clause->children, clause->limit);
 
-  if (tail.offset)
-  {
-    if (!text.empty())
-      text += " ";
-
-    text += "OFFSET " + detail::formatNodeToString(*tail.offset);
-  }
-
-  if (tail.limit)
-  {
-    if (!text.empty())
-      text += " ";
-
-    text += "LIMIT " + detail::formatNodeToString(*tail.limit);
-  }
-
-  return makeRawTextClause(text);
+  return Ptr(clause);
 }
 
 Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirection direction = EdgeDirection::Right) {
@@ -552,7 +540,7 @@ std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQ
   if (context->orderByAndPageStatement())
   {
     auto tail = castAny<ResultTail>(visit(context->orderByAndPageStatement()));
-    return makeOrderByAndPageClause(tail);
+    return makeOrderByAndPageClause(std::move(tail));
   }
 
   return makeRawTextExpr(context);

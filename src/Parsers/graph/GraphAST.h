@@ -13,6 +13,7 @@
 #include <Parsers/graph/AST/GQLNodePattern.h>
 #include <Parsers/graph/AST/GQLOrderByClause.h>
 #include <Parsers/graph/AST/GQLOrderByItem.h>
+#include <Parsers/graph/AST/GQLPageClause.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
 #include <Parsers/graph/AST/GQLProjectClause.h>
 #include <Parsers/graph/AST/GQLSelectSourceItem.h>
