@@ -145,6 +145,20 @@ const GAST::GQLUseClause * getUseClause(const GAST::GQLClausesQuery & clauses, s
     return use_clause;
 }
 
+const GAST::GQLSubqueryClause * getSubqueryClause(const ASTPtr & ast)
+{
+    const auto * subquery_clause = ast->as<GAST::GQLSubqueryClause>();
+    EXPECT_NE(subquery_clause, nullptr);
+    return subquery_clause;
+}
+
+const GAST::GQLSubqueryNextClause * getSubqueryNextClause(const ASTPtr & ast)
+{
+    const auto * next_clause = ast->as<GAST::GQLSubqueryNextClause>();
+    EXPECT_NE(next_clause, nullptr);
+    return next_clause;
+}
+
 const GAST::GQLPathPattern * getOnlyPathPattern(const GAST::GQLMatchClause & match)
 {
     if (match.path_patterns.size() != 1)
@@ -250,12 +264,12 @@ TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause)
     ASSERT_NE(project, nullptr);
 }
 
-TEST(GQLParser, FocusedNestedQueryIsFlattened)
+TEST(GQLParser, FocusedNestedQueryKeepsSubqueryWrapper)
 {
     auto ast = parseGraphOrThrow("USE foo { MATCH (a) RETURN a }");
     const auto * clauses = getClausesQuery(ast);
     ASSERT_NE(clauses, nullptr);
-    ASSERT_EQ(clauses->clauses.size(), 3);
+    ASSERT_EQ(clauses->clauses.size(), 2);
 
     const auto * use_clause = getUseClause(*clauses, 0);
     ASSERT_NE(use_clause, nullptr);
@@ -264,10 +278,10 @@ TEST(GQLParser, FocusedNestedQueryIsFlattened)
     EXPECT_EQ(graph_reference->text, "foo");
     EXPECT_EQ(formatAST(*use_clause), "USE foo");
 
-    const auto * match = getMatchClause(*clauses, 1);
-    const auto * project = getProjectClause(*clauses, 2);
-    ASSERT_NE(match, nullptr);
-    ASSERT_NE(project, nullptr);
+    const auto * subquery_clause = getSubqueryClause(clauses->clauses[1]);
+    ASSERT_NE(subquery_clause, nullptr);
+    ASSERT_NE(getClausesQuery(subquery_clause->statement), nullptr);
+    EXPECT_EQ(formatAST(*subquery_clause), "{ MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, SelectStatementBuildsTopLevelProject)
@@ -284,9 +298,9 @@ TEST(GQLParser, SelectStatementBuildsTopLevelProject)
     EXPECT_EQ(item->text, "a");
     EXPECT_EQ(item->tryGetAlias(), "x");
 
-    const auto * source = getClausesQuery(project->source);
+    const auto * source = getSubqueryClause(project->source);
     ASSERT_NE(source, nullptr);
-    ASSERT_EQ(source->clauses.size(), 2);
+    ASSERT_NE(getClausesQuery(source->statement), nullptr);
 
     const auto * where = project->where->as<GAST::GQLWhereClause>();
     ASSERT_NE(where, nullptr);
@@ -304,7 +318,7 @@ TEST(GQLParser, SelectStatementBuildsTopLevelProject)
     ASSERT_NE(limit, nullptr);
     EXPECT_EQ(offset->text, "1");
     EXPECT_EQ(limit->text, "2");
-    EXPECT_EQ(formatAST(*project), "SELECT DISTINCT a AS x FROM MATCH (a) RETURN a WHERE (a IS NOT NULL) GROUP BY a HAVING (a IS NOT NULL) ORDER BY a DESC OFFSET 1 LIMIT 2");
+    EXPECT_EQ(formatAST(*project), "SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE (a IS NOT NULL) GROUP BY a HAVING (a IS NOT NULL) ORDER BY a DESC OFFSET 1 LIMIT 2");
 }
 
 TEST(GQLParser, SelectStatementPreservesGraphQualifiedQuerySource)
@@ -321,10 +335,30 @@ TEST(GQLParser, SelectStatementPreservesGraphQualifiedQuerySource)
     EXPECT_EQ(graph_reference->kind, GAST::GQLExpr::Kind::RawText);
     EXPECT_EQ(graph_reference->text, "foo");
 
-    const auto * nested_query = getClausesQuery(source_item->source);
+    const auto * nested_query = getSubqueryClause(source_item->source);
     ASSERT_NE(nested_query, nullptr);
-    ASSERT_EQ(nested_query->clauses.size(), 2);
-    EXPECT_EQ(formatAST(*project), "SELECT a FROM foo MATCH (a) RETURN a");
+    ASSERT_NE(getClausesQuery(nested_query->statement), nullptr);
+    EXPECT_EQ(formatAST(*project), "SELECT a FROM foo { MATCH (a) RETURN a }");
+}
+
+TEST(GQLParser, NestedQueryKeepsNextStatementsInsideSubqueryClause)
+{
+    auto ast = parseGraphOrThrow("USE foo { MATCH (a) RETURN a NEXT YIELD a RETURN a }");
+    const auto * clauses = getClausesQuery(ast);
+    ASSERT_NE(clauses, nullptr);
+    ASSERT_EQ(clauses->clauses.size(), 2);
+
+    const auto * subquery_clause = getSubqueryClause(clauses->clauses[1]);
+    ASSERT_NE(subquery_clause, nullptr);
+    ASSERT_EQ(subquery_clause->next_statements.size(), 1);
+
+    const auto * next_clause = getSubqueryNextClause(subquery_clause->next_statements[0]);
+    ASSERT_NE(next_clause, nullptr);
+    const auto * yield_clause = getExpr(next_clause->yield);
+    ASSERT_NE(yield_clause, nullptr);
+    EXPECT_EQ(yield_clause->text, "YIELD a");
+    ASSERT_NE(getClausesQuery(next_clause->statement), nullptr);
+    EXPECT_EQ(formatAST(*subquery_clause), "{ MATCH (a) RETURN a NEXT YIELD a RETURN a }");
 }
 
 TEST(GQLParser, SelectStatementBuildsStructuredGraphMatchSourceList)

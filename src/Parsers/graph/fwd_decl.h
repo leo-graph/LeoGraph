@@ -49,6 +49,8 @@ class GQLPageClause;
 class GQLProjectClause;
 class GQLSelectSourceItem;
 class GQLSelectSourceList;
+class GQLSubqueryClause;
+class GQLSubqueryNextClause;
 class GQLUseClause;
 class GQLClausesQuery;
 class GQLSetQuery;

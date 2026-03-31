@@ -112,24 +112,6 @@ void appendClauseList(PtrList & clauses, PtrList && extra_clauses)
     appendClause(clauses, std::move(clause));
 }
 
-void appendQueryResult(PtrList & clauses, Ptr query)
-{
-  if (!query)
-    return;
-
-  if (auto * clauses_query = query->as<GQLClausesQuery>())
-  {
-    for (auto & clause : clauses_query->clauses)
-      appendClause(clauses, std::move(clause));
-
-    clauses_query->children.clear();
-    clauses_query->clauses.clear();
-    return;
-  }
-
-  appendClause(clauses, std::move(query));
-}
-
 Ptr makeOrderByAndPageClause(ResultTail && tail)
 {
   auto clause = make_intrusive<GQLPageClause>();
@@ -215,28 +197,68 @@ std::any GQLParseTreeVisitor::visitCompositeQueryPrimary(GQLParser::CompositeQue
 std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext *context)
 {
   auto * procedure_body = context->procedureBody();
+  auto * statement_block = procedure_body ? procedure_body->statementBlock() : nullptr;
 
-  if (!procedure_body || procedure_body->atSchemaClause() || procedure_body->bindingVariableDefinitionBlock() || !procedure_body->statementBlock())
+  if (!procedure_body || !statement_block || !statement_block->statement())
     return makeRawTextExpr(context);
 
-  auto * statement_block = procedure_body->statementBlock();
+  auto visit_statement = [this](GQLParser::StatementContext * statement) -> Ptr
+  {
+    if (!statement)
+      return {};
 
-  if (!statement_block->statement() || !statement_block->nextStatement().empty())
-    return makeRawTextExpr(context);
+    if (statement->compositeQueryStatement())
+      return castAny<Ptr>(visit(statement->compositeQueryStatement()));
 
-  auto * statement = statement_block->statement();
+    return makeRawTextClause(getText(statement));
+  };
 
-  if (!statement->compositeQueryStatement())
-    return makeRawTextExpr(context);
+  auto clause = make_intrusive<GQLSubqueryClause>();
 
-  return castAny<Ptr>(visit(statement->compositeQueryStatement()));
+  if (auto * at_schema = procedure_body->atSchemaClause())
+  {
+    clause->at_schema = makeRawTextClause("AT " + getText(at_schema->schemaReference()));
+    appendClause(clause->children, clause->at_schema);
+  }
+
+  if (auto * bindings = procedure_body->bindingVariableDefinitionBlock())
+  {
+    for (auto * binding : bindings->bindingVariableDefinition())
+    {
+      auto binding_clause = makeRawTextClause(getText(binding));
+      clause->bindings.push_back(binding_clause);
+      appendClause(clause->children, binding_clause);
+    }
+  }
+
+  clause->statement = visit_statement(statement_block->statement());
+  appendClause(clause->children, clause->statement);
+
+  for (auto * next_statement : statement_block->nextStatement())
+  {
+    auto next_clause = make_intrusive<GQLSubqueryNextClause>();
+
+    if (next_statement->yieldClause())
+    {
+      next_clause->yield = makeRawTextClause("YIELD " + getText(next_statement->yieldClause()->yieldItemList()));
+      appendClause(next_clause->children, next_clause->yield);
+    }
+
+    next_clause->statement = visit_statement(next_statement->statement());
+    appendClause(next_clause->children, next_clause->statement);
+
+    clause->next_statements.push_back(next_clause);
+    appendClause(clause->children, Ptr(next_clause));
+  }
+
+  return Ptr(clause);
 }
 
 std::any GQLParseTreeVisitor::visitFocusedNestedQuerySpecification(GQLParser::FocusedNestedQuerySpecificationContext *context)
 {
   PtrList clauses;
   appendClause(clauses, makeUseGraphClause(context->useGraphClause()));
-  appendQueryResult(clauses, castAny<Ptr>(visit(context->nestedQuerySpecification())));
+  appendClause(clauses, castAny<Ptr>(visit(context->nestedQuerySpecification())));
   return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
 }
 

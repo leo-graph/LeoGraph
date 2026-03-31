@@ -39,8 +39,8 @@ The currently supported minimal path is:
 - structured `FINISH` clauses
 - structured standalone `ORDER BY` / `OFFSET` / `LIMIT` paging clauses
 - focused `USE` query parts flattened into clause sequences with structured `USE` clauses
-- focused nested queries now flatten `USE` plus the inner query result instead of falling back wholesale
-- simple nested query specifications that contain one plain query statement
+- focused nested queries now preserve a structured subquery wrapper after the `USE` clause
+- nested query specifications now preserve a structured subquery wrapper, including `NEXT` chains, while unsupported inner statements can still fall back locally to raw text
 - top-level `SELECT` statements now build a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails, graph-qualified nested-query `FROM` sources, and graph-match `FROM` lists preserved as structured source nodes
 - structured `CALL`, `LET`, and `FOR` clauses, including `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
@@ -64,7 +64,7 @@ Keep working in `src/Parsers/graph/GQLParseTreeVisitor.cpp` and reduce the query
 
 Suggested order:
 
-- keep the remaining top-level gaps focused on wider nested-query shapes and any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` wrappers
+- keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
 
