@@ -115,210 +115,128 @@ The initial implementation supports a core subset of GQL:
 
 ## Graph AST Design
 
-### AST Class Hierarchy
+The current refactor keeps the `antlr4` side and the `IAST` side intentionally separate:
 
-```
-IAST (ClickHouse base)
+- The `visit*` boundaries in `GQLParseTreeVisitor` follow `GQL.g4`.
+- The `IAST` layer is normalized in a `kgraph`-style shape, instead of mirroring every parse-tree wrapper rule.
+- Pure grammar pass-through nodes such as `compositeQueryStatement` are not preserved as dedicated AST wrappers.
+
+This keeps the visitor easy to debug against the grammar while still producing a stable AST contract for later lowering.
+
+### Query Root Contract
+
+The current query-level contract is:
+
+| Grammar rule | Returned AST node | Notes |
+|--------------|-------------------|-------|
+| `compositeQueryStatement` | forwards child root | no dedicated wrapper |
+| `compositeQueryExpression` with a set operator | `GQLSetQuery` | left and right are normalized query roots |
+| `compositeQueryExpression` without a set operator | forwards child root | keeps the root stable |
+| linear clause query | `GQLClausesQuery` | ordered list of clause nodes |
+| top-level `selectStatement` | `GQLClausesQuery` with one `GQLProjectClause` of type `Select` | `SELECT` is a clause, not a query root |
+| `nestedQuerySpecification` | `GQLSubqueryClause` | preserves the wrapper; the inner `statement` child is itself a normalized query root |
+
+This is the main design rule that aligns the ClickHouse visitor with `kgraph`:
+
+- grammar decides which `visit*` methods exist;
+- AST normalization decides which nodes are allowed to become public query roots.
+
+### Main AST Families
+
+At the current phase, the most important `GQL*` nodes are:
+
+```text
+IAST
   |
-  +-- ASTGraphQuery                   -- Top-level: MATCH ... RETURN ...
-  |     children:
-  |       [0] ASTGraphMatchClause     -- MATCH pattern list
-  |       [1] ASTGraphWhereClause     -- WHERE (optional)
-  |       [2] ASTGraphReturnClause    -- RETURN
+  +-- GQLClausesQuery         -- ordered clause list for linear queries
+  +-- GQLSetQuery             -- `UNION` / `EXCEPT` / `INTERSECT` / `OTHERWISE`
+  +-- GQLSubqueryClause       -- explicit `{ ... }` wrapper with `NEXT` chain support
   |
-  +-- ASTGraphMatchClause             -- One or more graph patterns
-  |     children:
-  |       [0..N] ASTGraphPattern
+  +-- GQLAtSchemaClause       -- `AT schemaReference`
+  +-- GQLSchemaReference      -- typed `schemaReference` wrapper
+  +-- GQLBindingInitializer   -- typed wrapper for `= ...` in binding definitions
+  +-- GQLBindingVariableDefinitionBlock
+  +-- GQLBindingVariableDefinition
+  +-- GQLYieldClause
   |
-  +-- ASTGraphPattern                 -- A connected pattern: (a)-[e]->(b)
-  |     children:
-  |       [0..N] ASTNodePattern | ASTEdgePattern (alternating)
+  +-- GQLMatchClause          -- `MATCH` / `OPTIONAL MATCH`
+  +-- GQLProjectClause        -- `RETURN` and `SELECT`
+  +-- GQLWhereClause          -- `WHERE`, `FILTER`, `HAVING`
+  +-- GQLUseClause            -- `USE`
+  +-- GQLCallClause           -- `CALL`
+  +-- GQLLetClause            -- `LET`
+  +-- GQLForClause            -- `FOR`
+  +-- GQLPageClause           -- standalone `ORDER BY` / `OFFSET` / `LIMIT`
   |
-  +-- ASTNodePattern                  -- (variable :Label {props})
-  |     variable: String (optional)
-  |     label: ASTLabelExpression (optional)
-  |     properties: ASTGraphPropertySpec (optional)
-  |
-  +-- ASTEdgePattern                  -- -[variable :Label {props}]->
-  |     variable: String (optional)
-  |     label: ASTLabelExpression (optional)
-  |     direction: Enum {LEFT, RIGHT, UNDIRECTED, ANY}
-  |     quantifier: ASTPathQuantifier (optional, for *1..N)
-  |
-  +-- ASTPathQuantifier               -- *min..max
-  |     min_hops: UInt64
-  |     max_hops: UInt64 (0 = unbounded)
-  |
-  +-- ASTLabelExpression              -- Label with boolean operators
-  |     type: Enum {NAME, AND, OR, NOT, WILDCARD}
-  |     children: ASTLabelExpression[]
-  |     name: String (for NAME type)
-  |
-  +-- ASTGraphReturnClause            -- RETURN item1, item2, ...
-  |     distinct: bool
-  |     children:
-  |       [0..N] ASTGraphReturnItem
-  |     order_by: ASTOrderByElement[] (optional)
-  |     limit: ASTLiteral (optional)
-  |
-  +-- ASTGraphReturnItem              -- expression AS alias
-  |     expression: ASTPtr
-  |     alias: String (optional)
-  |
-  +-- ASTGraphWhereClause             -- WHERE condition
-  |     children:
-  |       [0] expression (reuse ClickHouse ASTFunction/ASTLiteral/etc.)
-  |
-  +-- ASTCreateGraphStatement         -- CREATE PROPERTY GRAPH
-  |     graph_name: String
-  |     if_not_exists: bool
-  |     vertex_tables: ASTGraphVertexTableDef[]
-  |     edge_tables: ASTGraphEdgeTableDef[]
-  |
-  +-- ASTGraphVertexTableDef          -- VERTEX TABLE mapping
-  |     table_name: String
-  |     key_column: String
-  |     label: String
-  |     properties: [(source_col, alias)]
-  |
-  +-- ASTGraphEdgeTableDef            -- EDGE TABLE mapping
-        table_name: String
-        key_column: String
-        source_key: String
-        source_ref_table: String
-        source_ref_column: String
-        dest_key: String
-        dest_ref_table: String
-        dest_ref_column: String
-        label: String
-        properties: [(source_col, alias)]
+  +-- GQLPathPattern
+  +-- GQLNodePattern
+  +-- GQLEdgePattern
+  +-- GQLLabelExpression
+  +-- GQLQuantifier
+  +-- GQLExpr                 -- current expression skeleton
 ```
 
-### Property Access
+Pattern nodes stay graph-native, while expressions still use a thin `GQLExpr` layer or local raw-text fallbacks where the refactor is not complete yet. Inside `GQLSubqueryClause`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference` and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
 
-GQL uses dot notation for property access: `a.name`, `e.created_at`. These are translated to ClickHouse `ASTIdentifier` nodes with a qualified name that the interpreter resolves against the vertex/edge table schema.
+### Visitor Organization
 
-```
-GQL: a.name
-  -> ASTFunction("graphPropertyAccess",
-       ASTIdentifier("a"),        -- graph variable
-       ASTLiteral("name"))        -- property name
-```
+The visitor is organized in the same high-level layers as the grammar:
 
-During interpretation, `a` is resolved to its underlying table (e.g., `users`), and `name` is resolved to the corresponding column.
+- query-level visitors such as `visitCompositeQueryExpression`, `visitLinearQueryStatement`, and `visitSelectStatement` decide the normalized query root;
+- clause-level visitors such as `visitMatchStatement`, `visitCallQueryStatement`, `visitFilterStatement`, and `visitReturnStatement` build individual clause nodes;
+- pattern-level visitors such as `visitGraphPattern`, `visitPathPattern`, `visitNodePattern`, and `visitEdgePattern` build graph-specific subtrees;
+- expression-level visitors build `GQLExpr` and related leaf nodes.
 
-### Expression Reuse
+Two rules are especially important:
 
-WHERE conditions and RETURN expressions reuse ClickHouse's existing expression AST nodes (`ASTFunction`, `ASTLiteral`, `ASTIdentifier`) wherever possible. Only graph-specific constructs (patterns, labels, path quantifiers) use new AST types.
+- `visitSelectStatement` must build a `GQLProjectClause`, then wrap it into a one-clause `GQLClausesQuery`.
+- `visitNestedQuerySpecification` must preserve a `GQLSubqueryClause` wrapper instead of unwrapping its inner query.
+- If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.
+
+These two constraints keep the query contract stable while the lower layers continue to expand.
 
 ## Parser Pipeline
 
-### Entry Point
+### Current `antlr4` Entry
+
+The current `antlr4` entry is `GQLParserUtils::parseCompositeQueryStatement`.
 
 ```cpp
-// src/Parsers/Graph/ParserGraphQuery.h
-class ParserGraphQuery : public IParserBase
+ASTPtr parseQuery(std::string_view query)
 {
-protected:
-    const char * getName() const override { return "Graph query (GQL)"; }
-    bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
-};
-```
-
-### Detection and Dispatch
-
-```cpp
-// ParserGraphQuery.cpp
-bool ParserGraphQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    // Detect GQL entry keywords
-    if (ParserKeyword(Keyword::MATCH).check(pos, expected))
-    {
-        // Backtrack and extract GQL text
-        // Parse via ANTLR4
-        // Convert to Graph AST
-        return true;
-    }
-
-    if (ParserKeyword(Keyword::CREATE).check(pos, expected)
-        && ParserKeyword(Keyword::PROPERTY).check(pos, expected)
-        && ParserKeyword(Keyword::GRAPH).check(pos, expected))
-    {
-        // Parse CREATE PROPERTY GRAPH via ANTLR4
-        return true;
-    }
-
-    return false;
+    auto * parse_tree = OPENGQL::GQLParserUtils::parseCompositeQueryStatement(query);
+    OPENGQL::GQLParseTreeVisitor visitor;
+    return std::any_cast<ASTPtr>(visitor.visit(parse_tree));
 }
 ```
 
-### ANTLR4 Invocation
+This means the internal refactor currently centers on complete query statements, not on isolated clause fragments.
 
-```cpp
-// src/Parsers/Graph/GQLParsingUtil.h
-class GQLParsingUtil
-{
-public:
-    /// Parse a GQL MATCH query and return a Graph AST
-    static ASTPtr parseMatchQuery(const std::string & gql_text);
+### Top-Level ClickHouse Parser Entry
 
-    /// Parse a CREATE PROPERTY GRAPH statement
-    static ASTPtr parseCreateGraph(const std::string & gql_text);
+`ParserGraphQuery` is still a thin outer adapter. Today it only routes a subset of top-level prefixes into the `antlr4` path, and that gating is intentionally treated as a later integration task.
 
-private:
-    /// Convert ANTLR4 parse tree context to Graph AST node
-    static ASTPtr visitMatchStatement(GQLParser::MatchStatementContext * ctx);
-    static ASTPtr visitGraphPattern(GQLParser::GraphPatternContext * ctx);
-    static ASTPtr visitNodePattern(GQLParser::NodePatternContext * ctx);
-    static ASTPtr visitEdgePattern(GQLParser::EdgePatternContext * ctx);
-    // ... more visitor methods
-};
-```
+The current parser work therefore focuses on making:
 
-### Registration in ParserQuery
+`GQL text -> antlr4 parse tree -> normalized GQL IAST`
 
-```cpp
-// src/Parsers/ParserQuery.cpp (modification)
-bool ParserQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
-{
-    // ... existing parsers ...
-
-    // GQL parser (before the final fallback)
-    ParserGraphQuery graph_query_p;
-    if (graph_query_p.parse(pos, node, expected))
-        return true;
-
-    // ... remaining parsers ...
-}
-```
+as complete and stable as possible before widening the top-level routing rules in `ParserQuery`.
 
 ## Error Handling
 
-ANTLR4 parse errors are caught and converted to ClickHouse exceptions:
+`antlr4` syntax and lexer errors are translated into ClickHouse exceptions with existing error codes such as `SYNTAX_ERROR`.
 
-```cpp
-class GQLErrorListener : public antlr4::BaseErrorListener
-{
-    void syntaxError(
-        antlr4::Recognizer * recognizer,
-        antlr4::Token * offending_symbol,
-        size_t line,
-        size_t position,
-        const std::string & msg,
-        std::exception_ptr e) override
-    {
-        throw Exception(
-            ErrorCodes::SYNTAX_ERROR,
-            "GQL syntax error at line {}, position {}: {}",
-            line, position, msg);
-    }
-};
-```
+The current rule of thumb is:
+
+- use `GQLParserUtils` for `SLL -> LL` fallback and listener wiring;
+- use existing ClickHouse error codes;
+- keep feature gaps explicit with clear `Unsupported GQL ...` exceptions while the AST layer is still expanding.
 
 ## Testing Strategy
 
-GQL parser tests follow ClickHouse conventions:
+The useful tests at this phase are shape tests for the normalized AST contract:
 
-1. **Unit tests**: `src/Parsers/Graph/tests/gtest_gql_parser.cpp` - test individual parse rules.
-2. **SQL tests**: `tests/queries/0_stateless/` - end-to-end tests with `.sql` and `.reference` files.
-3. **Negative tests**: Verify that malformed GQL produces clear error messages.
+1. query-root tests: verify whether a query returns `GQLClausesQuery`, `GQLSetQuery`, or `GQLSubqueryClause`;
+2. clause-order tests: verify that linear queries preserve clause order inside `GQLClausesQuery`;
+3. wrapper tests: verify that top-level `SELECT` is normalized to a one-clause `GQLClausesQuery`, and `{ ... }` keeps a `GQLSubqueryClause` wrapper;
+4. pattern and expression tests: verify the current structured coverage and make raw-text fallbacks explicit where they still exist.

@@ -1,8 +1,12 @@
 #pragma once
 
-#include <Parsers/graph/AST/GQLClausesQuery.h>
 #include <Parsers/graph/AST/GQLAssignmentItem.h>
+#include <Parsers/graph/AST/GQLAtSchemaClause.h>
+#include <Parsers/graph/AST/GQLBindingInitializer.h>
+#include <Parsers/graph/AST/GQLBindingVariableDefinition.h>
+#include <Parsers/graph/AST/GQLBindingVariableDefinitionBlock.h>
 #include <Parsers/graph/AST/GQLCallClause.h>
+#include <Parsers/graph/AST/GQLClausesQuery.h>
 #include <Parsers/graph/AST/GQLEdgePattern.h>
 #include <Parsers/graph/AST/GQLExpr.h>
 #include <Parsers/graph/AST/GQLFinishClause.h>
@@ -16,13 +20,15 @@
 #include <Parsers/graph/AST/GQLPageClause.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
 #include <Parsers/graph/AST/GQLProjectClause.h>
-#include <Parsers/graph/AST/GQLSelectSourceItem.h>
-#include <Parsers/graph/AST/GQLSelectSourceList.h>
 #include <Parsers/graph/AST/GQLPropertyItem.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
+#include <Parsers/graph/AST/GQLSchemaReference.h>
+#include <Parsers/graph/AST/GQLSelectSourceItem.h>
+#include <Parsers/graph/AST/GQLSelectSourceList.h>
 #include <Parsers/graph/AST/GQLSetQuery.h>
 #include <Parsers/graph/AST/GQLSubqueryClause.h>
 #include <Parsers/graph/AST/GQLSubqueryNextClause.h>
 #include <Parsers/graph/AST/GQLUseClause.h>
 #include <Parsers/graph/AST/GQLWhereClause.h>
+#include <Parsers/graph/AST/GQLYieldClause.h>

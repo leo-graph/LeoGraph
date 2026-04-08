@@ -9,7 +9,7 @@ class GQLSubqueryClause final : public DB::IAST
 {
 public:
     Ptr at_schema;
-    PtrList bindings;
+    Ptr bindings;
     Ptr statement;
     PtrList next_statements;
 
@@ -20,12 +20,14 @@ public:
         auto result = make_intrusive<GQLSubqueryClause>(*this);
         result->children.clear();
         result->at_schema = at_schema ? at_schema->clone() : Ptr{};
+        result->bindings = bindings ? bindings->clone() : Ptr{};
         result->statement = statement ? statement->clone() : Ptr{};
 
         if (result->at_schema)
             result->children.push_back(result->at_schema);
 
-        detail::cloneChildrenList(bindings, result->bindings, result->children);
+        if (result->bindings)
+            result->children.push_back(result->bindings);
 
         if (result->statement)
             result->children.push_back(result->statement);
@@ -53,8 +55,7 @@ protected:
 
         format_child(at_schema);
 
-        for (const auto & binding : bindings)
-            format_child(binding);
+        format_child(bindings);
 
         format_child(statement);
 
@@ -70,10 +71,7 @@ protected:
     void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override
     {
         f(nullptr, &at_schema);
-
-        for (auto & binding : bindings)
-            f(nullptr, &binding);
-
+        f(nullptr, &bindings);
         f(nullptr, &statement);
 
         for (auto & next_statement : next_statements)

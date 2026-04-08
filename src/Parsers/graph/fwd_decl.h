@@ -29,6 +29,10 @@ template <typename T>
 using PtrTo = boost::intrusive_ptr<T>;
 
 class GQLAssignmentItem;
+class GQLAtSchemaClause;
+class GQLBindingInitializer;
+class GQLBindingVariableDefinition;
+class GQLBindingVariableDefinitionBlock;
 class GQLCallClause;
 class GQLExpr;
 class GQLFinishClause;
@@ -47,11 +51,13 @@ class GQLOrderByItem;
 class GQLOrderByClause;
 class GQLPageClause;
 class GQLProjectClause;
+class GQLSchemaReference;
 class GQLSelectSourceItem;
 class GQLSelectSourceList;
 class GQLSubqueryClause;
 class GQLSubqueryNextClause;
 class GQLUseClause;
+class GQLYieldClause;
 class GQLClausesQuery;
 class GQLSetQuery;
 
