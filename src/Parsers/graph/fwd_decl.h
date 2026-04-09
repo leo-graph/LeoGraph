@@ -15,6 +15,32 @@ enum class EdgeDirection : UInt8 {
   Any,
 };
 
+enum class GraphMatchMode : UInt8 {
+  None,
+  RepeatableElements,
+  RepeatableElementBindings,
+  DifferentEdges,
+  DifferentEdgeBindings,
+};
+
+enum class PathMode : UInt8 {
+  None,
+  Walk,
+  Trail,
+  Simple,
+  Acyclic,
+};
+
+enum class PathSearchKind : UInt8 {
+  None,
+  All,
+  Any,
+  AllShortest,
+  AnyShortest,
+  CountedShortest,
+  CountedShortestGroup,
+};
+
 enum class SetOperation : UInt8 {
   Union,
   Except,
@@ -37,13 +63,20 @@ class GQLCallClause;
 class GQLExpr;
 class GQLFinishClause;
 class GQLForClause;
+class GQLGroupByClause;
 class GQLLabelExpression;
+class GQLListConstructor;
 class GQLPropertyItem;
 class GQLPropertyMap;
 class GQLQuantifier;
+class GQLRecordConstructor;
 class GQLNodePattern;
 class GQLEdgePattern;
 class GQLPathPattern;
+class GQLPathPatternPrefix;
+class GQLParenthesizedPathPattern;
+class GQLGraphPatternBlock;
+class GQLMatchStatementBlock;
 class GQLWhereClause;
 class GQLLetClause;
 class GQLMatchClause;

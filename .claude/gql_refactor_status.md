@@ -38,7 +38,7 @@ The currently supported minimal path is:
 - `OPTIONAL MATCH`
 - `WHERE` / `FILTER`
 - `RETURN`
-- `GROUP BY` inside `RETURN`
+- structured `GROUP BY` inside `RETURN` and `SELECT`
 - `ORDER BY`
 - `OFFSET`
 - `LIMIT`
@@ -48,11 +48,12 @@ The currently supported minimal path is:
 - focused nested queries now preserve a structured subquery wrapper after the `USE` clause
 - nested query specifications now preserve a structured subquery wrapper, with dedicated nodes for `AT schema`, `schemaReference`, binding-variable definition blocks, binding initializers, and `NEXT YIELD`, and reject unsupported inner non-query statements explicitly instead of flattening them to raw text
 - top-level `SELECT` statements now normalize to a one-clause `GQLClausesQuery` that holds a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails, graph-qualified nested-query `FROM` sources, and graph-match `FROM` lists preserved as structured source nodes
-- structured `CALL`, `LET`, and `FOR` clauses, including `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
+- structured `CALL`, `LET`, and `FOR` clauses, including structured procedure references, inline query-compatible `CALL { ... }`, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
+- explicit rejection of unsupported inline `CALL` variable-scope clauses instead of top-level raw-text fallback
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
-- basic path / node / edge patterns
+- structured path / graph prefixes, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, and basic path / node / edge patterns
 - basic label expressions
-- a minimal expression subset
+- a minimal expression subset with structured `ABS` / length / cardinality functions, structured `COUNT(*)`, structured `EXISTS` operands, and structured list / record literals
 - simple set queries such as `UNION`
 
 ## Important Boundaries
@@ -83,15 +84,14 @@ Suggested order:
 
 The goal of this phase is to make the current query-oriented root feel complete before adding more outer integration.
 
-### 2. Fill the pattern-side holes
+### 2. Continue filling the remaining pattern-side holes
 
 After the main query chain is healthier, cover the remaining pattern-related unsupported branches:
 
-- graph pattern prefixes
-- graph pattern `YIELD`
-- path pattern prefixes
-- complex optional match operands
-- quantified or questioned non-edge path primaries
+- `KEEP ...` coverage beyond the current path-prefix wrapper
+- simplified path-pattern expressions and other non-element path primaries
+- broader optional-match block normalization if lowering wants something richer than the current block wrapper
+- any missing path-search variants that round-trip tests expose
 
 Most of this work should still stay in `GQLParseTreeVisitor`, with small AST additions under `src/Parsers/graph/AST/` only when the current nodes stop being expressive enough.
 
@@ -102,7 +102,7 @@ Most of this work should still stay in `GQLParseTreeVisitor`, with small AST add
 Recommended direction:
 
 - keep the generic `GQLExpr::Kind` approach for now;
-- gradually replace `rawText` paths with structured expression nodes where they become important;
+- gradually replace `rawText` paths with structured expression nodes where they become important, especially graph references in `USE` / `SELECT FROM`, higher-frequency value functions, and remaining predicate payloads;
 - postpone a large expression hierarchy until the parser coverage stabilizes.
 
 ### 4. Revisit lowering and top-level integration later

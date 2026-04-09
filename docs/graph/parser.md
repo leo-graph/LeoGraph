@@ -160,19 +160,26 @@ IAST
   +-- GQLYieldClause
   |
   +-- GQLMatchClause          -- `MATCH` / `OPTIONAL MATCH`
+  +-- GQLGraphPatternBlock    -- delimited graph-pattern body for predicates
+  +-- GQLMatchStatementBlock  -- delimited `MATCH`-statement block wrapper
   +-- GQLProjectClause        -- `RETURN` and `SELECT`
   +-- GQLWhereClause          -- `WHERE`, `FILTER`, `HAVING`
   +-- GQLUseClause            -- `USE`
   +-- GQLCallClause           -- `CALL`
+  +-- GQLGroupByClause        -- structured `GROUP BY`
   +-- GQLLetClause            -- `LET`
   +-- GQLForClause            -- `FOR`
   +-- GQLPageClause           -- standalone `ORDER BY` / `OFFSET` / `LIMIT`
   |
   +-- GQLPathPattern
+  +-- GQLPathPatternPrefix
+  +-- GQLParenthesizedPathPattern
   +-- GQLNodePattern
   +-- GQLEdgePattern
   +-- GQLLabelExpression
   +-- GQLQuantifier
+  +-- GQLListConstructor
+  +-- GQLRecordConstructor
   +-- GQLExpr                 -- current expression skeleton
 ```
 
@@ -191,6 +198,9 @@ Two rules are especially important:
 
 - `visitSelectStatement` must build a `GQLProjectClause`, then wrap it into a one-clause `GQLClausesQuery`.
 - `visitNestedQuerySpecification` must preserve a `GQLSubqueryClause` wrapper instead of unwrapping its inner query.
+- `visitGroupByClause` should build a dedicated `GQLGroupByClause` instead of storing `GROUP BY ...` as raw text.
+- `visitGraphPattern` and `visitPathPattern` should preserve graph/path prefixes structurally instead of degrading them to raw text or `Unsupported`.
+- `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubqueryClause`) instead of stringifying the body.
 - If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.
 
 These two constraints keep the query contract stable while the lower layers continue to expand.

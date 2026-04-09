@@ -26,8 +26,11 @@ T castAny(const std::any &value) {
 }
 
 struct PatternBindingTable {
+  GraphMatchMode match_mode = GraphMatchMode::None;
+  Ptr keep_clause;
   PtrList path_patterns;
   Ptr where;
+  PtrList yield_items;
 };
 
 struct ElementPatternParts {
@@ -226,6 +229,216 @@ void appendClauseList(PtrList &clauses, PtrList &&extra_clauses) {
   for (auto &clause : extra_clauses) appendClause(clauses, std::move(clause));
 }
 
+PathMode getPathMode(GQLParser::PathModeContext *context) {
+  if (!context) {
+    return PathMode::None;
+  }
+
+  if (context->WALK()) {
+    return PathMode::Walk;
+  }
+
+  if (context->TRAIL()) {
+    return PathMode::Trail;
+  }
+
+  if (context->SIMPLE()) {
+    return PathMode::Simple;
+  }
+
+  if (context->ACYCLIC()) {
+    return PathMode::Acyclic;
+  }
+
+  return PathMode::None;
+}
+
+Ptr makePathPatternPrefix(GQLParser::PathModePrefixContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  auto prefix = make_intrusive<GQLPathPatternPrefix>();
+  prefix->path_mode = getPathMode(context->pathMode());
+  prefix->has_path_keyword = context->pathOrPaths() != nullptr;
+  prefix->use_paths_keyword = context->pathOrPaths() && context->pathOrPaths()->PATHS();
+  return Ptr(prefix);
+}
+
+Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->pathModePrefix()) {
+    return makePathPatternPrefix(context->pathModePrefix());
+  }
+
+  auto *search = context->pathSearchPrefix();
+  if (!search) {
+    return {};
+  }
+
+  auto prefix = make_intrusive<GQLPathPatternPrefix>();
+
+  if (auto *all = search->allPathSearch()) {
+    prefix->search_kind = PathSearchKind::All;
+    prefix->path_mode = getPathMode(all->pathMode());
+    prefix->has_path_keyword = all->pathOrPaths() != nullptr;
+    prefix->use_paths_keyword = all->pathOrPaths() && all->pathOrPaths()->PATHS();
+    return Ptr(prefix);
+  }
+
+  if (auto *any = search->anyPathSearch()) {
+    prefix->search_kind = PathSearchKind::Any;
+    prefix->count = any->numberOfPaths() ? getText(any->numberOfPaths()->nonNegativeIntegerSpecification()) : String{};
+    prefix->path_mode = getPathMode(any->pathMode());
+    prefix->has_path_keyword = any->pathOrPaths() != nullptr;
+    prefix->use_paths_keyword = any->pathOrPaths() && any->pathOrPaths()->PATHS();
+    return Ptr(prefix);
+  }
+
+  auto *shortest = search->shortestPathSearch();
+  if (!shortest) {
+    return Ptr(prefix);
+  }
+
+  if (auto *all_shortest = shortest->allShortestPathSearch()) {
+    prefix->search_kind = PathSearchKind::AllShortest;
+    prefix->path_mode = getPathMode(all_shortest->pathMode());
+    prefix->has_path_keyword = all_shortest->pathOrPaths() != nullptr;
+    prefix->use_paths_keyword = all_shortest->pathOrPaths() && all_shortest->pathOrPaths()->PATHS();
+    return Ptr(prefix);
+  }
+
+  if (auto *any_shortest = shortest->anyShortestPathSearch()) {
+    prefix->search_kind = PathSearchKind::AnyShortest;
+    prefix->path_mode = getPathMode(any_shortest->pathMode());
+    prefix->has_path_keyword = any_shortest->pathOrPaths() != nullptr;
+    prefix->use_paths_keyword = any_shortest->pathOrPaths() && any_shortest->pathOrPaths()->PATHS();
+    return Ptr(prefix);
+  }
+
+  if (auto *counted_shortest = shortest->countedShortestPathSearch()) {
+    prefix->search_kind = PathSearchKind::CountedShortest;
+    prefix->count = getText(counted_shortest->numberOfPaths()->nonNegativeIntegerSpecification());
+    prefix->path_mode = getPathMode(counted_shortest->pathMode());
+    prefix->has_path_keyword = counted_shortest->pathOrPaths() != nullptr;
+    prefix->use_paths_keyword = counted_shortest->pathOrPaths() && counted_shortest->pathOrPaths()->PATHS();
+    return Ptr(prefix);
+  }
+
+  if (auto *counted_group = shortest->countedShortestGroupSearch()) {
+    prefix->search_kind = PathSearchKind::CountedShortestGroup;
+    prefix->count =
+        counted_group->numberOfGroups() ? getText(counted_group->numberOfGroups()->nonNegativeIntegerSpecification()) : String{};
+    prefix->path_mode = getPathMode(counted_group->pathMode());
+    prefix->has_path_keyword = counted_group->pathOrPaths() != nullptr;
+    prefix->use_paths_keyword = counted_group->pathOrPaths() && counted_group->pathOrPaths()->PATHS();
+    prefix->use_groups_keyword = counted_group->GROUPS() != nullptr;
+    return Ptr(prefix);
+  }
+
+  return Ptr(prefix);
+}
+
+GraphMatchMode getGraphMatchMode(GQLParser::MatchModeContext *context) {
+  if (!context) {
+    return GraphMatchMode::None;
+  }
+
+  if (auto *repeatable = context->repeatableElementsMatchMode()) {
+    return repeatable->elementBindingsOrElements() && repeatable->elementBindingsOrElements()->BINDINGS()
+               ? GraphMatchMode::RepeatableElementBindings
+               : GraphMatchMode::RepeatableElements;
+  }
+
+  if (auto *different = context->differentEdgesMatchMode()) {
+    return different->edgeBindingsOrEdges() && different->edgeBindingsOrEdges()->BINDINGS() ? GraphMatchMode::DifferentEdgeBindings
+                                                                                            : GraphMatchMode::DifferentEdges;
+  }
+
+  return GraphMatchMode::None;
+}
+
+PtrList makeGraphPatternYieldItems(GQLParser::GraphPatternYieldItemListContext *context) {
+  PtrList items;
+
+  if (!context) {
+    return items;
+  }
+
+  for (auto *item : context->graphPatternYieldItem()) {
+    auto *binding_reference = item->bindingVariableReference();
+    auto *binding_variable = binding_reference ? binding_reference->bindingVariable() : nullptr;
+    items.push_back(GQLExpr::identifier(getText(binding_variable)));
+  }
+
+  return items;
+}
+
+Ptr makeMatchClause(PatternBindingTable &&binding_table, bool optional = false) {
+  auto clause = make_intrusive<GQLMatchClause>(optional);
+  clause->match_mode = binding_table.match_mode;
+  clause->keep_clause = std::move(binding_table.keep_clause);
+  clause->path_patterns = std::move(binding_table.path_patterns);
+  clause->where = std::move(binding_table.where);
+  clause->yield_items = std::move(binding_table.yield_items);
+
+  for (const auto &path : clause->path_patterns) {
+    if (path) {
+      clause->children.push_back(path);
+    }
+  }
+
+  if (clause->keep_clause) {
+    clause->children.push_back(clause->keep_clause);
+  }
+
+  if (clause->where) {
+    clause->children.push_back(clause->where);
+  }
+
+  for (const auto &item : clause->yield_items) {
+    if (item) {
+      clause->children.push_back(item);
+    }
+  }
+
+  return Ptr(clause);
+}
+
+Ptr makeGraphPatternBlock(PatternBindingTable &&binding_table, bool parenthesized) {
+  auto block = make_intrusive<GQLGraphPatternBlock>();
+  block->parenthesized = parenthesized;
+  block->match_mode = binding_table.match_mode;
+  block->keep_clause = std::move(binding_table.keep_clause);
+  block->path_patterns = std::move(binding_table.path_patterns);
+  block->where = std::move(binding_table.where);
+
+  for (const auto &path : block->path_patterns) {
+    appendClause(block->children, path);
+  }
+
+  appendClause(block->children, block->keep_clause);
+  appendClause(block->children, block->where);
+
+  return Ptr(block);
+}
+
+void populateMatchStatementBlock(GQLMatchStatementBlock &block, GQLParseTreeVisitor &visitor,
+                                 GQLParser::MatchStatementBlockContext *context) {
+  if (!context) {
+    return;
+  }
+
+  for (auto *match_statement : context->matchStatement()) {
+    auto match_clause = castAny<Ptr>(visitor.visit(match_statement));
+    block.matches.push_back(match_clause);
+    appendClause(block.children, match_clause);
+  }
+}
+
 Ptr makeOrderByAndPageClause(ResultTail &&tail) {
   auto clause = make_intrusive<GQLPageClause>();
   clause->order_by = std::move(tail.order_by);
@@ -237,6 +450,120 @@ Ptr makeOrderByAndPageClause(ResultTail &&tail) {
   appendClause(clause->children, clause->limit);
 
   return Ptr(clause);
+}
+
+Ptr makeListConstructor(GQLParser::ListValueConstructorByEnumerationContext *context, GQLParseTreeVisitor &visitor) {
+  auto list = make_intrusive<GQLListConstructor>();
+
+  auto *elements = context ? context->listElementList() : nullptr;
+  if (!elements) {
+    return Ptr(list);
+  }
+
+  for (auto *element : elements->listElement()) {
+    auto item = castAny<Ptr>(visitor.visit(element->valueExpression()));
+    list->items.push_back(item);
+    appendClause(list->children, item);
+  }
+
+  return Ptr(list);
+}
+
+Ptr makeRecordConstructor(GQLParser::RecordConstructorContext *context, GQLParseTreeVisitor &visitor) {
+  auto record = make_intrusive<GQLRecordConstructor>();
+  record->explicit_record_keyword = context && context->RECORD() != nullptr;
+
+  auto *field_list = context && context->fieldsSpecification() ? context->fieldsSpecification()->fieldList() : nullptr;
+  if (!field_list) {
+    return Ptr(record);
+  }
+
+  for (auto *field : field_list->field()) {
+    auto item = Ptr(
+        make_intrusive<GQLPropertyItem>(getText(field->fieldName()->identifier()), castAny<Ptr>(visitor.visit(field->valueExpression()))));
+    record->fields.push_back(item);
+    appendClause(record->children, item);
+  }
+
+  return Ptr(record);
+}
+
+Ptr makeAggregateFunction(GQLParser::AggregateFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->COUNT() && context->ASTERISK()) {
+    PtrList arguments;
+    arguments.push_back(GQLExpr::literal("*"));
+    return GQLExpr::functionCall("COUNT", std::move(arguments));
+  }
+
+  if (auto *general = context->generalSetFunction()) {
+    Ptr argument = castAny<Ptr>(visitor.visit(general->valueExpression()));
+    if (general->setQuantifier()) {
+      String prefix = general->setQuantifier()->DISTINCT() ? "DISTINCT " : "ALL ";
+      argument = GQLExpr::rawText(prefix + detail::formatNodeToString(*argument));
+    }
+
+    PtrList arguments;
+    arguments.push_back(argument);
+    return GQLExpr::functionCall(getText(general->generalSetFunctionType()), std::move(arguments));
+  }
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) {
+    return {};
+  }
+
+  auto *numeric = context->numericValueFunction();
+  if (!numeric) {
+    return GQLExpr::rawText(getText(context));
+  }
+
+  if (auto *length = numeric->lengthExpression()) {
+    if (auto *char_length = length->charLengthExpression()) {
+      PtrList arguments;
+      arguments.push_back(castAny<Ptr>(visitor.visit(char_length->characterStringValueExpression()->valueExpression())));
+      return GQLExpr::functionCall(char_length->CHAR_LENGTH() ? "CHAR_LENGTH" : "CHARACTER_LENGTH", std::move(arguments));
+    }
+
+    if (auto *byte_length = length->byteLengthExpression()) {
+      PtrList arguments;
+      arguments.push_back(castAny<Ptr>(visitor.visit(byte_length->byteStringValueExpression()->valueExpression())));
+      return GQLExpr::functionCall(byte_length->BYTE_LENGTH() ? "BYTE_LENGTH" : "OCTET_LENGTH", std::move(arguments));
+    }
+
+    if (auto *path_length = length->pathLengthExpression()) {
+      PtrList arguments;
+      arguments.push_back(castAny<Ptr>(visitor.visit(path_length->pathValueExpression()->valueExpression())));
+      return GQLExpr::functionCall("PATH_LENGTH", std::move(arguments));
+    }
+  }
+
+  if (auto *cardinality = numeric->cardinalityExpression()) {
+    PtrList arguments;
+    if (cardinality->cardinalityExpressionArgument()) {
+      arguments.push_back(castAny<Ptr>(visitor.visit(cardinality->cardinalityExpressionArgument()->valueExpression())));
+      return GQLExpr::functionCall("CARDINALITY", std::move(arguments));
+    }
+
+    if (cardinality->listValueExpression()) {
+      arguments.push_back(castAny<Ptr>(visitor.visit(cardinality->listValueExpression()->valueExpression())));
+      return GQLExpr::functionCall("SIZE", std::move(arguments));
+    }
+  }
+
+  if (auto *absolute = numeric->absoluteValueExpression()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(absolute->valueExpression())));
+    return GQLExpr::functionCall("ABS", std::move(arguments));
+  }
+
+  return GQLExpr::rawText(getText(context));
 }
 
 Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirection direction = EdgeDirection::Right) {
@@ -289,26 +616,7 @@ Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirecti
 
 Ptr GQLParseTreeVisitor::makeRawTextExpr(antlr4::ParserRuleContext *context) const { return GQLExpr::rawText(getText(context)); }
 
-std::any GQLParseTreeVisitor::visitCompositeQueryStatement(GQLParser::CompositeQueryStatementContext *context) {
-  return castAny<Ptr>(visit(context->compositeQueryExpression()));
-}
-
-std::any GQLParseTreeVisitor::visitCompositeQueryExpression(GQLParser::CompositeQueryExpressionContext *context) {
-  if (!context->compositeQueryExpression()) {
-    return castAny<Ptr>(visit(context->compositeQueryPrimary()));
-  }
-
-  auto left = castAny<Ptr>(visit(context->compositeQueryExpression()));
-  auto right = castAny<Ptr>(visit(context->compositeQueryPrimary()));
-  return Ptr(make_intrusive<GQLSetQuery>(getSetOperation(context), std::move(left), std::move(right)));
-}
-
-std::any GQLParseTreeVisitor::visitCompositeQueryPrimary(GQLParser::CompositeQueryPrimaryContext *context) {
-  return castAny<Ptr>(visit(context->linearQueryStatement()));
-}
-
-std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext *context) {
-  auto *procedure_body = context->procedureBody();
+Ptr GQLParseTreeVisitor::buildSubqueryClause(GQLParser::ProcedureBodyContext *procedure_body, antlr4::ParserRuleContext *context) {
   auto *statement_block = procedure_body ? procedure_body->statementBlock() : nullptr;
 
   if (!procedure_body || !statement_block || !statement_block->statement()) {
@@ -435,6 +743,28 @@ std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQue
   }
 
   return Ptr(clause);
+}
+
+std::any GQLParseTreeVisitor::visitCompositeQueryStatement(GQLParser::CompositeQueryStatementContext *context) {
+  return castAny<Ptr>(visit(context->compositeQueryExpression()));
+}
+
+std::any GQLParseTreeVisitor::visitCompositeQueryExpression(GQLParser::CompositeQueryExpressionContext *context) {
+  if (!context->compositeQueryExpression()) {
+    return castAny<Ptr>(visit(context->compositeQueryPrimary()));
+  }
+
+  auto left = castAny<Ptr>(visit(context->compositeQueryExpression()));
+  auto right = castAny<Ptr>(visit(context->compositeQueryPrimary()));
+  return Ptr(make_intrusive<GQLSetQuery>(getSetOperation(context), std::move(left), std::move(right)));
+}
+
+std::any GQLParseTreeVisitor::visitCompositeQueryPrimary(GQLParser::CompositeQueryPrimaryContext *context) {
+  return castAny<Ptr>(visit(context->linearQueryStatement()));
+}
+
+std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext *context) {
+  return buildSubqueryClause(context->procedureBody(), context);
 }
 
 std::any GQLParseTreeVisitor::visitFocusedNestedQuerySpecification(GQLParser::FocusedNestedQuerySpecificationContext *context) {
@@ -611,7 +941,7 @@ std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatem
   auto *procedure_call = statement->procedureCall();
 
   if (auto *named = procedure_call->namedProcedureCall()) {
-    clause->procedure = GQLExpr::rawText(getText(named->procedureReference()));
+    clause->procedure = GQLExpr::identifier(getText(named->procedureReference()));
 
     if (auto *argument_list = named->procedureArgumentList()) {
       for (auto *argument : argument_list->procedureArgument())
@@ -622,8 +952,13 @@ std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatem
       clause->yield_items = makeYieldItems(yield_clause->yieldItemList());
     }
   } else if (auto *inline_call = procedure_call->inlineProcedureCall()) {
+    if (inline_call->variableScopeClause()) {
+      throwUnsupported("inline call variable scope", inline_call->variableScopeClause());
+    }
+
     clause->inline_procedure = true;
-    clause->procedure = GQLExpr::rawText(getText(inline_call));
+    clause->procedure =
+        buildSubqueryClause(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
   }
 
   appendClause(clause->children, clause->procedure);
@@ -691,7 +1026,7 @@ std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQ
     return makeOrderByAndPageClause(std::move(tail));
   }
 
-  return makeRawTextExpr(context);
+  throwUnsupported("primitive query statement", context);
 }
 
 std::any GQLParseTreeVisitor::visitMatchStatement(GQLParser::MatchStatementContext *context) {
@@ -704,35 +1039,32 @@ std::any GQLParseTreeVisitor::visitMatchStatement(GQLParser::MatchStatementConte
 
 std::any GQLParseTreeVisitor::visitSimpleMatchStatement(GQLParser::SimpleMatchStatementContext *context) {
   auto binding_table = castAny<PatternBindingTable>(visit(context->graphPatternBindingTable()));
-  auto clause = make_intrusive<GQLMatchClause>(false);
-  clause->path_patterns = std::move(binding_table.path_patterns);
-  clause->where = std::move(binding_table.where);
-
-  for (const auto &path : clause->path_patterns) {
-    if (path) {
-      clause->children.push_back(path);
-    }
-  }
-
-  if (clause->where) {
-    clause->children.push_back(clause->where);
-  }
-
-  return Ptr(clause);
+  return makeMatchClause(std::move(binding_table));
 }
 
 std::any GQLParseTreeVisitor::visitOptionalMatchStatement(GQLParser::OptionalMatchStatementContext *context) {
-  if (!context->optionalOperand()->simpleMatchStatement()) {
-    throwUnsupported("complex optional match operand", context);
+  auto *operand = context->optionalOperand();
+  if (operand->simpleMatchStatement()) {
+    auto clause = castAny<Ptr>(visit(operand->simpleMatchStatement()));
+    if (auto *match_clause = clause->as<GQLMatchClause>()) {
+      match_clause->optional = true;
+      return clause;
+    }
+
+    throwUnsupported("optional match clause", context);
   }
 
-  auto clause = castAny<Ptr>(visit(context->optionalOperand()->simpleMatchStatement()));
-  if (auto *match_clause = clause->as<GQLMatchClause>()) {
-    match_clause->optional = true;
-    return clause;
+  if (auto *block_context = operand->matchStatementBlock()) {
+    auto clause = make_intrusive<GQLMatchClause>(true);
+    auto block = make_intrusive<GQLMatchStatementBlock>();
+    block->parenthesized = operand->LEFT_PAREN() != nullptr;
+    populateMatchStatementBlock(*block, *this, block_context);
+    clause->optional_operand_block = Ptr(block);
+    appendClause(clause->children, clause->optional_operand_block);
+    return Ptr(clause);
   }
 
-  throwUnsupported("optional match clause", context);
+  throwUnsupported("complex optional match operand", context);
 }
 
 std::any GQLParseTreeVisitor::visitFilterStatement(GQLParser::FilterStatementContext *context) {
@@ -748,19 +1080,17 @@ std::any GQLParseTreeVisitor::visitWhereClause(GQLParser::WhereClauseContext *co
 }
 
 std::any GQLParseTreeVisitor::visitGraphPatternBindingTable(GQLParser::GraphPatternBindingTableContext *context) {
+  auto result = castAny<PatternBindingTable>(visit(context->graphPattern()));
   if (context->graphPatternYieldClause()) {
-    throwUnsupported("graph pattern `YIELD`", context);
+    result.yield_items = makeGraphPatternYieldItems(context->graphPatternYieldClause()->graphPatternYieldItemList());
   }
-
-  return castAny<PatternBindingTable>(visit(context->graphPattern()));
+  return result;
 }
 
 std::any GQLParseTreeVisitor::visitGraphPattern(GQLParser::GraphPatternContext *context) {
-  if (context->matchMode() || context->keepClause()) {
-    throwUnsupported("graph pattern prefixes", context);
-  }
-
   PatternBindingTable result;
+  result.match_mode = getGraphMatchMode(context->matchMode());
+  result.keep_clause = context->keepClause() ? makePathPatternPrefix(context->keepClause()->pathPatternPrefix()) : Ptr{};
   result.path_patterns = castAny<PtrList>(visit(context->pathPatternList()));
 
   if (context->graphPatternWhereClause()) {
@@ -785,16 +1115,20 @@ std::any GQLParseTreeVisitor::visitPathPatternList(GQLParser::PathPatternListCon
 }
 
 std::any GQLParseTreeVisitor::visitPathPattern(GQLParser::PathPatternContext *context) {
-  if (context->pathPatternPrefix()) {
-    throwUnsupported("path pattern prefix", context);
-  }
-
   auto elements = castAny<PtrList>(visit(context->pathPatternExpression()));
   auto pattern = make_intrusive<GQLPathPattern>(std::move(elements));
 
   if (context->pathVariableDeclaration()) {
     pattern->variable = GQLExpr::identifier(getText(context->pathVariableDeclaration()->pathVariable()->bindingVariable()));
     pattern->children.insert(pattern->children.begin(), pattern->variable);
+  }
+
+  if (context->pathPatternPrefix()) {
+    pattern->prefix = makePathPatternPrefix(context->pathPatternPrefix());
+    if (pattern->prefix) {
+      auto insert_pos = pattern->variable ? pattern->children.begin() + 1 : pattern->children.begin();
+      pattern->children.insert(insert_pos, pattern->prefix);
+    }
   }
 
   return Ptr(pattern);
@@ -832,6 +1166,14 @@ std::any GQLParseTreeVisitor::visitPfQuantifiedPathPrimary(GQLParser::PfQuantifi
     return node;
   }
 
+  if (auto *path = node->as<GQLParenthesizedPathPattern>()) {
+    path->quantifier = std::move(quantifier);
+    if (path->quantifier) {
+      path->children.push_back(path->quantifier);
+    }
+    return node;
+  }
+
   throwUnsupported("quantified non-edge path primary", context);
 }
 
@@ -844,11 +1186,43 @@ std::any GQLParseTreeVisitor::visitPfQuestionedPathPrimary(GQLParser::PfQuestion
     return node;
   }
 
+  if (auto *path = node->as<GQLParenthesizedPathPattern>()) {
+    path->quantifier = makeQuestionQuantifier();
+    path->children.push_back(path->quantifier);
+    return node;
+  }
+
   throwUnsupported("question-mark non-edge path primary", context);
 }
 
 std::any GQLParseTreeVisitor::visitPpElementPattern(GQLParser::PpElementPatternContext *context) {
   return castAny<Ptr>(visit(context->elementPattern()));
+}
+
+std::any GQLParseTreeVisitor::visitPpParenthesizedPathPatternExpression(GQLParser::PpParenthesizedPathPatternExpressionContext *context) {
+  auto *pattern_context = context->parenthesizedPathPatternExpression();
+  auto pattern = make_intrusive<GQLParenthesizedPathPattern>();
+
+  if (pattern_context->subpathVariableDeclaration()) {
+    pattern->subpath_variable = GQLExpr::identifier(getText(pattern_context->subpathVariableDeclaration()->subpathVariable()));
+    appendClause(pattern->children, pattern->subpath_variable);
+  }
+
+  if (pattern_context->pathModePrefix()) {
+    pattern->prefix = makePathPatternPrefix(pattern_context->pathModePrefix());
+    appendClause(pattern->children, pattern->prefix);
+  }
+
+  pattern->elements = castAny<PtrList>(visit(pattern_context->pathPatternExpression()));
+  appendClauseList(pattern->children, PtrList(pattern->elements.begin(), pattern->elements.end()));
+
+  if (pattern_context->parenthesizedPathPatternWhereClause()) {
+    pattern->where =
+        Ptr(make_intrusive<GQLWhereClause>(castAny<Ptr>(visit(pattern_context->parenthesizedPathPatternWhereClause()->searchCondition()))));
+    appendClause(pattern->children, pattern->where);
+  }
+
+  return Ptr(pattern);
 }
 
 std::any GQLParseTreeVisitor::visitElementPattern(GQLParser::ElementPatternContext *context) {
@@ -1101,23 +1475,21 @@ std::any GQLParseTreeVisitor::visitReturnItem(GQLParser::ReturnItemContext *cont
 }
 
 std::any GQLParseTreeVisitor::visitGroupByClause(GQLParser::GroupByClauseContext *context) {
-  String text = "GROUP BY";
+  auto clause = make_intrusive<GQLGroupByClause>();
 
   if (auto *grouping_list = context->groupingElementList()) {
-    if (grouping_list->emptyGroupingSet()) {
-      text += " ()";
-    } else {
-      bool first = true;
+    clause->empty_grouping_set = grouping_list->emptyGroupingSet() != nullptr;
 
-      for (auto *element : grouping_list->groupingElement()) {
-        text += first ? " " : ", ";
-        text += getText(element->bindingVariableReference()->bindingVariable());
-        first = false;
-      }
+    for (auto *element : grouping_list->groupingElement()) {
+      auto *binding_reference = element->bindingVariableReference();
+      auto *binding_variable = binding_reference ? binding_reference->bindingVariable() : nullptr;
+      auto item = GQLExpr::identifier(getText(binding_variable));
+      clause->items.push_back(item);
+      appendClause(clause->children, item);
     }
   }
 
-  return makeRawTextClause(text);
+  return Ptr(clause);
 }
 
 std::any GQLParseTreeVisitor::visitOrderByAndPageStatement(GQLParser::OrderByAndPageStatementContext *context) {
@@ -1202,7 +1574,7 @@ std::any GQLParseTreeVisitor::visitNotExprAlt(GQLParser::NotExprAltContext *cont
 }
 
 std::any GQLParseTreeVisitor::visitValueFunctionExprAlt(GQLParser::ValueFunctionExprAltContext *context) {
-  return makeRawTextExpr(context);
+  return makeValueFunction(context->valueFunction(), *this);
 }
 
 std::any GQLParseTreeVisitor::visitConcatenationExprAlt(GQLParser::ConcatenationExprAltContext *context) {
@@ -1239,7 +1611,7 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
   if (auto *value_type_predicate = predicate->valueTypePredicate()) {
     const String op = value_type_predicate->valueTypePredicatePart2()->NOT() ? "IS NOT" : "IS";
     return GQLExpr::binaryOp(op, castAny<Ptr>(visit(value_type_predicate->valueExpressionPrimary())),
-                             GQLExpr::rawText(getText(value_type_predicate->valueTypePredicatePart2()->valueType())));
+                             GQLExpr::literal(getText(value_type_predicate->valueTypePredicatePart2()->valueType())));
   }
 
   if (auto *directed_predicate = predicate->directedPredicate()) {
@@ -1299,17 +1671,21 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
   }
 
   if (auto *exists_predicate = predicate->existsPredicate()) {
-    String body;
+    Ptr operand;
 
-    if (exists_predicate->graphPattern())
-      body = "{" + getText(exists_predicate->graphPattern()) + "}";
-    else if (exists_predicate->matchStatementBlock())
-      body = (exists_predicate->LEFT_PAREN() ? "(" : "{") + getText(exists_predicate->matchStatementBlock()) +
-             (exists_predicate->RIGHT_PAREN() ? ")" : "}");
-    else if (exists_predicate->nestedQuerySpecification())
-      body = getText(exists_predicate->nestedQuerySpecification());
+    if (exists_predicate->graphPattern()) {
+      auto binding_table = castAny<PatternBindingTable>(visit(exists_predicate->graphPattern()));
+      operand = makeGraphPatternBlock(std::move(binding_table), exists_predicate->LEFT_PAREN() != nullptr);
+    } else if (exists_predicate->matchStatementBlock()) {
+      auto block = make_intrusive<GQLMatchStatementBlock>();
+      block->parenthesized = exists_predicate->LEFT_PAREN() != nullptr;
+      populateMatchStatementBlock(*block, *this, exists_predicate->matchStatementBlock());
+      operand = Ptr(block);
+    } else if (exists_predicate->nestedQuerySpecification()) {
+      operand = castAny<Ptr>(visit(exists_predicate->nestedQuerySpecification()));
+    }
 
-    return GQLExpr::unaryOp("EXISTS ", GQLExpr::rawText(body));
+    return GQLExpr::unaryOp("EXISTS ", std::move(operand));
   }
 
   return makeRawTextExpr(context);
@@ -1318,6 +1694,10 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
 std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpressionPrimaryContext *context) {
   if (context->bindingVariableReference()) {
     return GQLExpr::identifier(getText(context->bindingVariableReference()->bindingVariable()));
+  }
+
+  if (context->aggregateFunction()) {
+    return makeAggregateFunction(context->aggregateFunction(), *this);
   }
 
   if (context->unsignedValueSpecification()) {
@@ -1344,6 +1724,16 @@ std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::Unsigne
 }
 
 std::any GQLParseTreeVisitor::visitUnsignedLiteral(GQLParser::UnsignedLiteralContext *context) {
+  if (auto *general_literal = context->generalLiteral()) {
+    if (auto *list_literal = general_literal->listLiteral()) {
+      return makeListConstructor(list_literal->listValueConstructorByEnumeration(), *this);
+    }
+
+    if (auto *record_literal = general_literal->recordLiteral()) {
+      return makeRecordConstructor(record_literal->recordConstructor(), *this);
+    }
+  }
+
   return GQLExpr::literal(getText(context));
 }
 

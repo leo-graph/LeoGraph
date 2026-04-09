@@ -20,14 +20,17 @@ class GQLPathPattern final : public DB::IAST {
     auto result = make_intrusive<GQLPathPattern>(*this);
     result->children.clear();
     result->variable = variable ? variable->clone() : Ptr{};
+    result->prefix = prefix ? prefix->clone() : Ptr{};
 
     if (result->variable) result->children.push_back(result->variable);
+    if (result->prefix) result->children.push_back(result->prefix);
 
     detail::cloneChildrenList(elements, result->elements, result->children);
     return result;
   }
 
   Ptr variable;
+  Ptr prefix;
   PtrList elements;
 
  protected:
@@ -37,11 +40,17 @@ class GQLPathPattern final : public DB::IAST {
       ostr << " = ";
     }
 
+    if (prefix) {
+      prefix->format(ostr, settings, state, frame);
+      ostr << " ";
+    }
+
     detail::formatChildren(ostr, settings, state, frame, elements, "");
   }
 
   void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override {
     f(nullptr, &variable);
+    f(nullptr, &prefix);
 
     for (auto &element : elements) f(nullptr, &element);
   }

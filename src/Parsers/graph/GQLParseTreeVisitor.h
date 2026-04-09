@@ -46,6 +46,7 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitPfQuantifiedPathPrimary(GQLParser::PfQuantifiedPathPrimaryContext* context) override;
   std::any visitPfQuestionedPathPrimary(GQLParser::PfQuestionedPathPrimaryContext* context) override;
   std::any visitPpElementPattern(GQLParser::PpElementPatternContext* context) override;
+  std::any visitPpParenthesizedPathPatternExpression(GQLParser::PpParenthesizedPathPatternExpressionContext* context) override;
   std::any visitElementPattern(GQLParser::ElementPatternContext* context) override;
   std::any visitNodePattern(GQLParser::NodePatternContext* context) override;
   std::any visitElementPatternFiller(GQLParser::ElementPatternFillerContext* context) override;
@@ -100,6 +101,7 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitUnsignedLiteral(GQLParser::UnsignedLiteralContext* context) override;
 
  private:
+  AST::Ptr buildSubqueryClause(GQLParser::ProcedureBodyContext* procedure_body, antlr4::ParserRuleContext* context);
   AST::Ptr makeRawTextExpr(antlr4::ParserRuleContext* context) const;
 };
 
