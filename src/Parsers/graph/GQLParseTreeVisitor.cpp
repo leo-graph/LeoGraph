@@ -172,6 +172,61 @@ Ptr makeBindingInitializer(GQLBindingInitializer::Kind kind, Ptr value) {
   return Ptr(make_intrusive<GQLBindingInitializer>(kind, std::move(value)));
 }
 
+Ptr makeGraphExpression(GQLParser::GraphExpressionContext *context, GQLParseTreeVisitor &) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->graphReference()) {
+    return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::GraphReference, getText(context->graphReference())));
+  }
+
+  if (context->currentGraph()) {
+    return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::CurrentGraph, getText(context->currentGraph())));
+  }
+
+  if (context->objectNameOrBindingVariable()) {
+    return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::ObjectNameOrBindingVariable,
+                                                  getText(context->objectNameOrBindingVariable())));
+  }
+
+  if (context->objectExpressionPrimary()) {
+    return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::ObjectExpression, String{},
+                                                  makeRawTextClause(getText(context->objectExpressionPrimary()))));
+  }
+
+  throwUnsupported("graph expression", context);
+}
+
+Ptr makeBindingTableExpression(GQLParser::BindingTableExpressionContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->nestedBindingTableQuerySpecification()) {
+    return Ptr(make_intrusive<GQLBindingTableExpression>(
+        GQLBindingTableExpression::Kind::NestedQuery, String{},
+        castAny<Ptr>(visitor.visit(context->nestedBindingTableQuerySpecification()->nestedQuerySpecification()))));
+  }
+
+  if (context->bindingTableReference()) {
+    return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::BindingTableReference,
+                                                         getText(context->bindingTableReference())));
+  }
+
+  if (context->objectNameOrBindingVariable()) {
+    return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::ObjectNameOrBindingVariable,
+                                                         getText(context->objectNameOrBindingVariable())));
+  }
+
+  if (context->objectExpressionPrimary()) {
+    return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::ObjectExpression, String{},
+                                                         makeRawTextClause(getText(context->objectExpressionPrimary()))));
+  }
+
+  throwUnsupported("binding table expression", context);
+}
+
 PtrList makeYieldItems(GQLParser::YieldItemListContext *context) {
   PtrList items;
 
@@ -206,8 +261,8 @@ Ptr makeYieldClause(GQLParser::YieldClauseContext *context) {
   return Ptr(clause);
 }
 
-Ptr makeUseGraphClause(GQLParser::UseGraphClauseContext *context) {
-  return Ptr(make_intrusive<GQLUseClause>(makeRawTextClause(getText(context->graphExpression()))));
+Ptr makeUseGraphClause(GQLParser::UseGraphClauseContext *context, GQLParseTreeVisitor &visitor) {
+  return Ptr(make_intrusive<GQLUseClause>(makeGraphExpression(context ? context->graphExpression() : nullptr, visitor)));
 }
 
 Ptr makeSingleClauseQuery(Ptr clause) {
@@ -639,16 +694,14 @@ Ptr GQLParseTreeVisitor::buildSubqueryClause(GQLParser::ProcedureBodyContext *pr
 
     Ptr initializer_value;
 
-    if (auto *binding_table_expression = dynamic_cast<GQLParser::BindingTableExpressionContext *>(expression_context)) {
-      if (auto *nested_binding_query = binding_table_expression->nestedBindingTableQuerySpecification()) {
-        initializer_value = castAny<Ptr>(visit(nested_binding_query->nestedQuerySpecification()));
-      } else {
-        initializer_value = makeRawTextClause(getText(binding_table_expression));
-      }
+    if (auto *graph_expression = dynamic_cast<GQLParser::GraphExpressionContext *>(expression_context)) {
+      initializer_value = makeGraphExpression(graph_expression, *this);
+    } else if (auto *binding_table_expression = dynamic_cast<GQLParser::BindingTableExpressionContext *>(expression_context)) {
+      initializer_value = makeBindingTableExpression(binding_table_expression, *this);
     } else if (auto *value_expression = dynamic_cast<GQLParser::ValueExpressionContext *>(expression_context)) {
       initializer_value = castAny<Ptr>(visit(value_expression));
     } else {
-      initializer_value = makeRawTextClause(getText(expression_context));
+      throwUnsupported("binding variable initializer expression", expression_context);
     }
 
     return makeBindingInitializer(kind, std::move(initializer_value));
@@ -769,7 +822,7 @@ std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQue
 
 std::any GQLParseTreeVisitor::visitFocusedNestedQuerySpecification(GQLParser::FocusedNestedQuerySpecificationContext *context) {
   PtrList clauses;
-  appendClause(clauses, makeUseGraphClause(context->useGraphClause()));
+  appendClause(clauses, makeUseGraphClause(context->useGraphClause(), *this));
   appendClause(clauses, castAny<Ptr>(visit(context->nestedQuerySpecification())));
   return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
 }
@@ -808,14 +861,14 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
       auto source_query = castAny<Ptr>(visit(nested_query));
 
       if (query_spec->graphExpression())
-        clause->source = makeSelectSourceItem(makeRawTextClause(getText(query_spec->graphExpression())), std::move(source_query));
+        clause->source = makeSelectSourceItem(makeGraphExpression(query_spec->graphExpression(), *this), std::move(source_query));
       else
         clause->source = std::move(source_query);
     } else if (auto *match_list = select_body->selectGraphMatchList()) {
       auto source_list = make_intrusive<GQLSelectSourceList>();
 
       for (auto *match_item : match_list->selectGraphMatch()) {
-        auto source_item = makeSelectSourceItem(makeRawTextClause(getText(match_item->graphExpression())),
+        auto source_item = makeSelectSourceItem(makeGraphExpression(match_item->graphExpression(), *this),
                                                 castAny<Ptr>(visit(match_item->matchStatement())));
         source_list->items.push_back(source_item);
         appendClause(source_list->children, source_item);
@@ -826,7 +879,6 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
 
     appendClause(clause->children, clause->source);
   }
-
   if (context->whereClause()) {
     clause->where = castAny<Ptr>(visit(context->whereClause()));
     appendClause(clause->children, clause->where);
@@ -877,16 +929,16 @@ std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQuerySt
   PtrList clauses;
 
   for (auto *part : focused->focusedLinearQueryStatementPart()) {
-    appendClause(clauses, makeUseGraphClause(part->useGraphClause()));
+    appendClause(clauses, makeUseGraphClause(part->useGraphClause(), *this));
     appendClauseList(clauses, castAny<PtrList>(visit(part->simpleLinearQueryStatement())));
   }
 
   if (auto *part = focused->focusedLinearQueryAndPrimitiveResultStatementPart()) {
-    appendClause(clauses, makeUseGraphClause(part->useGraphClause()));
+    appendClause(clauses, makeUseGraphClause(part->useGraphClause(), *this));
     appendClauseList(clauses, castAny<PtrList>(visit(part->simpleLinearQueryStatement())));
     appendClause(clauses, castAny<Ptr>(visit(part->primitiveResultStatement())));
   } else if (auto *primitive_result_part = focused->focusedPrimitiveResultStatement()) {
-    appendClause(clauses, makeUseGraphClause(primitive_result_part->useGraphClause()));
+    appendClause(clauses, makeUseGraphClause(primitive_result_part->useGraphClause(), *this));
     appendClause(clauses, castAny<Ptr>(visit(primitive_result_part->primitiveResultStatement())));
   }
 

@@ -155,6 +155,18 @@ const GAST::GQLBindingInitializer* getBindingInitializer(const ASTPtr& ast) {
   return initializer;
 }
 
+const GAST::GQLGraphExpression* getGraphExpression(const ASTPtr& ast) {
+  const auto* expression = ast->as<GAST::GQLGraphExpression>();
+  EXPECT_NE(expression, nullptr);
+  return expression;
+}
+
+const GAST::GQLBindingTableExpression* getBindingTableExpression(const ASTPtr& ast) {
+  const auto* expression = ast->as<GAST::GQLBindingTableExpression>();
+  EXPECT_NE(expression, nullptr);
+  return expression;
+}
+
 const GAST::GQLSubqueryNextClause* getSubqueryNextClause(const ASTPtr& ast) {
   const auto* next_clause = ast->as<GAST::GQLSubqueryNextClause>();
   EXPECT_NE(next_clause, nullptr);
@@ -292,9 +304,9 @@ TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause) {
 
   const auto* use_clause = getUseClause(*clauses, 0);
   ASSERT_NE(use_clause, nullptr);
-  const auto* graph_reference = getExpr(use_clause->graph_reference);
+  const auto* graph_reference = getGraphExpression(use_clause->graph_reference);
   ASSERT_NE(graph_reference, nullptr);
-  EXPECT_EQ(graph_reference->kind, GAST::GQLExpr::Kind::RawText);
+  EXPECT_EQ(graph_reference->kind, GAST::GQLGraphExpression::Kind::ObjectNameOrBindingVariable);
   EXPECT_EQ(graph_reference->text, "foo");
   EXPECT_EQ(formatAST(*use_clause), "USE foo");
 
@@ -312,7 +324,7 @@ TEST(GQLParser, FocusedNestedQueryKeepsSubqueryWrapper) {
 
   const auto* use_clause = getUseClause(*clauses, 0);
   ASSERT_NE(use_clause, nullptr);
-  const auto* graph_reference = getExpr(use_clause->graph_reference);
+  const auto* graph_reference = getGraphExpression(use_clause->graph_reference);
   ASSERT_NE(graph_reference, nullptr);
   EXPECT_EQ(graph_reference->text, "foo");
   EXPECT_EQ(formatAST(*use_clause), "USE foo");
@@ -380,9 +392,9 @@ TEST(GQLParser, SelectStatementPreservesGraphQualifiedQuerySource) {
   const auto* source_item = getSelectSourceItem(project->source);
   ASSERT_NE(source_item, nullptr);
 
-  const auto* graph_reference = getExpr(source_item->graph_reference);
+  const auto* graph_reference = getGraphExpression(source_item->graph_reference);
   ASSERT_NE(graph_reference, nullptr);
-  EXPECT_EQ(graph_reference->kind, GAST::GQLExpr::Kind::RawText);
+  EXPECT_EQ(graph_reference->kind, GAST::GQLGraphExpression::Kind::ObjectNameOrBindingVariable);
   EXPECT_EQ(graph_reference->text, "foo");
 
   const auto* nested_query = getSubqueryClause(source_item->source);
@@ -463,10 +475,64 @@ TEST(GQLParser, NestedQueryPreservesStructuredBindingTableInitializer) {
   ASSERT_NE(initializer, nullptr);
   EXPECT_EQ(initializer->kind, GAST::GQLBindingInitializer::Kind::BindingTable);
 
-  const auto* nested_binding_query = getSubqueryClause(initializer->value);
+  const auto* binding_table_expression = getBindingTableExpression(initializer->value);
+  ASSERT_NE(binding_table_expression, nullptr);
+  EXPECT_EQ(binding_table_expression->kind, GAST::GQLBindingTableExpression::Kind::NestedQuery);
+
+  const auto* nested_binding_query = getSubqueryClause(binding_table_expression->value);
   ASSERT_NE(nested_binding_query, nullptr);
   ASSERT_NE(getClausesQuery(nested_binding_query->statement), nullptr);
   EXPECT_EQ(formatAST(*subquery_clause), "{ TABLE t = { MATCH (a) RETURN a } MATCH (a) RETURN a }");
+}
+
+TEST(GQLParser, NestedQueryPreservesStructuredGraphInitializer) {
+  auto ast = parseGraphOrThrow("{ GRAPH g = CURRENT_GRAPH MATCH (a) RETURN a }");
+  const auto* subquery_clause = getSubqueryClause(ast);
+  ASSERT_NE(subquery_clause, nullptr);
+
+  const auto* binding_block = getBindingVariableDefinitionBlock(subquery_clause->bindings);
+  ASSERT_NE(binding_block, nullptr);
+  ASSERT_EQ(binding_block->definitions.size(), 1);
+
+  const auto* binding_definition = getBindingVariableDefinition(binding_block->definitions[0]);
+  ASSERT_NE(binding_definition, nullptr);
+  EXPECT_EQ(binding_definition->kind, GAST::GQLBindingVariableDefinition::Kind::Graph);
+  EXPECT_EQ(binding_definition->name, "g");
+
+  const auto* initializer = getBindingInitializer(binding_definition->initializer);
+  ASSERT_NE(initializer, nullptr);
+  EXPECT_EQ(initializer->kind, GAST::GQLBindingInitializer::Kind::Graph);
+
+  const auto* graph_expression = getGraphExpression(initializer->value);
+  ASSERT_NE(graph_expression, nullptr);
+  EXPECT_EQ(graph_expression->kind, GAST::GQLGraphExpression::Kind::CurrentGraph);
+  EXPECT_EQ(graph_expression->text, "CURRENT_GRAPH");
+  EXPECT_EQ(formatAST(*subquery_clause), "{ GRAPH g = CURRENT_GRAPH MATCH (a) RETURN a }");
+}
+
+TEST(GQLParser, NestedQueryPreservesStructuredBindingTableReferenceInitializer) {
+  auto ast = parseGraphOrThrow("{ TABLE t = foo MATCH (a) RETURN a }");
+  const auto* subquery_clause = getSubqueryClause(ast);
+  ASSERT_NE(subquery_clause, nullptr);
+
+  const auto* binding_block = getBindingVariableDefinitionBlock(subquery_clause->bindings);
+  ASSERT_NE(binding_block, nullptr);
+  ASSERT_EQ(binding_block->definitions.size(), 1);
+
+  const auto* binding_definition = getBindingVariableDefinition(binding_block->definitions[0]);
+  ASSERT_NE(binding_definition, nullptr);
+  EXPECT_EQ(binding_definition->kind, GAST::GQLBindingVariableDefinition::Kind::BindingTable);
+  EXPECT_EQ(binding_definition->name, "t");
+
+  const auto* initializer = getBindingInitializer(binding_definition->initializer);
+  ASSERT_NE(initializer, nullptr);
+  EXPECT_EQ(initializer->kind, GAST::GQLBindingInitializer::Kind::BindingTable);
+
+  const auto* binding_table_expression = getBindingTableExpression(initializer->value);
+  ASSERT_NE(binding_table_expression, nullptr);
+  EXPECT_EQ(binding_table_expression->kind, GAST::GQLBindingTableExpression::Kind::ObjectNameOrBindingVariable);
+  EXPECT_EQ(binding_table_expression->text, "foo");
+  EXPECT_EQ(formatAST(*subquery_clause), "{ TABLE t = foo MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, NestedQueryRejectsNonQueryStatement) {
@@ -493,12 +559,18 @@ TEST(GQLParser, SelectStatementBuildsStructuredGraphMatchSourceList) {
 
   const auto* first_item = getSelectSourceItem(source_list->items[0]);
   ASSERT_NE(first_item, nullptr);
-  EXPECT_EQ(getExpr(first_item->graph_reference)->text, "foo");
+  const auto* first_graph = getGraphExpression(first_item->graph_reference);
+  ASSERT_NE(first_graph, nullptr);
+  EXPECT_EQ(first_graph->kind, GAST::GQLGraphExpression::Kind::ObjectNameOrBindingVariable);
+  EXPECT_EQ(first_graph->text, "foo");
   ASSERT_NE(first_item->source->as<GAST::GQLMatchClause>(), nullptr);
 
   const auto* second_item = getSelectSourceItem(source_list->items[1]);
   ASSERT_NE(second_item, nullptr);
-  EXPECT_EQ(getExpr(second_item->graph_reference)->text, "bar");
+  const auto* second_graph = getGraphExpression(second_item->graph_reference);
+  ASSERT_NE(second_graph, nullptr);
+  EXPECT_EQ(second_graph->kind, GAST::GQLGraphExpression::Kind::ObjectNameOrBindingVariable);
+  EXPECT_EQ(second_graph->text, "bar");
   ASSERT_NE(second_item->source->as<GAST::GQLMatchClause>(), nullptr);
 
   EXPECT_EQ(formatAST(*clauses), "SELECT a, b FROM foo MATCH (a), bar MATCH (b) WHERE (a = b)");

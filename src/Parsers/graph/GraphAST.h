@@ -3,6 +3,7 @@
 #include <Parsers/graph/AST/GQLAssignmentItem.h>
 #include <Parsers/graph/AST/GQLAtSchemaClause.h>
 #include <Parsers/graph/AST/GQLBindingInitializer.h>
+#include <Parsers/graph/AST/GQLBindingTableExpression.h>
 #include <Parsers/graph/AST/GQLBindingVariableDefinition.h>
 #include <Parsers/graph/AST/GQLBindingVariableDefinitionBlock.h>
 #include <Parsers/graph/AST/GQLCallClause.h>
@@ -11,6 +12,7 @@
 #include <Parsers/graph/AST/GQLExpr.h>
 #include <Parsers/graph/AST/GQLFinishClause.h>
 #include <Parsers/graph/AST/GQLForClause.h>
+#include <Parsers/graph/AST/GQLGraphExpression.h>
 #include <Parsers/graph/AST/GQLGraphPatternBlock.h>
 #include <Parsers/graph/AST/GQLGroupByClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>

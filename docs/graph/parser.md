@@ -154,6 +154,8 @@ IAST
   |
   +-- GQLAtSchemaClause       -- `AT schemaReference`
   +-- GQLSchemaReference      -- typed `schemaReference` wrapper
+  +-- GQLGraphExpression      -- typed wrapper for `graphExpression`
+  +-- GQLBindingTableExpression -- typed wrapper for `bindingTableExpression`
   +-- GQLBindingInitializer   -- typed wrapper for `= ...` in binding definitions
   +-- GQLBindingVariableDefinitionBlock
   +-- GQLBindingVariableDefinition
@@ -183,7 +185,7 @@ IAST
   +-- GQLExpr                 -- current expression skeleton
 ```
 
-Pattern nodes stay graph-native, while expressions still use a thin `GQLExpr` layer or local raw-text fallbacks where the refactor is not complete yet. Inside `GQLSubqueryClause`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference` and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
+Pattern nodes stay graph-native, while expressions still use a thin `GQLExpr` layer or local raw-text fallbacks where the refactor is not complete yet. Inside `GQLSubqueryClause`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
 
 ### Visitor Organization
 
@@ -199,6 +201,8 @@ Two rules are especially important:
 - `visitSelectStatement` must build a `GQLProjectClause`, then wrap it into a one-clause `GQLClausesQuery`.
 - `visitNestedQuerySpecification` must preserve a `GQLSubqueryClause` wrapper instead of unwrapping its inner query.
 - `visitGroupByClause` should build a dedicated `GQLGroupByClause` instead of storing `GROUP BY ...` as raw text.
+- `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.
+- binding-variable initializers should preserve `bindingTableExpression` as `GQLBindingTableExpression` unless the grammar branch is still explicitly unsupported.
 - `visitGraphPattern` and `visitPathPattern` should preserve graph/path prefixes structurally instead of degrading them to raw text or `Unsupported`.
 - `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubqueryClause`) instead of stringifying the body.
 - If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.

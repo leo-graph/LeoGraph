@@ -50,6 +50,8 @@ The currently supported minimal path is:
 - top-level `SELECT` statements now normalize to a one-clause `GQLClausesQuery` that holds a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails, graph-qualified nested-query `FROM` sources, and graph-match `FROM` lists preserved as structured source nodes
 - structured `CALL`, `LET`, and `FOR` clauses, including structured procedure references, inline query-compatible `CALL { ... }`, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - explicit rejection of unsupported inline `CALL` variable-scope clauses instead of top-level raw-text fallback
+- `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
+- `bindingTableExpression` payloads in binding-table initializers now build `GQLBindingTableExpression`, including the nested-query form
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
 - structured path / graph prefixes, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, and basic path / node / edge patterns
 - basic label expressions
@@ -78,6 +80,7 @@ Then reduce the query-level `throwUnsupported` cases.
 
 Suggested order:
 
+- fix the existing `visitSelectStatement` exception on `SELECT ... FROM ...` paths, where the current branch still trips a `GQLProjectClause` "not a column" exception before item/source normalization completes
 - keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
@@ -102,7 +105,7 @@ Most of this work should still stay in `GQLParseTreeVisitor`, with small AST add
 Recommended direction:
 
 - keep the generic `GQLExpr::Kind` approach for now;
-- gradually replace `rawText` paths with structured expression nodes where they become important, especially graph references in `USE` / `SELECT FROM`, higher-frequency value functions, and remaining predicate payloads;
+- gradually replace the remaining `rawText` paths with structured expression nodes where they become important, especially higher-frequency value functions and remaining predicate payloads;
 - postpone a large expression hierarchy until the parser coverage stabilizes.
 
 ### 4. Revisit lowering and top-level integration later

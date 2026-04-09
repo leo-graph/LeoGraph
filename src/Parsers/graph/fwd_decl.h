@@ -56,6 +56,7 @@ using PtrTo = boost::intrusive_ptr<T>;
 
 class GQLAssignmentItem;
 class GQLAtSchemaClause;
+class GQLBindingTableExpression;
 class GQLBindingInitializer;
 class GQLBindingVariableDefinition;
 class GQLBindingVariableDefinitionBlock;
@@ -76,6 +77,7 @@ class GQLPathPattern;
 class GQLPathPatternPrefix;
 class GQLParenthesizedPathPattern;
 class GQLGraphPatternBlock;
+class GQLGraphExpression;
 class GQLMatchStatementBlock;
 class GQLWhereClause;
 class GQLLetClause;
