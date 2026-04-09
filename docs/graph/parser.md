@@ -198,7 +198,7 @@ The visitor is organized in the same high-level layers as the grammar:
 
 Two rules are especially important:
 
-- `visitSelectStatement` must build a `GQLProjectClause`, then wrap it into a one-clause `GQLClausesQuery`.
+- `visitSelectStatement` must finish reading the needed parse-tree branches before it constructs `GQLProjectClause`, then wrap that clause into a one-clause `GQLClausesQuery`.
 - `visitNestedQuerySpecification` must preserve a `GQLSubqueryClause` wrapper instead of unwrapping its inner query.
 - `visitGroupByClause` should build a dedicated `GQLGroupByClause` instead of storing `GROUP BY ...` as raw text.
 - `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.

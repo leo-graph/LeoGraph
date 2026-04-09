@@ -48,6 +48,7 @@ The currently supported minimal path is:
 - focused nested queries now preserve a structured subquery wrapper after the `USE` clause
 - nested query specifications now preserve a structured subquery wrapper, with dedicated nodes for `AT schema`, `schemaReference`, binding-variable definition blocks, binding initializers, and `NEXT YIELD`, and reject unsupported inner non-query statements explicitly instead of flattening them to raw text
 - top-level `SELECT` statements now normalize to a one-clause `GQLClausesQuery` that holds a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails, graph-qualified nested-query `FROM` sources, and graph-match `FROM` lists preserved as structured source nodes
+- the older `visitSelectStatement` exception on `SELECT ... FROM ...` paths is fixed by gathering parse-tree data before constructing the `GQLProjectClause`, so the full `GQLParser.*` suite is currently green again
 - structured `CALL`, `LET`, and `FOR` clauses, including structured procedure references, inline query-compatible `CALL { ... }`, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - explicit rejection of unsupported inline `CALL` variable-scope clauses instead of top-level raw-text fallback
 - `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
@@ -80,7 +81,6 @@ Then reduce the query-level `throwUnsupported` cases.
 
 Suggested order:
 
-- fix the existing `visitSelectStatement` exception on `SELECT ... FROM ...` paths, where the current branch still trips a `GQLProjectClause` "not a column" exception before item/source normalization completes
 - keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again

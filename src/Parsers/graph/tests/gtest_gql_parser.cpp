@@ -663,11 +663,12 @@ TEST(GQLParser, ForClauseBuildsStructuredFields) {
   EXPECT_TRUE(for_clause->with_offset);
   EXPECT_EQ(for_clause->ordinality_or_offset_alias, "i");
 
-  const auto* source = getExpr(for_clause->source);
+  const auto* source = getListConstructor(for_clause->source);
   ASSERT_NE(source, nullptr);
-  EXPECT_EQ(source->kind, GAST::GQLExpr::Kind::RawText);
-  EXPECT_EQ(source->text, "[1,2]");
-  EXPECT_EQ(formatAST(*for_clause), "FOR x IN [1,2] WITH OFFSET i");
+  ASSERT_EQ(source->items.size(), 2);
+  EXPECT_EQ(getExpr(source->items[0])->text, "1");
+  EXPECT_EQ(getExpr(source->items[1])->text, "2");
+  EXPECT_EQ(formatAST(*for_clause), "FOR x IN [1, 2] WITH OFFSET i");
 }
 
 TEST(GQLParser, FinishClauseBuildsStructuredNode) {

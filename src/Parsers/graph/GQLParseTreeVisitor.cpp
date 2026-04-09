@@ -828,27 +828,29 @@ std::any GQLParseTreeVisitor::visitFocusedNestedQuerySpecification(GQLParser::Fo
 }
 
 std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementContext *context) {
-  auto clause = make_intrusive<GQLProjectClause>(GQLProjectClause::Type::Select);
+  const bool distinct = context->setQuantifier() && context->setQuantifier()->DISTINCT();
+  const bool return_all = context->ASTERISK() != nullptr;
 
-  if (context->setQuantifier() && context->setQuantifier()->DISTINCT()) clause->distinct = true;
+  PtrList items;
 
-  if (context->ASTERISK()) {
-    clause->return_all = true;
-  } else if (auto *items_context = context->selectItemList()) {
-    for (auto *item_context : items_context->selectItem()) {
-      auto expression = castAny<Ptr>(visit(item_context->aggregatingValueExpression()));
+  if (!return_all) {
+    if (auto *items_context = context->selectItemList()) {
+      for (auto *item_context : items_context->selectItem()) {
+        auto expression = castAny<Ptr>(visit(item_context->aggregatingValueExpression()));
 
-      if (item_context->selectItemAlias()) {
-        if (auto *with_alias = dynamic_cast<ASTWithAlias *>(expression.get()))
-          with_alias->setAlias(getText(item_context->selectItemAlias()->identifier()));
-        else
-          throwUnsupported("select item alias on non-aliasable expression", item_context);
+        if (item_context->selectItemAlias()) {
+          if (auto *with_alias = dynamic_cast<ASTWithAlias *>(expression.get()))
+            with_alias->setAlias(getText(item_context->selectItemAlias()->identifier()));
+          else
+            throwUnsupported("select item alias on non-aliasable expression", item_context);
+        }
+
+        items.push_back(expression);
       }
-
-      clause->items.push_back(expression);
-      appendClause(clause->children, expression);
     }
   }
+
+  Ptr source;
 
   if (auto *select_body = context->selectStatementBody()) {
     if (auto *query_spec = select_body->selectQuerySpecification()) {
@@ -861,9 +863,9 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
       auto source_query = castAny<Ptr>(visit(nested_query));
 
       if (query_spec->graphExpression())
-        clause->source = makeSelectSourceItem(makeGraphExpression(query_spec->graphExpression(), *this), std::move(source_query));
+        source = makeSelectSourceItem(makeGraphExpression(query_spec->graphExpression(), *this), std::move(source_query));
       else
-        clause->source = std::move(source_query);
+        source = std::move(source_query);
     } else if (auto *match_list = select_body->selectGraphMatchList()) {
       auto source_list = make_intrusive<GQLSelectSourceList>();
 
@@ -874,41 +876,64 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
         appendClause(source_list->children, source_item);
       }
 
-      clause->source = Ptr(source_list);
+      source = Ptr(source_list);
     }
-
-    appendClause(clause->children, clause->source);
   }
+
+  Ptr where;
   if (context->whereClause()) {
-    clause->where = castAny<Ptr>(visit(context->whereClause()));
-    appendClause(clause->children, clause->where);
+    where = castAny<Ptr>(visit(context->whereClause()));
   }
 
+  Ptr group_by;
   if (context->groupByClause()) {
-    clause->group_by = castAny<Ptr>(visit(context->groupByClause()));
-    appendClause(clause->children, clause->group_by);
+    group_by = castAny<Ptr>(visit(context->groupByClause()));
   }
 
+  Ptr having;
   if (context->havingClause()) {
-    clause->having =
+    having =
         Ptr(make_intrusive<GQLWhereClause>(GQLWhereClause::Type::Having, castAny<Ptr>(visit(context->havingClause()->searchCondition()))));
-    appendClause(clause->children, clause->having);
   }
 
+  Ptr order_by;
   if (context->orderByClause()) {
-    clause->order_by = castAny<Ptr>(visit(context->orderByClause()));
-    appendClause(clause->children, clause->order_by);
+    order_by = castAny<Ptr>(visit(context->orderByClause()));
   }
 
+  Ptr offset;
   if (context->offsetClause()) {
-    clause->offset = castAny<Ptr>(visit(context->offsetClause()));
-    appendClause(clause->children, clause->offset);
+    offset = castAny<Ptr>(visit(context->offsetClause()));
   }
 
+  Ptr limit;
   if (context->limitClause()) {
-    clause->limit = castAny<Ptr>(visit(context->limitClause()));
-    appendClause(clause->children, clause->limit);
+    limit = castAny<Ptr>(visit(context->limitClause()));
   }
+
+  auto clause = make_intrusive<GQLProjectClause>(GQLProjectClause::Type::Select);
+  clause->distinct = distinct;
+  clause->return_all = return_all;
+  clause->items = std::move(items);
+  clause->source = std::move(source);
+  clause->where = std::move(where);
+  clause->group_by = std::move(group_by);
+  clause->having = std::move(having);
+  clause->order_by = std::move(order_by);
+  clause->offset = std::move(offset);
+  clause->limit = std::move(limit);
+
+  for (auto &item : clause->items) {
+    appendClause(clause->children, item);
+  }
+
+  appendClause(clause->children, clause->source);
+  appendClause(clause->children, clause->where);
+  appendClause(clause->children, clause->group_by);
+  appendClause(clause->children, clause->having);
+  appendClause(clause->children, clause->order_by);
+  appendClause(clause->children, clause->offset);
+  appendClause(clause->children, clause->limit);
 
   return makeSingleClauseQuery(Ptr(clause));
 }
