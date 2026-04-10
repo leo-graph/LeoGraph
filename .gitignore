@@ -111,7 +111,9 @@ nbproject/*
 
 # Microsoft Visual Studio Code
 .vscode
-.devcontainer/
+.devcontainer/*
+!.devcontainer/devcontainer.json
+!.devcontainer/Dockerfile
 
 config-preprocessed.xml
 

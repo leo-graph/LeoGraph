@@ -1,0 +1,63 @@
+{
+  "name": "ClickHouse (binary-builder)",
+  "build": {
+    "context": "..",
+    "dockerfile": "Dockerfile"
+  },
+  // Keep the source tree bind-mounted so edits happen on the Mac host checkout.
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/ClickHouse,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace/ClickHouse",
+  // Keep the familiar `/workspace/ClickHouse/build` path inside the container,
+  // but back it with a Docker volume instead of the Mac bind mount.
+  // This way the directory still looks like a normal in-repo `build`, while
+  // heavy compiler I/O stays inside the Linux VM where Docker Desktop is faster.
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-clickhouse-build,target=/workspace/ClickHouse/build,type=volume"
+  ],
+  "remoteUser": "dev",
+  "updateRemoteUserUID": true,
+  "overrideCommand": false,
+  "shutdownAction": "stopContainer",
+  "init": true,
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt=seccomp=unconfined"
+  ],
+  "containerEnv": {
+    "ANTLR4_JAR": "/usr/local/lib/antlr-4.13.2-complete.jar",
+    "CLICKHOUSE_BUILD_DIR": "/workspace/ClickHouse/build",
+    "SCCACHE_DIR": "/home/dev/.cache/sccache",
+    "GOCACHE": "/home/dev/.cache/go-build",
+    "GOPATH": "/home/dev/go"
+  },
+  "postCreateCommand": "mkdir -p /workspace/ClickHouse/tmp /workspace/ClickHouse/build /home/dev/.cache/sccache /home/dev/.cache/go-build /home/dev/go && git config --global --add safe.directory /workspace/ClickHouse",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "cmake.generator": "Ninja",
+        "cmake.sourceDirectory": "${workspaceFolder}",
+        // Use the normal-looking `/workspace/ClickHouse/build` path, but that
+        // path is actually the Docker volume mounted above, not the Mac host FS.
+        "cmake.buildDirectory": "${workspaceFolder}/build",
+        "cmake.configureOnOpen": false,
+        "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+        "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "args": [
+              "-l"
+            ]
+          }
+        }
+      },
+      "extensions": [
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  }
+}
