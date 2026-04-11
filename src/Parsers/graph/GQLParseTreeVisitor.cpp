@@ -1,5 +1,11 @@
 #include <Common/Exception.h>
 #include <Parsers/graph/GQLParseTreeVisitor.h>
+
+// `antlr4-common.h` undefines `EOF`, but `boost::multiprecision` still relies on it.
+#if !defined(EOF)
+#  define EOF (-1)
+#endif
+
 #include <Parsers/graph/GraphAST.h>
 
 namespace DB {
