@@ -1,3 +1,4 @@
+#include <base/sanitizer_defs.h>
 #include <Common/Exception.h>
 #include <Parsers/graph/GQLParserUtils.h>
 #include <Parsers/graph/LexerErrorListener.h>
@@ -32,18 +33,18 @@ using namespace antlr4;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
-#if defined(__APPLE__)
-extern "C" void __lsan_ignore_object(const void *) __attribute__((weak_import));
+extern "C" {
+#if defined(ADDRESS_SANITIZER)
+void __lsan_ignore_object(const void *);
 #else
-extern "C" void __lsan_ignore_object(const void *) __attribute__((weak));
+void __lsan_ignore_object(const void *) {}
 #endif
+}
 #pragma clang diagnostic pop
 
 namespace {
 
-void ignoreLSanObject(const void *ptr) {
-  if (__lsan_ignore_object) __lsan_ignore_object(ptr);
-}
+void ignoreLSanObject(const void *ptr) { __lsan_ignore_object(ptr); }
 
 ANTLRInputStream *getLexerInput() {
   static thread_local ANTLRInputStream *input;
