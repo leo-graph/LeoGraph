@@ -168,8 +168,8 @@ IAST
   +-- GQLSelectClause         -- `SELECT`
   +-- GQLWhereClause          -- `WHERE`, `FILTER`, `HAVING`
   +-- GQLUseClause            -- `USE`
-  +-- GQLNamedCallClause      -- named `CALL foo(...) YIELD ...`
-  +-- GQLInlineCallClause     -- inline `CALL { ... }`
+  +-- GQLCallNamedClause      -- named `CALL foo(...) YIELD ...`
+  +-- GQLCallInlineClause     -- inline `CALL { ... }`
   +-- GQLGroupByClause        -- structured `GROUP BY`
   +-- GQLLetClause            -- `LET`
   +-- GQLForClause            -- `FOR`

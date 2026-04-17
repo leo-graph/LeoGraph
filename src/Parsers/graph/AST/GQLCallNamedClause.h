@@ -1,19 +1,19 @@
 #pragma once
 
-#include <Parsers/graph/AST/GQLCallClause.h>
+#include <Parsers/graph/AST/GQLCallClauseBase.h>
 
 namespace DB::OPENGQL::AST {
 
-class GQLNamedCallClause final : public GQLCallClause {
+class GQLCallNamedClause final : public GQLCallClauseBase {
  public:
   Ptr procedure;
   PtrList arguments;
   Ptr yield;
 
-  String getID(char) const override { return "GQLNamedCallClause"; }
+  String getID(char) const override { return "GQLCallNamedClause"; }
 
   ASTPtr clone() const override {
-    auto result = make_intrusive<GQLNamedCallClause>(*this);
+    auto result = make_intrusive<GQLCallNamedClause>(*this);
     result->children.clear();
     result->procedure = procedure ? procedure->clone() : Ptr{};
     detail::cloneChildrenList(arguments, result->arguments, result->children);
