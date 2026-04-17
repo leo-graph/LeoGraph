@@ -1,9 +1,6 @@
 # GitHub Branch Policy
 
-This repository uses two layers of enforcement for branch flow:
-
-1. GitHub rulesets protect the target branches.
-2. The `branch policy / validate` workflow checks whether the pull request source branch is allowed for the target branch.
+This repository uses GitHub rulesets to protect target branches. Branch naming and source-to-target flow stay as project conventions.
 
 ## Branch naming
 
@@ -28,23 +25,19 @@ Examples:
 
 ## Required GitHub rulesets
 
-GitHub rulesets can require pull requests and block direct pushes on protected targets, but the head-branch restriction is enforced by the workflow because GitHub does not provide a native rule for "base branch X only accepts head branches matching Y".
+GitHub rulesets can require pull requests and block direct pushes on protected targets. They do not natively enforce "base branch X only accepts head branches matching Y", so the source-branch flow above is currently a repository convention rather than a hard check.
 
-After merging this file and the workflow, configure these repository rulesets in GitHub:
+Configure these repository rulesets in GitHub:
 
 1. Ruleset for `master`
    - Target branches: `master`
    - Require a pull request before merging
    - Restrict updates
-   - Require status checks to pass before merging
-     - Required check: `branch policy / validate`
 
 2. Ruleset for module main branches
    - Target branches: `*/main-*`
    - Require a pull request before merging
    - Restrict updates
-   - Require status checks to pass before merging
-     - Required check: `branch policy / validate`
 
 Optional hardening:
 
