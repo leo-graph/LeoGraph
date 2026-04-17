@@ -2,6 +2,10 @@ When working with a branch, do not use rebase or amend - add new commits instead
 
 Do not commit to the master branch. Create a new branch for every task.
 
+This personal fork currently does not keep the upstream `Praktika` / self-hosted `GitHub Actions` workflows. Unless the user explicitly asks to add new hosted automation, do not assume GitHub CI is available in this repository.
+
+This personal fork currently does not keep the upstream `Praktika` / self-hosted `GitHub Actions` workflows. Unless the user explicitly asks to add new hosted automation, do not assume GitHub CI is available in this repository.
+
 For feature-specific work, prefer opening pull requests against the corresponding module branch, such as `parser/...`, instead of merging directly into `master`.
 
 For new development branches, prefer creating them under the corresponding module prefix, such as `parser/...` for parser work.

@@ -2,6 +2,8 @@
 
 This repository uses GitHub rulesets to protect target branches. Branch naming and source-to-target flow stay as project conventions.
 
+This personal fork currently does not keep the upstream `Praktika` / self-hosted `GitHub Actions` workflows. Branch protection relies on GitHub rulesets only unless a new lightweight hosted workflow is added explicitly.
+
 ## Branch naming
 
 - Development branches: `<module>/dev-<topic>`
