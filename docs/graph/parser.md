@@ -169,7 +169,8 @@ IAST
   +-- GQLWhereClause          -- `WHERE`, `FILTER`, `HAVING`
   +-- GQLUseClause            -- `USE`
   +-- GQLCallNamedClause      -- named `CALL foo(...) YIELD ...`
-  +-- GQLCallInlineClause     -- inline `CALL { ... }`
+  +-- GQLCallVariableScopeClause -- optional `(x, y)` scope for inline `CALL`
+  +-- GQLCallInlineClause     -- inline `CALL { ... }` or `CALL (x, y) { ... }`
   +-- GQLGroupByClause        -- structured `GROUP BY`
   +-- GQLLetClause            -- `LET`
   +-- GQLForClause            -- `FOR`
@@ -203,6 +204,7 @@ Two rules are especially important:
 - `visitSelectStatement` must finish reading the needed parse-tree branches before it constructs `GQLSelectClause`, then emit a `GQLSingleQuery` and append `GQLPageClause` only when paging exists.
 - `visitNestedQuerySpecification` must preserve a `GQLSubquery` wrapper instead of unwrapping its inner query.
 - `visitCallQueryStatement` should preserve named and inline procedure calls as different AST node types instead of folding them back into one boolean-driven clause.
+- inline `CALL` should preserve `variableScopeClause` structurally when present instead of rejecting it.
 - `visitGroupByClause` should build a dedicated `GQLGroupByClause` instead of storing `GROUP BY ...` as raw text.
 - `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.
 - binding-variable initializers should preserve `bindingTableExpression` as `GQLBindingTableExpression` unless the grammar branch is still explicitly unsupported.

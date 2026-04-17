@@ -9,6 +9,7 @@
 #include <Parsers/graph/AST/GQLCallClauseBase.h>
 #include <Parsers/graph/AST/GQLCallInlineClause.h>
 #include <Parsers/graph/AST/GQLCallNamedClause.h>
+#include <Parsers/graph/AST/GQLCallVariableScopeClause.h>
 #include <Parsers/graph/AST/GQLCombinedQuery.h>
 #include <Parsers/graph/AST/GQLEdgePattern.h>
 #include <Parsers/graph/AST/GQLExpr.h>

@@ -105,6 +105,24 @@ Ptr makeQuantifier(GQLParser::GraphPatternQuantifierContext *context) {
 
 Ptr makeQuestionQuantifier() { return Ptr(make_intrusive<GQLQuantifier>(GQLQuantifier::Kind::Question)); }
 
+Ptr makeCallVariableScopeClause(GQLParser::VariableScopeClauseContext *context) {
+  if (!context) return {};
+
+  auto clause = make_intrusive<GQLCallVariableScopeClause>();
+  auto *reference_list = context->bindingVariableReferenceList();
+
+  if (!reference_list) return Ptr(clause);
+
+  for (auto *reference : reference_list->bindingVariableReference()) {
+    auto *binding_variable = reference ? reference->bindingVariable() : nullptr;
+    auto variable = GQLExpr::identifier(getText(binding_variable));
+    clause->variables.push_back(variable);
+    if (variable) clause->children.push_back(variable);
+  }
+
+  return Ptr(clause);
+}
+
 Ptr makeRawTextClause(const String &text) { return GQLExpr::rawText(text); }
 
 void appendClause(PtrList &clauses, Ptr clause) {
@@ -1087,13 +1105,11 @@ std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatem
   }
 
   if (auto *inline_call = procedure_call->inlineProcedureCall()) {
-    if (inline_call->variableScopeClause()) {
-      throwUnsupported("inline call variable scope", inline_call->variableScopeClause());
-    }
-
     auto clause = make_intrusive<GQLCallInlineClause>();
     clause->optional = statement->OPTIONAL() != nullptr;
+    clause->variable_scope = makeCallVariableScopeClause(inline_call->variableScopeClause());
     clause->subquery = buildSubquery(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
+    appendClause(clause->children, clause->variable_scope);
     appendClause(clause->children, clause->subquery);
     return Ptr(clause);
   }
@@ -1180,12 +1196,12 @@ std::any GQLParseTreeVisitor::visitOptionalMatchStatement(GQLParser::OptionalMat
   auto *operand = context->optionalOperand();
   if (operand->simpleMatchStatement()) {
     auto clause = castAny<Ptr>(visit(operand->simpleMatchStatement()));
-    if (auto *match_clause = clause->as<GQLMatchClause>()) {
-      match_clause->optional = true;
-      return clause;
-    }
+    auto *match_clause = clause ? clause->as<GQLMatchClause>() : nullptr;
+    chassert(match_clause);
 
-    throwUnsupported("optional match clause", context);
+    if (match_clause) match_clause->optional = true;
+
+    return clause;
   }
 
   if (auto *block_context = operand->matchStatementBlock()) {
@@ -1198,6 +1214,7 @@ std::any GQLParseTreeVisitor::visitOptionalMatchStatement(GQLParser::OptionalMat
     return Ptr(clause);
   }
 
+  chassert(false);
   throwUnsupported("complex optional match operand", context);
 }
 

@@ -79,6 +79,12 @@ const GAST::GQLCallInlineClause* getCallInlineClause(const GAST::GQLSingleQuery&
   return call;
 }
 
+const GAST::GQLCallVariableScopeClause* getCallVariableScopeClause(const ASTPtr& ast) {
+  const auto* clause = ast->as<GAST::GQLCallVariableScopeClause>();
+  EXPECT_NE(clause, nullptr);
+  return clause;
+}
+
 const GAST::GQLLetClause* getLetClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
@@ -634,11 +640,57 @@ TEST(GQLParser, InlineOptionalCallKeepsInlineProcedureShape) {
   const auto* call = getCallInlineClause(*clauses, 0);
   ASSERT_NE(call, nullptr);
   EXPECT_TRUE(call->optional);
+  EXPECT_EQ(call->variable_scope, nullptr);
 
   const auto* procedure = getSubquery(call->subquery);
   ASSERT_NE(procedure, nullptr);
   ASSERT_NE(getClausesQuery(procedure->query), nullptr);
   EXPECT_EQ(formatAST(*call), "OPTIONAL CALL { RETURN 1 }");
+}
+
+TEST(GQLParser, InlineCallVariableScopeSupportsEmptyScope) {
+  auto ast = parseGraphOrThrow("CALL () { MATCH (a) RETURN a } RETURN *");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+
+  const auto* call = getCallInlineClause(*clauses, 0);
+  ASSERT_NE(call, nullptr);
+  const auto* variable_scope = getCallVariableScopeClause(call->variable_scope);
+  ASSERT_NE(variable_scope, nullptr);
+  EXPECT_TRUE(variable_scope->variables.empty());
+
+  const auto* subquery = getSubquery(call->subquery);
+  ASSERT_NE(subquery, nullptr);
+  ASSERT_NE(getClausesQuery(subquery->query), nullptr);
+
+  auto cloned = call->clone();
+  EXPECT_EQ(formatAST(*call), "CALL () { MATCH (a) RETURN a }");
+  EXPECT_EQ(formatAST(*cloned), "CALL () { MATCH (a) RETURN a }");
+}
+
+TEST(GQLParser, InlineCallVariableScopeSupportsNamedBindings) {
+  auto ast = parseGraphOrThrow("CALL (a, b) { RETURN a, b } RETURN *");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+
+  const auto* call = getCallInlineClause(*clauses, 0);
+  ASSERT_NE(call, nullptr);
+
+  const auto* variable_scope = getCallVariableScopeClause(call->variable_scope);
+  ASSERT_NE(variable_scope, nullptr);
+  ASSERT_EQ(variable_scope->variables.size(), 2);
+  EXPECT_EQ(getExpr(variable_scope->variables[0])->text, "a");
+  EXPECT_EQ(getExpr(variable_scope->variables[1])->text, "b");
+
+  const auto* subquery = getSubquery(call->subquery);
+  ASSERT_NE(subquery, nullptr);
+  const auto* nested_query = getClausesQuery(subquery->query);
+  ASSERT_NE(nested_query, nullptr);
+  ASSERT_NE(getReturnClause(*nested_query, 0), nullptr);
+
+  EXPECT_EQ(formatAST(*call), "CALL (a, b) { RETURN a, b }");
 }
 
 TEST(GQLParser, LetClauseBuildsStructuredItems) {
@@ -1057,13 +1109,20 @@ TEST(GQLParser, ReturnClauseSupportsEmptyGroupingSet) {
   EXPECT_EQ(formatAST(*return_clause), "RETURN a GROUP BY ()");
 }
 
-TEST(GQLParser, InlineCallVariableScopeIsRejected) {
-  try {
-    (void)parseGraphOrThrow("CALL (x) { RETURN x } RETURN x");
-    FAIL() << "Expected `DB::Exception`";
-  } catch (const DB::Exception& e) {
-    EXPECT_NE(e.message().find("inline call variable scope"), String::npos);
-  }
+TEST(GQLParser, InlineCallVariableScopeSupportsSingleBinding) {
+  auto ast = parseGraphOrThrow("CALL (x) { RETURN x } RETURN x");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+
+  const auto* call = getCallInlineClause(*clauses, 0);
+  ASSERT_NE(call, nullptr);
+
+  const auto* variable_scope = getCallVariableScopeClause(call->variable_scope);
+  ASSERT_NE(variable_scope, nullptr);
+  ASSERT_EQ(variable_scope->variables.size(), 1);
+  EXPECT_EQ(getExpr(variable_scope->variables[0])->text, "x");
+  EXPECT_EQ(formatAST(*call), "CALL (x) { RETURN x }");
 }
 
 TEST(GQLParser, MatchClauseKeepsPathModePrefix) {
@@ -1116,7 +1175,7 @@ TEST(GQLParser, ParenthesizedPathPatternKeepsQuestionQuantifier) {
 }
 
 TEST(GQLParser, OptionalMatchBlockKeepsStructuredOperand) {
-  auto ast = parseGraphOrThrow("OPTIONAL { MATCH (a) MATCH (b) } RETURN *");
+  auto ast = parseGraphOrThrow("OPTIONAL { MATCH (a) MATCH (a)-[]->(b) } RETURN *");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
@@ -1127,8 +1186,33 @@ TEST(GQLParser, OptionalMatchBlockKeepsStructuredOperand) {
 
   const auto* block = getMatchStatementBlock(match->optional_operand_block);
   ASSERT_NE(block, nullptr);
+  EXPECT_FALSE(block->parenthesized);
   ASSERT_EQ(block->matches.size(), 2);
-  EXPECT_EQ(formatAST(*match), "OPTIONAL { MATCH (a) MATCH (b) }");
+  ASSERT_NE(block->matches[0]->as<GAST::GQLMatchClause>(), nullptr);
+  ASSERT_NE(block->matches[1]->as<GAST::GQLMatchClause>(), nullptr);
+  auto cloned = match->clone();
+  EXPECT_EQ(formatAST(*match), "OPTIONAL { MATCH (a) MATCH (a)-[]->(b) }");
+  EXPECT_EQ(formatAST(*cloned), "OPTIONAL { MATCH (a) MATCH (a)-[]->(b) }");
+}
+
+TEST(GQLParser, OptionalMatchParenthesizedBlockKeepsStructuredOperand) {
+  auto ast = parseGraphOrThrow("OPTIONAL ( MATCH (a) ) RETURN *");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+
+  const auto* match = getMatchClause(*clauses, 0);
+  ASSERT_NE(match, nullptr);
+  EXPECT_TRUE(match->optional);
+
+  const auto* block = getMatchStatementBlock(match->optional_operand_block);
+  ASSERT_NE(block, nullptr);
+  EXPECT_TRUE(block->parenthesized);
+  ASSERT_EQ(block->matches.size(), 1);
+  ASSERT_NE(block->matches[0]->as<GAST::GQLMatchClause>(), nullptr);
+  auto cloned = match->clone();
+  EXPECT_EQ(formatAST(*match), "OPTIONAL ( MATCH (a) )");
+  EXPECT_EQ(formatAST(*cloned), "OPTIONAL ( MATCH (a) )");
 }
 
 TEST(GQLParser, ExistsPredicateKeepsGraphPatternBlock) {
