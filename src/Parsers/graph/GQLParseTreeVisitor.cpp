@@ -1067,7 +1067,7 @@ std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatem
   auto *procedure_call = statement->procedureCall();
 
   if (auto *named = procedure_call->namedProcedureCall()) {
-    auto clause = make_intrusive<GQLNamedCallClause>();
+    auto clause = make_intrusive<GQLCallNamedClause>();
     clause->optional = statement->OPTIONAL() != nullptr;
     clause->procedure = GQLExpr::identifier(getText(named->procedureReference()));
 
@@ -1091,7 +1091,7 @@ std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatem
       throwUnsupported("inline call variable scope", inline_call->variableScopeClause());
     }
 
-    auto clause = make_intrusive<GQLInlineCallClause>();
+    auto clause = make_intrusive<GQLCallInlineClause>();
     clause->optional = statement->OPTIONAL() != nullptr;
     clause->subquery = buildSubquery(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
     appendClause(clause->children, clause->subquery);

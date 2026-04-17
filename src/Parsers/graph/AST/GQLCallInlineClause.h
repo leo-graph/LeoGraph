@@ -1,17 +1,17 @@
 #pragma once
 
-#include <Parsers/graph/AST/GQLCallClause.h>
+#include <Parsers/graph/AST/GQLCallClauseBase.h>
 
 namespace DB::OPENGQL::AST {
 
-class GQLInlineCallClause final : public GQLCallClause {
+class GQLCallInlineClause final : public GQLCallClauseBase {
  public:
   Ptr subquery;
 
-  String getID(char) const override { return "GQLInlineCallClause"; }
+  String getID(char) const override { return "GQLCallInlineClause"; }
 
   ASTPtr clone() const override {
-    auto result = make_intrusive<GQLInlineCallClause>(*this);
+    auto result = make_intrusive<GQLCallInlineClause>(*this);
     result->children.clear();
     result->subquery = subquery ? subquery->clone() : Ptr{};
 

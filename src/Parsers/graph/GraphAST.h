@@ -6,7 +6,9 @@
 #include <Parsers/graph/AST/GQLBindingTableExpression.h>
 #include <Parsers/graph/AST/GQLBindingVariableDefinition.h>
 #include <Parsers/graph/AST/GQLBindingVariableDefinitionBlock.h>
-#include <Parsers/graph/AST/GQLCallClause.h>
+#include <Parsers/graph/AST/GQLCallClauseBase.h>
+#include <Parsers/graph/AST/GQLCallInlineClause.h>
+#include <Parsers/graph/AST/GQLCallNamedClause.h>
 #include <Parsers/graph/AST/GQLCombinedQuery.h>
 #include <Parsers/graph/AST/GQLEdgePattern.h>
 #include <Parsers/graph/AST/GQLExpr.h>
@@ -15,13 +17,11 @@
 #include <Parsers/graph/AST/GQLGraphExpression.h>
 #include <Parsers/graph/AST/GQLGraphPatternBlock.h>
 #include <Parsers/graph/AST/GQLGroupByClause.h>
-#include <Parsers/graph/AST/GQLInlineCallClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLLetClause.h>
 #include <Parsers/graph/AST/GQLListConstructor.h>
 #include <Parsers/graph/AST/GQLMatchClause.h>
 #include <Parsers/graph/AST/GQLMatchStatementBlock.h>
-#include <Parsers/graph/AST/GQLNamedCallClause.h>
 #include <Parsers/graph/AST/GQLNodePattern.h>
 #include <Parsers/graph/AST/GQLOrderByClause.h>
 #include <Parsers/graph/AST/GQLOrderByItem.h>

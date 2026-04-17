@@ -63,18 +63,18 @@ const GAST::GQLReturnClause* getReturnClause(const GAST::GQLSingleQuery& clauses
   return clause;
 }
 
-const GAST::GQLNamedCallClause* getNamedCallClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
+const GAST::GQLCallNamedClause* getCallNamedClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
-  const auto* call = clauses.clauses[index]->as<GAST::GQLNamedCallClause>();
+  const auto* call = clauses.clauses[index]->as<GAST::GQLCallNamedClause>();
   EXPECT_NE(call, nullptr);
   return call;
 }
 
-const GAST::GQLInlineCallClause* getInlineCallClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
+const GAST::GQLCallInlineClause* getCallInlineClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
-  const auto* call = clauses.clauses[index]->as<GAST::GQLInlineCallClause>();
+  const auto* call = clauses.clauses[index]->as<GAST::GQLCallInlineClause>();
   EXPECT_NE(call, nullptr);
   return call;
 }
@@ -601,7 +601,7 @@ TEST(GQLParser, NamedCallClauseBuildsStructuredNode) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
 
-  const auto* call = getNamedCallClause(*clauses, 0);
+  const auto* call = getCallNamedClause(*clauses, 0);
   ASSERT_NE(call, nullptr);
   EXPECT_FALSE(call->optional);
 
@@ -631,7 +631,7 @@ TEST(GQLParser, InlineOptionalCallKeepsInlineProcedureShape) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
 
-  const auto* call = getInlineCallClause(*clauses, 0);
+  const auto* call = getCallInlineClause(*clauses, 0);
   ASSERT_NE(call, nullptr);
   EXPECT_TRUE(call->optional);
 
