@@ -38,3 +38,4 @@
 - For `ClickHouse` devcontainers on macOS, keep the source tree bind-mounted but move the build directory onto a Docker named volume or another container-local path to avoid Docker Desktop bind-mount I/O bottlenecks.
 - On macOS devcontainers, the cleanest compromise is often mounting the Docker volume directly at `/workspace/ClickHouse/build`, so editors keep the familiar path while build I/O stays off the host bind mount.
 - GitHub rulesets can require PRs and block direct pushes on target branches, but they do not natively express "base branch X only accepts head branches matching Y"; if we choose not to add a repository workflow for that, the source-branch flow remains a convention only.
+- In this personal fork, upstream `.github/workflows/*.yml` `Praktika` / self-hosted CI is dead weight without dedicated runners; removing the whole workflow set is cleaner than debugging permanently pending `Config Workflow` jobs.
