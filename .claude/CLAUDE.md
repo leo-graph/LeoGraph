@@ -2,6 +2,16 @@ When working with a branch, do not use rebase or amend - add new commits instead
 
 Do not commit to the master branch. Create a new branch for every task.
 
+For feature-specific work, prefer opening pull requests against the corresponding module branch, such as `parser/...`, instead of merging directly into `master`.
+
+For new development branches, prefer creating them under the corresponding module prefix, such as `parser/...` for parser work.
+
+Development branches must use the `dev-` prefix after the module namespace. Prefer branch names of the form `<module>/dev-<topic>`, for example `parser/dev-gql-query-root-followup`.
+
+Module trunk branches must also use an explicit marker after the module namespace. Prefer names of the form `<module>/main-<topic>` so they are easy to distinguish from development branches.
+
+Commit messages must use the format `[module] kind : summary`, where `module` identifies the affected area, `kind` is a tag such as `fix`, `feat`, `docs`, or `chore`, and `summary` starts with a lowercase word unless it begins with a proper noun. For example: `[parser] feat : add call clause`.
+
 When writing text such as documentation, comments, or commit messages, wrap literal names from ClickHouse SQL language, classes and functions, or literal excerpts from log messages inside inline code blocks, such as: `MergeTree`.
 
 When writing text such as documentation, comments, or commit messages, write names of functions and methods as `f` instead of `f()` - we prefer it for mathematical purity when it refers a function itself rather than its application.
