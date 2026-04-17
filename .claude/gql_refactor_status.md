@@ -17,7 +17,7 @@
 - Entry lives in `src/Parsers/graph/GQLParserUtils.cpp`.
 - The current internal root rule is `compositeQueryStatement`.
 - This means the parser is currently centered around complete query statements, not standalone clause fragments.
-- The current normalization rule is: keep `visit*` boundaries aligned with `GQL.g4`, but keep public query roots aligned with the `kgraph`-style `GQL*` query nodes.
+- The current normalization rule is: keep `visit*` boundaries aligned with `GQL.g4`, but keep public query roots aligned with a semantic query model instead of grammar wrappers.
 
 ### AST layer
 
@@ -25,10 +25,11 @@
 - All graph nodes inherit from `IAST` or `ASTWithAlias`, not kgraph `INode`.
 - `IAST::children` must stay dense and non-null; optional graph children should stay in named fields and only be pushed into `children` when present.
 - Query roots should stay stable:
-  - linear clause queries return `GQLClausesQuery`;
-  - set queries return `GQLSetQuery`;
-  - top-level `SELECT` returns a one-clause `GQLClausesQuery` whose only clause is `GQLProjectClause::Type::Select`;
-  - `nestedQuerySpecification` returns `GQLSubqueryClause`, and its inner `statement` child is itself a normalized query root.
+  - linear clause queries return `GQLSingleQuery`;
+  - set queries return `GQLCombinedQuery`;
+  - `GQLCombinedQuery` stores `queries + operators`, and operators preserve `ALL` / `DISTINCT` semantics explicitly;
+  - top-level `SELECT` returns a `GQLSingleQuery` whose first clause is `GQLSelectClause`, followed by `GQLPageClause` when paging is present;
+  - `nestedQuerySpecification` returns `GQLSubquery`, and its inner `query` child is itself a normalized query root.
 
 ### Visitor coverage
 
@@ -37,7 +38,8 @@ The currently supported minimal path is:
 - `MATCH`
 - `OPTIONAL MATCH`
 - `WHERE` / `FILTER`
-- `RETURN`
+- `RETURN` via `GQLReturnClause`
+- `SELECT` via `GQLSelectClause`
 - structured `GROUP BY` inside `RETURN` and `SELECT`
 - `ORDER BY`
 - `OFFSET`
@@ -46,10 +48,10 @@ The currently supported minimal path is:
 - structured standalone `ORDER BY` / `OFFSET` / `LIMIT` paging clauses
 - focused `USE` query parts flattened into clause sequences with structured `USE` clauses
 - focused nested queries now preserve a structured subquery wrapper after the `USE` clause
-- nested query specifications now preserve a structured subquery wrapper, with dedicated nodes for `AT schema`, `schemaReference`, binding-variable definition blocks, binding initializers, and `NEXT YIELD`, and reject unsupported inner non-query statements explicitly instead of flattening them to raw text
-- top-level `SELECT` statements now normalize to a one-clause `GQLClausesQuery` that holds a minimal `GQLProjectClause::Type::Select` with structured `WHERE` / `HAVING` / tails, graph-qualified nested-query `FROM` sources, and graph-match `FROM` lists preserved as structured source nodes
-- the older `visitSelectStatement` exception on `SELECT ... FROM ...` paths is fixed by gathering parse-tree data before constructing the `GQLProjectClause`, so the full `GQLParser.*` suite is currently green again
-- structured `CALL`, `LET`, and `FOR` clauses, including structured procedure references, inline query-compatible `CALL { ... }`, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
+- nested query specifications now preserve a structured `GQLSubquery` wrapper, with dedicated nodes for `AT schema`, `schemaReference`, binding-variable definition blocks, binding initializers, and `NEXT YIELD`, and reject unsupported inner non-query statements explicitly instead of flattening them to raw text
+- top-level `SELECT` statements now normalize to `GQLSingleQuery`, with `GQLSelectClause` carrying `FROM` / `WHERE` / `GROUP BY` / `HAVING`, graph-qualified nested-query `FROM` sources preserved as structured source nodes, and `ORDER BY` / `OFFSET` / `LIMIT` emitted as a separate `GQLPageClause`
+- the older `visitSelectStatement` exception on `SELECT ... FROM ...` paths is fixed by gathering parse-tree data before constructing the final clause node
+- structured `CALL`, `LET`, and `FOR` clauses, including separate `GQLNamedCallClause` / `GQLInlineCallClause` nodes, structured procedure references, inline query-compatible `CALL { ... }`, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - explicit rejection of unsupported inline `CALL` variable-scope clauses instead of top-level raw-text fallback
 - `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
 - `bindingTableExpression` payloads in binding-table initializers now build `GQLBindingTableExpression`, including the nested-query form
@@ -57,7 +59,7 @@ The currently supported minimal path is:
 - structured path / graph prefixes, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, and basic path / node / edge patterns
 - basic label expressions
 - a minimal expression subset with structured `ABS` / length / cardinality functions, structured `COUNT(*)`, structured `EXISTS` operands, and structured list / record literals
-- simple set queries such as `UNION`
+- simple set queries such as `UNION`, `UNION ALL`, and `EXCEPT`
 
 ## Important Boundaries
 
@@ -68,14 +70,14 @@ The currently supported minimal path is:
 
 ## Recommended Next Steps
 
-### 1. Keep the query contract stable while filling coverage
+### 1. Keep the new query contract stable while filling coverage
 
 Keep working in `src/Parsers/graph/GQLParseTreeVisitor.cpp`, but do not widen the set of public query root shapes.
 
 The immediate rule is:
 
-- keep `GQLClausesQuery`, `GQLSetQuery`, and `GQLSubqueryClause` as the only intentional query-root contracts;
-- keep `GQLProjectClause` as a clause node even when the grammar uses `selectStatement` as a direct query alternative.
+- keep `GQLSingleQuery`, `GQLCombinedQuery`, and `GQLSubquery` as the intentional query-level wrappers;
+- keep `GQLSelectClause`, `GQLReturnClause`, and `GQLPageClause` as separate clause nodes instead of collapsing them back into one projection node.
 
 Then reduce the query-level `throwUnsupported` cases.
 
@@ -84,6 +86,7 @@ Suggested order:
 - keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
+- introduce a thin `GQLQuery` base or equivalent shared query helper only if later lowering really benefits from it; do not churn the current roots just for naming
 
 The goal of this phase is to make the current query-oriented root feel complete before adding more outer integration.
 
@@ -122,6 +125,7 @@ Only after the visitor coverage is broad enough should the refactor move to:
 - `src/Parsers/graph/AST/*.h`
 - `src/Parsers/graph/fwd_decl.h`
 - `src/Parsers/graph/GraphAST.h`
+- `src/Parsers/graph/tests/gtest_gql_parser.cpp`
 
 ## Session Recovery Note
 
