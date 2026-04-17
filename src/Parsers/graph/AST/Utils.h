@@ -40,15 +40,21 @@ inline String formatNodeToString(const IAST& node) {
   return buffer.str();
 }
 
-inline const char* getSetOperationKeyword(SetOperation operation) {
+inline const char* getCombinedQueryOperatorKeyword(CombinedQueryOperator operation) {
   switch (operation) {
-    case SetOperation::Union:
+    case CombinedQueryOperator::UnionDistinct:
       return "UNION";
-    case SetOperation::Except:
+    case CombinedQueryOperator::UnionAll:
+      return "UNION ALL";
+    case CombinedQueryOperator::ExceptDistinct:
       return "EXCEPT";
-    case SetOperation::Intersect:
+    case CombinedQueryOperator::ExceptAll:
+      return "EXCEPT ALL";
+    case CombinedQueryOperator::IntersectDistinct:
       return "INTERSECT";
-    case SetOperation::Otherwise:
+    case CombinedQueryOperator::IntersectAll:
+      return "INTERSECT ALL";
+    case CombinedQueryOperator::Otherwise:
       return "OTHERWISE";
   }
 

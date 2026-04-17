@@ -101,7 +101,7 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitUnsignedLiteral(GQLParser::UnsignedLiteralContext* context) override;
 
  private:
-  AST::Ptr buildSubqueryClause(GQLParser::ProcedureBodyContext* procedure_body, antlr4::ParserRuleContext* context);
+  AST::Ptr buildSubquery(GQLParser::ProcedureBodyContext* procedure_body, antlr4::ParserRuleContext* context);
   AST::Ptr makeRawTextExpr(antlr4::ParserRuleContext* context) const;
 };
 

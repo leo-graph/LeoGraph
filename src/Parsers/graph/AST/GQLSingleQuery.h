@@ -4,20 +4,20 @@
 
 namespace DB::OPENGQL::AST {
 
-class GQLClausesQuery final : public DB::IAST {
+class GQLSingleQuery final : public DB::IAST {
  public:
-  GQLClausesQuery() = default;
+  GQLSingleQuery() = default;
 
-  explicit GQLClausesQuery(PtrList clauses_) : clauses(std::move(clauses_)) {
+  explicit GQLSingleQuery(PtrList clauses_) : clauses(std::move(clauses_)) {
     for (const auto &clause : clauses) {
       if (clause) children.push_back(clause);
     }
   }
 
-  String getID(char) const override { return "GQLClausesQuery"; }
+  String getID(char) const override { return "GQLSingleQuery"; }
 
   ASTPtr clone() const override {
-    auto result = make_intrusive<GQLClausesQuery>(*this);
+    auto result = make_intrusive<GQLSingleQuery>(*this);
     result->children.clear();
     detail::cloneChildrenList(clauses, result->clauses, result->children);
     return result;
