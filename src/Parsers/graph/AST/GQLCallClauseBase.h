@@ -6,6 +6,9 @@ namespace DB::OPENGQL::AST {
 
 class GQLCallClauseBase : public DB::IAST {
  public:
+  GQLCallClauseBase() = default;
+  GQLCallClauseBase(const GQLCallClauseBase &) = default;
+  GQLCallClauseBase &operator=(const GQLCallClauseBase &) = default;
   virtual ~GQLCallClauseBase() override = default;
 
   String getID(char) const override = 0;
@@ -14,8 +17,6 @@ class GQLCallClauseBase : public DB::IAST {
   bool optional = false;
 
  protected:
-  GQLCallClauseBase() = default;
-
   void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override = 0;
 
   void formatCallPrefix(WriteBuffer& ostr) const {

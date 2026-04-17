@@ -66,6 +66,7 @@ class GQLBindingVariableDefinitionBlock;
 class GQLCallClauseBase;
 class GQLCallInlineClause;
 class GQLCallNamedClause;
+class GQLCallVariableScopeClause;
 class GQLCombinedQuery;
 class GQLExpr;
 class GQLFinishClause;

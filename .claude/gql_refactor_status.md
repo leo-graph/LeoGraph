@@ -51,8 +51,7 @@ The currently supported minimal path is:
 - nested query specifications now preserve a structured `GQLSubquery` wrapper, with dedicated nodes for `AT schema`, `schemaReference`, binding-variable definition blocks, binding initializers, and `NEXT YIELD`, and reject unsupported inner non-query statements explicitly instead of flattening them to raw text
 - top-level `SELECT` statements now normalize to `GQLSingleQuery`, with `GQLSelectClause` carrying `FROM` / `WHERE` / `GROUP BY` / `HAVING`, graph-qualified nested-query `FROM` sources preserved as structured source nodes, and `ORDER BY` / `OFFSET` / `LIMIT` emitted as a separate `GQLPageClause`
 - the older `visitSelectStatement` exception on `SELECT ... FROM ...` paths is fixed by gathering parse-tree data before constructing the final clause node
-- structured `CALL`, `LET`, and `FOR` clauses, including separate `GQLCallNamedClause` / `GQLCallInlineClause` nodes, structured procedure references, inline query-compatible `CALL { ... }`, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
-- explicit rejection of unsupported inline `CALL` variable-scope clauses instead of top-level raw-text fallback
+- structured `CALL`, `LET`, and `FOR` clauses, including separate `GQLCallNamedClause` / `GQLCallInlineClause` nodes, structured procedure references, inline query-compatible `CALL { ... }`, inline `CALL (x, y) { ... }` variable scopes, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
 - `bindingTableExpression` payloads in binding-table initializers now build `GQLBindingTableExpression`, including the nested-query form
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
@@ -85,7 +84,7 @@ Suggested order:
 
 - keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
 - widen nested query support beyond the single-statement unwrap path
-- keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again
+- keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again, with simplified path-pattern forms as the next pattern-side topic
 - introduce a thin `GQLQuery` base or equivalent shared query helper only if later lowering really benefits from it; do not churn the current roots just for naming
 
 The goal of this phase is to make the current query-oriented root feel complete before adding more outer integration.
