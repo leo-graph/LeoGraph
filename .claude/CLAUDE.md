@@ -1,4 +1,4 @@
-When working with a branch, do not use rebase or amend - add new commits instead.
+When syncing a branch with its upstream or base branch, prefer `rebase` so the branch stays linear. Do not use `amend` unless the user explicitly asks for it.
 
 Do not commit to the master branch. Create a new branch for every task.
 
