@@ -31,13 +31,15 @@ String formatAST(const IAST& ast) {
   return out.str();
 }
 
-const GAST::GQLClausesQuery* getClausesQuery(const ASTPtr& ast) {
-  const auto* clauses = ast->as<GAST::GQLClausesQuery>();
-  EXPECT_NE(clauses, nullptr);
-  return clauses;
+const GAST::GQLSingleQuery* getSingleQuery(const ASTPtr& ast) {
+  const auto* query = ast->as<GAST::GQLSingleQuery>();
+  EXPECT_NE(query, nullptr);
+  return query;
 }
 
-const GAST::GQLMatchClause* getMatchClause(const GAST::GQLClausesQuery& clauses, size_t index = 0) {
+const GAST::GQLSingleQuery* getClausesQuery(const ASTPtr& ast) { return getSingleQuery(ast); }
+
+const GAST::GQLMatchClause* getMatchClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
   const auto* match = clauses.clauses[index]->as<GAST::GQLMatchClause>();
@@ -45,23 +47,39 @@ const GAST::GQLMatchClause* getMatchClause(const GAST::GQLClausesQuery& clauses,
   return match;
 }
 
-const GAST::GQLProjectClause* getProjectClause(const GAST::GQLClausesQuery& clauses, size_t index = 1) {
-  if (index >= clauses.clauses.size()) return nullptr;
+const GAST::GQLSelectClause* getSelectClause(const GAST::GQLSingleQuery& query, size_t index = 0) {
+  if (index >= query.clauses.size()) return nullptr;
 
-  const auto* project = clauses.clauses[index]->as<GAST::GQLProjectClause>();
-  EXPECT_NE(project, nullptr);
-  return project;
+  const auto* clause = query.clauses[index]->as<GAST::GQLSelectClause>();
+  EXPECT_NE(clause, nullptr);
+  return clause;
 }
 
-const GAST::GQLCallClause* getCallClause(const GAST::GQLClausesQuery& clauses, size_t index = 0) {
+const GAST::GQLReturnClause* getReturnClause(const GAST::GQLSingleQuery& clauses, size_t index = 1) {
   if (index >= clauses.clauses.size()) return nullptr;
 
-  const auto* call = clauses.clauses[index]->as<GAST::GQLCallClause>();
+  const auto* clause = clauses.clauses[index]->as<GAST::GQLReturnClause>();
+  EXPECT_NE(clause, nullptr);
+  return clause;
+}
+
+const GAST::GQLNamedCallClause* getNamedCallClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
+  if (index >= clauses.clauses.size()) return nullptr;
+
+  const auto* call = clauses.clauses[index]->as<GAST::GQLNamedCallClause>();
   EXPECT_NE(call, nullptr);
   return call;
 }
 
-const GAST::GQLLetClause* getLetClause(const GAST::GQLClausesQuery& clauses, size_t index = 0) {
+const GAST::GQLInlineCallClause* getInlineCallClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
+  if (index >= clauses.clauses.size()) return nullptr;
+
+  const auto* call = clauses.clauses[index]->as<GAST::GQLInlineCallClause>();
+  EXPECT_NE(call, nullptr);
+  return call;
+}
+
+const GAST::GQLLetClause* getLetClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
   const auto* let_clause = clauses.clauses[index]->as<GAST::GQLLetClause>();
@@ -69,7 +87,7 @@ const GAST::GQLLetClause* getLetClause(const GAST::GQLClausesQuery& clauses, siz
   return let_clause;
 }
 
-const GAST::GQLForClause* getForClause(const GAST::GQLClausesQuery& clauses, size_t index = 0) {
+const GAST::GQLForClause* getForClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
   const auto* for_clause = clauses.clauses[index]->as<GAST::GQLForClause>();
@@ -83,7 +101,7 @@ const GAST::GQLGroupByClause* getGroupByClause(const ASTPtr& ast) {
   return group_by_clause;
 }
 
-const GAST::GQLFinishClause* getFinishClause(const GAST::GQLClausesQuery& clauses, size_t index) {
+const GAST::GQLFinishClause* getFinishClause(const GAST::GQLSingleQuery& clauses, size_t index) {
   if (index >= clauses.clauses.size()) return nullptr;
 
   const auto* finish_clause = clauses.clauses[index]->as<GAST::GQLFinishClause>();
@@ -109,7 +127,7 @@ const GAST::GQLSelectSourceList* getSelectSourceList(const ASTPtr& ast) {
   return source_list;
 }
 
-const GAST::GQLPageClause* getPageClause(const GAST::GQLClausesQuery& clauses, size_t index) {
+const GAST::GQLPageClause* getPageClause(const GAST::GQLSingleQuery& clauses, size_t index) {
   if (index >= clauses.clauses.size()) return nullptr;
 
   const auto* page_clause = clauses.clauses[index]->as<GAST::GQLPageClause>();
@@ -117,7 +135,7 @@ const GAST::GQLPageClause* getPageClause(const GAST::GQLClausesQuery& clauses, s
   return page_clause;
 }
 
-const GAST::GQLUseClause* getUseClause(const GAST::GQLClausesQuery& clauses, size_t index = 0) {
+const GAST::GQLUseClause* getUseClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
 
   const auto* use_clause = clauses.clauses[index]->as<GAST::GQLUseClause>();
@@ -125,10 +143,10 @@ const GAST::GQLUseClause* getUseClause(const GAST::GQLClausesQuery& clauses, siz
   return use_clause;
 }
 
-const GAST::GQLSubqueryClause* getSubqueryClause(const ASTPtr& ast) {
-  const auto* subquery_clause = ast->as<GAST::GQLSubqueryClause>();
-  EXPECT_NE(subquery_clause, nullptr);
-  return subquery_clause;
+const GAST::GQLSubquery* getSubquery(const ASTPtr& ast) {
+  const auto* subquery = ast->as<GAST::GQLSubquery>();
+  EXPECT_NE(subquery, nullptr);
+  return subquery;
 }
 
 const GAST::GQLAtSchemaClause* getAtSchemaClause(const ASTPtr& ast) {
@@ -291,9 +309,9 @@ TEST(GQLParser, OptionalMatchIsAcceptedByTopLevelParser) {
   ASSERT_NE(match, nullptr);
   EXPECT_TRUE(match->optional);
 
-  const auto* project = getProjectClause(*clauses, 1);
-  ASSERT_NE(project, nullptr);
-  ASSERT_EQ(project->items.size(), 1);
+  const auto* return_clause = getReturnClause(*clauses, 1);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 1);
 }
 
 TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause) {
@@ -311,7 +329,7 @@ TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause) {
   EXPECT_EQ(formatAST(*use_clause), "USE foo");
 
   const auto* match = getMatchClause(*clauses, 1);
-  const auto* project = getProjectClause(*clauses, 2);
+  const auto* project = getReturnClause(*clauses, 2);
   ASSERT_NE(match, nullptr);
   ASSERT_NE(project, nullptr);
 }
@@ -329,48 +347,49 @@ TEST(GQLParser, FocusedNestedQueryKeepsSubqueryWrapper) {
   EXPECT_EQ(graph_reference->text, "foo");
   EXPECT_EQ(formatAST(*use_clause), "USE foo");
 
-  const auto* subquery_clause = getSubqueryClause(clauses->clauses[1]);
-  ASSERT_NE(subquery_clause, nullptr);
-  ASSERT_NE(getClausesQuery(subquery_clause->statement), nullptr);
-  EXPECT_EQ(formatAST(*subquery_clause), "{ MATCH (a) RETURN a }");
+  const auto* subquery = getSubquery(clauses->clauses[1]);
+  ASSERT_NE(subquery, nullptr);
+  ASSERT_NE(getClausesQuery(subquery->query), nullptr);
+  EXPECT_EQ(formatAST(*subquery), "{ MATCH (a) RETURN a }");
 }
 
-TEST(GQLParser, SelectStatementBuildsTopLevelClausesQuery) {
+TEST(GQLParser, SelectStatementBuildsStructuredSingleQuery) {
   auto ast = parseGraphOrThrow(
       "SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE a IS NOT NULL GROUP BY a HAVING a IS NOT NULL ORDER BY a DESC OFFSET 1 "
       "LIMIT 2");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 1);
+  ASSERT_EQ(clauses->clauses.size(), 2);
 
-  const auto* project = getProjectClause(*clauses, 0);
-  ASSERT_NE(project, nullptr);
-  EXPECT_EQ(project->type, GAST::GQLProjectClause::Type::Select);
-  EXPECT_TRUE(project->distinct);
-  ASSERT_EQ(project->items.size(), 1);
+  const auto* select_clause = getSelectClause(*clauses, 0);
+  ASSERT_NE(select_clause, nullptr);
+  EXPECT_TRUE(select_clause->distinct);
+  ASSERT_EQ(select_clause->items.size(), 1);
 
-  const auto* item = getExpr(project->items[0]);
+  const auto* item = getExpr(select_clause->items[0]);
   ASSERT_NE(item, nullptr);
   EXPECT_EQ(item->text, "a");
   EXPECT_EQ(item->tryGetAlias(), "x");
 
-  const auto* source = getSubqueryClause(project->source);
+  const auto* source = getSubquery(select_clause->source);
   ASSERT_NE(source, nullptr);
-  ASSERT_NE(getClausesQuery(source->statement), nullptr);
+  ASSERT_NE(getClausesQuery(source->query), nullptr);
 
-  const auto* where = project->where->as<GAST::GQLWhereClause>();
+  const auto* where = select_clause->where->as<GAST::GQLWhereClause>();
   ASSERT_NE(where, nullptr);
-  const auto* having = project->having->as<GAST::GQLWhereClause>();
+  const auto* having = select_clause->having->as<GAST::GQLWhereClause>();
   ASSERT_NE(having, nullptr);
-  const auto* group_by = getGroupByClause(project->group_by);
+  const auto* group_by = getGroupByClause(select_clause->group_by);
   ASSERT_NE(group_by, nullptr);
   ASSERT_EQ(group_by->items.size(), 1);
   EXPECT_EQ(getExpr(group_by->items[0])->text, "a");
 
-  const auto* order_by = project->order_by->as<GAST::GQLOrderByClause>();
+  const auto* page_clause = getPageClause(*clauses, 1);
+  ASSERT_NE(page_clause, nullptr);
+  const auto* order_by = page_clause->order_by->as<GAST::GQLOrderByClause>();
   ASSERT_NE(order_by, nullptr);
-  const auto* offset = getExpr(project->offset);
-  const auto* limit = getExpr(project->limit);
+  const auto* offset = getExpr(page_clause->offset);
+  const auto* limit = getExpr(page_clause->limit);
   ASSERT_NE(offset, nullptr);
   ASSERT_NE(limit, nullptr);
   EXPECT_EQ(offset->text, "1");
@@ -386,10 +405,10 @@ TEST(GQLParser, SelectStatementPreservesGraphQualifiedQuerySource) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 1);
 
-  const auto* project = getProjectClause(*clauses, 0);
-  ASSERT_NE(project, nullptr);
+  const auto* select_clause = getSelectClause(*clauses, 0);
+  ASSERT_NE(select_clause, nullptr);
 
-  const auto* source_item = getSelectSourceItem(project->source);
+  const auto* source_item = getSelectSourceItem(select_clause->source);
   ASSERT_NE(source_item, nullptr);
 
   const auto* graph_reference = getGraphExpression(source_item->graph_reference);
@@ -397,9 +416,9 @@ TEST(GQLParser, SelectStatementPreservesGraphQualifiedQuerySource) {
   EXPECT_EQ(graph_reference->kind, GAST::GQLGraphExpression::Kind::ObjectNameOrBindingVariable);
   EXPECT_EQ(graph_reference->text, "foo");
 
-  const auto* nested_query = getSubqueryClause(source_item->source);
+  const auto* nested_query = getSubquery(source_item->source);
   ASSERT_NE(nested_query, nullptr);
-  ASSERT_NE(getClausesQuery(nested_query->statement), nullptr);
+  ASSERT_NE(getClausesQuery(nested_query->query), nullptr);
   EXPECT_EQ(formatAST(*clauses), "SELECT a FROM foo { MATCH (a) RETURN a }");
 }
 
@@ -409,26 +428,26 @@ TEST(GQLParser, NestedQueryKeepsNextStatementsInsideSubqueryClause) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
 
-  const auto* subquery_clause = getSubqueryClause(clauses->clauses[1]);
-  ASSERT_NE(subquery_clause, nullptr);
-  ASSERT_EQ(subquery_clause->next_statements.size(), 1);
+  const auto* subquery = getSubquery(clauses->clauses[1]);
+  ASSERT_NE(subquery, nullptr);
+  ASSERT_EQ(subquery->next_statements.size(), 1);
 
-  const auto* next_clause = getSubqueryNextClause(subquery_clause->next_statements[0]);
+  const auto* next_clause = getSubqueryNextClause(subquery->next_statements[0]);
   ASSERT_NE(next_clause, nullptr);
   const auto* yield_clause = getYieldClause(next_clause->yield);
   ASSERT_NE(yield_clause, nullptr);
   ASSERT_EQ(yield_clause->items.size(), 1);
   EXPECT_EQ(getExpr(yield_clause->items[0])->text, "a");
-  ASSERT_NE(getClausesQuery(next_clause->statement), nullptr);
-  EXPECT_EQ(formatAST(*subquery_clause), "{ MATCH (a) RETURN a NEXT YIELD a RETURN a }");
+  ASSERT_NE(getClausesQuery(next_clause->query), nullptr);
+  EXPECT_EQ(formatAST(*subquery), "{ MATCH (a) RETURN a NEXT YIELD a RETURN a }");
 }
 
 TEST(GQLParser, NestedQueryPreservesStructuredSchemaAndBindings) {
   auto ast = parseGraphOrThrow("{ AT ../foo/bar/analytics VALUE x = 1 MATCH (a) RETURN a }");
-  const auto* subquery_clause = getSubqueryClause(ast);
-  ASSERT_NE(subquery_clause, nullptr);
+  const auto* subquery = getSubquery(ast);
+  ASSERT_NE(subquery, nullptr);
 
-  const auto* at_schema_clause = getAtSchemaClause(subquery_clause->at_schema);
+  const auto* at_schema_clause = getAtSchemaClause(subquery->at_schema);
   ASSERT_NE(at_schema_clause, nullptr);
   const auto* schema_reference = getSchemaReference(at_schema_clause->schema_reference);
   ASSERT_NE(schema_reference, nullptr);
@@ -439,7 +458,7 @@ TEST(GQLParser, NestedQueryPreservesStructuredSchemaAndBindings) {
   EXPECT_EQ(schema_reference->directory_parts[1], "bar");
   EXPECT_EQ(schema_reference->name, "analytics");
 
-  const auto* binding_block = getBindingVariableDefinitionBlock(subquery_clause->bindings);
+  const auto* binding_block = getBindingVariableDefinitionBlock(subquery->bindings);
   ASSERT_NE(binding_block, nullptr);
   ASSERT_EQ(binding_block->definitions.size(), 1);
 
@@ -453,16 +472,16 @@ TEST(GQLParser, NestedQueryPreservesStructuredSchemaAndBindings) {
   EXPECT_EQ(initializer->kind, GAST::GQLBindingInitializer::Kind::Value);
   EXPECT_EQ(getExpr(initializer->value)->text, "1");
 
-  ASSERT_NE(getClausesQuery(subquery_clause->statement), nullptr);
-  EXPECT_EQ(formatAST(*subquery_clause), "{ AT ../foo/bar/analytics VALUE x = 1 MATCH (a) RETURN a }");
+  ASSERT_NE(getClausesQuery(subquery->query), nullptr);
+  EXPECT_EQ(formatAST(*subquery), "{ AT ../foo/bar/analytics VALUE x = 1 MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, NestedQueryPreservesStructuredBindingTableInitializer) {
   auto ast = parseGraphOrThrow("{ TABLE t = { MATCH (a) RETURN a } MATCH (a) RETURN a }");
-  const auto* subquery_clause = getSubqueryClause(ast);
-  ASSERT_NE(subquery_clause, nullptr);
+  const auto* subquery = getSubquery(ast);
+  ASSERT_NE(subquery, nullptr);
 
-  const auto* binding_block = getBindingVariableDefinitionBlock(subquery_clause->bindings);
+  const auto* binding_block = getBindingVariableDefinitionBlock(subquery->bindings);
   ASSERT_NE(binding_block, nullptr);
   ASSERT_EQ(binding_block->definitions.size(), 1);
 
@@ -479,18 +498,18 @@ TEST(GQLParser, NestedQueryPreservesStructuredBindingTableInitializer) {
   ASSERT_NE(binding_table_expression, nullptr);
   EXPECT_EQ(binding_table_expression->kind, GAST::GQLBindingTableExpression::Kind::NestedQuery);
 
-  const auto* nested_binding_query = getSubqueryClause(binding_table_expression->value);
+  const auto* nested_binding_query = getSubquery(binding_table_expression->value);
   ASSERT_NE(nested_binding_query, nullptr);
-  ASSERT_NE(getClausesQuery(nested_binding_query->statement), nullptr);
-  EXPECT_EQ(formatAST(*subquery_clause), "{ TABLE t = { MATCH (a) RETURN a } MATCH (a) RETURN a }");
+  ASSERT_NE(getClausesQuery(nested_binding_query->query), nullptr);
+  EXPECT_EQ(formatAST(*subquery), "{ TABLE t = { MATCH (a) RETURN a } MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, NestedQueryPreservesStructuredGraphInitializer) {
   auto ast = parseGraphOrThrow("{ GRAPH g = CURRENT_GRAPH MATCH (a) RETURN a }");
-  const auto* subquery_clause = getSubqueryClause(ast);
-  ASSERT_NE(subquery_clause, nullptr);
+  const auto* subquery = getSubquery(ast);
+  ASSERT_NE(subquery, nullptr);
 
-  const auto* binding_block = getBindingVariableDefinitionBlock(subquery_clause->bindings);
+  const auto* binding_block = getBindingVariableDefinitionBlock(subquery->bindings);
   ASSERT_NE(binding_block, nullptr);
   ASSERT_EQ(binding_block->definitions.size(), 1);
 
@@ -507,15 +526,15 @@ TEST(GQLParser, NestedQueryPreservesStructuredGraphInitializer) {
   ASSERT_NE(graph_expression, nullptr);
   EXPECT_EQ(graph_expression->kind, GAST::GQLGraphExpression::Kind::CurrentGraph);
   EXPECT_EQ(graph_expression->text, "CURRENT_GRAPH");
-  EXPECT_EQ(formatAST(*subquery_clause), "{ GRAPH g = CURRENT_GRAPH MATCH (a) RETURN a }");
+  EXPECT_EQ(formatAST(*subquery), "{ GRAPH g = CURRENT_GRAPH MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, NestedQueryPreservesStructuredBindingTableReferenceInitializer) {
   auto ast = parseGraphOrThrow("{ TABLE t = foo MATCH (a) RETURN a }");
-  const auto* subquery_clause = getSubqueryClause(ast);
-  ASSERT_NE(subquery_clause, nullptr);
+  const auto* subquery = getSubquery(ast);
+  ASSERT_NE(subquery, nullptr);
 
-  const auto* binding_block = getBindingVariableDefinitionBlock(subquery_clause->bindings);
+  const auto* binding_block = getBindingVariableDefinitionBlock(subquery->bindings);
   ASSERT_NE(binding_block, nullptr);
   ASSERT_EQ(binding_block->definitions.size(), 1);
 
@@ -532,7 +551,7 @@ TEST(GQLParser, NestedQueryPreservesStructuredBindingTableReferenceInitializer) 
   ASSERT_NE(binding_table_expression, nullptr);
   EXPECT_EQ(binding_table_expression->kind, GAST::GQLBindingTableExpression::Kind::ObjectNameOrBindingVariable);
   EXPECT_EQ(binding_table_expression->text, "foo");
-  EXPECT_EQ(formatAST(*subquery_clause), "{ TABLE t = foo MATCH (a) RETURN a }");
+  EXPECT_EQ(formatAST(*subquery), "{ TABLE t = foo MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, NestedQueryRejectsNonQueryStatement) {
@@ -550,10 +569,10 @@ TEST(GQLParser, SelectStatementBuildsStructuredGraphMatchSourceList) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 1);
 
-  const auto* project = getProjectClause(*clauses, 0);
-  ASSERT_NE(project, nullptr);
+  const auto* select_clause = getSelectClause(*clauses, 0);
+  ASSERT_NE(select_clause, nullptr);
 
-  const auto* source_list = getSelectSourceList(project->source);
+  const auto* source_list = getSelectSourceList(select_clause->source);
   ASSERT_NE(source_list, nullptr);
   ASSERT_EQ(source_list->items.size(), 2);
 
@@ -576,16 +595,15 @@ TEST(GQLParser, SelectStatementBuildsStructuredGraphMatchSourceList) {
   EXPECT_EQ(formatAST(*clauses), "SELECT a, b FROM foo MATCH (a), bar MATCH (b) WHERE (a = b)");
 }
 
-TEST(GQLParser, CallClauseBuildsStructuredNode) {
+TEST(GQLParser, NamedCallClauseBuildsStructuredNode) {
   auto ast = parseGraphOrThrow("CALL foo(a, b) YIELD x AS y RETURN y");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
 
-  const auto* call = getCallClause(*clauses, 0);
+  const auto* call = getNamedCallClause(*clauses, 0);
   ASSERT_NE(call, nullptr);
   EXPECT_FALSE(call->optional);
-  EXPECT_FALSE(call->inline_procedure);
 
   const auto* procedure = getExpr(call->procedure);
   ASSERT_NE(procedure, nullptr);
@@ -596,8 +614,10 @@ TEST(GQLParser, CallClauseBuildsStructuredNode) {
   EXPECT_EQ(getExpr(call->arguments[0])->text, "a");
   EXPECT_EQ(getExpr(call->arguments[1])->text, "b");
 
-  ASSERT_EQ(call->yield_items.size(), 1);
-  const auto* yield_item = getExpr(call->yield_items[0]);
+  const auto* yield_clause = getYieldClause(call->yield);
+  ASSERT_NE(yield_clause, nullptr);
+  ASSERT_EQ(yield_clause->items.size(), 1);
+  const auto* yield_item = getExpr(yield_clause->items[0]);
   ASSERT_NE(yield_item, nullptr);
   EXPECT_EQ(yield_item->kind, GAST::GQLExpr::Kind::Identifier);
   EXPECT_EQ(yield_item->text, "x");
@@ -611,16 +631,13 @@ TEST(GQLParser, InlineOptionalCallKeepsInlineProcedureShape) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
 
-  const auto* call = getCallClause(*clauses, 0);
+  const auto* call = getInlineCallClause(*clauses, 0);
   ASSERT_NE(call, nullptr);
   EXPECT_TRUE(call->optional);
-  EXPECT_TRUE(call->inline_procedure);
-  EXPECT_TRUE(call->arguments.empty());
-  EXPECT_TRUE(call->yield_items.empty());
 
-  const auto* procedure = getSubqueryClause(call->procedure);
+  const auto* procedure = getSubquery(call->subquery);
   ASSERT_NE(procedure, nullptr);
-  ASSERT_NE(getClausesQuery(procedure->statement), nullptr);
+  ASSERT_NE(getClausesQuery(procedure->query), nullptr);
   EXPECT_EQ(formatAST(*call), "OPTIONAL CALL { RETURN 1 }");
 }
 
@@ -706,7 +723,7 @@ TEST(GQLParser, StandalonePagingBuildsStructuredClause) {
   EXPECT_EQ(limit->text, "2");
   EXPECT_EQ(formatAST(*page_clause), "ORDER BY a DESC OFFSET 1 LIMIT 2");
 
-  ASSERT_NE(getProjectClause(*clauses, 2), nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (a) ORDER BY a DESC OFFSET 1 LIMIT 2 RETURN a");
 }
 
@@ -922,18 +939,21 @@ TEST(GQLParser, ReturnClauseKeepsAliasAndTail) {
   auto ast = parseGraphOrThrow("MATCH (a:Person) RETURN a.name AS name, a.age ORDER BY a.age DESC OFFSET 2 LIMIT 5");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 2);
+  ASSERT_EQ(clauses->clauses.size(), 3);
 
-  const auto* project = getProjectClause(*clauses);
-  ASSERT_NE(project, nullptr);
-  EXPECT_FALSE(project->distinct);
-  ASSERT_EQ(project->items.size(), 2);
+  const auto* return_clause = getReturnClause(*clauses);
+  ASSERT_NE(return_clause, nullptr);
+  EXPECT_FALSE(return_clause->distinct);
+  ASSERT_EQ(return_clause->items.size(), 2);
 
-  const auto* aliased = getExpr(project->items[0]);
+  const auto* aliased = getExpr(return_clause->items[0]);
   ASSERT_NE(aliased, nullptr);
   EXPECT_EQ(aliased->tryGetAlias(), "name");
 
-  const auto* order_by = project->order_by->as<GAST::GQLOrderByClause>();
+  const auto* page_clause = getPageClause(*clauses, 2);
+  ASSERT_NE(page_clause, nullptr);
+
+  const auto* order_by = page_clause->order_by->as<GAST::GQLOrderByClause>();
   ASSERT_NE(order_by, nullptr);
   ASSERT_EQ(order_by->items.size(), 1);
 
@@ -941,8 +961,8 @@ TEST(GQLParser, ReturnClauseKeepsAliasAndTail) {
   ASSERT_NE(order_item, nullptr);
   EXPECT_TRUE(order_item->descending);
 
-  const auto* offset = getExpr(project->offset);
-  const auto* limit = getExpr(project->limit);
+  const auto* offset = getExpr(page_clause->offset);
+  const auto* limit = getExpr(page_clause->limit);
   ASSERT_NE(offset, nullptr);
   ASSERT_NE(limit, nullptr);
   EXPECT_EQ(offset->kind, GAST::GQLExpr::Kind::Literal);
@@ -953,24 +973,37 @@ TEST(GQLParser, ReturnClauseKeepsAliasAndTail) {
 
 TEST(GQLParser, CompositeUnionQuery) {
   auto ast = parseGraphOrThrow("MATCH (a) RETURN a UNION MATCH (b) RETURN b");
-  const auto* set_query = ast->as<GAST::GQLSetQuery>();
-  ASSERT_NE(set_query, nullptr);
-  EXPECT_EQ(set_query->operation, GAST::SetOperation::Union);
-  EXPECT_NE(set_query->left.get(), nullptr);
-  EXPECT_NE(set_query->right.get(), nullptr);
+  const auto* combined_query = ast->as<GAST::GQLCombinedQuery>();
+  ASSERT_NE(combined_query, nullptr);
+  ASSERT_EQ(combined_query->queries.size(), 2);
+  ASSERT_EQ(combined_query->operators.size(), 1);
+  EXPECT_EQ(combined_query->operators[0], GAST::CombinedQueryOperator::UnionDistinct);
+  EXPECT_NE(combined_query->queries[0].get(), nullptr);
+  EXPECT_NE(combined_query->queries[1].get(), nullptr);
+}
+
+TEST(GQLParser, CompositeUnionQueryKeepsOperatorSequence) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN a UNION ALL MATCH (b) RETURN b EXCEPT MATCH (c) RETURN c");
+  const auto* combined_query = ast->as<GAST::GQLCombinedQuery>();
+  ASSERT_NE(combined_query, nullptr);
+  ASSERT_EQ(combined_query->queries.size(), 3);
+  ASSERT_EQ(combined_query->operators.size(), 2);
+  EXPECT_EQ(combined_query->operators[0], GAST::CombinedQueryOperator::UnionAll);
+  EXPECT_EQ(combined_query->operators[1], GAST::CombinedQueryOperator::ExceptDistinct);
+  EXPECT_EQ(formatAST(*combined_query), "MATCH (a) RETURN a UNION ALL MATCH (b) RETURN b EXCEPT MATCH (c) RETURN c");
 }
 
 TEST(GQLParser, NestedQuerySpecificationKeepsWrapper) {
   auto ast = parseGraphOrThrow("{ MATCH (a) RETURN a }");
-  const auto* subquery_clause = getSubqueryClause(ast);
-  ASSERT_NE(subquery_clause, nullptr);
+  const auto* subquery = getSubquery(ast);
+  ASSERT_NE(subquery, nullptr);
 
-  const auto* clauses = getClausesQuery(subquery_clause->statement);
+  const auto* clauses = getClausesQuery(subquery->query);
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
   ASSERT_NE(getMatchClause(*clauses), nullptr);
-  ASSERT_NE(getProjectClause(*clauses), nullptr);
-  EXPECT_EQ(formatAST(*subquery_clause), "{ MATCH (a) RETURN a }");
+  ASSERT_NE(getReturnClause(*clauses), nullptr);
+  EXPECT_EQ(formatAST(*subquery), "{ MATCH (a) RETURN a }");
 }
 
 TEST(GQLParser, StandaloneOrderByStatementKeepsStructuredPageClause) {
@@ -998,14 +1031,14 @@ TEST(GQLParser, ReturnClauseKeepsGroupBy) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
 
-  const auto* project = getProjectClause(*clauses);
-  ASSERT_NE(project, nullptr);
+  const auto* return_clause = getReturnClause(*clauses);
+  ASSERT_NE(return_clause, nullptr);
 
-  const auto* group_by = getGroupByClause(project->group_by);
+  const auto* group_by = getGroupByClause(return_clause->group_by);
   ASSERT_NE(group_by, nullptr);
   ASSERT_EQ(group_by->items.size(), 1);
   EXPECT_EQ(getExpr(group_by->items[0])->text, "a");
-  EXPECT_EQ(formatAST(*project), "RETURN a GROUP BY a");
+  EXPECT_EQ(formatAST(*return_clause), "RETURN a GROUP BY a");
 }
 
 TEST(GQLParser, ReturnClauseSupportsEmptyGroupingSet) {
@@ -1014,14 +1047,14 @@ TEST(GQLParser, ReturnClauseSupportsEmptyGroupingSet) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 1);
 
-  const auto* project = getProjectClause(*clauses, 0);
-  ASSERT_NE(project, nullptr);
+  const auto* return_clause = getReturnClause(*clauses, 0);
+  ASSERT_NE(return_clause, nullptr);
 
-  const auto* group_by = getGroupByClause(project->group_by);
+  const auto* group_by = getGroupByClause(return_clause->group_by);
   ASSERT_NE(group_by, nullptr);
   EXPECT_TRUE(group_by->empty_grouping_set);
   EXPECT_TRUE(group_by->items.empty());
-  EXPECT_EQ(formatAST(*project), "RETURN a GROUP BY ()");
+  EXPECT_EQ(formatAST(*return_clause), "RETURN a GROUP BY ()");
 }
 
 TEST(GQLParser, InlineCallVariableScopeIsRejected) {
@@ -1151,7 +1184,7 @@ TEST(GQLParser, ExistsPredicateKeepsNestedQuery) {
   const auto* exists = getExpr(where->expression);
   ASSERT_NE(exists, nullptr);
   ASSERT_EQ(exists->children.size(), 1);
-  ASSERT_NE(getSubqueryClause(exists->children[0]), nullptr);
+  ASSERT_NE(getSubquery(exists->children[0]), nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS { RETURN a } RETURN a");
 }
 
@@ -1161,13 +1194,13 @@ TEST(GQLParser, ValueFunctionsBuildStructuredExpressions) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 1);
 
-  const auto* project = getProjectClause(*clauses, 0);
-  ASSERT_NE(project, nullptr);
-  ASSERT_EQ(project->items.size(), 3);
+  const auto* return_clause = getReturnClause(*clauses, 0);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 3);
 
-  const auto* abs_expr = getExpr(project->items[0]);
-  const auto* length_expr = getExpr(project->items[1]);
-  const auto* cardinality_expr = getExpr(project->items[2]);
+  const auto* abs_expr = getExpr(return_clause->items[0]);
+  const auto* length_expr = getExpr(return_clause->items[1]);
+  const auto* cardinality_expr = getExpr(return_clause->items[2]);
   ASSERT_NE(abs_expr, nullptr);
   ASSERT_NE(length_expr, nullptr);
   ASSERT_NE(cardinality_expr, nullptr);
@@ -1185,22 +1218,22 @@ TEST(GQLParser, AggregateAndConstructorsBuildStructuredNodes) {
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 1);
 
-  const auto* project = getProjectClause(*clauses, 0);
-  ASSERT_NE(project, nullptr);
-  ASSERT_EQ(project->items.size(), 3);
+  const auto* return_clause = getReturnClause(*clauses, 0);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 3);
 
-  const auto* count = getExpr(project->items[0]);
+  const auto* count = getExpr(return_clause->items[0]);
   ASSERT_NE(count, nullptr);
   EXPECT_EQ(count->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(count->text, "COUNT");
   ASSERT_EQ(count->children.size(), 1);
   EXPECT_EQ(getExpr(count->children[0])->text, "*");
 
-  const auto* list = getListConstructor(project->items[1]);
+  const auto* list = getListConstructor(return_clause->items[1]);
   ASSERT_NE(list, nullptr);
   ASSERT_EQ(list->items.size(), 2);
 
-  const auto* record = getRecordConstructor(project->items[2]);
+  const auto* record = getRecordConstructor(return_clause->items[2]);
   ASSERT_NE(record, nullptr);
   EXPECT_TRUE(record->explicit_record_keyword);
   ASSERT_EQ(record->fields.size(), 1);

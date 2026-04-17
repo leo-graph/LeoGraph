@@ -52,20 +52,36 @@ struct ResultTail {
   Ptr limit;
 };
 
-SetOperation getSetOperation(GQLParser::CompositeQueryExpressionContext *context) {
+CombinedQueryOperator getCombinedQueryOperator(GQLParser::CompositeQueryExpressionContext *context) {
   if (auto *conjunction = context->queryConjunction()) {
     if (auto *set_operator = conjunction->setOperator()) {
-      if (set_operator->UNION()) return SetOperation::Union;
+      const bool is_all = set_operator->setQuantifier() && set_operator->setQuantifier()->ALL();
 
-      if (set_operator->EXCEPT()) return SetOperation::Except;
+      if (set_operator->UNION()) return is_all ? CombinedQueryOperator::UnionAll : CombinedQueryOperator::UnionDistinct;
 
-      if (set_operator->INTERSECT()) return SetOperation::Intersect;
+      if (set_operator->EXCEPT()) return is_all ? CombinedQueryOperator::ExceptAll : CombinedQueryOperator::ExceptDistinct;
+
+      if (set_operator->INTERSECT()) return is_all ? CombinedQueryOperator::IntersectAll : CombinedQueryOperator::IntersectDistinct;
     }
 
-    if (conjunction->OTHERWISE()) return SetOperation::Otherwise;
+    if (conjunction->OTHERWISE()) return CombinedQueryOperator::Otherwise;
   }
 
-  return SetOperation::Union;
+  return CombinedQueryOperator::UnionDistinct;
+}
+
+void appendCombinedQueryPart(Ptr query, PtrList &queries, std::vector<CombinedQueryOperator> &operators) {
+  if (!query) return;
+
+  if (const auto *combined_query = query->as<GQLCombinedQuery>()) {
+    for (const auto &child_query : combined_query->queries) queries.push_back(child_query);
+
+    for (const auto operation : combined_query->operators) operators.push_back(operation);
+
+    return;
+  }
+
+  queries.push_back(std::move(query));
 }
 
 Ptr makeQuantifier(GQLParser::GraphPatternQuantifierContext *context) {
@@ -271,11 +287,7 @@ Ptr makeUseGraphClause(GQLParser::UseGraphClauseContext *context, GQLParseTreeVi
   return Ptr(make_intrusive<GQLUseClause>(makeGraphExpression(context ? context->graphExpression() : nullptr, visitor)));
 }
 
-Ptr makeSingleClauseQuery(Ptr clause) {
-  PtrList clauses;
-  appendClause(clauses, std::move(clause));
-  return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
-}
+Ptr makeSingleQuery(PtrList clauses) { return Ptr(make_intrusive<GQLSingleQuery>(std::move(clauses))); }
 
 Ptr makeSelectSourceItem(Ptr graph_reference, Ptr source) {
   auto item = make_intrusive<GQLSelectSourceItem>();
@@ -288,6 +300,18 @@ Ptr makeSelectSourceItem(Ptr graph_reference, Ptr source) {
 
 void appendClauseList(PtrList &clauses, PtrList &&extra_clauses) {
   for (auto &clause : extra_clauses) appendClause(clauses, std::move(clause));
+}
+
+void appendQueryResultClause(PtrList &clauses, Ptr clause) {
+  if (!clause) return;
+
+  if (const auto *single_query = clause->as<GQLSingleQuery>()) {
+    for (const auto &nested_clause : single_query->clauses) clauses.push_back(nested_clause);
+
+    return;
+  }
+
+  clauses.push_back(std::move(clause));
 }
 
 PathMode getPathMode(GQLParser::PathModeContext *context) {
@@ -677,7 +701,7 @@ Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirecti
 
 Ptr GQLParseTreeVisitor::makeRawTextExpr(antlr4::ParserRuleContext *context) const { return GQLExpr::rawText(getText(context)); }
 
-Ptr GQLParseTreeVisitor::buildSubqueryClause(GQLParser::ProcedureBodyContext *procedure_body, antlr4::ParserRuleContext *context) {
+Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedure_body, antlr4::ParserRuleContext *context) {
   auto *statement_block = procedure_body ? procedure_body->statementBlock() : nullptr;
 
   if (!procedure_body || !statement_block || !statement_block->statement()) {
@@ -763,7 +787,7 @@ Ptr GQLParseTreeVisitor::buildSubqueryClause(GQLParser::ProcedureBodyContext *pr
     throwUnsupported("binding variable definition", binding_context);
   };
 
-  auto clause = make_intrusive<GQLSubqueryClause>();
+  auto clause = make_intrusive<GQLSubquery>();
 
   if (auto *at_schema = procedure_body->atSchemaClause()) {
     clause->at_schema = Ptr(make_intrusive<GQLAtSchemaClause>(makeSchemaReference(at_schema->schemaReference())));
@@ -783,8 +807,8 @@ Ptr GQLParseTreeVisitor::buildSubqueryClause(GQLParser::ProcedureBodyContext *pr
     appendClause(clause->children, clause->bindings);
   }
 
-  clause->statement = visit_statement(statement_block->statement());
-  appendClause(clause->children, clause->statement);
+  clause->query = visit_statement(statement_block->statement());
+  appendClause(clause->children, clause->query);
 
   for (auto *next_statement : statement_block->nextStatement()) {
     auto next_clause = make_intrusive<GQLSubqueryNextClause>();
@@ -794,8 +818,8 @@ Ptr GQLParseTreeVisitor::buildSubqueryClause(GQLParser::ProcedureBodyContext *pr
       appendClause(next_clause->children, next_clause->yield);
     }
 
-    next_clause->statement = visit_statement(next_statement->statement());
-    appendClause(next_clause->children, next_clause->statement);
+    next_clause->query = visit_statement(next_statement->statement());
+    appendClause(next_clause->children, next_clause->query);
 
     clause->next_statements.push_back(next_clause);
     appendClause(clause->children, Ptr(next_clause));
@@ -815,7 +839,20 @@ std::any GQLParseTreeVisitor::visitCompositeQueryExpression(GQLParser::Composite
 
   auto left = castAny<Ptr>(visit(context->compositeQueryExpression()));
   auto right = castAny<Ptr>(visit(context->compositeQueryPrimary()));
-  return Ptr(make_intrusive<GQLSetQuery>(getSetOperation(context), std::move(left), std::move(right)));
+  PtrList queries;
+  std::vector<CombinedQueryOperator> operators;
+
+  appendCombinedQueryPart(std::move(left), queries, operators);
+  operators.push_back(getCombinedQueryOperator(context));
+  appendCombinedQueryPart(std::move(right), queries, operators);
+
+  if (queries.size() == 1) return queries.front();
+
+  while (!operators.empty() && operators.size() + 1 > queries.size()) {
+    operators.pop_back();
+  }
+
+  return Ptr(make_intrusive<GQLCombinedQuery>(std::move(queries), std::move(operators)));
 }
 
 std::any GQLParseTreeVisitor::visitCompositeQueryPrimary(GQLParser::CompositeQueryPrimaryContext *context) {
@@ -823,23 +860,23 @@ std::any GQLParseTreeVisitor::visitCompositeQueryPrimary(GQLParser::CompositeQue
 }
 
 std::any GQLParseTreeVisitor::visitNestedQuerySpecification(GQLParser::NestedQuerySpecificationContext *context) {
-  return buildSubqueryClause(context->procedureBody(), context);
+  return buildSubquery(context->procedureBody(), context);
 }
 
 std::any GQLParseTreeVisitor::visitFocusedNestedQuerySpecification(GQLParser::FocusedNestedQuerySpecificationContext *context) {
   PtrList clauses;
   appendClause(clauses, makeUseGraphClause(context->useGraphClause(), *this));
   appendClause(clauses, castAny<Ptr>(visit(context->nestedQuerySpecification())));
-  return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
+  return makeSingleQuery(std::move(clauses));
 }
 
 std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementContext *context) {
   const bool distinct = context->setQuantifier() && context->setQuantifier()->DISTINCT();
-  const bool return_all = context->ASTERISK() != nullptr;
+  const bool select_all = context->ASTERISK() != nullptr;
 
   PtrList items;
 
-  if (!return_all) {
+  if (!select_all) {
     if (auto *items_context = context->selectItemList()) {
       for (auto *item_context : items_context->selectItem()) {
         auto expression = castAny<Ptr>(visit(item_context->aggregatingValueExpression()));
@@ -917,17 +954,14 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
     limit = castAny<Ptr>(visit(context->limitClause()));
   }
 
-  auto clause = make_intrusive<GQLProjectClause>(GQLProjectClause::Type::Select);
+  auto clause = make_intrusive<GQLSelectClause>();
   clause->distinct = distinct;
-  clause->return_all = return_all;
+  clause->select_all = select_all;
   clause->items = std::move(items);
   clause->source = std::move(source);
   clause->where = std::move(where);
   clause->group_by = std::move(group_by);
   clause->having = std::move(having);
-  clause->order_by = std::move(order_by);
-  clause->offset = std::move(offset);
-  clause->limit = std::move(limit);
 
   for (auto &item : clause->items) {
     appendClause(clause->children, item);
@@ -937,11 +971,22 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
   appendClause(clause->children, clause->where);
   appendClause(clause->children, clause->group_by);
   appendClause(clause->children, clause->having);
-  appendClause(clause->children, clause->order_by);
-  appendClause(clause->children, clause->offset);
-  appendClause(clause->children, clause->limit);
 
-  return makeSingleClauseQuery(Ptr(clause));
+  PtrList clauses;
+  appendClause(clauses, Ptr(clause));
+
+  if (order_by || offset || limit) {
+    auto page_clause = make_intrusive<GQLPageClause>();
+    page_clause->order_by = std::move(order_by);
+    page_clause->offset = std::move(offset);
+    page_clause->limit = std::move(limit);
+    appendClause(page_clause->children, page_clause->order_by);
+    appendClause(page_clause->children, page_clause->offset);
+    appendClause(page_clause->children, page_clause->limit);
+    appendClause(clauses, Ptr(page_clause));
+  }
+
+  return makeSingleQuery(std::move(clauses));
 }
 
 std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQueryStatementContext *context) {
@@ -967,13 +1012,13 @@ std::any GQLParseTreeVisitor::visitLinearQueryStatement(GQLParser::LinearQuerySt
   if (auto *part = focused->focusedLinearQueryAndPrimitiveResultStatementPart()) {
     appendClause(clauses, makeUseGraphClause(part->useGraphClause(), *this));
     appendClauseList(clauses, castAny<PtrList>(visit(part->simpleLinearQueryStatement())));
-    appendClause(clauses, castAny<Ptr>(visit(part->primitiveResultStatement())));
+    appendQueryResultClause(clauses, castAny<Ptr>(visit(part->primitiveResultStatement())));
   } else if (auto *primitive_result_part = focused->focusedPrimitiveResultStatement()) {
     appendClause(clauses, makeUseGraphClause(primitive_result_part->useGraphClause(), *this));
-    appendClause(clauses, castAny<Ptr>(visit(primitive_result_part->primitiveResultStatement())));
+    appendQueryResultClause(clauses, castAny<Ptr>(visit(primitive_result_part->primitiveResultStatement())));
   }
 
-  if (!clauses.empty()) return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
+  if (!clauses.empty()) return makeSingleQuery(std::move(clauses));
 
   throwUnsupported("focused linear query statement", focused);
 }
@@ -993,10 +1038,10 @@ std::any GQLParseTreeVisitor::visitAmbientLinearQueryStatement(GQLParser::Ambien
   }
 
   if (context->primitiveResultStatement()) {
-    clauses.push_back(castAny<Ptr>(visit(context->primitiveResultStatement())));
+    appendQueryResultClause(clauses, castAny<Ptr>(visit(context->primitiveResultStatement())));
   }
 
-  return Ptr(make_intrusive<GQLClausesQuery>(std::move(clauses)));
+  return makeSingleQuery(std::move(clauses));
 }
 
 std::any GQLParseTreeVisitor::visitSimpleLinearQueryStatement(GQLParser::SimpleLinearQueryStatementContext *context) {
@@ -1018,12 +1063,12 @@ std::any GQLParseTreeVisitor::visitSimpleQueryStatement(GQLParser::SimpleQuerySt
 }
 
 std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatementContext *context) {
-  auto clause = make_intrusive<GQLCallClause>();
   auto *statement = context->callProcedureStatement();
-  clause->optional = statement->OPTIONAL() != nullptr;
   auto *procedure_call = statement->procedureCall();
 
   if (auto *named = procedure_call->namedProcedureCall()) {
+    auto clause = make_intrusive<GQLNamedCallClause>();
+    clause->optional = statement->OPTIONAL() != nullptr;
     clause->procedure = GQLExpr::identifier(getText(named->procedureReference()));
 
     if (auto *argument_list = named->procedureArgumentList()) {
@@ -1032,22 +1077,28 @@ std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatem
     }
 
     if (auto *yield_clause = named->yieldClause()) {
-      clause->yield_items = makeYieldItems(yield_clause->yieldItemList());
+      clause->yield = makeYieldClause(yield_clause);
     }
-  } else if (auto *inline_call = procedure_call->inlineProcedureCall()) {
+
+    appendClause(clause->children, clause->procedure);
+    for (auto &argument : clause->arguments) appendClause(clause->children, argument);
+    appendClause(clause->children, clause->yield);
+    return Ptr(clause);
+  }
+
+  if (auto *inline_call = procedure_call->inlineProcedureCall()) {
     if (inline_call->variableScopeClause()) {
       throwUnsupported("inline call variable scope", inline_call->variableScopeClause());
     }
 
-    clause->inline_procedure = true;
-    clause->procedure =
-        buildSubqueryClause(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
+    auto clause = make_intrusive<GQLInlineCallClause>();
+    clause->optional = statement->OPTIONAL() != nullptr;
+    clause->subquery = buildSubquery(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
+    appendClause(clause->children, clause->subquery);
+    return Ptr(clause);
   }
 
-  appendClause(clause->children, clause->procedure);
-  for (auto &argument : clause->arguments) appendClause(clause->children, argument);
-  for (auto &item : clause->yield_items) appendClause(clause->children, item);
-  return Ptr(clause);
+  throwUnsupported("procedure call", procedure_call);
 }
 
 std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQueryStatementContext *context) {
@@ -1478,27 +1529,21 @@ std::any GQLParseTreeVisitor::visitPrimitiveResultStatement(GQLParser::Primitive
 
   auto clause = castAny<Ptr>(visit(context->returnStatement()));
 
-  if (context->orderByAndPageStatement()) {
-    auto tail = castAny<ResultTail>(visit(context->orderByAndPageStatement()));
+  if (!context->orderByAndPageStatement()) return clause;
 
-    if (auto *project = clause->as<GQLProjectClause>()) {
-      project->order_by = std::move(tail.order_by);
-      project->offset = std::move(tail.offset);
-      project->limit = std::move(tail.limit);
+  auto tail = castAny<ResultTail>(visit(context->orderByAndPageStatement()));
+  auto page_clause = make_intrusive<GQLPageClause>();
+  page_clause->order_by = std::move(tail.order_by);
+  page_clause->offset = std::move(tail.offset);
+  page_clause->limit = std::move(tail.limit);
+  appendClause(page_clause->children, page_clause->order_by);
+  appendClause(page_clause->children, page_clause->offset);
+  appendClause(page_clause->children, page_clause->limit);
 
-      if (project->order_by) {
-        project->children.push_back(project->order_by);
-      }
-      if (project->offset) {
-        project->children.push_back(project->offset);
-      }
-      if (project->limit) {
-        project->children.push_back(project->limit);
-      }
-    }
-  }
-
-  return clause;
+  PtrList clauses;
+  appendClause(clauses, std::move(clause));
+  appendClause(clauses, Ptr(page_clause));
+  return makeSingleQuery(std::move(clauses));
 }
 
 std::any GQLParseTreeVisitor::visitReturnStatement(GQLParser::ReturnStatementContext *context) {
@@ -1506,7 +1551,7 @@ std::any GQLParseTreeVisitor::visitReturnStatement(GQLParser::ReturnStatementCon
 }
 
 std::any GQLParseTreeVisitor::visitReturnStatementBody(GQLParser::ReturnStatementBodyContext *context) {
-  auto clause = make_intrusive<GQLProjectClause>();
+  auto clause = make_intrusive<GQLReturnClause>();
 
   if (context->setQuantifier() && context->setQuantifier()->DISTINCT()) {
     clause->distinct = true;

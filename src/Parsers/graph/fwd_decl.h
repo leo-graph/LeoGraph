@@ -41,10 +41,13 @@ enum class PathSearchKind : UInt8 {
   CountedShortestGroup,
 };
 
-enum class SetOperation : UInt8 {
-  Union,
-  Except,
-  Intersect,
+enum class CombinedQueryOperator : UInt8 {
+  UnionDistinct,
+  UnionAll,
+  ExceptDistinct,
+  ExceptAll,
+  IntersectDistinct,
+  IntersectAll,
   Otherwise,
 };
 
@@ -61,16 +64,20 @@ class GQLBindingInitializer;
 class GQLBindingVariableDefinition;
 class GQLBindingVariableDefinitionBlock;
 class GQLCallClause;
+class GQLCombinedQuery;
 class GQLExpr;
 class GQLFinishClause;
 class GQLForClause;
 class GQLGroupByClause;
+class GQLInlineCallClause;
 class GQLLabelExpression;
 class GQLListConstructor;
+class GQLNamedCallClause;
 class GQLPropertyItem;
 class GQLPropertyMap;
 class GQLQuantifier;
 class GQLRecordConstructor;
+class GQLReturnClause;
 class GQLNodePattern;
 class GQLEdgePattern;
 class GQLPathPattern;
@@ -85,15 +92,14 @@ class GQLMatchClause;
 class GQLOrderByItem;
 class GQLOrderByClause;
 class GQLPageClause;
-class GQLProjectClause;
 class GQLSchemaReference;
+class GQLSelectClause;
 class GQLSelectSourceItem;
 class GQLSelectSourceList;
-class GQLSubqueryClause;
+class GQLSubquery;
 class GQLSubqueryNextClause;
+class GQLSingleQuery;
 class GQLUseClause;
 class GQLYieldClause;
-class GQLClausesQuery;
-class GQLSetQuery;
 
 }  // namespace DB::OPENGQL::AST

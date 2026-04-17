@@ -130,11 +130,11 @@ The current query-level contract is:
 | Grammar rule | Returned AST node | Notes |
 |--------------|-------------------|-------|
 | `compositeQueryStatement` | forwards child root | no dedicated wrapper |
-| `compositeQueryExpression` with a set operator | `GQLSetQuery` | left and right are normalized query roots |
+| `compositeQueryExpression` with a set operator | `GQLCombinedQuery` | stores `queries + operators`, preserving `ALL` / `DISTINCT` explicitly |
 | `compositeQueryExpression` without a set operator | forwards child root | keeps the root stable |
-| linear clause query | `GQLClausesQuery` | ordered list of clause nodes |
-| top-level `selectStatement` | `GQLClausesQuery` with one `GQLProjectClause` of type `Select` | `SELECT` is a clause, not a query root |
-| `nestedQuerySpecification` | `GQLSubqueryClause` | preserves the wrapper; the inner `statement` child is itself a normalized query root |
+| linear clause query | `GQLSingleQuery` | ordered list of clause nodes |
+| top-level `selectStatement` | `GQLSingleQuery` | starts with `GQLSelectClause`, followed by `GQLPageClause` when paging is present |
+| `nestedQuerySpecification` | `GQLSubquery` | preserves the wrapper; the inner `query` child is itself a normalized query root |
 
 This is the main design rule that aligns the ClickHouse visitor with `kgraph`:
 
@@ -148,9 +148,9 @@ At the current phase, the most important `GQL*` nodes are:
 ```text
 IAST
   |
-  +-- GQLClausesQuery         -- ordered clause list for linear queries
-  +-- GQLSetQuery             -- `UNION` / `EXCEPT` / `INTERSECT` / `OTHERWISE`
-  +-- GQLSubqueryClause       -- explicit `{ ... }` wrapper with `NEXT` chain support
+  +-- GQLSingleQuery          -- ordered clause list for linear queries
+  +-- GQLCombinedQuery        -- `UNION` / `EXCEPT` / `INTERSECT` / `OTHERWISE`, with explicit operator variants
+  +-- GQLSubquery             -- explicit `{ ... }` wrapper with `NEXT` chain support
   |
   +-- GQLAtSchemaClause       -- `AT schemaReference`
   +-- GQLSchemaReference      -- typed `schemaReference` wrapper
@@ -164,10 +164,12 @@ IAST
   +-- GQLMatchClause          -- `MATCH` / `OPTIONAL MATCH`
   +-- GQLGraphPatternBlock    -- delimited graph-pattern body for predicates
   +-- GQLMatchStatementBlock  -- delimited `MATCH`-statement block wrapper
-  +-- GQLProjectClause        -- `RETURN` and `SELECT`
+  +-- GQLReturnClause         -- `RETURN`
+  +-- GQLSelectClause         -- `SELECT`
   +-- GQLWhereClause          -- `WHERE`, `FILTER`, `HAVING`
   +-- GQLUseClause            -- `USE`
-  +-- GQLCallClause           -- `CALL`
+  +-- GQLNamedCallClause      -- named `CALL foo(...) YIELD ...`
+  +-- GQLInlineCallClause     -- inline `CALL { ... }`
   +-- GQLGroupByClause        -- structured `GROUP BY`
   +-- GQLLetClause            -- `LET`
   +-- GQLForClause            -- `FOR`
@@ -185,7 +187,7 @@ IAST
   +-- GQLExpr                 -- current expression skeleton
 ```
 
-Pattern nodes stay graph-native, while expressions still use a thin `GQLExpr` layer or local raw-text fallbacks where the refactor is not complete yet. Inside `GQLSubqueryClause`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
+Pattern nodes stay graph-native, while expressions still use a thin `GQLExpr` layer or local raw-text fallbacks where the refactor is not complete yet. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
 
 ### Visitor Organization
 
@@ -198,13 +200,14 @@ The visitor is organized in the same high-level layers as the grammar:
 
 Two rules are especially important:
 
-- `visitSelectStatement` must finish reading the needed parse-tree branches before it constructs `GQLProjectClause`, then wrap that clause into a one-clause `GQLClausesQuery`.
-- `visitNestedQuerySpecification` must preserve a `GQLSubqueryClause` wrapper instead of unwrapping its inner query.
+- `visitSelectStatement` must finish reading the needed parse-tree branches before it constructs `GQLSelectClause`, then emit a `GQLSingleQuery` and append `GQLPageClause` only when paging exists.
+- `visitNestedQuerySpecification` must preserve a `GQLSubquery` wrapper instead of unwrapping its inner query.
+- `visitCallQueryStatement` should preserve named and inline procedure calls as different AST node types instead of folding them back into one boolean-driven clause.
 - `visitGroupByClause` should build a dedicated `GQLGroupByClause` instead of storing `GROUP BY ...` as raw text.
 - `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.
 - binding-variable initializers should preserve `bindingTableExpression` as `GQLBindingTableExpression` unless the grammar branch is still explicitly unsupported.
 - `visitGraphPattern` and `visitPathPattern` should preserve graph/path prefixes structurally instead of degrading them to raw text or `Unsupported`.
-- `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubqueryClause`) instead of stringifying the body.
+- `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubquery`) instead of stringifying the body.
 - If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.
 
 These two constraints keep the query contract stable while the lower layers continue to expand.
@@ -250,7 +253,7 @@ The current rule of thumb is:
 
 The useful tests at this phase are shape tests for the normalized AST contract:
 
-1. query-root tests: verify whether a query returns `GQLClausesQuery`, `GQLSetQuery`, or `GQLSubqueryClause`;
-2. clause-order tests: verify that linear queries preserve clause order inside `GQLClausesQuery`;
-3. wrapper tests: verify that top-level `SELECT` is normalized to a one-clause `GQLClausesQuery`, and `{ ... }` keeps a `GQLSubqueryClause` wrapper;
+1. query-root tests: verify whether a query returns `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
+2. clause-order tests: verify that linear queries preserve clause order inside `GQLSingleQuery`;
+3. wrapper tests: verify that top-level `SELECT` normalizes to `GQLSelectClause` plus optional `GQLPageClause`, and `{ ... }` keeps a `GQLSubquery` wrapper;
 4. pattern and expression tests: verify the current structured coverage and make raw-text fallbacks explicit where they still exist.
