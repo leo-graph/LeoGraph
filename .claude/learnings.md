@@ -37,6 +37,7 @@
 - If `graph` grammar generation must stay on `ANTLR` `4.13.2`, prefer downloading the exact complete jar into `/usr/local/lib` instead of relying on Ubuntu's older `antlr4` package.
 - For `ClickHouse` devcontainers on macOS, keep the source tree bind-mounted but move the build directory onto a Docker named volume or another container-local path to avoid Docker Desktop bind-mount I/O bottlenecks.
 - On macOS devcontainers, the cleanest compromise is often mounting the Docker volume directly at `/workspace/ClickHouse/build`, so editors keep the familiar path while build I/O stays off the host bind mount.
+- For this repo, keep branch and PR targets module-scoped: use names like `parser/dev-...` for development branches, prefer module main branches like `parser/main-...`, and format commit messages as `[module] kind : summary`.
 - GitHub rulesets can require PRs and block direct pushes on target branches, but they do not natively express "base branch X only accepts head branches matching Y"; if we choose not to add a repository workflow for that, the source-branch flow remains a convention only.
 - In this personal fork, upstream `.github/workflows/*.yml` `Praktika` / self-hosted CI is dead weight without dedicated runners; removing the whole workflow set is cleaner than debugging permanently pending `Config Workflow` jobs.
 - For this repo's long-lived branch sync, prefer `rebase` over merge when updating from the base branch; keep `amend` opt-in only.
