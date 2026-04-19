@@ -113,4 +113,103 @@ inline void formatEdgeSuffix(WriteBuffer& ostr, EdgeDirection direction) {
   }
 }
 
+inline void formatSimplifiedPathPrefix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      ostr << "<-/";
+      break;
+    case EdgeDirection::Right:
+      ostr << "-/";
+      break;
+    case EdgeDirection::Undirected:
+      ostr << "~/";
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << "<-/";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      ostr << "<~/";
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << "~/";
+      break;
+    case EdgeDirection::Any:
+      ostr << "-/";
+      break;
+  }
+}
+
+inline void formatSimplifiedPathSuffix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      ostr << "/-";
+      break;
+    case EdgeDirection::Right:
+      ostr << "/->";
+      break;
+    case EdgeDirection::Undirected:
+      ostr << "/~";
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << "/->";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      ostr << "/~";
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << "/~>";
+      break;
+    case EdgeDirection::Any:
+      ostr << "/-";
+      break;
+  }
+}
+
+inline void formatSimplifiedDirectionOverridePrefix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      ostr << "<";
+      break;
+    case EdgeDirection::Right:
+      break;
+    case EdgeDirection::Undirected:
+      ostr << "~";
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << "<";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      ostr << "<~";
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << "~";
+      break;
+    case EdgeDirection::Any:
+      ostr << "-";
+      break;
+  }
+}
+
+inline void formatSimplifiedDirectionOverrideSuffix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      break;
+    case EdgeDirection::Right:
+      ostr << ">";
+      break;
+    case EdgeDirection::Undirected:
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << ">";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << ">";
+      break;
+    case EdgeDirection::Any:
+      break;
+  }
+}
+
 }  // namespace DB::OPENGQL::AST::detail

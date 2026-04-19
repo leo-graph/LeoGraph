@@ -18,6 +18,7 @@
 #include <Parsers/graph/AST/GQLGraphExpression.h>
 #include <Parsers/graph/AST/GQLGraphPatternBlock.h>
 #include <Parsers/graph/AST/GQLGroupByClause.h>
+#include <Parsers/graph/AST/GQLKeepClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLLetClause.h>
 #include <Parsers/graph/AST/GQLListConstructor.h>
@@ -28,8 +29,9 @@
 #include <Parsers/graph/AST/GQLOrderByItem.h>
 #include <Parsers/graph/AST/GQLPageClause.h>
 #include <Parsers/graph/AST/GQLParenthesizedPathPattern.h>
+#include <Parsers/graph/AST/GQLPathModePrefix.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
-#include <Parsers/graph/AST/GQLPathPatternPrefix.h>
+#include <Parsers/graph/AST/GQLPathSearchPrefix.h>
 #include <Parsers/graph/AST/GQLPropertyItem.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
@@ -39,6 +41,8 @@
 #include <Parsers/graph/AST/GQLSelectClause.h>
 #include <Parsers/graph/AST/GQLSelectSourceItem.h>
 #include <Parsers/graph/AST/GQLSelectSourceList.h>
+#include <Parsers/graph/AST/GQLSimplifiedPathExpr.h>
+#include <Parsers/graph/AST/GQLSimplifiedPathPattern.h>
 #include <Parsers/graph/AST/GQLSingleQuery.h>
 #include <Parsers/graph/AST/GQLSubquery.h>
 #include <Parsers/graph/AST/GQLSubqueryNextClause.h>

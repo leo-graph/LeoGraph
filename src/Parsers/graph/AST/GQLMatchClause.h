@@ -17,11 +17,10 @@ class GQLMatchClause final : public DB::IAST {
     result->where = where ? where->clone() : Ptr{};
     result->optional_operand_block = optional_operand_block ? optional_operand_block->clone() : Ptr{};
 
-    if (result->keep_clause) result->children.push_back(result->keep_clause);
     detail::cloneChildrenList(path_patterns, result->path_patterns, result->children);
-    detail::cloneChildrenList(yield_items, result->yield_items, result->children);
-
+    if (result->keep_clause) result->children.push_back(result->keep_clause);
     if (result->where) result->children.push_back(result->where);
+    detail::cloneChildrenList(yield_items, result->yield_items, result->children);
     if (result->optional_operand_block) result->children.push_back(result->optional_operand_block);
 
     return result;
@@ -72,7 +71,7 @@ class GQLMatchClause final : public DB::IAST {
     detail::formatChildren(ostr, settings, state, frame, path_patterns, ", ");
 
     if (keep_clause) {
-      ostr << " KEEP ";
+      ostr << " ";
       keep_clause->format(ostr, settings, state, frame);
     }
 

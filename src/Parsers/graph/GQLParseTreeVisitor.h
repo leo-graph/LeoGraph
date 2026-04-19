@@ -41,12 +41,15 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitPathPatternList(GQLParser::PathPatternListContext* context) override;
   std::any visitPathPattern(GQLParser::PathPatternContext* context) override;
   std::any visitPpePathTerm(GQLParser::PpePathTermContext* context) override;
+  std::any visitPpeMultisetAlternation(GQLParser::PpeMultisetAlternationContext* context) override;
+  std::any visitPpePatternUnion(GQLParser::PpePatternUnionContext* context) override;
   std::any visitPathTerm(GQLParser::PathTermContext* context) override;
   std::any visitPfPathPrimary(GQLParser::PfPathPrimaryContext* context) override;
   std::any visitPfQuantifiedPathPrimary(GQLParser::PfQuantifiedPathPrimaryContext* context) override;
   std::any visitPfQuestionedPathPrimary(GQLParser::PfQuestionedPathPrimaryContext* context) override;
   std::any visitPpElementPattern(GQLParser::PpElementPatternContext* context) override;
   std::any visitPpParenthesizedPathPatternExpression(GQLParser::PpParenthesizedPathPatternExpressionContext* context) override;
+  std::any visitPpSimplifiedPathPatternExpression(GQLParser::PpSimplifiedPathPatternExpressionContext* context) override;
   std::any visitElementPattern(GQLParser::ElementPatternContext* context) override;
   std::any visitNodePattern(GQLParser::NodePatternContext* context) override;
   std::any visitElementPatternFiller(GQLParser::ElementPatternFillerContext* context) override;

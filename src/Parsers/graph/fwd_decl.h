@@ -41,6 +41,12 @@ enum class PathSearchKind : UInt8 {
   CountedShortestGroup,
 };
 
+enum class CountKind : UInt8 {
+  None,
+  Paths,
+  Groups,
+};
+
 enum class CombinedQueryOperator : UInt8 {
   UnionDistinct,
   UnionAll,
@@ -82,11 +88,13 @@ class GQLReturnClause;
 class GQLNodePattern;
 class GQLEdgePattern;
 class GQLPathPattern;
-class GQLPathPatternPrefix;
+class GQLPathModePrefix;
+class GQLPathSearchPrefix;
 class GQLParenthesizedPathPattern;
 class GQLGraphPatternBlock;
 class GQLGraphExpression;
 class GQLMatchStatementBlock;
+class GQLKeepClause;
 class GQLWhereClause;
 class GQLLetClause;
 class GQLMatchClause;
@@ -99,6 +107,8 @@ class GQLSelectSourceItem;
 class GQLSelectSourceList;
 class GQLSubquery;
 class GQLSubqueryNextClause;
+class GQLSimplifiedPathExpr;
+class GQLSimplifiedPathPattern;
 class GQLSingleQuery;
 class GQLUseClause;
 class GQLYieldClause;

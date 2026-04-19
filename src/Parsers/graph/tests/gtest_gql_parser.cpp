@@ -217,16 +217,40 @@ const GAST::GQLPathPattern* getOnlyPathPattern(const GAST::GQLMatchClause& match
   return path;
 }
 
-const GAST::GQLPathPatternPrefix* getPathPatternPrefix(const ASTPtr& ast) {
-  const auto* prefix = ast->as<GAST::GQLPathPatternPrefix>();
+const GAST::GQLPathModePrefix* getPathModePrefix(const ASTPtr& ast) {
+  const auto* prefix = ast->as<GAST::GQLPathModePrefix>();
   EXPECT_NE(prefix, nullptr);
   return prefix;
+}
+
+const GAST::GQLPathSearchPrefix* getPathSearchPrefix(const ASTPtr& ast) {
+  const auto* prefix = ast->as<GAST::GQLPathSearchPrefix>();
+  EXPECT_NE(prefix, nullptr);
+  return prefix;
+}
+
+const GAST::GQLKeepClause* getKeepClause(const ASTPtr& ast) {
+  const auto* clause = ast->as<GAST::GQLKeepClause>();
+  EXPECT_NE(clause, nullptr);
+  return clause;
 }
 
 const GAST::GQLParenthesizedPathPattern* getParenthesizedPathPattern(const ASTPtr& ast) {
   const auto* path = ast->as<GAST::GQLParenthesizedPathPattern>();
   EXPECT_NE(path, nullptr);
   return path;
+}
+
+const GAST::GQLSimplifiedPathPattern* getSimplifiedPathPattern(const ASTPtr& ast) {
+  const auto* path = ast->as<GAST::GQLSimplifiedPathPattern>();
+  EXPECT_NE(path, nullptr);
+  return path;
+}
+
+const GAST::GQLSimplifiedPathExpr* getSimplifiedPathExpr(const ASTPtr& ast) {
+  const auto* expression = ast->as<GAST::GQLSimplifiedPathExpr>();
+  EXPECT_NE(expression, nullptr);
+  return expression;
 }
 
 const GAST::GQLMatchStatementBlock* getMatchStatementBlock(const ASTPtr& ast) {
@@ -1125,8 +1149,8 @@ TEST(GQLParser, InlineCallVariableScopeSupportsSingleBinding) {
   EXPECT_EQ(formatAST(*call), "CALL (x) { RETURN x }");
 }
 
-TEST(GQLParser, MatchClauseKeepsPathModePrefix) {
-  auto ast = parseGraphOrThrow("MATCH WALK (a)-[e]->(b) RETURN a");
+TEST(GQLParser, MatchParsesPathModePrefix) {
+  auto ast = parseGraphOrThrow("MATCH TRAIL (a)-[e]->(b) RETURN a");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
 
@@ -1135,11 +1159,67 @@ TEST(GQLParser, MatchClauseKeepsPathModePrefix) {
 
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
-  const auto* prefix = getPathPatternPrefix(path->prefix);
+  const auto* prefix = getPathModePrefix(path->prefix);
   ASSERT_NE(prefix, nullptr);
-  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Walk);
-  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::None);
-  EXPECT_EQ(formatAST(*clauses), "MATCH WALK (a)-[e]->(b) RETURN a");
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Trail);
+  EXPECT_EQ(formatAST(*clauses), "MATCH TRAIL (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchParsesPathSearchPrefixAnyShortest) {
+  auto ast = parseGraphOrThrow("MATCH ANY SHORTEST (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::AnyShortest);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::None);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ANY SHORTEST (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchParsesPathSearchPrefixCountedGroups) {
+  auto ast = parseGraphOrThrow("MATCH SHORTEST 3 GROUPS (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::CountedShortestGroup);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Groups);
+  EXPECT_EQ(prefix->count, "3");
+  EXPECT_TRUE(prefix->use_groups_keyword);
+  EXPECT_EQ(formatAST(*clauses), "MATCH SHORTEST 3 GROUPS (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, PathSearchPrefixCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH SHORTEST 3 GROUPS (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+
+  auto cloned = prefix->clone();
+  const auto* cloned_prefix = getPathSearchPrefix(cloned);
+  ASSERT_NE(cloned_prefix, nullptr);
+  EXPECT_NE(cloned_prefix, prefix);
+  EXPECT_EQ(formatAST(*prefix), "SHORTEST 3 GROUPS");
+  EXPECT_EQ(formatAST(*cloned_prefix), "SHORTEST 3 GROUPS");
 }
 
 TEST(GQLParser, MatchClauseKeepsMatchModeAndYield) {
@@ -1172,6 +1252,330 @@ TEST(GQLParser, ParenthesizedPathPatternKeepsQuestionQuantifier) {
   ASSERT_NE(quantifier, nullptr);
   EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Question);
   EXPECT_EQ(formatAST(*clauses), "MATCH ((a)-[e]->(b))? RETURN e");
+}
+
+TEST(GQLParser, TopLevelPathPatternUnionThrowsUnsupported) {
+  try {
+    (void)parseGraphOrThrow("MATCH (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
+    FAIL() << "Expected `DB::Exception`";
+  } catch (const DB::Exception& e) {
+    EXPECT_NE(e.message().find("Unsupported GQL path pattern union"), String::npos);
+  }
+}
+
+TEST(GQLParser, TopLevelPathPatternAlternationThrowsUnsupported) {
+  try {
+    (void)parseGraphOrThrow("MATCH (a)-[e]->(b) |+| (c)-[f]->(d) RETURN a");
+    FAIL() << "Expected `DB::Exception`";
+  } catch (const DB::Exception& e) {
+    EXPECT_NE(e.message().find("Unsupported GQL path pattern multiset alternation"), String::npos);
+  }
+}
+
+TEST(GQLParser, SimplifiedPathPatternBuildsDedicatedElementTree) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/LIKES FOLLOWS+/->(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  ASSERT_EQ(path->elements.size(), 3);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Right);
+  EXPECT_EQ(simplified->quantifier, nullptr);
+
+  const auto* concatenation = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(concatenation, nullptr);
+  EXPECT_EQ(concatenation->kind, GAST::GQLSimplifiedPathExpr::Kind::Concatenation);
+  ASSERT_EQ(concatenation->operands.size(), 2);
+
+  const auto* first = getSimplifiedPathExpr(concatenation->operands[0]);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->kind, GAST::GQLSimplifiedPathExpr::Kind::Label);
+  EXPECT_EQ(first->text, "LIKES");
+
+  const auto* repetition = getSimplifiedPathExpr(concatenation->operands[1]);
+  ASSERT_NE(repetition, nullptr);
+  EXPECT_EQ(repetition->kind, GAST::GQLSimplifiedPathExpr::Kind::Repetition);
+
+  const auto* repeated = getSimplifiedPathExpr(repetition->operand);
+  const auto* quantifier = getQuantifier(repetition->quantifier);
+  ASSERT_NE(repeated, nullptr);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(repeated->kind, GAST::GQLSimplifiedPathExpr::Kind::Label);
+  EXPECT_EQ(repeated->text, "FOLLOWS");
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Plus);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-/LIKES FOLLOWS+/->(b) RETURN b");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsGroupAndUnion) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/(LIKES|FOLLOWS) KNOWS/->(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+
+  const auto* concatenation = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(concatenation, nullptr);
+  EXPECT_EQ(concatenation->kind, GAST::GQLSimplifiedPathExpr::Kind::Concatenation);
+  ASSERT_EQ(concatenation->operands.size(), 2);
+
+  const auto* group = getSimplifiedPathExpr(concatenation->operands[0]);
+  ASSERT_NE(group, nullptr);
+  EXPECT_EQ(group->kind, GAST::GQLSimplifiedPathExpr::Kind::Group);
+
+  const auto* path_union = getSimplifiedPathExpr(group->operand);
+  ASSERT_NE(path_union, nullptr);
+  EXPECT_EQ(path_union->kind, GAST::GQLSimplifiedPathExpr::Kind::Union);
+  ASSERT_EQ(path_union->operands.size(), 2);
+  EXPECT_EQ(getSimplifiedPathExpr(path_union->operands[0])->text, "LIKES");
+  EXPECT_EQ(getSimplifiedPathExpr(path_union->operands[1])->text, "FOLLOWS");
+  EXPECT_EQ(getSimplifiedPathExpr(concatenation->operands[1])->text, "KNOWS");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsDirectionOverrideAndMultisetAlternation) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/<LIKES|+|FOLLOWS/-(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Any);
+
+  const auto* alternation = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(alternation, nullptr);
+  EXPECT_EQ(alternation->kind, GAST::GQLSimplifiedPathExpr::Kind::MultisetAlternation);
+  ASSERT_EQ(alternation->operands.size(), 2);
+
+  const auto* override_left = getSimplifiedPathExpr(alternation->operands[0]);
+  ASSERT_NE(override_left, nullptr);
+  EXPECT_EQ(override_left->kind, GAST::GQLSimplifiedPathExpr::Kind::DirectionOverride);
+  EXPECT_EQ(override_left->direction, GAST::EdgeDirection::Left);
+  EXPECT_EQ(getSimplifiedPathExpr(override_left->operand)->text, "LIKES");
+  EXPECT_EQ(getSimplifiedPathExpr(alternation->operands[1])->text, "FOLLOWS");
+  EXPECT_EQ(formatAST(*simplified), "-/<LIKES |+| FOLLOWS/-");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsOuterQuantifier) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/KNOWS/->{2}(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  const auto* quantifier = getQuantifier(simplified->quantifier);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Exact);
+  EXPECT_EQ(quantifier->lower, "2");
+  auto cloned = simplified->clone();
+  EXPECT_EQ(formatAST(*simplified), "-/KNOWS/->{2}");
+  EXPECT_EQ(formatAST(*cloned), "-/KNOWS/->{2}");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsQuestionQuantifier) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/KNOWS/->?(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  const auto* quantifier = getQuantifier(simplified->quantifier);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Question);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-/KNOWS/->?(b) RETURN b");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsAnyDirectionOverride) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/-LIKES/-(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Any);
+
+  const auto* override_any = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(override_any, nullptr);
+  EXPECT_EQ(override_any->kind, GAST::GQLSimplifiedPathExpr::Kind::DirectionOverride);
+  EXPECT_EQ(override_any->direction, GAST::EdgeDirection::Any);
+
+  const auto* label = getSimplifiedPathExpr(override_any->operand);
+  ASSERT_NE(label, nullptr);
+  EXPECT_EQ(label->kind, GAST::GQLSimplifiedPathExpr::Kind::Label);
+  EXPECT_EQ(label->text, "LIKES");
+  EXPECT_EQ(formatAST(*simplified), "-/-LIKES/-");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsConjunction) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/LIKES & FOLLOWS/->(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+
+  const auto* conjunction = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(conjunction, nullptr);
+  EXPECT_EQ(conjunction->kind, GAST::GQLSimplifiedPathExpr::Kind::Conjunction);
+  ASSERT_EQ(conjunction->operands.size(), 2);
+  EXPECT_EQ(getSimplifiedPathExpr(conjunction->operands[0])->text, "LIKES");
+  EXPECT_EQ(getSimplifiedPathExpr(conjunction->operands[1])->text, "FOLLOWS");
+  EXPECT_EQ(formatAST(*simplified), "-/LIKES & FOLLOWS/->");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsUndirectedDefaulting) {
+  auto ast = parseGraphOrThrow("MATCH (a)~/KNOWS/~(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Undirected);
+  EXPECT_EQ(getSimplifiedPathExpr(simplified->expression)->text, "KNOWS");
+  EXPECT_EQ(formatAST(*simplified), "~/KNOWS/~");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsUndirectedOrRightDefaulting) {
+  auto ast = parseGraphOrThrow("MATCH (a)~/KNOWS/~>(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+  EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::UndirectedOrRight);
+  EXPECT_EQ(getSimplifiedPathExpr(simplified->expression)->text, "KNOWS");
+  EXPECT_EQ(formatAST(*simplified), "~/KNOWS/~>");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsGroupRepetition) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/(LIKES)+/->(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+
+  const auto* repetition = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(repetition, nullptr);
+  EXPECT_EQ(repetition->kind, GAST::GQLSimplifiedPathExpr::Kind::Repetition);
+
+  const auto* group = getSimplifiedPathExpr(repetition->operand);
+  ASSERT_NE(group, nullptr);
+  EXPECT_EQ(group->kind, GAST::GQLSimplifiedPathExpr::Kind::Group);
+  EXPECT_EQ(getSimplifiedPathExpr(group->operand)->text, "LIKES");
+
+  const auto* quantifier = getQuantifier(repetition->quantifier);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Plus);
+
+  auto cloned = simplified->clone();
+  EXPECT_EQ(formatAST(*simplified), "-/(LIKES)+/->");
+  EXPECT_EQ(formatAST(*cloned), "-/(LIKES)+/->");
+}
+
+TEST(GQLParser, SimplifiedPathPatternCloneCopiesNaryOperands) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/LIKES|FOLLOWS|KNOWS/->(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+
+  const auto* path_union = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(path_union, nullptr);
+  EXPECT_EQ(path_union->kind, GAST::GQLSimplifiedPathExpr::Kind::Union);
+  ASSERT_EQ(path_union->operands.size(), 3);
+
+  auto cloned = simplified->clone();
+  const auto* cloned_simplified = cloned->as<GAST::GQLSimplifiedPathPattern>();
+  ASSERT_NE(cloned_simplified, nullptr);
+
+  const auto* cloned_union = getSimplifiedPathExpr(cloned_simplified->expression);
+  ASSERT_NE(cloned_union, nullptr);
+  EXPECT_EQ(cloned_union->kind, GAST::GQLSimplifiedPathExpr::Kind::Union);
+  ASSERT_EQ(cloned_union->operands.size(), 3);
+
+  for (size_t i = 0; i < cloned_union->operands.size(); ++i) {
+    EXPECT_NE(cloned_union->operands[i].get(), path_union->operands[i].get());
+  }
+
+  EXPECT_EQ(formatAST(*simplified), "-/LIKES | FOLLOWS | KNOWS/->");
+  EXPECT_EQ(formatAST(*cloned), "-/LIKES | FOLLOWS | KNOWS/->");
+}
+
+TEST(GQLParser, SimplifiedPathPatternKeepsQuotedLabelText) {
+  auto ast = parseGraphOrThrow("MATCH (a)-/`KNOWS`/->(b) RETURN b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  ASSERT_NE(simplified, nullptr);
+
+  const auto* label_expr = getSimplifiedPathExpr(simplified->expression);
+  ASSERT_NE(label_expr, nullptr);
+  EXPECT_EQ(label_expr->kind, GAST::GQLSimplifiedPathExpr::Kind::Label);
+  EXPECT_EQ(label_expr->text, "`KNOWS`");
+  EXPECT_EQ(formatAST(*simplified), "-/`KNOWS`/->");
 }
 
 TEST(GQLParser, OptionalMatchBlockKeepsStructuredOperand) {
@@ -1235,6 +1639,112 @@ TEST(GQLParser, ExistsPredicateKeepsGraphPatternBlock) {
   EXPECT_EQ(block->match_mode, GAST::GraphMatchMode::None);
   ASSERT_EQ(block->path_patterns.size(), 1);
   EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS { WALK (a)-[e]->(b) } RETURN a");
+}
+
+TEST(GQLParser, MatchClauseKeepsKeepClause) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP TRAIL RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+
+  const auto* path_prefix = getPathModePrefix(keep->path_prefix);
+  ASSERT_NE(path_prefix, nullptr);
+  EXPECT_EQ(path_prefix->path_mode, GAST::PathMode::Trail);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP TRAIL RETURN a");
+}
+
+TEST(GQLParser, GraphPatternBlockKeepsKeepClause) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE EXISTS { WALK (a)-[e]->(b) KEEP TRAIL } RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+  const auto* exists = getExpr(where->expression);
+  ASSERT_NE(exists, nullptr);
+  ASSERT_EQ(exists->children.size(), 1);
+
+  const auto* block = getGraphPatternBlock(exists->children[0]);
+  ASSERT_NE(block, nullptr);
+  const auto* keep = getKeepClause(block->keep_clause);
+  ASSERT_NE(keep, nullptr);
+  ASSERT_NE(getPathModePrefix(keep->path_prefix), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS { WALK (a)-[e]->(b) KEEP TRAIL } RETURN a");
+}
+
+TEST(GQLParser, KeepClauseCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP TRAIL RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+
+  auto cloned = keep->clone();
+  const auto* cloned_keep = getKeepClause(cloned);
+  ASSERT_NE(cloned_keep, nullptr);
+  ASSERT_NE(cloned_keep->path_prefix, nullptr);
+  EXPECT_NE(cloned_keep->path_prefix.get(), keep->path_prefix.get());
+  EXPECT_EQ(formatAST(*keep), "KEEP TRAIL");
+  EXPECT_EQ(formatAST(*cloned_keep), "KEEP TRAIL");
+}
+
+TEST(GQLParser, MatchClauseCloneKeepsChildrenOrder) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP TRAIL WHERE a RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_EQ(match->children.size(), 3);
+  ASSERT_NE(match->children[0]->as<GAST::GQLPathPattern>(), nullptr);
+  ASSERT_NE(match->children[1]->as<GAST::GQLKeepClause>(), nullptr);
+  ASSERT_NE(match->children[2]->as<GAST::GQLWhereClause>(), nullptr);
+
+  auto cloned = match->clone();
+  const auto* cloned_match = cloned->as<GAST::GQLMatchClause>();
+  ASSERT_NE(cloned_match, nullptr);
+  ASSERT_EQ(cloned_match->children.size(), 3);
+  EXPECT_NE(cloned_match->children[0]->as<GAST::GQLPathPattern>(), nullptr);
+  EXPECT_NE(cloned_match->children[1]->as<GAST::GQLKeepClause>(), nullptr);
+  EXPECT_NE(cloned_match->children[2]->as<GAST::GQLWhereClause>(), nullptr);
+}
+
+TEST(GQLParser, GraphPatternBlockCloneKeepsChildrenOrder) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE EXISTS { WALK (a)-[e]->(b) KEEP TRAIL WHERE e } RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+  const auto* exists = getExpr(where->expression);
+  ASSERT_NE(exists, nullptr);
+  ASSERT_EQ(exists->children.size(), 1);
+
+  const auto* block = getGraphPatternBlock(exists->children[0]);
+  ASSERT_NE(block, nullptr);
+  ASSERT_EQ(block->children.size(), 3);
+  ASSERT_NE(block->children[0]->as<GAST::GQLPathPattern>(), nullptr);
+  ASSERT_NE(block->children[1]->as<GAST::GQLKeepClause>(), nullptr);
+  ASSERT_NE(block->children[2]->as<GAST::GQLWhereClause>(), nullptr);
+
+  auto cloned = block->clone();
+  const auto* cloned_block = cloned->as<GAST::GQLGraphPatternBlock>();
+  ASSERT_NE(cloned_block, nullptr);
+  ASSERT_EQ(cloned_block->children.size(), 3);
+  EXPECT_NE(cloned_block->children[0]->as<GAST::GQLPathPattern>(), nullptr);
+  EXPECT_NE(cloned_block->children[1]->as<GAST::GQLKeepClause>(), nullptr);
+  EXPECT_NE(cloned_block->children[2]->as<GAST::GQLWhereClause>(), nullptr);
 }
 
 TEST(GQLParser, ExistsPredicateKeepsMatchStatementBlock) {

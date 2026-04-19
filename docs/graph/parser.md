@@ -179,6 +179,8 @@ IAST
   +-- GQLPathPattern
   +-- GQLPathPatternPrefix
   +-- GQLParenthesizedPathPattern
+  +-- GQLSimplifiedPathPattern
+  +-- GQLSimplifiedPathExpr
   +-- GQLNodePattern
   +-- GQLEdgePattern
   +-- GQLLabelExpression
@@ -209,6 +211,7 @@ Two rules are especially important:
 - `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.
 - binding-variable initializers should preserve `bindingTableExpression` as `GQLBindingTableExpression` unless the grammar branch is still explicitly unsupported.
 - `visitGraphPattern` and `visitPathPattern` should preserve graph/path prefixes structurally instead of degrading them to raw text or `Unsupported`.
+- `visitPpSimplifiedPathPatternExpression` should keep simplified path forms in dedicated `GQLSimplifiedPathPattern` / `GQLSimplifiedPathExpr` nodes instead of forcing them into `GQLEdgePattern`. `GQLSimplifiedPathExpr` round-trip preserves the AST shape but normalizes whitespace around binary operators such as `|`, `|+|`, `&`, and concatenation; tests should assert shape plus the normalized form rather than the raw source string.
 - `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubquery`) instead of stringifying the body.
 - If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.
 
@@ -258,4 +261,5 @@ The useful tests at this phase are shape tests for the normalized AST contract:
 1. query-root tests: verify whether a query returns `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
 2. clause-order tests: verify that linear queries preserve clause order inside `GQLSingleQuery`;
 3. wrapper tests: verify that top-level `SELECT` normalizes to `GQLSelectClause` plus optional `GQLPageClause`, and `{ ... }` keeps a `GQLSubquery` wrapper;
+4. path tests: verify that parenthesized and simplified path primaries keep their own AST families, and that outer `?` / `{m,n}` quantifiers attach to the path-primary wrapper instead of being folded into an edge node;
 4. pattern and expression tests: verify the current structured coverage and make raw-text fallbacks explicit where they still exist.

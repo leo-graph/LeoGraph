@@ -55,10 +55,16 @@ The currently supported minimal path is:
 - `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
 - `bindingTableExpression` payloads in binding-table initializers now build `GQLBindingTableExpression`, including the nested-query form
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
-- structured path / graph prefixes, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, and basic path / node / edge patterns
+- structured path / graph prefixes, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, simplified path-pattern expressions, quantified / questioned non-element path primaries, and basic path / node / edge patterns
 - basic label expressions
 - a minimal expression subset with structured `ABS` / length / cardinality functions, structured `COUNT(*)`, structured `EXISTS` operands, and structured list / record literals
 - simple set queries such as `UNION`, `UNION ALL`, and `EXCEPT`
+
+### Simplified-path follow-up
+
+- `getSimplifiedOverrideDirection` / `getSimplifiedOverrideSecondary` now cover all 7 `simplifiedDirectionOverride` grammar variants explicitly and fall back to `throwUnsupported(...)` instead of silently treating unknown branches as `EdgeDirection::Any`.
+- `GQLSimplifiedPathExpr::clone()` now clears the copied `operands` vector before rebuilding cloned n-ary children, so the clone no longer carries source-child pointers in its intermediate state.
+- `docs/graph/parser.md` now documents simplified-path whitespace normalization during round-trip formatting; `gtest_gql_parser.cpp` covers the 6 new shape cases for Any / Conjunction / Undirected / UndirectedOrRight / Group+Repetition / Clone n-ary plus a quoted-label round-trip test.
 
 ## Important Boundaries
 
@@ -84,7 +90,7 @@ Suggested order:
 
 - keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
 - widen nested query support beyond the single-statement unwrap path
-- keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again, with simplified path-pattern forms as the next pattern-side topic
+- keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again, with richer path semantics beyond the current simplified path-pattern AST as the next pattern-side topic
 - introduce a thin `GQLQuery` base or equivalent shared query helper only if later lowering really benefits from it; do not churn the current roots just for naming
 
 The goal of this phase is to make the current query-oriented root feel complete before adding more outer integration.
@@ -94,7 +100,7 @@ The goal of this phase is to make the current query-oriented root feel complete 
 After the main query chain is healthier, cover the remaining pattern-related unsupported branches:
 
 - `KEEP ...` coverage beyond the current path-prefix wrapper
-- simplified path-pattern expressions and other non-element path primaries
+- richer path semantics beyond the current simplified path-pattern expressions, including any future lowering that needs more than the current wrapper/expression split
 - broader optional-match block normalization if lowering wants something richer than the current block wrapper
 - any missing path-search variants that round-trip tests expose
 

@@ -20,10 +20,8 @@ class GQLGraphPatternBlock final : public DB::IAST {
     result->keep_clause = keep_clause ? keep_clause->clone() : Ptr{};
     result->where = where ? where->clone() : Ptr{};
 
-    if (result->keep_clause) result->children.push_back(result->keep_clause);
-
     detail::cloneChildrenList(path_patterns, result->path_patterns, result->children);
-
+    if (result->keep_clause) result->children.push_back(result->keep_clause);
     if (result->where) result->children.push_back(result->where);
 
     return result;
@@ -71,7 +69,6 @@ class GQLGraphPatternBlock final : public DB::IAST {
 
     if (keep_clause) {
       write_space();
-      ostr << "KEEP ";
       keep_clause->format(ostr, settings, state, frame);
     }
 

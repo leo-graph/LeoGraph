@@ -129,6 +129,343 @@ void appendClause(PtrList &clauses, Ptr clause) {
   if (clause) clauses.push_back(std::move(clause));
 }
 
+void appendFlattenedSimplifiedOperands(PtrList &operands, GQLSimplifiedPathExpr::Kind kind, const Ptr &operand) {
+  if (!operand) {
+    return;
+  }
+
+  if (const auto *expression = operand->as<GQLSimplifiedPathExpr>();
+      expression && expression->kind == kind && !expression->operands.empty()) {
+    for (const auto &child : expression->operands) {
+      operands.push_back(child);
+    }
+
+    return;
+  }
+
+  operands.push_back(operand);
+}
+
+Ptr makeSimplifiedNaryExpr(GQLSimplifiedPathExpr::Kind kind, std::initializer_list<Ptr> input_operands) {
+  PtrList operands;
+
+  for (const auto &operand : input_operands) {
+    appendFlattenedSimplifiedOperands(operands, kind, operand);
+  }
+
+  auto expression = make_intrusive<GQLSimplifiedPathExpr>(kind);
+  expression->operands = operands;
+
+  for (const auto &operand : expression->operands) {
+    expression->children.push_back(operand);
+  }
+
+  return Ptr(expression);
+}
+
+EdgeDirection getSimplifiedDefaultingDirection(GQLParser::SimplifiedPathPatternExpressionContext *context) {
+  if (context->simplifiedDefaultingLeft()) {
+    return EdgeDirection::Left;
+  }
+
+  if (context->simplifiedDefaultingUndirected()) {
+    return EdgeDirection::Undirected;
+  }
+
+  if (context->simplifiedDefaultingRight()) {
+    return EdgeDirection::Right;
+  }
+
+  if (context->simplifiedDefaultingLeftOrUndirected()) {
+    return EdgeDirection::LeftOrUndirected;
+  }
+
+  if (context->simplifiedDefaultingUndirectedOrRight()) {
+    return EdgeDirection::UndirectedOrRight;
+  }
+
+  if (context->simplifiedDefaultingLeftOrRight()) {
+    return EdgeDirection::LeftOrRight;
+  }
+
+  return EdgeDirection::Any;
+}
+
+GQLParser::SimplifiedContentsContext *getSimplifiedDefaultingContents(GQLParser::SimplifiedPathPatternExpressionContext *context) {
+  if (auto *defaulting = context->simplifiedDefaultingLeft()) {
+    return defaulting->simplifiedContents();
+  }
+
+  if (auto *defaulting = context->simplifiedDefaultingUndirected()) {
+    return defaulting->simplifiedContents();
+  }
+
+  if (auto *defaulting = context->simplifiedDefaultingRight()) {
+    return defaulting->simplifiedContents();
+  }
+
+  if (auto *defaulting = context->simplifiedDefaultingLeftOrUndirected()) {
+    return defaulting->simplifiedContents();
+  }
+
+  if (auto *defaulting = context->simplifiedDefaultingUndirectedOrRight()) {
+    return defaulting->simplifiedContents();
+  }
+
+  if (auto *defaulting = context->simplifiedDefaultingLeftOrRight()) {
+    return defaulting->simplifiedContents();
+  }
+
+  if (auto *defaulting = context->simplifiedDefaultingAnyDirection()) {
+    return defaulting->simplifiedContents();
+  }
+
+  return nullptr;
+}
+
+EdgeDirection getSimplifiedOverrideDirection(GQLParser::SimplifiedDirectionOverrideContext *context) {
+  if (context->simplifiedOverrideLeft()) {
+    return EdgeDirection::Left;
+  }
+
+  if (context->simplifiedOverrideUndirected()) {
+    return EdgeDirection::Undirected;
+  }
+
+  if (context->simplifiedOverrideRight()) {
+    return EdgeDirection::Right;
+  }
+
+  if (context->simplifiedOverrideLeftOrUndirected()) {
+    return EdgeDirection::LeftOrUndirected;
+  }
+
+  if (context->simplifiedOverrideUndirectedOrRight()) {
+    return EdgeDirection::UndirectedOrRight;
+  }
+
+  if (context->simplifiedOverrideLeftOrRight()) {
+    return EdgeDirection::LeftOrRight;
+  }
+
+  if (context->simplifiedOverrideAnyDirection()) {
+    return EdgeDirection::Any;
+  }
+
+  throwUnsupported("simplified direction override", context);
+}
+
+GQLParser::SimplifiedSecondaryContext *getSimplifiedOverrideSecondary(GQLParser::SimplifiedDirectionOverrideContext *context) {
+  if (auto *override_context = context->simplifiedOverrideLeft()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  if (auto *override_context = context->simplifiedOverrideUndirected()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  if (auto *override_context = context->simplifiedOverrideRight()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  if (auto *override_context = context->simplifiedOverrideLeftOrUndirected()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  if (auto *override_context = context->simplifiedOverrideUndirectedOrRight()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  if (auto *override_context = context->simplifiedOverrideLeftOrRight()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  if (auto *override_context = context->simplifiedOverrideAnyDirection()) {
+    return override_context->simplifiedSecondary();
+  }
+
+  return nullptr;
+}
+
+Ptr makeSimplifiedContents(GQLParser::SimplifiedContentsContext *context);
+
+Ptr makeSimplifiedPrimary(GQLParser::SimplifiedPrimaryContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->labelName()) {
+    return GQLSimplifiedPathExpr::label(getText(context->labelName()));
+  }
+
+  return GQLSimplifiedPathExpr::group(makeSimplifiedContents(context->simplifiedContents()));
+}
+
+Ptr makeSimplifiedSecondary(GQLParser::SimplifiedSecondaryContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (auto *negation = context->simplifiedNegation()) {
+    return GQLSimplifiedPathExpr::negation(makeSimplifiedPrimary(negation->simplifiedPrimary()));
+  }
+
+  return makeSimplifiedPrimary(context->simplifiedPrimary());
+}
+
+Ptr makeSimplifiedDirectionOverride(GQLParser::SimplifiedDirectionOverrideContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  return GQLSimplifiedPathExpr::directionOverride(getSimplifiedOverrideDirection(context),
+                                                  makeSimplifiedSecondary(getSimplifiedOverrideSecondary(context)));
+}
+
+Ptr makeSimplifiedTertiary(GQLParser::SimplifiedTertiaryContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->simplifiedDirectionOverride()) {
+    return makeSimplifiedDirectionOverride(context->simplifiedDirectionOverride());
+  }
+
+  return makeSimplifiedSecondary(context->simplifiedSecondary());
+}
+
+Ptr makeSimplifiedFactorHigh(GQLParser::SimplifiedFactorHighContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (context->simplifiedTertiary()) {
+    return makeSimplifiedTertiary(context->simplifiedTertiary());
+  }
+
+  if (auto *quantified = context->simplifiedQuantified()) {
+    return GQLSimplifiedPathExpr::repetition(makeSimplifiedTertiary(quantified->simplifiedTertiary()),
+                                             makeQuantifier(quantified->graphPatternQuantifier()));
+  }
+
+  if (auto *questioned = context->simplifiedQuestioned()) {
+    return GQLSimplifiedPathExpr::repetition(makeSimplifiedTertiary(questioned->simplifiedTertiary()), makeQuestionQuantifier());
+  }
+
+  return {};
+}
+
+Ptr makeSimplifiedFactorLow(GQLParser::SimplifiedFactorLowContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (auto *conjunction = dynamic_cast<GQLParser::SimplifiedConjunctionLabelContext *>(context)) {
+    return makeSimplifiedNaryExpr(
+        GQLSimplifiedPathExpr::Kind::Conjunction,
+        {makeSimplifiedFactorLow(conjunction->simplifiedFactorLow()), makeSimplifiedFactorHigh(conjunction->simplifiedFactorHigh())});
+  }
+
+  if (auto *factor_high = dynamic_cast<GQLParser::SimplifiedFactorHighLabelContext *>(context)) {
+    return makeSimplifiedFactorHigh(factor_high->simplifiedFactorHigh());
+  }
+
+  return {};
+}
+
+Ptr makeSimplifiedTerm(GQLParser::SimplifiedTermContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (auto *concatenation = dynamic_cast<GQLParser::SimplifiedConcatenationLabelContext *>(context)) {
+    return makeSimplifiedNaryExpr(
+        GQLSimplifiedPathExpr::Kind::Concatenation,
+        {makeSimplifiedTerm(concatenation->simplifiedTerm()), makeSimplifiedFactorLow(concatenation->simplifiedFactorLow())});
+  }
+
+  if (auto *factor_low = dynamic_cast<GQLParser::SimplifiedFactorLowLabelContext *>(context)) {
+    return makeSimplifiedFactorLow(factor_low->simplifiedFactorLow());
+  }
+
+  return {};
+}
+
+Ptr makeSimplifiedContents(GQLParser::SimplifiedContentsContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (auto *path_union = context->simplifiedPathUnion()) {
+    PtrList operands;
+
+    for (auto *term : path_union->simplifiedTerm()) {
+      appendFlattenedSimplifiedOperands(operands, GQLSimplifiedPathExpr::Kind::Union, makeSimplifiedTerm(term));
+    }
+
+    auto expression = make_intrusive<GQLSimplifiedPathExpr>(GQLSimplifiedPathExpr::Kind::Union);
+    expression->operands = operands;
+    for (const auto &operand : expression->operands) {
+      expression->children.push_back(operand);
+    }
+    return Ptr(expression);
+  }
+
+  if (auto *alternation = context->simplifiedMultisetAlternation()) {
+    PtrList operands;
+
+    for (auto *term : alternation->simplifiedTerm()) {
+      appendFlattenedSimplifiedOperands(operands, GQLSimplifiedPathExpr::Kind::MultisetAlternation, makeSimplifiedTerm(term));
+    }
+
+    auto expression = make_intrusive<GQLSimplifiedPathExpr>(GQLSimplifiedPathExpr::Kind::MultisetAlternation);
+    expression->operands = operands;
+    for (const auto &operand : expression->operands) {
+      expression->children.push_back(operand);
+    }
+    return Ptr(expression);
+  }
+
+  return makeSimplifiedTerm(context->simplifiedTerm());
+}
+
+Ptr makeSimplifiedPathPattern(GQLParser::SimplifiedPathPatternExpressionContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  auto pattern = make_intrusive<GQLSimplifiedPathPattern>(getSimplifiedDefaultingDirection(context));
+  pattern->expression = makeSimplifiedContents(getSimplifiedDefaultingContents(context));
+  appendClause(pattern->children, pattern->expression);
+  return Ptr(pattern);
+}
+
+bool attachPathPrimaryQuantifier(const Ptr &node, Ptr quantifier) {
+  if (!node || !quantifier) {
+    return false;
+  }
+
+  if (auto *edge = node->as<GQLEdgePattern>()) {
+    edge->quantifier = std::move(quantifier);
+    appendClause(edge->children, edge->quantifier);
+    return true;
+  }
+
+  if (auto *path = node->as<GQLParenthesizedPathPattern>()) {
+    path->quantifier = std::move(quantifier);
+    appendClause(path->children, path->quantifier);
+    return true;
+  }
+
+  if (auto *simplified = node->as<GQLSimplifiedPathPattern>()) {
+    simplified->quantifier = std::move(quantifier);
+    appendClause(simplified->children, simplified->quantifier);
+    return true;
+  }
+
+  return false;
+}
+
 String getElementVariableName(GQLParser::ElementVariableReferenceContext *context) {
   auto *binding_reference = context ? context->bindingVariableReference() : nullptr;
   auto *binding_variable = binding_reference ? binding_reference->bindingVariable() : nullptr;
@@ -361,7 +698,7 @@ Ptr makePathPatternPrefix(GQLParser::PathModePrefixContext *context) {
     return {};
   }
 
-  auto prefix = make_intrusive<GQLPathPatternPrefix>();
+  auto prefix = make_intrusive<GQLPathModePrefix>();
   prefix->path_mode = getPathMode(context->pathMode());
   prefix->has_path_keyword = context->pathOrPaths() != nullptr;
   prefix->use_paths_keyword = context->pathOrPaths() && context->pathOrPaths()->PATHS();
@@ -382,9 +719,8 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
     return {};
   }
 
-  auto prefix = make_intrusive<GQLPathPatternPrefix>();
-
   if (auto *all = search->allPathSearch()) {
+    auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::All;
     prefix->path_mode = getPathMode(all->pathMode());
     prefix->has_path_keyword = all->pathOrPaths() != nullptr;
@@ -393,8 +729,10 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
   }
 
   if (auto *any = search->anyPathSearch()) {
+    auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::Any;
     prefix->count = any->numberOfPaths() ? getText(any->numberOfPaths()->nonNegativeIntegerSpecification()) : String{};
+    prefix->count_kind = any->numberOfPaths() ? CountKind::Paths : CountKind::None;
     prefix->path_mode = getPathMode(any->pathMode());
     prefix->has_path_keyword = any->pathOrPaths() != nullptr;
     prefix->use_paths_keyword = any->pathOrPaths() && any->pathOrPaths()->PATHS();
@@ -403,10 +741,11 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
 
   auto *shortest = search->shortestPathSearch();
   if (!shortest) {
-    return Ptr(prefix);
+    return {};
   }
 
   if (auto *all_shortest = shortest->allShortestPathSearch()) {
+    auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::AllShortest;
     prefix->path_mode = getPathMode(all_shortest->pathMode());
     prefix->has_path_keyword = all_shortest->pathOrPaths() != nullptr;
@@ -415,6 +754,7 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
   }
 
   if (auto *any_shortest = shortest->anyShortestPathSearch()) {
+    auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::AnyShortest;
     prefix->path_mode = getPathMode(any_shortest->pathMode());
     prefix->has_path_keyword = any_shortest->pathOrPaths() != nullptr;
@@ -423,7 +763,9 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
   }
 
   if (auto *counted_shortest = shortest->countedShortestPathSearch()) {
+    auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::CountedShortest;
+    prefix->count_kind = CountKind::Paths;
     prefix->count = getText(counted_shortest->numberOfPaths()->nonNegativeIntegerSpecification());
     prefix->path_mode = getPathMode(counted_shortest->pathMode());
     prefix->has_path_keyword = counted_shortest->pathOrPaths() != nullptr;
@@ -432,7 +774,9 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
   }
 
   if (auto *counted_group = shortest->countedShortestGroupSearch()) {
+    auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::CountedShortestGroup;
+    prefix->count_kind = CountKind::Groups;
     prefix->count =
         counted_group->numberOfGroups() ? getText(counted_group->numberOfGroups()->nonNegativeIntegerSpecification()) : String{};
     prefix->path_mode = getPathMode(counted_group->pathMode());
@@ -442,7 +786,19 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
     return Ptr(prefix);
   }
 
-  return Ptr(prefix);
+  return {};
+}
+
+Ptr makeKeepClause(GQLParser::KeepClauseContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  auto clause = make_intrusive<GQLKeepClause>();
+  clause->path_prefix = makePathPatternPrefix(context->pathPatternPrefix());
+  chassert(clause->path_prefix);
+  clause->children.push_back(clause->path_prefix);
+  return Ptr(clause);
 }
 
 GraphMatchMode getGraphMatchMode(GQLParser::MatchModeContext *context) {
@@ -1241,7 +1597,7 @@ std::any GQLParseTreeVisitor::visitGraphPatternBindingTable(GQLParser::GraphPatt
 std::any GQLParseTreeVisitor::visitGraphPattern(GQLParser::GraphPatternContext *context) {
   PatternBindingTable result;
   result.match_mode = getGraphMatchMode(context->matchMode());
-  result.keep_clause = context->keepClause() ? makePathPatternPrefix(context->keepClause()->pathPatternPrefix()) : Ptr{};
+  result.keep_clause = makeKeepClause(context->keepClause());
   result.path_patterns = castAny<PtrList>(visit(context->pathPatternList()));
 
   if (context->graphPatternWhereClause()) {
@@ -1289,6 +1645,14 @@ std::any GQLParseTreeVisitor::visitPpePathTerm(GQLParser::PpePathTermContext *co
   return castAny<PtrList>(visit(context->pathTerm()));
 }
 
+std::any GQLParseTreeVisitor::visitPpeMultisetAlternation(GQLParser::PpeMultisetAlternationContext *context) {
+  throwUnsupported("path pattern multiset alternation", context);
+}
+
+std::any GQLParseTreeVisitor::visitPpePatternUnion(GQLParser::PpePatternUnionContext *context) {
+  throwUnsupported("path pattern union", context);
+}
+
 std::any GQLParseTreeVisitor::visitPathTerm(GQLParser::PathTermContext *context) {
   PtrList elements;
 
@@ -1305,23 +1669,7 @@ std::any GQLParseTreeVisitor::visitPfPathPrimary(GQLParser::PfPathPrimaryContext
 
 std::any GQLParseTreeVisitor::visitPfQuantifiedPathPrimary(GQLParser::PfQuantifiedPathPrimaryContext *context) {
   auto node = castAny<Ptr>(visit(context->pathPrimary()));
-  auto quantifier = makeQuantifier(context->graphPatternQuantifier());
-
-  if (auto *edge = node->as<GQLEdgePattern>()) {
-    edge->quantifier = std::move(quantifier);
-
-    if (edge->quantifier) {
-      edge->children.push_back(edge->quantifier);
-    }
-
-    return node;
-  }
-
-  if (auto *path = node->as<GQLParenthesizedPathPattern>()) {
-    path->quantifier = std::move(quantifier);
-    if (path->quantifier) {
-      path->children.push_back(path->quantifier);
-    }
+  if (attachPathPrimaryQuantifier(node, makeQuantifier(context->graphPatternQuantifier()))) {
     return node;
   }
 
@@ -1330,16 +1678,7 @@ std::any GQLParseTreeVisitor::visitPfQuantifiedPathPrimary(GQLParser::PfQuantifi
 
 std::any GQLParseTreeVisitor::visitPfQuestionedPathPrimary(GQLParser::PfQuestionedPathPrimaryContext *context) {
   auto node = castAny<Ptr>(visit(context->pathPrimary()));
-
-  if (auto *edge = node->as<GQLEdgePattern>()) {
-    edge->quantifier = makeQuestionQuantifier();
-    edge->children.push_back(edge->quantifier);
-    return node;
-  }
-
-  if (auto *path = node->as<GQLParenthesizedPathPattern>()) {
-    path->quantifier = makeQuestionQuantifier();
-    path->children.push_back(path->quantifier);
+  if (attachPathPrimaryQuantifier(node, makeQuestionQuantifier())) {
     return node;
   }
 
@@ -1374,6 +1713,10 @@ std::any GQLParseTreeVisitor::visitPpParenthesizedPathPatternExpression(GQLParse
   }
 
   return Ptr(pattern);
+}
+
+std::any GQLParseTreeVisitor::visitPpSimplifiedPathPatternExpression(GQLParser::PpSimplifiedPathPatternExpressionContext *context) {
+  return makeSimplifiedPathPattern(context->simplifiedPathPatternExpression());
 }
 
 std::any GQLParseTreeVisitor::visitElementPattern(GQLParser::ElementPatternContext *context) {
