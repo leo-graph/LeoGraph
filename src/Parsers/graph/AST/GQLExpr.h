@@ -26,6 +26,14 @@ class GQLExpr final : public DB::ASTWithAlias {
     DayToSecond,
   };
 
+  enum class NormalForm : UInt8 {
+    None,
+    NFC,
+    NFD,
+    NFKC,
+    NFKD,
+  };
+
   enum class Kind : UInt8 {
     Identifier,
     Literal,
@@ -37,6 +45,9 @@ class GQLExpr final : public DB::ASTWithAlias {
     DurationBetween,
     TrimString,
     ExprList,
+    ValueQuery,
+    LetExpr,
+    PathConstructor,
     RawText,
   };
 
@@ -98,6 +109,38 @@ class GQLExpr final : public DB::ASTWithAlias {
     auto expression = make_intrusive<GQLExpr>(Kind::ExprList);
     expression->children = std::move(items);
     return Ptr(expression);
+  }
+
+  static Ptr valueQuery(Ptr subquery) {
+    auto expression = make_intrusive<GQLExpr>(Kind::ValueQuery);
+    expression->children.push_back(std::move(subquery));
+    return Ptr(expression);
+  }
+
+  static Ptr letExpr(PtrList bindings, Ptr body) {
+    auto expression = make_intrusive<GQLExpr>(Kind::LetExpr);
+    for (auto& b : bindings) expression->children.push_back(std::move(b));
+    expression->children.push_back(std::move(body));
+    return Ptr(expression);
+  }
+
+  static Ptr pathConstructor(PtrList elements) {
+    auto expression = make_intrusive<GQLExpr>(Kind::PathConstructor);
+    expression->children = std::move(elements);
+    return Ptr(expression);
+  }
+
+  static Ptr normalizedPredicate(Ptr operand, bool negated, NormalForm form) {
+    String op = negated ? "IS NOT" : "IS";
+    String right_text;
+    if (form != NormalForm::None) {
+      static const char* form_names[] = {"", "NFC", "NFD", "NFKC", "NFKD"};
+      right_text = form_names[static_cast<UInt8>(form)];
+      right_text += " NORMALIZED";
+    } else {
+      right_text = "NORMALIZED";
+    }
+    return GQLExpr::binaryOp(op, std::move(operand), GQLExpr::literal(right_text));
   }
 
   static Ptr rawText(const String& text) { return Ptr(make_intrusive<GQLExpr>(Kind::RawText, text)); }
@@ -200,6 +243,34 @@ class GQLExpr final : public DB::ASTWithAlias {
 
       case Kind::ExprList: {
         detail::formatChildren(ostr, settings, state, frame, children, ", ");
+        return;
+      }
+
+      case Kind::ValueQuery: {
+        ostr << "VALUE ";
+        if (!children.empty() && children.front()) children.front()->format(ostr, settings, state, frame);
+        return;
+      }
+
+      case Kind::LetExpr: {
+        ostr << "LET ";
+        for (size_t i = 0; i + 1 < children.size(); ++i) {
+          if (i > 0) ostr << ", ";
+          if (children[i]) children[i]->format(ostr, settings, state, frame);
+        }
+        ostr << " IN ";
+        if (!children.empty() && children.back()) children.back()->format(ostr, settings, state, frame);
+        ostr << " END";
+        return;
+      }
+
+      case Kind::PathConstructor: {
+        ostr << "PATH[";
+        for (size_t i = 0; i < children.size(); ++i) {
+          if (i > 0) ostr << ", ";
+          if (children[i]) children[i]->format(ostr, settings, state, frame);
+        }
+        ostr << "]";
         return;
       }
 

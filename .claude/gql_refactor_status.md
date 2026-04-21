@@ -8,7 +8,7 @@
   - `GQLParserUtils` owns the `antlr4` entry, `SLL -> LL` fallback, and error listeners.
   - `GQLParseTreeVisitor` builds a minimal `IAST`-based `GQL*` graph AST.
   - Graph AST nodes live under `src/Parsers/graph/AST/`.
-  - `ParserGraphQuery` can return the new graph AST for the currently supported top-level prefixes, including `MATCH` and `OPTIONAL MATCH`.
+  - `ParserGraphQuery` can return the new graph AST for the currently supported top-level prefixes, including `MATCH`, `OPTIONAL MATCH`, named / inline `CALL`, graph-shaped `SELECT`, and focused `USE` queries guarded by heuristic fallback.
 
 ## Current Shape
 
@@ -55,10 +55,31 @@ The currently supported minimal path is:
 - `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
 - `bindingTableExpression` payloads in binding-table initializers now build `GQLBindingTableExpression`, including the nested-query form
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
-- structured path / graph prefixes, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, simplified path-pattern expressions, quantified / questioned non-element path primaries, and basic path / node / edge patterns
+- structured path / graph prefixes, `GQLCountSpec` for counted path-search prefixes, classic `pathPatternExpression` alternation via `GQLPathTerm` / `GQLPathPatternAlternation`, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, simplified path-pattern expressions, `GQLQuantifiedPathPrimary` wrappers for quantified / questioned non-element path primaries, and basic path / node / edge patterns
 - basic label expressions
-- a minimal expression subset with structured `ABS` / length / cardinality functions, structured `COUNT(*)`, structured `EXISTS` operands, and structured list / record literals
+- a minimal expression subset with structured `ABS` / length / cardinality functions, structured aggregate `DISTINCT` / `ALL` via `GQLExpr::SetQuantifier`, structured `COUNT(*)`, structured `ELEMENT_ID`, structured `EXISTS` operands, structured dynamic parameters / `SESSION_USER`, structured list / record literals, structured `DURATION_BETWEEN` with `TemporalQualifier`, and structured `TRIM` with `TrimSpec` + optional trim character
 - simple set queries such as `UNION`, `UNION ALL`, and `EXCEPT`
+
+### Phase 5: Expression completion
+
+- `caseExpression` fully structured: `NULLIF` / `COALESCE` map to `GQLExpr::FunctionCall`, `CASE WHEN...END` (both simple and searched forms) use the new `GQLCaseExpr` AST node with `when_operands` / `then_results` / `else_result` fields; simple-CASE `caseOperand` and `whenOperand` now use `makeNpvepExpr` / `makeWhenOperandExpr` helpers for full expression dispatch; `compOp valueExpression` when-operands (e.g. `WHEN > 5`) structure as `GQLExpr::UnaryOp`; multi-operand `whenOperandList` (`WHEN 1, 2, 3`) uses `GQLExpr::ExprList` with individually structured children; `compOp` and predicate-part2 when-operands (IS NULL, IS DIRECTED, IS SOURCE OF, etc.) structured as `GQLExpr::BinaryOp` with cloned `caseOperand` as left child for complete predicate semantics, matching the existing full-predicate modeling pattern; `GQLCaseExpr::formatImplWithoutAlias` formats these BinaryOp when_operands as suffix-only (op + right) to preserve round-trip; `normalizedPredicatePart2` now fully structured as `BinaryOp` with `IS [NOT]` as operator and `[form] NORMALIZED` as literal right operand
+- `castSpecification` structured: `CAST(operand AS type)` maps to `GQLExpr::Cast` with `children[0]` holding the operand and `text` holding the target type; round-trip formats as `CAST(x AS T)`
+- `numericValueFunction` now covers all 13 grammar branches: the original 3 (`lengthExpression`, `cardinalityExpression`, `absoluteValueExpression`) plus `FLOOR`, `CEILING` / `CEIL`, `MOD`, `POWER`, `SQRT`, `SIN` / `COS` / `TAN` / `COT` / `SINH` / `COSH` / `TANH`, `LOG`, `LOG10`, `LN`, `EXP`
+- `characterOrByteStringFunction` now covers all 5 branches structurally: `LEFT` / `RIGHT` (sub-character), `UPPER` / `LOWER` (fold), `BTRIM` / `LTRIM` / `RTRIM` (multi-trim), `NORMALIZE`, and `TRIM(trimOperands)` via `GQLExpr::TrimString` with explicit `TrimSpec` (Leading / Trailing / Both / None) and optional trim character child
+- `makeValueFunction` refactored: split into `makeNumericValueFunction` + `makeCharacterOrByteStringFunction` for cleaner structure; `datetimeValueFunction`, `durationValueFunction`, `listValueFunction` structurally covered as `GQLExpr::FunctionCall` (Round C); `datetimeSubtraction` structurally covered as `GQLExpr::DurationBetween` with `TemporalQualifier` (Round D)
+- `valueExpressionPrimary` now fully structured: `valueQueryExpression` maps to `GQLExpr::Kind::ValueQuery` with `GQLSubquery` child; `letValueExpression` maps to `GQLExpr::Kind::LetExpr` reusing `GQLAssignmentItem` bindings; `pathValueConstructor` maps to `GQLExpr::Kind::PathConstructor` with ordered node/edge children; `normalizedPredicateExprAlt` now has a dedicated `visitNormalizedPredicateExprAlt` override producing `BinaryOp` with `IS [NOT]` operator and `[form] NORMALIZED` literal right
+- current compile-closed snapshot has 19 explicit `throwUnsupported(...)` call sites in `GQLParseTreeVisitor.cpp` (all verified as defensive guardrails except L1365 which now has DML coverage) and 189 parser `gtest` cases in `gtest_gql_parser.cpp`
+
+### Phase 6: DML statement support
+
+- `linearDataModifyingStatement` now fully structured: the visitor handles both `focusedLinearDataModifyingStatement` and `ambientLinearDataModifyingStatement`, producing `GQLSingleQuery` with mixed query + DML clauses
+- 4 new DML clause AST nodes: `GQLInsertClause` (with `GQLInsertPathPattern` for node-edge-node chains), `GQLSetClause` (with `GQLSetItem` for property / all-properties / label forms), `GQLRemoveClause` (with `GQLRemoveItem` for property / label), `GQLDeleteClause` (with `DetachMode` for `DETACH` / `NODETACH`)
+- insert patterns reuse existing `GQLNodePattern` / `GQLEdgePattern` nodes, with `labelSetSpecification` built as `GQLLabelExpression::Conjunction`
+- `callDataModifyingProcedureStatement` shares the same `makeCallClause` helper with `visitCallQueryStatement`, ensuring consistent AST output for both query-CALL and DML-CALL paths
+- `buildSubquery` now handles `linearDataModifyingStatement` in nested procedure bodies (resolves the L1365 `nested non-query statement` gap for DML)
+- DDL (`linearCatalogModifyingStatement`) remains unsupported and throws in nested procedure bodies
+
+- `GQLParserUtils::parseStatement` added as a direct ANTLR entry point for DML-containing queries, used by `parseDMLOrThrow` in tests; top-level `ParserGraphQuery` DML routing deferred to a future entry routing phase
 
 ### Simplified-path follow-up
 
@@ -68,7 +89,7 @@ The currently supported minimal path is:
 
 ## Important Boundaries
 
-- Top-level `ParserGraphQuery::parseImpl` is intentionally not the main focus yet. It should stay light until the new visitor and AST are more complete.
+- Top-level `ParserGraphQuery::parseImpl` must stay heuristic because it runs before the regular SQL parser chain in `ParserQuery`; weak prefixes such as `SELECT` and `USE` should only route into `antlr4` when the remaining token stream looks graph-shaped, and must fall back cleanly on parse exceptions.
 - Tests are useful as scratch coverage, but while the refactor is still long-lived they are not the primary progress gate.
 - Parser exceptions should use existing ClickHouse codes such as `SYNTAX_ERROR`.
 - Do not add a local fallback implementation of `__lsan_ignore_object`; use the shared declaration plus guarded call pattern.
@@ -88,7 +109,7 @@ Then reduce the query-level `throwUnsupported` cases.
 
 Suggested order:
 
-- keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current `USE` / `SELECT FROM` / subquery wrappers
+- keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current heuristic `CALL` / graph-`SELECT` / focused-`USE` routing
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again, with richer path semantics beyond the current simplified path-pattern AST as the next pattern-side topic
 - introduce a thin `GQLQuery` base or equivalent shared query helper only if later lowering really benefits from it; do not churn the current roots just for naming
@@ -106,14 +127,19 @@ After the main query chain is healthier, cover the remaining pattern-related uns
 
 Most of this work should still stay in `GQLParseTreeVisitor`, with small AST additions under `src/Parsers/graph/AST/` only when the current nodes stop being expressive enough.
 
-### 3. Improve the expression layer
+### 3. Continue improving the expression layer
 
-`GQLExpr` is currently good enough for a first skeleton, but some branches still fall back to raw text.
+Phase 5 + Rounds C/D/E/F covered most value-function and CASE branches. The three remaining `valueExpressionPrimary` gaps are now filled:
+
+- `valueQueryExpression` (`VALUE { subquery }`) structured as `GQLExpr::Kind::ValueQuery` with `children[0]` = `GQLSubquery`
+- `letValueExpression` (`LET ... IN ... END`) structured as `GQLExpr::Kind::LetExpr` with `children[0..n-2]` = `GQLAssignmentItem` bindings and `children[n-1]` = body expression
+- `pathValueConstructor` (`PATH [ ... ]`) structured as `GQLExpr::Kind::PathConstructor` with ordered node/edge children
+- `normalizedPredicatePart2` (`IS [NOT] [normalForm] NORMALIZED`) now fully structured as `BinaryOp` both in top-level `visitNormalizedPredicateExprAlt` and in CASE `whenOperand`, with `IS [NOT]` as operator and `[form] NORMALIZED` as literal right operand
+- all simple-case predicate-part2 `whenOperand` forms (IS NULL / IS TYPED / IS DIRECTED / IS LABELED / IS SOURCE OF / IS DESTINATION OF / IS NORMALIZED) are now fully structured
 
 Recommended direction:
 
-- keep the generic `GQLExpr::Kind` approach for now;
-- gradually replace the remaining `rawText` paths with structured expression nodes where they become important, especially higher-frequency value functions and remaining predicate payloads;
+- keep the generic `GQLExpr::Kind` approach; extend with dedicated nodes only when structure demands it (as done with `GQLCaseExpr`, `DurationBetween`, `TrimString`);
 - postpone a large expression hierarchy until the parser coverage stabilizes.
 
 ### 4. Revisit lowering and top-level integration later

@@ -113,7 +113,6 @@ The current implementation supports the parser-facing slice that is already stab
 
 - `SESSION` / `START TRANSACTION` (session management)
 - broader schema / graph / binding-reference decomposition beyond the current wrapper nodes
-- remaining expression-primary branches (`valueQueryExpression`, `letValueExpression`, `pathValueConstructor`, complex `whenOperand` forms) that still fall outside the current lowering-facing expression slice
 - any future graph-selection forms beyond the current heuristic top-level `CALL` / graph-`SELECT` / focused-`USE` routing
 
 ## Graph AST Design
@@ -204,7 +203,7 @@ IAST
   +-- GQLExpr                 -- current expression skeleton
 ```
 
-Pattern nodes stay graph-native, while expressions use a `GQLExpr` layer. Most value-function branches are now structurally represented: numeric functions (all 13 branches), character/string functions (including `TRIM` via `GQLExpr::TrimString` with explicit `TrimSpec`), datetime functions, duration functions (including `DURATION_BETWEEN` via `GQLExpr::DurationBetween` with `TemporalQualifier`), and list functions. Remaining raw-text fallbacks are limited to `valueQueryExpression`, `letValueExpression`, `pathValueConstructor`, and complex `whenOperand` forms. `GQLExpr::Kind::FunctionCall` carries aggregate `DISTINCT` / `ALL` through a `SetQuantifier` field instead of stringifying the modifier back into raw text. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
+Pattern nodes stay graph-native, while expressions use a `GQLExpr` layer. Most value-function branches are now structurally represented: numeric functions (all 13 branches), character/string functions (including `TRIM` via `GQLExpr::TrimString` with explicit `TrimSpec`), datetime functions, duration functions (including `DURATION_BETWEEN` via `GQLExpr::DurationBetween` with `TemporalQualifier`), and list functions. The expression-primary layer now also covers `valueQueryExpression` (`VALUE { subquery }`) via `GQLExpr::Kind::ValueQuery`, `letValueExpression` (`LET ... IN ... END`) via `GQLExpr::Kind::LetExpr`, and `pathValueConstructor` (`PATH [ ... ]`) via `GQLExpr::Kind::PathConstructor`. The `normalizedPredicatePart2` (`IS [NOT] [normalForm] NORMALIZED`) is now fully structured as a `GQLExpr::BinaryOp` in both the top-level `normalizedPredicateExprAlt` visitor and the `whenOperand` CASE branch. `GQLExpr::Kind::FunctionCall` carries aggregate `DISTINCT` / `ALL` through a `SetQuantifier` field instead of stringifying the modifier back into raw text. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
 
 ### Visitor Organization
 
@@ -260,6 +259,19 @@ ASTPtr parseQuery(std::string_view query, bool use_statement_rule = false)
 `ParserGraphQuery` is still a thin outer adapter. It currently routes strong graph prefixes such as `MATCH`, `OPTIONAL MATCH`, and `CALL` directly into the `antlr4` path, and uses heuristic gating for weaker prefixes such as top-level graph-shaped `SELECT` and focused `USE`. Because `ParserGraphQuery` runs before the regular SQL parser chain in `ParserQuery`, weak-prefix routing must fall back cleanly when the `antlr4` parse fails so plain SQL is not stolen accidentally.
 
 DML statements are not yet routed through `ParserGraphQuery`. The DML AST layer is fully structured via `parseStatement` direct entry, but top-level DML routing (INSERT/SET/REMOVE/DELETE prefix detection, SQL compatibility fallback) is deferred to a future entry routing phase.
+
+Longer term, top-level parser selection should not depend on `ParserGraphQuery` heuristics. `ParserGraphQuery` exists because the current codebase still sits inside the ClickHouse SQL parser chain, but that makes every widened GQL prefix compete with existing SQL syntax. The preferred strategy is to select a query dialect before entering any concrete parser, for example through a session or connection setting such as `query_language = gql`.
+
+The intended dispatch shape is:
+
+```cpp
+if (query_language == QueryLanguage::GQL)
+    return parseQuery(query, /* use_statement_rule = */ true);
+
+return clickhouse_sql_parser.parse(query);
+```
+
+Under `query_language = gql`, the top-level entry should use the GQL `statement` rule through `GQLParserUtils::parseStatement`, so query and DML statements share the same normalized GQL AST pipeline. Under SQL mode, ClickHouse `ParserQuery` remains responsible for SQL compatibility. This keeps language selection explicit and avoids growing prefix sniffing into a permanent mixed-parser architecture. If the product direction becomes GQL-only, the final cleanup is to remove the ClickHouse top-level SQL parser path instead of expanding `ParserGraphQuery` further.
 
 The current parser work therefore focuses on making:
 

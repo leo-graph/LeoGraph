@@ -1328,6 +1328,55 @@ Ptr makeResultExpr(GQLParser::ResultContext *context, GQLParseTreeVisitor &visit
 Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVisitor &visitor);
 Ptr makeCastSpecification(GQLParser::CastSpecificationContext *context, GQLParseTreeVisitor &visitor);
 
+Ptr makeValueQueryExpr(GQLParser::ValueQueryExpressionContext *context, GQLParseTreeVisitor &visitor) {
+  auto subquery = castAny<Ptr>(visitor.visit(context->nestedQuerySpecification()));
+  return GQLExpr::valueQuery(std::move(subquery));
+}
+
+Ptr makeLetValueExpr(GQLParser::LetValueExpressionContext *context, GQLParseTreeVisitor &visitor) {
+  PtrList bindings;
+  for (auto *def : context->letVariableDefinitionList()->letVariableDefinition()) {
+    Ptr assignment;
+    if (auto *value_definition = def->valueVariableDefinition()) {
+      Ptr value;
+      String raw_type;
+      if (auto *initializer = value_definition->optTypedValueInitializer()) {
+        if (initializer->valueType()) raw_type = getText(initializer->valueType());
+        if (initializer->valueInitializer()) value = castAny<Ptr>(visitor.visit(initializer->valueInitializer()->valueExpression()));
+      }
+      assignment =
+          Ptr(make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(raw_type)));
+    } else {
+      assignment =
+          Ptr(make_intrusive<GQLAssignmentItem>(getText(def->bindingVariable()), castAny<Ptr>(visitor.visit(def->valueExpression()))));
+    }
+    bindings.push_back(std::move(assignment));
+  }
+  auto body = castAny<Ptr>(visitor.visit(context->valueExpression()));
+  return GQLExpr::letExpr(std::move(bindings), std::move(body));
+}
+
+Ptr makePathValueConstructorExpr(GQLParser::PathValueConstructorContext *context, GQLParseTreeVisitor &visitor) {
+  auto *by_enum = context->pathValueConstructorByEnumeration();
+  auto *elem_list = by_enum->pathElementList();
+  PtrList elements;
+  elements.push_back(
+      castAny<Ptr>(visitor.visit(elem_list->pathElementListStart()->nodeReferenceValueExpression()->valueExpressionPrimary())));
+  for (auto *step : elem_list->pathElementListStep()) {
+    elements.push_back(castAny<Ptr>(visitor.visit(step->edgeReferenceValueExpression()->valueExpressionPrimary())));
+    elements.push_back(castAny<Ptr>(visitor.visit(step->nodeReferenceValueExpression()->valueExpressionPrimary())));
+  }
+  return GQLExpr::pathConstructor(std::move(elements));
+}
+
+template <typename Context>
+Ptr tryMakeStructuredValuePrimary(Context *context, GQLParseTreeVisitor &visitor) {
+  if (auto *value_query = context->valueQueryExpression()) return makeValueQueryExpr(value_query, visitor);
+  if (auto *let_expr = context->letValueExpression()) return makeLetValueExpr(let_expr, visitor);
+  if (auto *path_ctor = context->pathValueConstructor()) return makePathValueConstructorExpr(path_ctor, visitor);
+  return {};
+}
+
 Ptr makeNpvepExpr(GQLParser::NonParenthesizedValueExpressionPrimaryContext *npvep, GQLParseTreeVisitor &visitor) {
   if (auto *bvr = npvep->bindingVariableReference()) return GQLExpr::identifier(getText(bvr->bindingVariable()));
 
@@ -1345,6 +1394,7 @@ Ptr makeNpvepExpr(GQLParser::NonParenthesizedValueExpressionPrimaryContext *npve
       auto base = castAny<Ptr>(visitor.visit(special->valueExpressionPrimary()));
       return GQLExpr::property(std::move(base), getText(special->propertyName()->identifier()));
     }
+    if (auto structured = tryMakeStructuredValuePrimary(special, visitor)) return structured;
     return GQLExpr::rawText(getText(special));
   }
 
@@ -1395,7 +1445,30 @@ Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &
                              GQLExpr::identifier(getElementVariableName(dst_part->edgeReference()->elementVariableReference())));
   }
 
-  if (wo->normalizedPredicatePart2()) return GQLExpr::rawText(getText(wo->normalizedPredicatePart2()));
+  if (auto *np = wo->normalizedPredicatePart2()) {
+    bool negated = np->NOT() != nullptr;
+    auto form = GQLExpr::NormalForm::None;
+    if (auto *nf = np->normalForm()) {
+      if (nf->NFC())
+        form = GQLExpr::NormalForm::NFC;
+      else if (nf->NFD())
+        form = GQLExpr::NormalForm::NFD;
+      else if (nf->NFKC())
+        form = GQLExpr::NormalForm::NFKC;
+      else if (nf->NFKD())
+        form = GQLExpr::NormalForm::NFKD;
+    }
+    String op = negated ? "IS NOT" : "IS";
+    String right_text;
+    if (form != GQLExpr::NormalForm::None) {
+      static const char *form_names[] = {"", "NFC", "NFD", "NFKC", "NFKD"};
+      right_text = form_names[static_cast<UInt8>(form)];
+      right_text += " NORMALIZED";
+    } else {
+      right_text = "NORMALIZED";
+    }
+    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal(right_text));
+  }
 
   return GQLExpr::rawText(getText(wo));
 }
@@ -2876,6 +2949,26 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
   return makeRawTextExpr(context);
 }
 
+std::any GQLParseTreeVisitor::visitNormalizedPredicateExprAlt(GQLParser::NormalizedPredicateExprAltContext *context) {
+  auto operand = castAny<Ptr>(visit(context->valueExpression()));
+  auto *part2 = context->normalizedPredicatePart2();
+  bool negated = part2->NOT() != nullptr;
+  auto form = GQLExpr::NormalForm::None;
+
+  if (auto *nf = part2->normalForm()) {
+    if (nf->NFC())
+      form = GQLExpr::NormalForm::NFC;
+    else if (nf->NFD())
+      form = GQLExpr::NormalForm::NFD;
+    else if (nf->NFKC())
+      form = GQLExpr::NormalForm::NFKC;
+    else if (nf->NFKD())
+      form = GQLExpr::NormalForm::NFKD;
+  }
+
+  return GQLExpr::normalizedPredicate(std::move(operand), negated, form);
+}
+
 std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpressionPrimaryContext *context) {
   if (context->bindingVariableReference()) {
     return GQLExpr::identifier(getText(context->bindingVariableReference()->bindingVariable()));
@@ -2910,6 +3003,8 @@ std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpres
   if (auto *cast_spec = context->castSpecification()) {
     return makeCastSpecification(cast_spec, *this);
   }
+
+  if (auto structured = tryMakeStructuredValuePrimary(context, *this)) return structured;
 
   return makeRawTextExpr(context);
 }

@@ -3320,4 +3320,239 @@ TEST(GQLParser, SimpleCaseMixedOperandTypesRoundTrip) {
   EXPECT_EQ(when1->kind, GAST::GQLExpr::Kind::ExprList);
 }
 
+TEST(GQLParser, ValueQueryExpressionShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN VALUE { MATCH (b) RETURN b.x }");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::ValueQuery);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* subquery = expr->children[0]->as<GAST::GQLSubquery>();
+  EXPECT_NE(subquery, nullptr);
+}
+
+TEST(GQLParser, ValueQueryExpressionRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN VALUE { MATCH (b) RETURN b.x }");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN VALUE { MATCH (b) RETURN b.x }");
+}
+
+TEST(GQLParser, ValueQueryExpressionClone) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN VALUE { MATCH (b) RETURN b.x }");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, LetValueExpressionShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LET x = a.val IN x + 1 END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::LetExpr);
+  ASSERT_GE(expr->children.size(), 2);
+  const auto* binding = expr->children[0]->as<GAST::GQLAssignmentItem>();
+  EXPECT_NE(binding, nullptr);
+  EXPECT_EQ(binding->name, "x");
+}
+
+TEST(GQLParser, LetValueExpressionRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LET x = a.val IN (x + 1) END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN LET x = a.val IN (x + 1) END");
+}
+
+TEST(GQLParser, LetValueExpressionMultiBindingShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LET x = a.v1, y = a.v2 IN (x + y) END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::LetExpr);
+  ASSERT_EQ(expr->children.size(), 3);
+}
+
+TEST(GQLParser, LetValueExpressionClone) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LET x = a.val IN (x + 1) END");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, PathValueConstructorShape) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN PATH[a, e, b]");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::PathConstructor);
+  EXPECT_EQ(expr->children.size(), 3);
+}
+
+TEST(GQLParser, PathValueConstructorRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN PATH[a, e, b]");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN PATH[a, e, b]");
+}
+
+TEST(GQLParser, PathValueConstructorClone) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN PATH[a, e, b]");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, NormalizedPredicateShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name IS NFC NORMALIZED RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_NE(match->where, nullptr);
+  const auto* where_expr = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where_expr, nullptr);
+  const auto* predicate = where_expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(predicate, nullptr);
+  EXPECT_EQ(predicate->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(predicate->text, "IS");
+  ASSERT_EQ(predicate->children.size(), 2);
+  const auto* right = predicate->children[1]->as<GAST::GQLExpr>();
+  ASSERT_NE(right, nullptr);
+  EXPECT_EQ(right->text, "NFC NORMALIZED");
+}
+
+TEST(GQLParser, NormalizedPredicateRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name IS NFC NORMALIZED RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE (a.name IS NFC NORMALIZED) RETURN a");
+}
+
+TEST(GQLParser, NormalizedPredicateNotNFKDRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name IS NOT NFKD NORMALIZED RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE (a.name IS NOT NFKD NORMALIZED) RETURN a");
+}
+
+TEST(GQLParser, NormalizedPredicateNoFormRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name IS NORMALIZED RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE (a.name IS NORMALIZED) RETURN a");
+}
+
+TEST(GQLParser, NormalizedPredicateClone) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE a.name IS NFC NORMALIZED RETURN a");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, SimpleCaseNormalizedPredicateWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.name WHEN IS NFC NORMALIZED THEN 'yes' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(when0->text, "IS");
+  EXPECT_EQ(when0->children.size(), 2);
+}
+
+TEST(GQLParser, SimpleCaseNormalizedPredicateWhenRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.name WHEN IS NFC NORMALIZED THEN 'yes' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN CASE a.name WHEN IS NFC NORMALIZED THEN 'yes' ELSE 'no' END");
+}
+
+TEST(GQLParser, LetValueExpressionValueKeywordShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LET VALUE x = a.val IN x END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::LetExpr);
+  ASSERT_GE(expr->children.size(), 2);
+  const auto* binding = expr->children[0]->as<GAST::GQLAssignmentItem>();
+  ASSERT_NE(binding, nullptr);
+  EXPECT_TRUE(binding->value_keyword);
+}
+
+TEST(GQLParser, SearchedCasePathConstructorWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN CASE WHEN PATH[a, e, b] IS NOT NULL THEN 'yes' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
+}
+
+TEST(GQLParser, SearchedCaseValueQueryWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE WHEN VALUE { MATCH (b) RETURN b.x } IS NOT NULL THEN 'yes' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
+}
+
+TEST(GQLParser, SimpleCasePathConstructorWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN CASE a WHEN PATH[a, e, b] THEN 'path' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::PathConstructor);
+  EXPECT_EQ(when0->children.size(), 3);
+}
+
+TEST(GQLParser, SimpleCasePathConstructorWhenRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN CASE a WHEN PATH[a, e, b] THEN 'path' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN CASE a WHEN PATH[a, e, b] THEN 'path' ELSE 'no' END");
+}
+
 #endif

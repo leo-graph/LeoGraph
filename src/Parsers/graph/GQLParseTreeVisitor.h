@@ -99,6 +99,7 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitPrimaryExprAlt(GQLParser::PrimaryExprAltContext* context) override;
   std::any visitAddSubtractExprAlt(GQLParser::AddSubtractExprAltContext* context) override;
   std::any visitPredicateExprAlt(GQLParser::PredicateExprAltContext* context) override;
+  std::any visitNormalizedPredicateExprAlt(GQLParser::NormalizedPredicateExprAltContext* context) override;
   std::any visitValueExpressionPrimary(GQLParser::ValueExpressionPrimaryContext* context) override;
   std::any visitUnsignedValueSpecification(GQLParser::UnsignedValueSpecificationContext* context) override;
   std::any visitUnsignedLiteral(GQLParser::UnsignedLiteralContext* context) override;
