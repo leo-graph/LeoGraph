@@ -3517,6 +3517,22 @@ TEST(GQLParser, SearchedCasePathConstructorWhenShape) {
   const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+
+  const auto* predicate = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(predicate, nullptr);
+  EXPECT_EQ(predicate->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(predicate->text, "IS NOT");
+  ASSERT_EQ(predicate->children.size(), 2);
+
+  const auto* left = predicate->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(left, nullptr);
+  EXPECT_EQ(left->kind, GAST::GQLExpr::Kind::PathConstructor);
+  EXPECT_EQ(left->children.size(), 3);
+
+  const auto* right = predicate->children[1]->as<GAST::GQLExpr>();
+  ASSERT_NE(right, nullptr);
+  EXPECT_EQ(right->text, "NULL");
 }
 
 TEST(GQLParser, SearchedCaseValueQueryWhenShape) {
@@ -3529,6 +3545,23 @@ TEST(GQLParser, SearchedCaseValueQueryWhenShape) {
   const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+
+  const auto* predicate = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(predicate, nullptr);
+  EXPECT_EQ(predicate->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(predicate->text, "IS NOT");
+  ASSERT_EQ(predicate->children.size(), 2);
+
+  const auto* left = predicate->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(left, nullptr);
+  EXPECT_EQ(left->kind, GAST::GQLExpr::Kind::ValueQuery);
+  ASSERT_EQ(left->children.size(), 1);
+  EXPECT_NE(left->children[0]->as<GAST::GQLSubquery>(), nullptr);
+
+  const auto* right = predicate->children[1]->as<GAST::GQLExpr>();
+  ASSERT_NE(right, nullptr);
+  EXPECT_EQ(right->text, "NULL");
 }
 
 TEST(GQLParser, SimpleCasePathConstructorWhenShape) {
