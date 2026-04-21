@@ -102,9 +102,11 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitValueExpressionPrimary(GQLParser::ValueExpressionPrimaryContext* context) override;
   std::any visitUnsignedValueSpecification(GQLParser::UnsignedValueSpecificationContext* context) override;
   std::any visitUnsignedLiteral(GQLParser::UnsignedLiteralContext* context) override;
+  std::any visitLinearDataModifyingStatement(GQLParser::LinearDataModifyingStatementContext* context) override;
+
+  AST::Ptr buildSubquery(GQLParser::ProcedureBodyContext* procedure_body, antlr4::ParserRuleContext* context);
 
  private:
-  AST::Ptr buildSubquery(GQLParser::ProcedureBodyContext* procedure_body, antlr4::ParserRuleContext* context);
   AST::Ptr makeRawTextExpr(antlr4::ParserRuleContext* context) const;
 };
 

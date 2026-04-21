@@ -165,6 +165,10 @@ antlr4::ParserRuleContext *GQLParserUtils::parseCompositeQueryStatement(std::str
   return parseWithFallback(query, &GQLParser::compositeQueryStatement);
 }
 
+antlr4::ParserRuleContext *GQLParserUtils::parseStatement(std::string_view query) {
+  return parseWithFallback(query, &GQLParser::statement);
+}
+
 }  // namespace OPENGQL
 
 }  // namespace DB

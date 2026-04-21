@@ -47,6 +47,8 @@ enum class CountKind : UInt8 {
   Groups,
 };
 
+enum class CountSpecKind : UInt8;
+
 enum class CombinedQueryOperator : UInt8 {
   UnionDistinct,
   UnionAll,
@@ -70,10 +72,13 @@ class GQLBindingInitializer;
 class GQLBindingVariableDefinition;
 class GQLBindingVariableDefinitionBlock;
 class GQLCallClauseBase;
+class GQLCaseExpr;
 class GQLCallInlineClause;
 class GQLCallNamedClause;
 class GQLCallVariableScopeClause;
 class GQLCombinedQuery;
+class GQLCountSpec;
+class GQLDeleteClause;
 class GQLExpr;
 class GQLFinishClause;
 class GQLForClause;
@@ -88,11 +93,18 @@ class GQLReturnClause;
 class GQLNodePattern;
 class GQLEdgePattern;
 class GQLPathPattern;
+class GQLPathPatternAlternation;
 class GQLPathModePrefix;
 class GQLPathSearchPrefix;
+class GQLPathTerm;
+class GQLQuantifiedPathPrimary;
 class GQLParenthesizedPathPattern;
+class GQLRemoveClause;
+class GQLRemoveItem;
 class GQLGraphPatternBlock;
 class GQLGraphExpression;
+class GQLInsertClause;
+class GQLInsertPathPattern;
 class GQLMatchStatementBlock;
 class GQLKeepClause;
 class GQLWhereClause;
@@ -104,6 +116,8 @@ class GQLPageClause;
 class GQLSchemaReference;
 class GQLSelectClause;
 class GQLSelectSourceItem;
+class GQLSetClause;
+class GQLSetItem;
 class GQLSelectSourceList;
 class GQLSubquery;
 class GQLSubqueryNextClause;

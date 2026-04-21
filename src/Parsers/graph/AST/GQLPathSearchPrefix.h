@@ -8,7 +8,7 @@ class GQLPathSearchPrefix final : public DB::IAST {
  public:
   PathSearchKind search_kind = PathSearchKind::None;
   CountKind count_kind = CountKind::None;
-  String count;
+  Ptr count;
   PathMode path_mode = PathMode::None;
   bool has_path_keyword = false;
   bool use_paths_keyword = false;
@@ -19,30 +19,13 @@ class GQLPathSearchPrefix final : public DB::IAST {
   ASTPtr clone() const override {
     auto result = make_intrusive<GQLPathSearchPrefix>(*this);
     result->children.clear();
+    result->count = count ? count->clone() : Ptr{};
+    if (result->count) result->children.push_back(result->count);
     return result;
   }
 
  protected:
-  static const char *getPathModeKeyword(PathMode mode) {
-    switch (mode) {
-      case PathMode::Walk:
-        return "WALK";
-      case PathMode::Trail:
-        return "TRAIL";
-      case PathMode::Simple:
-        return "SIMPLE";
-      case PathMode::Acyclic:
-        return "ACYCLIC";
-      case PathMode::None:
-        return "";
-    }
-
-    return "";
-  }
-
-  static const char *getPathKeyword(bool use_paths_keyword) { return use_paths_keyword ? "PATHS" : "PATH"; }
-
-  void formatImpl(WriteBuffer &ostr, const FormatSettings &, FormatState &, FormatStateStacked) const override {
+  void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state, FormatStateStacked frame) const override {
     chassert(search_kind != PathSearchKind::None);
 
     switch (search_kind) {
@@ -51,7 +34,10 @@ class GQLPathSearchPrefix final : public DB::IAST {
         break;
       case PathSearchKind::Any:
         ostr << "ANY";
-        if (!count.empty()) ostr << " " << count;
+        if (count) {
+          ostr << " ";
+          count->format(ostr, settings, state, frame);
+        }
         break;
       case PathSearchKind::AllShortest:
         ostr << "ALL SHORTEST";
@@ -60,25 +46,31 @@ class GQLPathSearchPrefix final : public DB::IAST {
         ostr << "ANY SHORTEST";
         break;
       case PathSearchKind::CountedShortest:
-        chassert(!count.empty());
-        ostr << "SHORTEST " << count;
+        chassert(count);
+        ostr << "SHORTEST ";
+        count->format(ostr, settings, state, frame);
         break;
       case PathSearchKind::CountedShortestGroup:
         ostr << "SHORTEST";
-        if (!count.empty()) ostr << " " << count;
+        if (count) {
+          ostr << " ";
+          count->format(ostr, settings, state, frame);
+        }
         break;
       case PathSearchKind::None:
         return;
     }
 
-    if (path_mode != PathMode::None) ostr << " " << getPathModeKeyword(path_mode);
-    if (has_path_keyword) ostr << " " << getPathKeyword(use_paths_keyword);
+    if (path_mode != PathMode::None) ostr << " " << detail::getPathModeKeyword(path_mode);
+    if (has_path_keyword) ostr << " " << detail::getPathKeyword(use_paths_keyword);
 
     if (search_kind == PathSearchKind::CountedShortestGroup) {
       chassert(count_kind == CountKind::Groups);
       ostr << " " << (use_groups_keyword ? "GROUPS" : "GROUP");
     }
   }
+
+  void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override { f(nullptr, &count); }
 };
 
 }  // namespace DB::OPENGQL::AST

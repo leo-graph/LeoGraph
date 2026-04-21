@@ -105,6 +105,22 @@ Ptr makeQuantifier(GQLParser::GraphPatternQuantifierContext *context) {
 
 Ptr makeQuestionQuantifier() { return Ptr(make_intrusive<GQLQuantifier>(GQLQuantifier::Kind::Question)); }
 
+Ptr makeCountSpec(GQLParser::NonNegativeIntegerSpecificationContext *context) {
+  if (!context) {
+    return {};
+  }
+
+  if (auto *unsigned_integer = context->unsignedInteger()) {
+    return Ptr(make_intrusive<GQLCountSpec>(CountSpecKind::Integer, getText(unsigned_integer)));
+  }
+
+  if (auto *dynamic_parameter = context->dynamicParameterSpecification()) {
+    return Ptr(make_intrusive<GQLCountSpec>(CountSpecKind::DynamicParameter, getText(dynamic_parameter)));
+  }
+
+  return {};
+}
+
 Ptr makeCallVariableScopeClause(GQLParser::VariableScopeClauseContext *context) {
   if (!context) return {};
 
@@ -161,6 +177,21 @@ Ptr makeSimplifiedNaryExpr(GQLSimplifiedPathExpr::Kind kind, std::initializer_li
   }
 
   return Ptr(expression);
+}
+
+Ptr makePathPatternAlternation(GQLPathPatternAlternation::Kind kind, const std::vector<GQLParser::PathTermContext *> &path_terms,
+                               GQLParseTreeVisitor &visitor) {
+  PtrList operands;
+  operands.reserve(path_terms.size());
+
+  for (auto *path_term : path_terms) {
+    auto operand = castAny<Ptr>(visitor.visit(path_term));
+    chassert(operand);
+    chassert(operand->as<GQLPathTerm>());
+    operands.push_back(operand);
+  }
+
+  return Ptr(make_intrusive<GQLPathPatternAlternation>(kind, std::move(operands)));
 }
 
 EdgeDirection getSimplifiedDefaultingDirection(GQLParser::SimplifiedPathPatternExpressionContext *context) {
@@ -693,6 +724,13 @@ PathMode getPathMode(GQLParser::PathModeContext *context) {
   return PathMode::None;
 }
 
+template <typename T>
+void fillPathSearchPrefixFields(GQLPathSearchPrefix &prefix, T *context) {
+  prefix.path_mode = getPathMode(context ? context->pathMode() : nullptr);
+  prefix.has_path_keyword = context && context->pathOrPaths() != nullptr;
+  prefix.use_paths_keyword = context && context->pathOrPaths() && context->pathOrPaths()->PATHS();
+}
+
 Ptr makePathPatternPrefix(GQLParser::PathModePrefixContext *context) {
   if (!context) {
     return {};
@@ -722,20 +760,17 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
   if (auto *all = search->allPathSearch()) {
     auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::All;
-    prefix->path_mode = getPathMode(all->pathMode());
-    prefix->has_path_keyword = all->pathOrPaths() != nullptr;
-    prefix->use_paths_keyword = all->pathOrPaths() && all->pathOrPaths()->PATHS();
+    fillPathSearchPrefixFields(*prefix, all);
     return Ptr(prefix);
   }
 
   if (auto *any = search->anyPathSearch()) {
     auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::Any;
-    prefix->count = any->numberOfPaths() ? getText(any->numberOfPaths()->nonNegativeIntegerSpecification()) : String{};
+    prefix->count = any->numberOfPaths() ? makeCountSpec(any->numberOfPaths()->nonNegativeIntegerSpecification()) : Ptr{};
     prefix->count_kind = any->numberOfPaths() ? CountKind::Paths : CountKind::None;
-    prefix->path_mode = getPathMode(any->pathMode());
-    prefix->has_path_keyword = any->pathOrPaths() != nullptr;
-    prefix->use_paths_keyword = any->pathOrPaths() && any->pathOrPaths()->PATHS();
+    fillPathSearchPrefixFields(*prefix, any);
+    appendClause(prefix->children, prefix->count);
     return Ptr(prefix);
   }
 
@@ -747,18 +782,14 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
   if (auto *all_shortest = shortest->allShortestPathSearch()) {
     auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::AllShortest;
-    prefix->path_mode = getPathMode(all_shortest->pathMode());
-    prefix->has_path_keyword = all_shortest->pathOrPaths() != nullptr;
-    prefix->use_paths_keyword = all_shortest->pathOrPaths() && all_shortest->pathOrPaths()->PATHS();
+    fillPathSearchPrefixFields(*prefix, all_shortest);
     return Ptr(prefix);
   }
 
   if (auto *any_shortest = shortest->anyShortestPathSearch()) {
     auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::AnyShortest;
-    prefix->path_mode = getPathMode(any_shortest->pathMode());
-    prefix->has_path_keyword = any_shortest->pathOrPaths() != nullptr;
-    prefix->use_paths_keyword = any_shortest->pathOrPaths() && any_shortest->pathOrPaths()->PATHS();
+    fillPathSearchPrefixFields(*prefix, any_shortest);
     return Ptr(prefix);
   }
 
@@ -766,10 +797,9 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
     auto prefix = make_intrusive<GQLPathSearchPrefix>();
     prefix->search_kind = PathSearchKind::CountedShortest;
     prefix->count_kind = CountKind::Paths;
-    prefix->count = getText(counted_shortest->numberOfPaths()->nonNegativeIntegerSpecification());
-    prefix->path_mode = getPathMode(counted_shortest->pathMode());
-    prefix->has_path_keyword = counted_shortest->pathOrPaths() != nullptr;
-    prefix->use_paths_keyword = counted_shortest->pathOrPaths() && counted_shortest->pathOrPaths()->PATHS();
+    prefix->count = makeCountSpec(counted_shortest->numberOfPaths()->nonNegativeIntegerSpecification());
+    fillPathSearchPrefixFields(*prefix, counted_shortest);
+    appendClause(prefix->children, prefix->count);
     return Ptr(prefix);
   }
 
@@ -778,11 +808,10 @@ Ptr makePathPatternPrefix(GQLParser::PathPatternPrefixContext *context) {
     prefix->search_kind = PathSearchKind::CountedShortestGroup;
     prefix->count_kind = CountKind::Groups;
     prefix->count =
-        counted_group->numberOfGroups() ? getText(counted_group->numberOfGroups()->nonNegativeIntegerSpecification()) : String{};
-    prefix->path_mode = getPathMode(counted_group->pathMode());
-    prefix->has_path_keyword = counted_group->pathOrPaths() != nullptr;
-    prefix->use_paths_keyword = counted_group->pathOrPaths() && counted_group->pathOrPaths()->PATHS();
+        counted_group->numberOfGroups() ? makeCountSpec(counted_group->numberOfGroups()->nonNegativeIntegerSpecification()) : Ptr{};
+    fillPathSearchPrefixFields(*prefix, counted_group);
     prefix->use_groups_keyword = counted_group->GROUPS() != nullptr;
+    appendClause(prefix->children, prefix->count);
     return Ptr(prefix);
   }
 
@@ -960,29 +989,40 @@ Ptr makeAggregateFunction(GQLParser::AggregateFunctionContext *context, GQLParse
 
   if (auto *general = context->generalSetFunction()) {
     Ptr argument = castAny<Ptr>(visitor.visit(general->valueExpression()));
-    if (general->setQuantifier()) {
-      String prefix = general->setQuantifier()->DISTINCT() ? "DISTINCT " : "ALL ";
-      argument = GQLExpr::rawText(prefix + detail::formatNodeToString(*argument));
-    }
-
     PtrList arguments;
     arguments.push_back(argument);
-    return GQLExpr::functionCall(getText(general->generalSetFunctionType()), std::move(arguments));
+    auto set_quantifier = GQLExpr::SetQuantifier::None;
+
+    if (auto *quantifier = general->setQuantifier()) {
+      set_quantifier = quantifier->DISTINCT() ? GQLExpr::SetQuantifier::Distinct : GQLExpr::SetQuantifier::All;
+    }
+
+    return GQLExpr::functionCall(getText(general->generalSetFunctionType()), std::move(arguments), set_quantifier);
   }
 
-  return GQLExpr::rawText(getText(context));
+  if (auto *binary = context->binarySetFunction()) {
+    PtrList arguments;
+    auto set_quantifier = GQLExpr::SetQuantifier::None;
+
+    if (auto *dependent = binary->dependentValueExpression()) {
+      if (auto *quantifier = dependent->setQuantifier()) {
+        set_quantifier = quantifier->DISTINCT() ? GQLExpr::SetQuantifier::Distinct : GQLExpr::SetQuantifier::All;
+      }
+
+      arguments.push_back(castAny<Ptr>(visitor.visit(dependent->numericValueExpression())));
+    }
+
+    if (auto *independent = binary->independentValueExpression()) {
+      arguments.push_back(castAny<Ptr>(visitor.visit(independent->numericValueExpression())));
+    }
+
+    return GQLExpr::functionCall(getText(binary->binarySetFunctionType()), std::move(arguments), set_quantifier);
+  }
+
+  throwUnsupported("aggregate function", context);
 }
 
-Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
-  if (!context) {
-    return {};
-  }
-
-  auto *numeric = context->numericValueFunction();
-  if (!numeric) {
-    return GQLExpr::rawText(getText(context));
-  }
-
+Ptr makeNumericValueFunction(GQLParser::NumericValueFunctionContext *numeric, GQLParseTreeVisitor &visitor) {
   if (auto *length = numeric->lengthExpression()) {
     if (auto *char_length = length->charLengthExpression()) {
       PtrList arguments;
@@ -1022,7 +1062,435 @@ Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisi
     return GQLExpr::functionCall("ABS", std::move(arguments));
   }
 
+  if (auto *floor_fn = numeric->floorFunction()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(floor_fn->numericValueExpression())));
+    return GQLExpr::functionCall("FLOOR", std::move(arguments));
+  }
+
+  if (auto *ceiling_fn = numeric->ceilingFunction()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(ceiling_fn->numericValueExpression())));
+    return GQLExpr::functionCall(ceiling_fn->CEIL() ? "CEIL" : "CEILING", std::move(arguments));
+  }
+
+  if (auto *modulus = numeric->modulusExpression()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(modulus->numericValueExpressionDividend()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(modulus->numericValueExpressionDivisor()->numericValueExpression())));
+    return GQLExpr::functionCall("MOD", std::move(arguments));
+  }
+
+  if (auto *power = numeric->powerFunction()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(power->numericValueExpressionBase()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(power->numericValueExpressionExponent()->numericValueExpression())));
+    return GQLExpr::functionCall("POWER", std::move(arguments));
+  }
+
+  if (auto *sqrt_fn = numeric->squareRoot()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(sqrt_fn->numericValueExpression())));
+    return GQLExpr::functionCall("SQRT", std::move(arguments));
+  }
+
+  if (auto *trig = numeric->trigonometricFunction()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(trig->numericValueExpression())));
+    return GQLExpr::functionCall(getText(trig->trigonometricFunctionName()), std::move(arguments));
+  }
+
+  if (auto *gen_log = numeric->generalLogarithmFunction()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(gen_log->generalLogarithmBase()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(gen_log->generalLogarithmArgument()->numericValueExpression())));
+    return GQLExpr::functionCall("LOG", std::move(arguments));
+  }
+
+  if (auto *common_log = numeric->commonLogarithm()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(common_log->numericValueExpression())));
+    return GQLExpr::functionCall("LOG10", std::move(arguments));
+  }
+
+  if (auto *nat_log = numeric->naturalLogarithm()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(nat_log->numericValueExpression())));
+    return GQLExpr::functionCall("LN", std::move(arguments));
+  }
+
+  if (auto *exp_fn = numeric->exponentialFunction()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(exp_fn->numericValueExpression())));
+    return GQLExpr::functionCall("EXP", std::move(arguments));
+  }
+
+  return GQLExpr::rawText(getText(numeric));
+}
+
+Ptr makeCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (auto *sub = context->subCharacterOrByteString()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(sub->valueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(sub->stringLength()->numericValueExpression())));
+    return GQLExpr::functionCall(sub->LEFT() ? "LEFT" : "RIGHT", std::move(arguments));
+  }
+
+  if (auto *fold = context->foldCharacterString()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(fold->valueExpression())));
+    return GQLExpr::functionCall(fold->UPPER() ? "UPPER" : "LOWER", std::move(arguments));
+  }
+
+  if (auto *multi_trim = context->trimMultiCharacterCharacterString()) {
+    PtrList arguments;
+    for (auto *expr : multi_trim->valueExpression()) arguments.push_back(castAny<Ptr>(visitor.visit(expr)));
+
+    String name;
+    if (multi_trim->BTRIM())
+      name = "BTRIM";
+    else if (multi_trim->LTRIM())
+      name = "LTRIM";
+    else
+      name = "RTRIM";
+    return GQLExpr::functionCall(name, std::move(arguments));
+  }
+
+  if (auto *normalize = context->normalizeCharacterString()) {
+    PtrList arguments;
+    arguments.push_back(castAny<Ptr>(visitor.visit(normalize->valueExpression())));
+    if (normalize->normalForm()) arguments.push_back(GQLExpr::literal(getText(normalize->normalForm())));
+    return GQLExpr::functionCall("NORMALIZE", std::move(arguments));
+  }
+
+  if (auto *single_trim = context->trimSingleCharacterOrByteString()) {
+    auto *operands = single_trim->trimOperands();
+    auto source = castAny<Ptr>(visitor.visit(operands->trimCharacterOrByteStringSource()->valueExpression()));
+
+    GQLExpr::TrimSpec spec = GQLExpr::TrimSpec::None;
+    if (auto *ts = operands->trimSpecification()) {
+      if (ts->LEADING())
+        spec = GQLExpr::TrimSpec::Leading;
+      else if (ts->TRAILING())
+        spec = GQLExpr::TrimSpec::Trailing;
+      else
+        spec = GQLExpr::TrimSpec::Both;
+    }
+
+    Ptr trim_char;
+    if (auto *tc = operands->trimCharacterOrByteString()) trim_char = castAny<Ptr>(visitor.visit(tc->valueExpression()));
+
+    return GQLExpr::trimString(std::move(source), spec, std::move(trim_char));
+  }
+
   return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (auto *date_fn = context->dateFunction()) {
+    if (date_fn->CURRENT_DATE()) return GQLExpr::rawText("CURRENT_DATE");
+    PtrList args;
+    if (auto *params = date_fn->dateFunctionParameters()) {
+      if (auto *rc = params->recordConstructor())
+        args.push_back(makeRecordConstructor(rc, visitor));
+      else
+        args.push_back(GQLExpr::rawText(getText(params)));
+    }
+    return GQLExpr::functionCall("DATE", std::move(args));
+  }
+
+  if (auto *time_fn = context->timeFunction()) {
+    if (time_fn->CURRENT_TIME()) return GQLExpr::rawText("CURRENT_TIME");
+    PtrList args;
+    if (auto *params = time_fn->timeFunctionParameters()) {
+      if (auto *rc = params->recordConstructor())
+        args.push_back(makeRecordConstructor(rc, visitor));
+      else
+        args.push_back(GQLExpr::rawText(getText(params)));
+    }
+    return GQLExpr::functionCall("ZONED_TIME", std::move(args));
+  }
+
+  if (auto *datetime_fn = context->datetimeFunction()) {
+    if (datetime_fn->CURRENT_TIMESTAMP()) return GQLExpr::rawText("CURRENT_TIMESTAMP");
+    PtrList args;
+    if (auto *params = datetime_fn->datetimeFunctionParameters()) {
+      if (auto *rc = params->recordConstructor())
+        args.push_back(makeRecordConstructor(rc, visitor));
+      else
+        args.push_back(GQLExpr::rawText(getText(params)));
+    }
+    return GQLExpr::functionCall("ZONED_DATETIME", std::move(args));
+  }
+
+  if (auto *localtime_fn = context->localtimeFunction()) {
+    if (!localtime_fn->LEFT_PAREN()) return GQLExpr::rawText("LOCAL_TIME");
+    PtrList args;
+    if (auto *params = localtime_fn->timeFunctionParameters()) {
+      if (auto *rc = params->recordConstructor())
+        args.push_back(makeRecordConstructor(rc, visitor));
+      else
+        args.push_back(GQLExpr::rawText(getText(params)));
+    }
+    return GQLExpr::functionCall("LOCAL_TIME", std::move(args));
+  }
+
+  if (auto *localdatetime_fn = context->localdatetimeFunction()) {
+    if (localdatetime_fn->LOCAL_TIMESTAMP()) return GQLExpr::rawText("LOCAL_TIMESTAMP");
+    PtrList args;
+    if (auto *params = localdatetime_fn->datetimeFunctionParameters()) {
+      if (auto *rc = params->recordConstructor())
+        args.push_back(makeRecordConstructor(rc, visitor));
+      else
+        args.push_back(GQLExpr::rawText(getText(params)));
+    }
+    return GQLExpr::functionCall("LOCAL_DATETIME", std::move(args));
+  }
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeDurationValueFunction(GQLParser::DurationValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (auto *duration_fn = context->durationFunction()) {
+    PtrList args;
+    auto *params = duration_fn->durationFunctionParameters();
+    if (auto *rc = params->recordConstructor())
+      args.push_back(makeRecordConstructor(rc, visitor));
+    else
+      args.push_back(GQLExpr::rawText(getText(params)));
+    return GQLExpr::functionCall("DURATION", std::move(args));
+  }
+
+  if (auto *absolute = context->absoluteValueExpression()) {
+    PtrList args;
+    args.push_back(castAny<Ptr>(visitor.visit(absolute->valueExpression())));
+    return GQLExpr::functionCall("ABS", std::move(args));
+  }
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeListValueFunction(GQLParser::ListValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (auto *elements_fn = context->elementsFunction()) {
+    PtrList args;
+    args.push_back(castAny<Ptr>(visitor.visit(elements_fn->pathValueExpression()->valueExpression())));
+    return GQLExpr::functionCall("ELEMENTS", std::move(args));
+  }
+
+  if (auto *trim_list = context->trimListFunction()) {
+    PtrList args;
+    args.push_back(castAny<Ptr>(visitor.visit(trim_list->listValueExpression()->valueExpression())));
+    args.push_back(castAny<Ptr>(visitor.visit(trim_list->numericValueExpression())));
+    return GQLExpr::functionCall("TRIM", std::move(args));
+  }
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) return {};
+
+  if (auto *numeric = context->numericValueFunction()) return makeNumericValueFunction(numeric, visitor);
+
+  if (auto *char_fn = context->characterOrByteStringFunction()) return makeCharacterOrByteStringFunction(char_fn, visitor);
+
+  if (auto *datetime = context->datetimeValueFunction()) return makeDatetimeValueFunction(datetime, visitor);
+
+  if (auto *duration = context->durationValueFunction()) return makeDurationValueFunction(duration, visitor);
+
+  if (auto *list_fn = context->listValueFunction()) return makeListValueFunction(list_fn, visitor);
+
+  if (auto *dt_sub = context->datetimeSubtraction()) {
+    auto *params = dt_sub->datetimeSubtractionParameters();
+    auto left = castAny<Ptr>(visitor.visit(params->datetimeValueExpression1()->datetimeValueExpression()->valueExpression()));
+    auto right = castAny<Ptr>(visitor.visit(params->datetimeValueExpression2()->datetimeValueExpression()->valueExpression()));
+
+    GQLExpr::TemporalQualifier qualifier = GQLExpr::TemporalQualifier::None;
+    if (auto *tq = dt_sub->temporalDurationQualifier()) {
+      qualifier = tq->YEAR() ? GQLExpr::TemporalQualifier::YearToMonth : GQLExpr::TemporalQualifier::DayToSecond;
+    }
+    return GQLExpr::durationBetween(std::move(left), std::move(right), qualifier);
+  }
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeResultExpr(GQLParser::ResultContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) return {};
+
+  if (context->nullLiteral()) return GQLExpr::literal("NULL");
+
+  if (auto *result_expr = context->resultExpression()) return castAny<Ptr>(visitor.visit(result_expr->valueExpression()));
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVisitor &visitor);
+Ptr makeCastSpecification(GQLParser::CastSpecificationContext *context, GQLParseTreeVisitor &visitor);
+
+Ptr makeNpvepExpr(GQLParser::NonParenthesizedValueExpressionPrimaryContext *npvep, GQLParseTreeVisitor &visitor) {
+  if (auto *bvr = npvep->bindingVariableReference()) return GQLExpr::identifier(getText(bvr->bindingVariable()));
+
+  if (auto *special = npvep->nonParenthesizedValueExpressionPrimarySpecialCase()) {
+    if (special->unsignedValueSpecification()) return castAny<Ptr>(visitor.visit(special->unsignedValueSpecification()));
+    if (special->aggregateFunction()) return makeAggregateFunction(special->aggregateFunction(), visitor);
+    if (special->caseExpression()) return makeCaseExpression(special->caseExpression(), visitor);
+    if (special->castSpecification()) return makeCastSpecification(special->castSpecification(), visitor);
+    if (special->element_idFunction()) {
+      PtrList args;
+      args.push_back(GQLExpr::identifier(getElementVariableName(special->element_idFunction()->elementVariableReference())));
+      return GQLExpr::functionCall("ELEMENT_ID", std::move(args));
+    }
+    if (special->propertyName()) {
+      auto base = castAny<Ptr>(visitor.visit(special->valueExpressionPrimary()));
+      return GQLExpr::property(std::move(base), getText(special->propertyName()->identifier()));
+    }
+    return GQLExpr::rawText(getText(special));
+  }
+
+  return GQLExpr::rawText(getText(npvep));
+}
+
+Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &visitor, Ptr case_operand = {}) {
+  if (auto *npvep = wo->nonParenthesizedValueExpressionPrimary()) return makeNpvepExpr(npvep, visitor);
+
+  auto cloneLeft = [&]() -> Ptr { return case_operand ? case_operand->clone() : GQLExpr::rawText("?"); };
+
+  if (wo->compOp()) {
+    auto right = castAny<Ptr>(visitor.visit(wo->valueExpression()));
+    return GQLExpr::binaryOp(getText(wo->compOp()), cloneLeft(), std::move(right));
+  }
+
+  if (auto *null_part = wo->nullPredicatePart2()) {
+    const String op = null_part->NOT() ? "IS NOT" : "IS";
+    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal("NULL"));
+  }
+
+  if (auto *vt_part = wo->valueTypePredicatePart2()) {
+    const String op = vt_part->NOT() ? "IS NOT" : "IS";
+    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal(getText(vt_part->valueType())));
+  }
+
+  if (auto *dir_part = wo->directedPredicatePart2()) {
+    const String op = dir_part->NOT() ? "IS NOT" : "IS";
+    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal("DIRECTED"));
+  }
+
+  if (auto *label_part = wo->labeledPredicatePart2()) {
+    auto *labeled_or_colon = label_part->isLabeledOrColon();
+    String op = ":";
+    if (labeled_or_colon->IS()) op = labeled_or_colon->NOT() ? "IS NOT LABELED" : "IS LABELED";
+    return GQLExpr::binaryOp(op, cloneLeft(), castAny<Ptr>(visitor.visit(label_part->labelExpression())));
+  }
+
+  if (auto *src_part = wo->sourcePredicatePart2()) {
+    const String op = src_part->NOT() ? "IS NOT SOURCE OF" : "IS SOURCE OF";
+    return GQLExpr::binaryOp(op, cloneLeft(),
+                             GQLExpr::identifier(getElementVariableName(src_part->edgeReference()->elementVariableReference())));
+  }
+
+  if (auto *dst_part = wo->destinationPredicatePart2()) {
+    const String op = dst_part->NOT() ? "IS NOT DESTINATION OF" : "IS DESTINATION OF";
+    return GQLExpr::binaryOp(op, cloneLeft(),
+                             GQLExpr::identifier(getElementVariableName(dst_part->edgeReference()->elementVariableReference())));
+  }
+
+  if (wo->normalizedPredicatePart2()) return GQLExpr::rawText(getText(wo->normalizedPredicatePart2()));
+
+  return GQLExpr::rawText(getText(wo));
+}
+
+Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) return {};
+
+  if (auto *abbreviation = context->caseAbbreviation()) {
+    PtrList arguments;
+    for (auto *value_expr : abbreviation->valueExpression()) arguments.push_back(castAny<Ptr>(visitor.visit(value_expr)));
+
+    String name = abbreviation->NULLIF() ? "NULLIF" : "COALESCE";
+    return GQLExpr::functionCall(name, std::move(arguments));
+  }
+
+  auto *spec = context->caseSpecification();
+  if (!spec) return GQLExpr::rawText(getText(context));
+
+  if (auto *searched = spec->searchedCase()) {
+    auto expr = make_intrusive<GQLCaseExpr>(GQLCaseExpr::Form::Searched);
+
+    for (auto *clause : searched->searchedWhenClause()) {
+      auto when_expr = castAny<Ptr>(visitor.visit(clause->searchCondition()));
+      auto then_expr = makeResultExpr(clause->result(), visitor);
+      expr->when_operands.push_back(when_expr);
+      expr->then_results.push_back(then_expr);
+      if (when_expr) expr->children.push_back(when_expr);
+      if (then_expr) expr->children.push_back(then_expr);
+    }
+
+    if (auto *else_clause = searched->elseClause()) {
+      expr->else_result = makeResultExpr(else_clause->result(), visitor);
+      if (expr->else_result) expr->children.push_back(expr->else_result);
+    }
+
+    return Ptr(expr);
+  }
+
+  if (auto *simple = spec->simpleCase()) {
+    auto expr = make_intrusive<GQLCaseExpr>(GQLCaseExpr::Form::Simple);
+
+    if (auto *operand = simple->caseOperand()) {
+      if (auto *elem_ref = operand->elementVariableReference())
+        expr->operand = GQLExpr::identifier(getElementVariableName(elem_ref));
+      else if (auto *npvep = operand->nonParenthesizedValueExpressionPrimary())
+        expr->operand = makeNpvepExpr(npvep, visitor);
+      if (expr->operand) expr->children.push_back(expr->operand);
+    }
+
+    for (auto *clause : simple->simpleWhenClause()) {
+      Ptr when_expr;
+      if (auto *when_list = clause->whenOperandList()) {
+        auto operands = when_list->whenOperand();
+        if (operands.size() == 1) {
+          when_expr = makeWhenOperandExpr(operands.front(), visitor, expr->operand);
+        } else {
+          PtrList items;
+          for (auto *wo : operands) items.push_back(makeWhenOperandExpr(wo, visitor, expr->operand));
+          when_expr = GQLExpr::exprList(std::move(items));
+        }
+      }
+
+      auto then_expr = makeResultExpr(clause->result(), visitor);
+      expr->when_operands.push_back(when_expr);
+      expr->then_results.push_back(then_expr);
+      if (when_expr) expr->children.push_back(when_expr);
+      if (then_expr) expr->children.push_back(then_expr);
+    }
+
+    if (auto *else_clause = simple->elseClause()) {
+      expr->else_result = makeResultExpr(else_clause->result(), visitor);
+      if (expr->else_result) expr->children.push_back(expr->else_result);
+    }
+
+    return Ptr(expr);
+  }
+
+  return GQLExpr::rawText(getText(context));
+}
+
+Ptr makeCastSpecification(GQLParser::CastSpecificationContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) return {};
+
+  Ptr operand;
+  if (auto *cast_operand = context->castOperand()) {
+    if (cast_operand->nullLiteral())
+      operand = GQLExpr::literal("NULL");
+    else if (cast_operand->valueExpression())
+      operand = castAny<Ptr>(visitor.visit(cast_operand->valueExpression()));
+  }
+
+  String target_type;
+  if (auto *target = context->castTarget()) target_type = getText(target);
+
+  return GQLExpr::castExpr(std::move(operand), target_type);
 }
 
 Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirection direction = EdgeDirection::Right) {
@@ -1071,6 +1539,259 @@ Ptr makeNodeOrEdgePattern(ElementPatternParts &&parts, bool is_edge, EdgeDirecti
   return Ptr(node);
 }
 
+Ptr makeLabelSetSpecification(GQLParser::LabelSetSpecificationContext *context) {
+  if (!context) return {};
+
+  auto labels = context->labelName();
+  if (labels.empty()) return {};
+
+  Ptr result = GQLLabelExpression::name(getText(labels[0]->identifier()));
+
+  for (size_t i = 1; i < labels.size(); ++i) {
+    result = GQLLabelExpression::binary(GQLLabelExpression::Kind::Conjunction, std::move(result),
+                                        GQLLabelExpression::name(getText(labels[i]->identifier())));
+  }
+
+  return result;
+}
+
+ElementPatternParts makeInsertElementFiller(GQLParser::InsertElementPatternFillerContext *filler, GQLParseTreeVisitor &visitor) {
+  ElementPatternParts parts;
+  if (!filler) return parts;
+
+  if (filler->elementVariableDeclaration()) {
+    parts.variable = GQLExpr::identifier(getText(filler->elementVariableDeclaration()->elementVariable()->bindingVariable()));
+  }
+
+  if (auto *label_and_props = filler->labelAndPropertySetSpecification()) {
+    if (auto *label_spec = label_and_props->labelSetSpecification()) {
+      parts.label_expression = makeLabelSetSpecification(label_spec);
+    }
+
+    if (auto *prop_spec = label_and_props->elementPropertySpecification()) {
+      parts.properties = castAny<Ptr>(visitor.visit(prop_spec));
+    }
+  }
+
+  return parts;
+}
+
+Ptr makeInsertClause(GQLParser::InsertStatementContext *context, GQLParseTreeVisitor &visitor) {
+  auto clause = make_intrusive<GQLInsertClause>();
+  auto *graph_pattern = context->insertGraphPattern();
+  if (!graph_pattern) return Ptr(clause);
+
+  for (auto *path : graph_pattern->insertPathPatternList()->insertPathPattern()) {
+    auto path_pattern = make_intrusive<GQLInsertPathPattern>();
+    auto nodes = path->insertNodePattern();
+    auto edges = path->insertEdgePattern();
+
+    for (size_t i = 0; i < nodes.size(); ++i) {
+      auto node = makeNodeOrEdgePattern(makeInsertElementFiller(nodes[i]->insertElementPatternFiller(), visitor), false);
+      path_pattern->elements.push_back(node);
+      if (node) path_pattern->children.push_back(node);
+
+      if (i < edges.size()) {
+        auto *edge_ctx = edges[i];
+        EdgeDirection direction = EdgeDirection::Right;
+        GQLParser::InsertElementPatternFillerContext *edge_filler = nullptr;
+
+        if (auto *left = edge_ctx->insertEdgePointingLeft()) {
+          direction = EdgeDirection::Left;
+          edge_filler = left->insertElementPatternFiller();
+        } else if (auto *right = edge_ctx->insertEdgePointingRight()) {
+          direction = EdgeDirection::Right;
+          edge_filler = right->insertElementPatternFiller();
+        } else if (auto *undirected = edge_ctx->insertEdgeUndirected()) {
+          direction = EdgeDirection::Undirected;
+          edge_filler = undirected->insertElementPatternFiller();
+        }
+
+        auto edge = makeNodeOrEdgePattern(makeInsertElementFiller(edge_filler, visitor), true, direction);
+        path_pattern->elements.push_back(edge);
+        if (edge) path_pattern->children.push_back(edge);
+      }
+    }
+
+    clause->path_patterns.push_back(Ptr(path_pattern));
+    clause->children.push_back(Ptr(path_pattern));
+  }
+
+  return Ptr(clause);
+}
+
+Ptr makeSetClause(GQLParser::SetStatementContext *context, GQLParseTreeVisitor &visitor) {
+  auto clause = make_intrusive<GQLSetClause>();
+
+  for (auto *item_ctx : context->setItemList()->setItem()) {
+    if (auto *prop = item_ctx->setPropertyItem()) {
+      String var_name = getText(prop->bindingVariableReference()->bindingVariable());
+      String prop_name = getText(prop->propertyName()->identifier());
+      auto set_item = make_intrusive<GQLSetItem>(GQLSetItem::Kind::Property, std::move(var_name), std::move(prop_name));
+      set_item->value = castAny<Ptr>(visitor.visit(prop->valueExpression()));
+      if (set_item->value) set_item->children.push_back(set_item->value);
+      clause->items.push_back(Ptr(set_item));
+      clause->children.push_back(Ptr(set_item));
+    } else if (auto *all_props = item_ctx->setAllPropertiesItem()) {
+      String var_name = getText(all_props->bindingVariableReference()->bindingVariable());
+      auto set_item = make_intrusive<GQLSetItem>(GQLSetItem::Kind::AllProperties, std::move(var_name));
+      PtrList kv_items;
+      if (auto *kv_list = all_props->propertyKeyValuePairList()) kv_items = castAny<PtrList>(visitor.visit(kv_list));
+      set_item->value = Ptr(make_intrusive<GQLPropertyMap>(std::move(kv_items)));
+      if (set_item->value) set_item->children.push_back(set_item->value);
+      clause->items.push_back(Ptr(set_item));
+      clause->children.push_back(Ptr(set_item));
+    } else if (auto *label = item_ctx->setLabelItem()) {
+      String var_name = getText(label->bindingVariableReference()->bindingVariable());
+      String label_name = getText(label->labelName()->identifier());
+      auto set_item = make_intrusive<GQLSetItem>(GQLSetItem::Kind::Label, std::move(var_name), std::move(label_name));
+      set_item->use_is = label->isOrColon()->IS() != nullptr;
+      clause->items.push_back(Ptr(set_item));
+      clause->children.push_back(Ptr(set_item));
+    }
+  }
+
+  return Ptr(clause);
+}
+
+Ptr makeRemoveClause(GQLParser::RemoveStatementContext *context) {
+  auto clause = make_intrusive<GQLRemoveClause>();
+
+  for (auto *item_ctx : context->removeItemList()->removeItem()) {
+    if (auto *prop = item_ctx->removePropertyItem()) {
+      String var_name = getText(prop->bindingVariableReference()->bindingVariable());
+      String prop_name = getText(prop->propertyName()->identifier());
+      auto remove_item = make_intrusive<GQLRemoveItem>(GQLRemoveItem::Kind::Property, std::move(var_name), std::move(prop_name));
+      clause->items.push_back(Ptr(remove_item));
+      clause->children.push_back(Ptr(remove_item));
+    } else if (auto *label = item_ctx->removeLabelItem()) {
+      String var_name = getText(label->bindingVariableReference()->bindingVariable());
+      String label_name = getText(label->labelName()->identifier());
+      bool use_is = label->isOrColon()->IS() != nullptr;
+      auto remove_item = make_intrusive<GQLRemoveItem>(GQLRemoveItem::Kind::Label, std::move(var_name), std::move(label_name), use_is);
+      clause->items.push_back(Ptr(remove_item));
+      clause->children.push_back(Ptr(remove_item));
+    }
+  }
+
+  return Ptr(clause);
+}
+
+Ptr makeDeleteClause(GQLParser::DeleteStatementContext *context, GQLParseTreeVisitor &visitor) {
+  auto detach_mode = GQLDeleteClause::DetachMode::None;
+  if (context->DETACH())
+    detach_mode = GQLDeleteClause::DetachMode::Detach;
+  else if (context->NODETACH())
+    detach_mode = GQLDeleteClause::DetachMode::NoDetach;
+
+  auto clause = make_intrusive<GQLDeleteClause>(detach_mode);
+
+  for (auto *item_ctx : context->deleteItemList()->deleteItem()) {
+    auto value = castAny<Ptr>(visitor.visit(item_ctx->valueExpression()));
+    clause->items.push_back(value);
+    if (value) clause->children.push_back(value);
+  }
+
+  return Ptr(clause);
+}
+
+Ptr makePrimitiveDataModifyingClause(GQLParser::PrimitiveDataModifyingStatementContext *context, GQLParseTreeVisitor &visitor) {
+  if (auto *insert_stmt = context->insertStatement()) return makeInsertClause(insert_stmt, visitor);
+  if (auto *set_stmt = context->setStatement()) return makeSetClause(set_stmt, visitor);
+  if (auto *remove_stmt = context->removeStatement()) return makeRemoveClause(remove_stmt);
+  if (auto *delete_stmt = context->deleteStatement()) return makeDeleteClause(delete_stmt, visitor);
+  return {};
+}
+
+Ptr makeCallClause(GQLParser::CallProcedureStatementContext *statement, GQLParseTreeVisitor &visitor) {
+  auto *procedure_call = statement->procedureCall();
+
+  if (auto *named = procedure_call->namedProcedureCall()) {
+    auto clause = make_intrusive<GQLCallNamedClause>();
+    clause->optional = statement->OPTIONAL() != nullptr;
+    clause->procedure = GQLExpr::identifier(getText(named->procedureReference()));
+
+    if (auto *argument_list = named->procedureArgumentList()) {
+      for (auto *argument : argument_list->procedureArgument())
+        clause->arguments.push_back(castAny<Ptr>(visitor.visit(argument->valueExpression())));
+    }
+
+    if (auto *yield_clause = named->yieldClause()) {
+      clause->yield = makeYieldClause(yield_clause);
+    }
+
+    appendClause(clause->children, clause->procedure);
+    for (auto &argument : clause->arguments) appendClause(clause->children, argument);
+    appendClause(clause->children, clause->yield);
+    return Ptr(clause);
+  }
+
+  if (auto *inline_call = procedure_call->inlineProcedureCall()) {
+    auto clause = make_intrusive<GQLCallInlineClause>();
+    clause->optional = statement->OPTIONAL() != nullptr;
+    clause->variable_scope = makeCallVariableScopeClause(inline_call->variableScopeClause());
+    clause->subquery =
+        visitor.buildSubquery(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
+    appendClause(clause->children, clause->variable_scope);
+    appendClause(clause->children, clause->subquery);
+    return Ptr(clause);
+  }
+
+  throwUnsupported("procedure call", procedure_call);
+}
+
+PtrList makeDataAccessingClauses(GQLParser::SimpleLinearDataAccessingStatementContext *context, GQLParseTreeVisitor &visitor) {
+  PtrList clauses;
+  if (!context) return clauses;
+
+  for (auto *stmt : context->simpleDataAccessingStatement()) {
+    if (auto *query_stmt = stmt->simpleQueryStatement()) {
+      clauses.push_back(castAny<Ptr>(visitor.visit(query_stmt)));
+    } else if (auto *modify_stmt = stmt->simpleDataModifyingStatement()) {
+      if (auto *primitive = modify_stmt->primitiveDataModifyingStatement()) {
+        appendClause(clauses, makePrimitiveDataModifyingClause(primitive, visitor));
+      } else if (auto *call_stmt = modify_stmt->callDataModifyingProcedureStatement()) {
+        clauses.push_back(makeCallClause(call_stmt->callProcedureStatement(), visitor));
+      }
+    }
+  }
+
+  return clauses;
+}
+
+Ptr makeLinearDataModifyingQuery(GQLParser::LinearDataModifyingStatementContext *context, GQLParseTreeVisitor &visitor) {
+  if (!context) return {};
+
+  PtrList clauses;
+
+  if (auto *focused = context->focusedLinearDataModifyingStatement()) {
+    if (auto *body = focused->focusedLinearDataModifyingStatementBody()) {
+      appendClause(clauses, makeUseGraphClause(body->useGraphClause(), visitor));
+      appendClauseList(clauses, makeDataAccessingClauses(body->simpleLinearDataAccessingStatement(), visitor));
+      if (body->primitiveResultStatement()) {
+        appendQueryResultClause(clauses, castAny<Ptr>(visitor.visit(body->primitiveResultStatement())));
+      }
+    } else if (auto *nested = focused->focusedNestedDataModifyingProcedureSpecification()) {
+      appendClause(clauses, makeUseGraphClause(nested->useGraphClause(), visitor));
+      auto *nested_spec = nested->nestedDataModifyingProcedureSpecification();
+      clauses.push_back(visitor.buildSubquery(nested_spec->procedureBody(), nested_spec));
+    }
+  } else if (auto *ambient = context->ambientLinearDataModifyingStatement()) {
+    if (auto *body = ambient->ambientLinearDataModifyingStatementBody()) {
+      appendClauseList(clauses, makeDataAccessingClauses(body->simpleLinearDataAccessingStatement(), visitor));
+      if (body->primitiveResultStatement()) {
+        appendQueryResultClause(clauses, castAny<Ptr>(visitor.visit(body->primitiveResultStatement())));
+      }
+    } else if (auto *nested = ambient->nestedDataModifyingProcedureSpecification()) {
+      clauses.push_back(visitor.buildSubquery(nested->procedureBody(), nested));
+    }
+  }
+
+  if (clauses.empty()) return {};
+
+  return makeSingleQuery(std::move(clauses));
+}
+
 }  // namespace
 
 Ptr GQLParseTreeVisitor::makeRawTextExpr(antlr4::ParserRuleContext *context) const { return GQLExpr::rawText(getText(context)); }
@@ -1086,6 +1807,8 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
     if (!statement) return {};
 
     if (statement->compositeQueryStatement()) return castAny<Ptr>(visit(statement->compositeQueryStatement()));
+
+    if (statement->linearDataModifyingStatement()) return makeLinearDataModifyingQuery(statement->linearDataModifyingStatement(), *this);
 
     throwUnsupported("nested non-query statement", statement);
   };
@@ -1437,40 +2160,7 @@ std::any GQLParseTreeVisitor::visitSimpleQueryStatement(GQLParser::SimpleQuerySt
 }
 
 std::any GQLParseTreeVisitor::visitCallQueryStatement(GQLParser::CallQueryStatementContext *context) {
-  auto *statement = context->callProcedureStatement();
-  auto *procedure_call = statement->procedureCall();
-
-  if (auto *named = procedure_call->namedProcedureCall()) {
-    auto clause = make_intrusive<GQLCallNamedClause>();
-    clause->optional = statement->OPTIONAL() != nullptr;
-    clause->procedure = GQLExpr::identifier(getText(named->procedureReference()));
-
-    if (auto *argument_list = named->procedureArgumentList()) {
-      for (auto *argument : argument_list->procedureArgument())
-        clause->arguments.push_back(castAny<Ptr>(visit(argument->valueExpression())));
-    }
-
-    if (auto *yield_clause = named->yieldClause()) {
-      clause->yield = makeYieldClause(yield_clause);
-    }
-
-    appendClause(clause->children, clause->procedure);
-    for (auto &argument : clause->arguments) appendClause(clause->children, argument);
-    appendClause(clause->children, clause->yield);
-    return Ptr(clause);
-  }
-
-  if (auto *inline_call = procedure_call->inlineProcedureCall()) {
-    auto clause = make_intrusive<GQLCallInlineClause>();
-    clause->optional = statement->OPTIONAL() != nullptr;
-    clause->variable_scope = makeCallVariableScopeClause(inline_call->variableScopeClause());
-    clause->subquery = buildSubquery(inline_call->nestedProcedureSpecification()->procedureSpecification()->procedureBody(), inline_call);
-    appendClause(clause->children, clause->variable_scope);
-    appendClause(clause->children, clause->subquery);
-    return Ptr(clause);
-  }
-
-  throwUnsupported("procedure call", procedure_call);
+  return makeCallClause(context->callProcedureStatement(), *this);
 }
 
 std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQueryStatementContext *context) {
@@ -1622,45 +2312,42 @@ std::any GQLParseTreeVisitor::visitPathPatternList(GQLParser::PathPatternListCon
 }
 
 std::any GQLParseTreeVisitor::visitPathPattern(GQLParser::PathPatternContext *context) {
-  auto elements = castAny<PtrList>(visit(context->pathPatternExpression()));
-  auto pattern = make_intrusive<GQLPathPattern>(std::move(elements));
+  auto pattern = make_intrusive<GQLPathPattern>();
 
   if (context->pathVariableDeclaration()) {
     pattern->variable = GQLExpr::identifier(getText(context->pathVariableDeclaration()->pathVariable()->bindingVariable()));
-    pattern->children.insert(pattern->children.begin(), pattern->variable);
+    appendClause(pattern->children, pattern->variable);
   }
 
   if (context->pathPatternPrefix()) {
     pattern->prefix = makePathPatternPrefix(context->pathPatternPrefix());
-    if (pattern->prefix) {
-      auto insert_pos = pattern->variable ? pattern->children.begin() + 1 : pattern->children.begin();
-      pattern->children.insert(insert_pos, pattern->prefix);
-    }
+    appendClause(pattern->children, pattern->prefix);
   }
+
+  pattern->expression = castAny<Ptr>(visit(context->pathPatternExpression()));
+  appendClause(pattern->children, pattern->expression);
 
   return Ptr(pattern);
 }
 
-std::any GQLParseTreeVisitor::visitPpePathTerm(GQLParser::PpePathTermContext *context) {
-  return castAny<PtrList>(visit(context->pathTerm()));
-}
+std::any GQLParseTreeVisitor::visitPpePathTerm(GQLParser::PpePathTermContext *context) { return castAny<Ptr>(visit(context->pathTerm())); }
 
 std::any GQLParseTreeVisitor::visitPpeMultisetAlternation(GQLParser::PpeMultisetAlternationContext *context) {
-  throwUnsupported("path pattern multiset alternation", context);
+  return makePathPatternAlternation(GQLPathPatternAlternation::Kind::MultisetAlternation, context->pathTerm(), *this);
 }
 
 std::any GQLParseTreeVisitor::visitPpePatternUnion(GQLParser::PpePatternUnionContext *context) {
-  throwUnsupported("path pattern union", context);
+  return makePathPatternAlternation(GQLPathPatternAlternation::Kind::Union, context->pathTerm(), *this);
 }
 
 std::any GQLParseTreeVisitor::visitPathTerm(GQLParser::PathTermContext *context) {
-  PtrList elements;
+  PtrList factors;
 
   for (auto *factor : context->pathFactor()) {
-    elements.push_back(castAny<Ptr>(visit(factor)));
+    factors.push_back(castAny<Ptr>(visit(factor)));
   }
 
-  return elements;
+  return Ptr(make_intrusive<GQLPathTerm>(std::move(factors)));
 }
 
 std::any GQLParseTreeVisitor::visitPfPathPrimary(GQLParser::PfPathPrimaryContext *context) {
@@ -1673,7 +2360,12 @@ std::any GQLParseTreeVisitor::visitPfQuantifiedPathPrimary(GQLParser::PfQuantifi
     return node;
   }
 
-  throwUnsupported("quantified non-edge path primary", context);
+  auto wrapper = make_intrusive<GQLQuantifiedPathPrimary>();
+  wrapper->operand = node;
+  wrapper->quantifier = makeQuantifier(context->graphPatternQuantifier());
+  appendClause(wrapper->children, wrapper->operand);
+  appendClause(wrapper->children, wrapper->quantifier);
+  return Ptr(wrapper);
 }
 
 std::any GQLParseTreeVisitor::visitPfQuestionedPathPrimary(GQLParser::PfQuestionedPathPrimaryContext *context) {
@@ -1682,7 +2374,12 @@ std::any GQLParseTreeVisitor::visitPfQuestionedPathPrimary(GQLParser::PfQuestion
     return node;
   }
 
-  throwUnsupported("question-mark non-edge path primary", context);
+  auto wrapper = make_intrusive<GQLQuantifiedPathPrimary>();
+  wrapper->operand = node;
+  wrapper->quantifier = makeQuestionQuantifier();
+  appendClause(wrapper->children, wrapper->operand);
+  appendClause(wrapper->children, wrapper->quantifier);
+  return Ptr(wrapper);
 }
 
 std::any GQLParseTreeVisitor::visitPpElementPattern(GQLParser::PpElementPatternContext *context) {
@@ -1703,8 +2400,8 @@ std::any GQLParseTreeVisitor::visitPpParenthesizedPathPatternExpression(GQLParse
     appendClause(pattern->children, pattern->prefix);
   }
 
-  pattern->elements = castAny<PtrList>(visit(pattern_context->pathPatternExpression()));
-  appendClauseList(pattern->children, PtrList(pattern->elements.begin(), pattern->elements.end()));
+  pattern->expression = castAny<Ptr>(visit(pattern_context->pathPatternExpression()));
+  appendClause(pattern->children, pattern->expression);
 
   if (pattern_context->parenthesizedPathPatternWhereClause()) {
     pattern->where =
@@ -2200,12 +2897,36 @@ std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpres
     return castAny<Ptr>(visit(context->parenthesizedValueExpression()->valueExpression()));
   }
 
+  if (auto *element_id_function = context->element_idFunction()) {
+    PtrList arguments;
+    arguments.push_back(GQLExpr::identifier(getElementVariableName(element_id_function->elementVariableReference())));
+    return GQLExpr::functionCall("ELEMENT_ID", std::move(arguments));
+  }
+
+  if (auto *case_expr = context->caseExpression()) {
+    return makeCaseExpression(case_expr, *this);
+  }
+
+  if (auto *cast_spec = context->castSpecification()) {
+    return makeCastSpecification(cast_spec, *this);
+  }
+
   return makeRawTextExpr(context);
 }
 
 std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::UnsignedValueSpecificationContext *context) {
   if (context->unsignedLiteral()) {
     return castAny<Ptr>(visit(context->unsignedLiteral()));
+  }
+
+  if (auto *general = context->generalValueSpecification()) {
+    if (general->dynamicParameterSpecification()) {
+      return GQLExpr::literal(getText(general->dynamicParameterSpecification()));
+    }
+
+    if (general->SESSION_USER()) {
+      return GQLExpr::literal("SESSION_USER");
+    }
   }
 
   return makeRawTextExpr(context);
@@ -2223,6 +2944,10 @@ std::any GQLParseTreeVisitor::visitUnsignedLiteral(GQLParser::UnsignedLiteralCon
   }
 
   return GQLExpr::literal(getText(context));
+}
+
+std::any GQLParseTreeVisitor::visitLinearDataModifyingStatement(GQLParser::LinearDataModifyingStatementContext *context) {
+  return makeLinearDataModifyingQuery(context, *this);
 }
 
 }  // namespace OPENGQL

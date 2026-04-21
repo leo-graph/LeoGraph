@@ -19,30 +19,11 @@ class GQLPathModePrefix final : public DB::IAST {
   }
 
  protected:
-  static const char *getPathModeKeyword(PathMode mode) {
-    switch (mode) {
-      case PathMode::Walk:
-        return "WALK";
-      case PathMode::Trail:
-        return "TRAIL";
-      case PathMode::Simple:
-        return "SIMPLE";
-      case PathMode::Acyclic:
-        return "ACYCLIC";
-      case PathMode::None:
-        return "";
-    }
-
-    return "";
-  }
-
-  static const char *getPathKeyword(bool use_paths_keyword) { return use_paths_keyword ? "PATHS" : "PATH"; }
-
   void formatImpl(WriteBuffer &ostr, const FormatSettings &, FormatState &, FormatStateStacked) const override {
     chassert(path_mode != PathMode::None);
-    ostr << getPathModeKeyword(path_mode);
+    ostr << detail::getPathModeKeyword(path_mode);
 
-    if (has_path_keyword) ostr << " " << getPathKeyword(use_paths_keyword);
+    if (has_path_keyword) ostr << " " << detail::getPathKeyword(use_paths_keyword);
   }
 };
 

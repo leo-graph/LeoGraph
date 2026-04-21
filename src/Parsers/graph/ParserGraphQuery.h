@@ -10,6 +10,6 @@ class ParserGraphQuery : public IParserBase {
   bool parseImpl(Pos& pos, ASTPtr& node, Expected& expected) override;
 };
 
-ASTPtr parseQuery(std::string_view query);
+ASTPtr parseQuery(std::string_view query, bool use_statement_rule = false);
 
 }  // namespace DB

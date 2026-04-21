@@ -61,6 +61,27 @@ inline const char* getCombinedQueryOperatorKeyword(CombinedQueryOperator operati
   return "UNION";
 }
 
+inline const char *getPathModeKeyword(PathMode mode) {
+  switch (mode) {
+    case PathMode::Walk:
+      return "WALK";
+    case PathMode::Trail:
+      return "TRAIL";
+    case PathMode::Simple:
+      return "SIMPLE";
+    case PathMode::Acyclic:
+      return "ACYCLIC";
+    case PathMode::None:
+      return "";
+  }
+
+  return "";
+}
+
+inline const char *getPathKeyword(bool use_paths_keyword) {
+  return use_paths_keyword ? "PATHS" : "PATH";
+}
+
 inline void formatEdgePrefix(WriteBuffer& ostr, EdgeDirection direction) {
   switch (direction) {
     case EdgeDirection::Left:

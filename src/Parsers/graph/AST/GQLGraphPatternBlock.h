@@ -53,7 +53,7 @@ class GQLGraphPatternBlock final : public DB::IAST {
     bool has_content = false;
 
     auto write_space = [&]() {
-      ostr << (has_content ? " " : " ");
+      ostr << " ";
       has_content = true;
     };
 

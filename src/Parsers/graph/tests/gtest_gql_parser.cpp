@@ -18,6 +18,8 @@ namespace {
 
 ASTPtr parseGraphOrThrow(std::string_view query) { return DB::parseQuery(query); }
 
+ASTPtr parseDMLOrThrow(std::string_view query) { return DB::parseQuery(query, true); }
+
 ASTPtr parseTopLevelOrThrow(const String& query) {
   ParserQuery parser(query.data() + query.size());
   return DB::parseQuery(parser, query, 0, 0, 0);
@@ -217,6 +219,32 @@ const GAST::GQLPathPattern* getOnlyPathPattern(const GAST::GQLMatchClause& match
   return path;
 }
 
+const GAST::GQLPathPattern* getPathPattern(const ASTPtr& ast) {
+  const auto* path = ast->as<GAST::GQLPathPattern>();
+  EXPECT_NE(path, nullptr);
+  return path;
+}
+
+const GAST::GQLPathTerm* getPathTerm(const ASTPtr& ast) {
+  const auto* term = ast->as<GAST::GQLPathTerm>();
+  EXPECT_NE(term, nullptr);
+  return term;
+}
+
+const GAST::GQLPathTerm* getPathTerm(const GAST::GQLPathPattern& path) { return getPathTerm(path.expression); }
+
+const GAST::GQLPathPatternAlternation* getPathPatternAlternation(const ASTPtr& ast) {
+  const auto* alternation = ast->as<GAST::GQLPathPatternAlternation>();
+  EXPECT_NE(alternation, nullptr);
+  return alternation;
+}
+
+const GAST::GQLQuantifiedPathPrimary* getQuantifiedPathPrimary(const ASTPtr& ast) {
+  const auto* quantified = ast->as<GAST::GQLQuantifiedPathPrimary>();
+  EXPECT_NE(quantified, nullptr);
+  return quantified;
+}
+
 const GAST::GQLPathModePrefix* getPathModePrefix(const ASTPtr& ast) {
   const auto* prefix = ast->as<GAST::GQLPathModePrefix>();
   EXPECT_NE(prefix, nullptr);
@@ -227,6 +255,12 @@ const GAST::GQLPathSearchPrefix* getPathSearchPrefix(const ASTPtr& ast) {
   const auto* prefix = ast->as<GAST::GQLPathSearchPrefix>();
   EXPECT_NE(prefix, nullptr);
   return prefix;
+}
+
+const GAST::GQLCountSpec* getCountSpec(const ASTPtr& ast) {
+  const auto* count = ast->as<GAST::GQLCountSpec>();
+  EXPECT_NE(count, nullptr);
+  return count;
 }
 
 const GAST::GQLKeepClause* getKeepClause(const ASTPtr& ast) {
@@ -313,9 +347,11 @@ TEST(GQLParser, SimpleMatchClause) {
 
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->elements.size(), 1);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
 
-  const auto* node = path->elements[0]->as<GAST::GQLNodePattern>();
+  const auto* node = term->factors[0]->as<GAST::GQLNodePattern>();
   ASSERT_NE(node, nullptr);
 
   const auto* variable = getExpr(node->variable);
@@ -342,6 +378,42 @@ TEST(GQLParser, OptionalMatchIsAcceptedByTopLevelParser) {
   const auto* return_clause = getReturnClause(*clauses, 1);
   ASSERT_NE(return_clause, nullptr);
   ASSERT_EQ(return_clause->items.size(), 1);
+}
+
+TEST(GQLParser, GraphSelectIsAcceptedByTopLevelParser) {
+  auto ast = parseTopLevelOrThrow("SELECT a FROM { MATCH (a) RETURN a }");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 1);
+  ASSERT_NE(getSelectClause(*clauses, 0), nullptr);
+}
+
+TEST(GQLParser, FocusedUseQueryIsAcceptedByTopLevelParser) {
+  auto ast = parseTopLevelOrThrow("USE foo MATCH (a) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  ASSERT_NE(getMatchClause(*clauses, 1), nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+}
+
+TEST(GQLParser, CallIsAcceptedByTopLevelParser) {
+  auto ast = parseTopLevelOrThrow("CALL foo(a) YIELD x RETURN x");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+  ASSERT_NE(getCallNamedClause(*clauses, 0), nullptr);
+}
+
+TEST(GQLParser, PlainSqlSelectFallsBackToSqlParser) {
+  auto ast = parseTopLevelOrThrow("SELECT 1");
+  ASSERT_EQ(ast->as<GAST::GQLSingleQuery>(), nullptr);
+}
+
+TEST(GQLParser, PlainSqlUseFallsBackToSqlParser) {
+  auto ast = parseTopLevelOrThrow("USE default");
+  ASSERT_EQ(ast->as<GAST::GQLSingleQuery>(), nullptr);
 }
 
 TEST(GQLParser, FocusedUseGraphQueryPreservesUseClause) {
@@ -470,6 +542,26 @@ TEST(GQLParser, NestedQueryKeepsNextStatementsInsideSubqueryClause) {
   EXPECT_EQ(getExpr(yield_clause->items[0])->text, "a");
   ASSERT_NE(getClausesQuery(next_clause->query), nullptr);
   EXPECT_EQ(formatAST(*subquery), "{ MATCH (a) RETURN a NEXT YIELD a RETURN a }");
+}
+
+TEST(GQLParser, NestedQueryCloneKeepsChildrenOrder) {
+  auto ast = parseGraphOrThrow("{ AT foo VALUE x = 1 MATCH (a) RETURN a NEXT YIELD a RETURN a }");
+  const auto* subquery = getSubquery(ast);
+  ASSERT_NE(subquery, nullptr);
+  ASSERT_EQ(subquery->children.size(), 4);
+  ASSERT_NE(subquery->children[0]->as<GAST::GQLAtSchemaClause>(), nullptr);
+  ASSERT_NE(subquery->children[1]->as<GAST::GQLBindingVariableDefinitionBlock>(), nullptr);
+  ASSERT_NE(subquery->children[2]->as<GAST::GQLSingleQuery>(), nullptr);
+  ASSERT_NE(subquery->children[3]->as<GAST::GQLSubqueryNextClause>(), nullptr);
+
+  auto cloned = subquery->clone();
+  const auto* cloned_subquery = getSubquery(cloned);
+  ASSERT_NE(cloned_subquery, nullptr);
+  ASSERT_EQ(cloned_subquery->children.size(), 4);
+  EXPECT_NE(cloned_subquery->children[0]->as<GAST::GQLAtSchemaClause>(), nullptr);
+  EXPECT_NE(cloned_subquery->children[1]->as<GAST::GQLBindingVariableDefinitionBlock>(), nullptr);
+  EXPECT_NE(cloned_subquery->children[2]->as<GAST::GQLSingleQuery>(), nullptr);
+  EXPECT_NE(cloned_subquery->children[3]->as<GAST::GQLSubqueryNextClause>(), nullptr);
 }
 
 TEST(GQLParser, NestedQueryPreservesStructuredSchemaAndBindings) {
@@ -813,9 +905,11 @@ TEST(GQLParser, RightEdgeWithRangeQuantifier) {
 
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->elements.size(), 3);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
 
-  const auto* edge = path->elements[1]->as<GAST::GQLEdgePattern>();
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
   ASSERT_NE(edge, nullptr);
   EXPECT_EQ(edge->direction, GAST::EdgeDirection::Right);
 
@@ -844,8 +938,10 @@ TEST(GQLParser, LabelConjunction) {
 
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* node = path->elements[0]->as<GAST::GQLNodePattern>();
+  const auto* node = term->factors[0]->as<GAST::GQLNodePattern>();
   ASSERT_NE(node, nullptr);
 
   const auto* conjunction = getLabelExpr(node->label_expression);
@@ -1196,9 +1292,54 @@ TEST(GQLParser, MatchParsesPathSearchPrefixCountedGroups) {
   ASSERT_NE(prefix, nullptr);
   EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::CountedShortestGroup);
   EXPECT_EQ(prefix->count_kind, GAST::CountKind::Groups);
-  EXPECT_EQ(prefix->count, "3");
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->kind, GAST::CountSpecKind::Integer);
+  EXPECT_EQ(count->text, "3");
   EXPECT_TRUE(prefix->use_groups_keyword);
   EXPECT_EQ(formatAST(*clauses), "MATCH SHORTEST 3 GROUPS (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchParsesPathSearchPrefixAnyCountedPaths) {
+  auto ast = parseGraphOrThrow("MATCH ANY 3 PATHS (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->kind, GAST::CountSpecKind::Integer);
+  EXPECT_EQ(count->text, "3");
+  EXPECT_EQ(formatAST(*clauses), "MATCH ANY 3 PATHS (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchParsesPathSearchPrefixDynamicGroupCount) {
+  auto ast = parseGraphOrThrow("MATCH SHORTEST $n GROUPS (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::CountedShortestGroup);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Groups);
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->kind, GAST::CountSpecKind::DynamicParameter);
+  EXPECT_EQ(count->text, "$n");
+  EXPECT_EQ(formatAST(*clauses), "MATCH SHORTEST $n GROUPS (a)-[*]->(b) RETURN a");
 }
 
 TEST(GQLParser, PathSearchPrefixCloneIsDeep) {
@@ -1218,6 +1359,13 @@ TEST(GQLParser, PathSearchPrefixCloneIsDeep) {
   const auto* cloned_prefix = getPathSearchPrefix(cloned);
   ASSERT_NE(cloned_prefix, nullptr);
   EXPECT_NE(cloned_prefix, prefix);
+  ASSERT_NE(cloned_prefix->count, nullptr);
+  ASSERT_NE(prefix->count, nullptr);
+  EXPECT_NE(cloned_prefix->count.get(), prefix->count.get());
+  const auto* cloned_count = getCountSpec(cloned_prefix->count);
+  ASSERT_NE(cloned_count, nullptr);
+  EXPECT_EQ(cloned_count->kind, GAST::CountSpecKind::Integer);
+  EXPECT_EQ(cloned_count->text, "3");
   EXPECT_EQ(formatAST(*prefix), "SHORTEST 3 GROUPS");
   EXPECT_EQ(formatAST(*cloned_prefix), "SHORTEST 3 GROUPS");
 }
@@ -1244,9 +1392,11 @@ TEST(GQLParser, ParenthesizedPathPatternKeepsQuestionQuantifier) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->elements.size(), 1);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
 
-  const auto* parenthesized = getParenthesizedPathPattern(path->elements[0]);
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
   ASSERT_NE(parenthesized, nullptr);
   const auto* quantifier = getQuantifier(parenthesized->quantifier);
   ASSERT_NE(quantifier, nullptr);
@@ -1254,22 +1404,277 @@ TEST(GQLParser, ParenthesizedPathPatternKeepsQuestionQuantifier) {
   EXPECT_EQ(formatAST(*clauses), "MATCH ((a)-[e]->(b))? RETURN e");
 }
 
-TEST(GQLParser, TopLevelPathPatternUnionThrowsUnsupported) {
-  try {
-    (void)parseGraphOrThrow("MATCH (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
-    FAIL() << "Expected `DB::Exception`";
-  } catch (const DB::Exception& e) {
-    EXPECT_NE(e.message().find("Unsupported GQL path pattern union"), String::npos);
-  }
+TEST(GQLParser, NodePatternQuantifierBuildsWrapper) {
+  auto ast = parseGraphOrThrow("MATCH (a){2} RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* quantified = getQuantifiedPathPrimary(term->factors[0]);
+  ASSERT_NE(quantified, nullptr);
+  ASSERT_NE(quantified->operand->as<GAST::GQLNodePattern>(), nullptr);
+  const auto* quantifier = getQuantifier(quantified->quantifier);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Exact);
+  EXPECT_EQ(quantifier->lower, "2");
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a){2} RETURN a");
 }
 
-TEST(GQLParser, TopLevelPathPatternAlternationThrowsUnsupported) {
-  try {
-    (void)parseGraphOrThrow("MATCH (a)-[e]->(b) |+| (c)-[f]->(d) RETURN a");
-    FAIL() << "Expected `DB::Exception`";
-  } catch (const DB::Exception& e) {
-    EXPECT_NE(e.message().find("Unsupported GQL path pattern multiset alternation"), String::npos);
+TEST(GQLParser, NodePatternQuestionQuantifierBuildsWrapper) {
+  auto ast = parseGraphOrThrow("MATCH (a)? RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* quantified = getQuantifiedPathPrimary(term->factors[0]);
+  ASSERT_NE(quantified, nullptr);
+  ASSERT_NE(quantified->operand->as<GAST::GQLNodePattern>(), nullptr);
+  const auto* quantifier = getQuantifier(quantified->quantifier);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Question);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)? RETURN a");
+}
+
+TEST(GQLParser, TopLevelPathPatternUnionBuildsAlternation) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* alternation = getPathPatternAlternation(path->expression);
+  ASSERT_NE(alternation, nullptr);
+  EXPECT_EQ(alternation->kind, GAST::GQLPathPatternAlternation::Kind::Union);
+  ASSERT_EQ(alternation->operands.size(), 2);
+  ASSERT_NE(getPathTerm(alternation->operands[0]), nullptr);
+  ASSERT_NE(getPathTerm(alternation->operands[1]), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
+}
+
+TEST(GQLParser, TopLevelPathPatternAlternationBuildsStructuredAlternation) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) |+| (c)-[f]->(d) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* alternation = getPathPatternAlternation(path->expression);
+  ASSERT_NE(alternation, nullptr);
+  EXPECT_EQ(alternation->kind, GAST::GQLPathPatternAlternation::Kind::MultisetAlternation);
+  ASSERT_EQ(alternation->operands.size(), 2);
+  ASSERT_NE(getPathTerm(alternation->operands[0]), nullptr);
+  ASSERT_NE(getPathTerm(alternation->operands[1]), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) |+| (c)-[f]->(d) RETURN a");
+}
+
+TEST(GQLParser, ParenthesizedPathPatternKeepsAlternationAndQuestionQuantifier) {
+  auto ast = parseGraphOrThrow("MATCH ((a)-[e]->(b) | (c)-[f]->(d))? RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
+  ASSERT_NE(parenthesized, nullptr);
+  const auto* alternation = getPathPatternAlternation(parenthesized->expression);
+  ASSERT_NE(alternation, nullptr);
+  EXPECT_EQ(alternation->kind, GAST::GQLPathPatternAlternation::Kind::Union);
+
+  const auto* quantifier = getQuantifier(parenthesized->quantifier);
+  ASSERT_NE(quantifier, nullptr);
+  EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Question);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ((a)-[e]->(b) | (c)-[f]->(d))? RETURN e");
+}
+
+TEST(GQLParser, PathPatternPrefixStaysOutsideAlternation) {
+  auto ast = parseGraphOrThrow("MATCH TRAIL (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* prefix = getPathModePrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Trail);
+
+  const auto* alternation = getPathPatternAlternation(path->expression);
+  ASSERT_NE(alternation, nullptr);
+  ASSERT_EQ(alternation->operands.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "MATCH TRAIL (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
+}
+
+TEST(GQLParser, PathPatternVariableStaysOutsideAlternation) {
+  auto ast = parseGraphOrThrow("MATCH p = (a)-[e]->(b) | (c)-[f]->(d) RETURN p");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+
+  const auto* variable = getExpr(path->variable);
+  ASSERT_NE(variable, nullptr);
+  EXPECT_EQ(variable->text, "p");
+  ASSERT_NE(getPathPatternAlternation(path->expression), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH p = (a)-[e]->(b) | (c)-[f]->(d) RETURN p");
+}
+
+TEST(GQLParser, PathPatternListKeepsAlternationScopedToSinglePattern) {
+  auto ast = parseGraphOrThrow("MATCH (a), (b)-[e]->(c) | (d)-[f]->(g) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_EQ(match->path_patterns.size(), 2);
+
+  const auto* first = getPathPattern(match->path_patterns[0]);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(getPathTerm(*first), nullptr);
+
+  const auto* second = getPathPattern(match->path_patterns[1]);
+  ASSERT_NE(second, nullptr);
+  ASSERT_NE(getPathPatternAlternation(second->expression), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a), (b)-[e]->(c) | (d)-[f]->(g) RETURN a");
+}
+
+TEST(GQLParser, PathTermCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+
+  auto cloned = term->clone();
+  const auto* cloned_term = getPathTerm(cloned);
+  ASSERT_NE(cloned_term, nullptr);
+  ASSERT_EQ(cloned_term->factors.size(), 3);
+
+  for (size_t i = 0; i < cloned_term->factors.size(); ++i) {
+    EXPECT_NE(cloned_term->factors[i].get(), term->factors[i].get());
   }
+
+  EXPECT_EQ(formatAST(*term), "(a)-[e]->(b)");
+  EXPECT_EQ(formatAST(*cloned_term), "(a)-[e]->(b)");
+}
+
+TEST(GQLParser, PathPatternAlternationCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) | (c)-[f]->(d) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* alternation = getPathPatternAlternation(path->expression);
+  ASSERT_NE(alternation, nullptr);
+  ASSERT_EQ(alternation->operands.size(), 2);
+
+  auto cloned = alternation->clone();
+  const auto* cloned_alternation = getPathPatternAlternation(cloned);
+  ASSERT_NE(cloned_alternation, nullptr);
+  ASSERT_EQ(cloned_alternation->operands.size(), 2);
+
+  for (size_t i = 0; i < cloned_alternation->operands.size(); ++i) {
+    EXPECT_NE(cloned_alternation->operands[i].get(), alternation->operands[i].get());
+    ASSERT_NE(getPathTerm(cloned_alternation->operands[i]), nullptr);
+  }
+
+  EXPECT_EQ(formatAST(*alternation), "(a)-[e]->(b) | (c)-[f]->(d)");
+  EXPECT_EQ(formatAST(*cloned_alternation), "(a)-[e]->(b) | (c)-[f]->(d)");
+}
+
+TEST(GQLParser, PathPatternCloneKeepsChildrenOrder) {
+  auto ast = parseGraphOrThrow("MATCH p = TRAIL (a)-[e]->(b) RETURN p");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  ASSERT_EQ(path->children.size(), 3);
+  ASSERT_NE(getExpr(path->children[0]), nullptr);
+  ASSERT_NE(path->children[1]->as<GAST::GQLPathModePrefix>(), nullptr);
+  ASSERT_NE(path->children[2]->as<GAST::GQLPathTerm>(), nullptr);
+
+  auto cloned = path->clone();
+  const auto* cloned_path = getPathPattern(cloned);
+  ASSERT_NE(cloned_path, nullptr);
+  ASSERT_EQ(cloned_path->children.size(), 3);
+  EXPECT_NE(getExpr(cloned_path->children[0]), nullptr);
+  EXPECT_NE(cloned_path->children[1]->as<GAST::GQLPathModePrefix>(), nullptr);
+  EXPECT_NE(cloned_path->children[2]->as<GAST::GQLPathTerm>(), nullptr);
+}
+
+TEST(GQLParser, ParenthesizedPathPatternCloneKeepsChildrenOrder) {
+  auto ast = parseGraphOrThrow("MATCH (q = TRAIL (a)-[e]->(b) WHERE e)? RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
+  ASSERT_NE(parenthesized, nullptr);
+  ASSERT_EQ(parenthesized->children.size(), 5);
+  ASSERT_NE(getExpr(parenthesized->children[0]), nullptr);
+  ASSERT_NE(parenthesized->children[1]->as<GAST::GQLPathModePrefix>(), nullptr);
+  ASSERT_NE(parenthesized->children[2]->as<GAST::GQLPathTerm>(), nullptr);
+  ASSERT_NE(parenthesized->children[3]->as<GAST::GQLWhereClause>(), nullptr);
+  ASSERT_NE(parenthesized->children[4]->as<GAST::GQLQuantifier>(), nullptr);
+
+  auto cloned = parenthesized->clone();
+  const auto* cloned_parenthesized = getParenthesizedPathPattern(cloned);
+  ASSERT_NE(cloned_parenthesized, nullptr);
+  ASSERT_EQ(cloned_parenthesized->children.size(), 5);
+  EXPECT_NE(getExpr(cloned_parenthesized->children[0]), nullptr);
+  EXPECT_NE(cloned_parenthesized->children[1]->as<GAST::GQLPathModePrefix>(), nullptr);
+  EXPECT_NE(cloned_parenthesized->children[2]->as<GAST::GQLPathTerm>(), nullptr);
+  EXPECT_NE(cloned_parenthesized->children[3]->as<GAST::GQLWhereClause>(), nullptr);
+  EXPECT_NE(cloned_parenthesized->children[4]->as<GAST::GQLQuantifier>(), nullptr);
 }
 
 TEST(GQLParser, SimplifiedPathPatternBuildsDedicatedElementTree) {
@@ -1281,9 +1686,11 @@ TEST(GQLParser, SimplifiedPathPatternBuildsDedicatedElementTree) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
-  ASSERT_EQ(path->elements.size(), 3);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Right);
   EXPECT_EQ(simplified->quantifier, nullptr);
@@ -1321,8 +1728,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsGroupAndUnion) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
 
   const auto* concatenation = getSimplifiedPathExpr(simplified->expression);
@@ -1352,8 +1761,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsDirectionOverrideAndMultisetAlternatio
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Any);
 
@@ -1380,8 +1791,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsOuterQuantifier) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   const auto* quantifier = getQuantifier(simplified->quantifier);
   ASSERT_NE(quantifier, nullptr);
@@ -1401,8 +1814,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsQuestionQuantifier) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   const auto* quantifier = getQuantifier(simplified->quantifier);
   ASSERT_NE(quantifier, nullptr);
@@ -1419,8 +1834,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsAnyDirectionOverride) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Any);
 
@@ -1445,8 +1862,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsConjunction) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
 
   const auto* conjunction = getSimplifiedPathExpr(simplified->expression);
@@ -1467,8 +1886,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsUndirectedDefaulting) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::Undirected);
   EXPECT_EQ(getSimplifiedPathExpr(simplified->expression)->text, "KNOWS");
@@ -1484,8 +1905,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsUndirectedOrRightDefaulting) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
   EXPECT_EQ(simplified->default_direction, GAST::EdgeDirection::UndirectedOrRight);
   EXPECT_EQ(getSimplifiedPathExpr(simplified->expression)->text, "KNOWS");
@@ -1501,8 +1924,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsGroupRepetition) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
 
   const auto* repetition = getSimplifiedPathExpr(simplified->expression);
@@ -1532,8 +1957,10 @@ TEST(GQLParser, SimplifiedPathPatternCloneCopiesNaryOperands) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
 
   const auto* path_union = getSimplifiedPathExpr(simplified->expression);
@@ -1567,8 +1994,10 @@ TEST(GQLParser, SimplifiedPathPatternKeepsQuotedLabelText) {
   ASSERT_NE(match, nullptr);
   const auto* path = getOnlyPathPattern(*match);
   ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
 
-  const auto* simplified = getSimplifiedPathPattern(path->elements[1]);
+  const auto* simplified = getSimplifiedPathPattern(term->factors[1]);
   ASSERT_NE(simplified, nullptr);
 
   const auto* label_expr = getSimplifiedPathExpr(simplified->expression);
@@ -1834,6 +2263,59 @@ TEST(GQLParser, AggregateAndConstructorsBuildStructuredNodes) {
   EXPECT_EQ(formatAST(*clauses), "RETURN COUNT(*), [1, 2], RECORD {name: 1}");
 }
 
+TEST(GQLParser, AggregateFunctionsKeepSetQuantifierStructure) {
+  auto ast = parseGraphOrThrow("RETURN SUM(DISTINCT a), COUNT(ALL b), PERCENTILE_CONT(DISTINCT a, 0.5)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 1);
+
+  const auto* return_clause = getReturnClause(*clauses, 0);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 3);
+
+  const auto* sum = getExpr(return_clause->items[0]);
+  const auto* count = getExpr(return_clause->items[1]);
+  const auto* percentile = getExpr(return_clause->items[2]);
+  ASSERT_NE(sum, nullptr);
+  ASSERT_NE(count, nullptr);
+  ASSERT_NE(percentile, nullptr);
+
+  EXPECT_EQ(sum->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(sum->set_quantifier, GAST::GQLExpr::SetQuantifier::Distinct);
+  EXPECT_EQ(count->set_quantifier, GAST::GQLExpr::SetQuantifier::All);
+  EXPECT_EQ(percentile->text, "PERCENTILE_CONT");
+  EXPECT_EQ(percentile->set_quantifier, GAST::GQLExpr::SetQuantifier::Distinct);
+  ASSERT_EQ(percentile->children.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "RETURN SUM(DISTINCT a), COUNT(ALL b), PERCENTILE_CONT(DISTINCT a, 0.5)");
+}
+
+TEST(GQLParser, ValuePrimaryKeepsDynamicAndSpecialValuesStructured) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN $x, SESSION_USER, ELEMENT_ID(a)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+
+  const auto* return_clause = getReturnClause(*clauses);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 3);
+
+  const auto* parameter = getExpr(return_clause->items[0]);
+  const auto* session_user = getExpr(return_clause->items[1]);
+  const auto* element_id = getExpr(return_clause->items[2]);
+  ASSERT_NE(parameter, nullptr);
+  ASSERT_NE(session_user, nullptr);
+  ASSERT_NE(element_id, nullptr);
+
+  EXPECT_EQ(parameter->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(parameter->text, "$x");
+  EXPECT_EQ(session_user->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(session_user->text, "SESSION_USER");
+  EXPECT_EQ(element_id->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(element_id->text, "ELEMENT_ID");
+  ASSERT_EQ(element_id->children.size(), 1);
+  EXPECT_EQ(getExpr(element_id->children[0])->text, "a");
+}
+
 TEST(GQLParser, FormatNodePattern) {
   auto node = make_intrusive<GAST::GQLNodePattern>();
   node->variable = GAST::GQLExpr::identifier("n");
@@ -1881,6 +2363,961 @@ TEST(GQLParser, InvalidSyntaxThrowsException) {
   } catch (const DB::Exception& e) {
     EXPECT_FALSE(e.message().empty());
   }
+}
+
+// --- Phase 5: Expression completion ---
+
+TEST(GQLParser, CaseAbbreviationNullif) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN NULLIF(a.x, 0)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "NULLIF");
+  ASSERT_EQ(expr->children.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "RETURN NULLIF(a.x, 0)");
+}
+
+TEST(GQLParser, CaseAbbreviationCoalesce) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN COALESCE(a.x, a.y, 0)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "COALESCE");
+  ASSERT_EQ(expr->children.size(), 3);
+  EXPECT_EQ(formatAST(*clauses), "RETURN COALESCE(a.x, a.y, 0)");
+}
+
+TEST(GQLParser, SearchedCaseExpression) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE WHEN a.x > 0 THEN 1 WHEN a.x < 0 THEN -1 ELSE 0 END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
+  EXPECT_EQ(case_expr->operand, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 2);
+  ASSERT_EQ(case_expr->then_results.size(), 2);
+  EXPECT_NE(case_expr->else_result, nullptr);
+  EXPECT_EQ(formatAST(*case_expr), "CASE WHEN (a.x > 0) THEN 1 WHEN (a.x < 0) THEN -1 ELSE 0 END");
+}
+
+TEST(GQLParser, SimpleCaseExpression) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.status WHEN 1 THEN 'active' WHEN 2 THEN 'inactive' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Simple);
+  EXPECT_NE(case_expr->operand, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 2);
+  ASSERT_EQ(case_expr->then_results.size(), 2);
+  EXPECT_EQ(case_expr->else_result, nullptr);
+}
+
+TEST(GQLParser, CastSpecification) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CAST(a.score AS INT32)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::Cast);
+  EXPECT_EQ(expr->text, "INT32");
+  ASSERT_EQ(expr->children.size(), 1);
+  EXPECT_EQ(formatAST(*clauses), "RETURN CAST(a.score AS INT32)");
+}
+
+TEST(GQLParser, CastNullOperand) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CAST(NULL AS STRING)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::Cast);
+  EXPECT_EQ(expr->text, "STRING");
+  ASSERT_EQ(expr->children.size(), 1);
+  EXPECT_EQ(getExpr(expr->children[0])->text, "NULL");
+  EXPECT_EQ(formatAST(*expr), "CAST(NULL AS STRING)");
+}
+
+TEST(GQLParser, NumericFloorCeiling) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN FLOOR(a.x), CEILING(a.y), CEIL(a.z)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 3);
+
+  const auto* floor_expr = getExpr(ret->items[0]);
+  const auto* ceiling_expr = getExpr(ret->items[1]);
+  const auto* ceil_expr = getExpr(ret->items[2]);
+  EXPECT_EQ(floor_expr->text, "FLOOR");
+  EXPECT_EQ(ceiling_expr->text, "CEILING");
+  EXPECT_EQ(ceil_expr->text, "CEIL");
+  EXPECT_EQ(formatAST(*clauses), "RETURN FLOOR(a.x), CEILING(a.y), CEIL(a.z)");
+}
+
+TEST(GQLParser, NumericModPowerSqrt) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN MOD(a.x, 3), POWER(a.y, 2), SQRT(a.z)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 3);
+
+  const auto* mod_expr = getExpr(ret->items[0]);
+  const auto* pow_expr = getExpr(ret->items[1]);
+  const auto* sqrt_expr = getExpr(ret->items[2]);
+  EXPECT_EQ(mod_expr->text, "MOD");
+  ASSERT_EQ(mod_expr->children.size(), 2);
+  EXPECT_EQ(pow_expr->text, "POWER");
+  ASSERT_EQ(pow_expr->children.size(), 2);
+  EXPECT_EQ(sqrt_expr->text, "SQRT");
+  ASSERT_EQ(sqrt_expr->children.size(), 1);
+}
+
+TEST(GQLParser, TrigonometricFunctions) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN SIN(a.x), COS(a.x), TAN(a.x)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 3);
+
+  EXPECT_EQ(getExpr(ret->items[0])->text, "SIN");
+  EXPECT_EQ(getExpr(ret->items[1])->text, "COS");
+  EXPECT_EQ(getExpr(ret->items[2])->text, "TAN");
+}
+
+TEST(GQLParser, LogarithmicFunctions) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LOG(2, a.x), LOG10(a.x), LN(a.x), EXP(a.x)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 4);
+
+  const auto* log_expr = getExpr(ret->items[0]);
+  EXPECT_EQ(log_expr->text, "LOG");
+  ASSERT_EQ(log_expr->children.size(), 2);
+  EXPECT_EQ(getExpr(ret->items[1])->text, "LOG10");
+  EXPECT_EQ(getExpr(ret->items[2])->text, "LN");
+  EXPECT_EQ(getExpr(ret->items[3])->text, "EXP");
+}
+
+TEST(GQLParser, StringFunctionsUpperLower) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN UPPER(a.name), LOWER(a.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 2);
+
+  EXPECT_EQ(getExpr(ret->items[0])->text, "UPPER");
+  EXPECT_EQ(getExpr(ret->items[1])->text, "LOWER");
+  EXPECT_EQ(formatAST(*clauses), "RETURN UPPER(a.name), LOWER(a.name)");
+}
+
+TEST(GQLParser, StringFunctionsLeftRight) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN LEFT(a.name, 3), RIGHT(a.name, 5)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 2);
+
+  const auto* left_expr = getExpr(ret->items[0]);
+  const auto* right_expr = getExpr(ret->items[1]);
+  EXPECT_EQ(left_expr->text, "LEFT");
+  ASSERT_EQ(left_expr->children.size(), 2);
+  EXPECT_EQ(right_expr->text, "RIGHT");
+  ASSERT_EQ(right_expr->children.size(), 2);
+}
+
+TEST(GQLParser, StringFunctionsTrim) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN BTRIM(a.name), LTRIM(a.name, ' '), RTRIM(a.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 3);
+
+  EXPECT_EQ(getExpr(ret->items[0])->text, "BTRIM");
+  EXPECT_EQ(getExpr(ret->items[1])->text, "LTRIM");
+  ASSERT_EQ(getExpr(ret->items[1])->children.size(), 2);
+  EXPECT_EQ(getExpr(ret->items[2])->text, "RTRIM");
+}
+
+TEST(GQLParser, SearchedCaseCloneChildrenOrder) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE WHEN a.x > 0 THEN 1 WHEN a.x < 0 THEN -1 ELSE 0 END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+
+  const auto* original = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(original, nullptr);
+
+  auto cloned_ast = original->clone();
+  const auto* cloned = cloned_ast->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(cloned, nullptr);
+  EXPECT_NE(cloned, original);
+  EXPECT_EQ(cloned->form, GAST::GQLCaseExpr::Form::Searched);
+  EXPECT_EQ(cloned->operand, nullptr);
+  ASSERT_EQ(cloned->when_operands.size(), 2);
+  ASSERT_EQ(cloned->then_results.size(), 2);
+  EXPECT_NE(cloned->else_result, nullptr);
+
+  // children order: when1, then1, when2, then2, else
+  ASSERT_EQ(cloned->children.size(), 5);
+  EXPECT_EQ(cloned->children[0].get(), cloned->when_operands[0].get());
+  EXPECT_EQ(cloned->children[1].get(), cloned->then_results[0].get());
+  EXPECT_EQ(cloned->children[2].get(), cloned->when_operands[1].get());
+  EXPECT_EQ(cloned->children[3].get(), cloned->then_results[1].get());
+  EXPECT_EQ(cloned->children[4].get(), cloned->else_result.get());
+
+  EXPECT_NE(cloned->when_operands[0].get(), original->when_operands[0].get());
+  EXPECT_EQ(formatAST(*cloned), formatAST(*original));
+}
+
+TEST(GQLParser, SimpleCaseCloneChildrenOrder) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.status WHEN 1 THEN 'active' WHEN 2 THEN 'inactive' ELSE 'unknown' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+
+  const auto* original = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(original, nullptr);
+
+  auto cloned_ast = original->clone();
+  const auto* cloned = cloned_ast->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(cloned, nullptr);
+  EXPECT_EQ(cloned->form, GAST::GQLCaseExpr::Form::Simple);
+  EXPECT_NE(cloned->operand, nullptr);
+  ASSERT_EQ(cloned->when_operands.size(), 2);
+  ASSERT_EQ(cloned->then_results.size(), 2);
+  EXPECT_NE(cloned->else_result, nullptr);
+
+  // children order: operand, when1, then1, when2, then2, else
+  ASSERT_EQ(cloned->children.size(), 6);
+  EXPECT_EQ(cloned->children[0].get(), cloned->operand.get());
+  EXPECT_EQ(cloned->children[1].get(), cloned->when_operands[0].get());
+  EXPECT_EQ(cloned->children[2].get(), cloned->then_results[0].get());
+  EXPECT_EQ(cloned->children[3].get(), cloned->when_operands[1].get());
+  EXPECT_EQ(cloned->children[4].get(), cloned->then_results[1].get());
+  EXPECT_EQ(cloned->children[5].get(), cloned->else_result.get());
+
+  EXPECT_NE(cloned->operand.get(), original->operand.get());
+  EXPECT_EQ(formatAST(*cloned), formatAST(*original));
+}
+
+TEST(GQLParser, CastCloneRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CAST(a.x AS INT64)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+
+  auto original = ret->items[0];
+  auto cloned = original->clone();
+  EXPECT_NE(cloned.get(), original.get());
+  EXPECT_EQ(formatAST(*cloned), "CAST(a.x AS INT64)");
+}
+
+TEST(GQLParser, InsertNodeOnly) {
+  auto ast = parseDMLOrThrow("INSERT (n:Person {name: 'Alice'})");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_GE(query->clauses.size(), 1);
+
+  const auto* insert_clause = query->clauses[0]->as<GAST::GQLInsertClause>();
+  ASSERT_NE(insert_clause, nullptr);
+  EXPECT_EQ(insert_clause->path_patterns.size(), 1);
+  EXPECT_TRUE(formatAST(*insert_clause).find("INSERT") != String::npos);
+}
+
+TEST(GQLParser, InsertNodeEdgeChain) {
+  auto ast = parseDMLOrThrow("INSERT (n:Person {name: 'Alice'})-[e:KNOWS]->(m:Person {name: 'Bob'})");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* insert_clause = query->clauses[0]->as<GAST::GQLInsertClause>();
+  ASSERT_NE(insert_clause, nullptr);
+  EXPECT_EQ(insert_clause->path_patterns.size(), 1);
+
+  const auto* path = insert_clause->path_patterns[0]->as<GAST::GQLInsertPathPattern>();
+  ASSERT_NE(path, nullptr);
+  EXPECT_EQ(path->elements.size(), 3);
+}
+
+TEST(GQLParser, InsertMultiplePathPatterns) {
+  auto ast = parseDMLOrThrow("INSERT (a:Person {name: 'A'}), (b:Person {name: 'B'})");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* insert_clause = query->clauses[0]->as<GAST::GQLInsertClause>();
+  ASSERT_NE(insert_clause, nullptr);
+  EXPECT_EQ(insert_clause->path_patterns.size(), 2);
+}
+
+TEST(GQLParser, SetPropertyItem) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) SET n.age = 30 RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_GE(query->clauses.size(), 3);
+
+  const auto* set_clause = query->clauses[1]->as<GAST::GQLSetClause>();
+  ASSERT_NE(set_clause, nullptr);
+  ASSERT_EQ(set_clause->items.size(), 1);
+
+  const auto* item = set_clause->items[0]->as<GAST::GQLSetItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLSetItem::Kind::Property);
+  EXPECT_EQ(item->variable, "n");
+  EXPECT_EQ(item->property_or_label, "age");
+}
+
+TEST(GQLParser, SetAllProperties) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) SET n = {name: 'Bob', age: 25} RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* set_clause = query->clauses[1]->as<GAST::GQLSetClause>();
+  ASSERT_NE(set_clause, nullptr);
+  ASSERT_EQ(set_clause->items.size(), 1);
+
+  const auto* item = set_clause->items[0]->as<GAST::GQLSetItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLSetItem::Kind::AllProperties);
+  EXPECT_EQ(item->variable, "n");
+
+  const auto* prop_map = item->value->as<GAST::GQLPropertyMap>();
+  ASSERT_NE(prop_map, nullptr);
+  EXPECT_EQ(prop_map->items.size(), 2);
+}
+
+TEST(GQLParser, SetLabelItem) {
+  auto ast = parseDMLOrThrow("MATCH (n) SET n IS Employee RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* set_clause = query->clauses[1]->as<GAST::GQLSetClause>();
+  ASSERT_NE(set_clause, nullptr);
+
+  const auto* item = set_clause->items[0]->as<GAST::GQLSetItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLSetItem::Kind::Label);
+  EXPECT_EQ(item->variable, "n");
+  EXPECT_EQ(item->property_or_label, "Employee");
+  EXPECT_TRUE(item->use_is);
+}
+
+TEST(GQLParser, SetMultipleItems) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) SET n.age = 30, n.name = 'Bob' RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* set_clause = query->clauses[1]->as<GAST::GQLSetClause>();
+  ASSERT_NE(set_clause, nullptr);
+  EXPECT_EQ(set_clause->items.size(), 2);
+}
+
+TEST(GQLParser, RemovePropertyItem) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) REMOVE n.age RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* remove_clause = query->clauses[1]->as<GAST::GQLRemoveClause>();
+  ASSERT_NE(remove_clause, nullptr);
+  ASSERT_EQ(remove_clause->items.size(), 1);
+
+  const auto* item = remove_clause->items[0]->as<GAST::GQLRemoveItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLRemoveItem::Kind::Property);
+  EXPECT_EQ(item->variable, "n");
+  EXPECT_EQ(item->property_or_label, "age");
+}
+
+TEST(GQLParser, RemoveLabelItem) {
+  auto ast = parseDMLOrThrow("MATCH (n) REMOVE n IS Employee RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* remove_clause = query->clauses[1]->as<GAST::GQLRemoveClause>();
+  ASSERT_NE(remove_clause, nullptr);
+
+  const auto* item = remove_clause->items[0]->as<GAST::GQLRemoveItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLRemoveItem::Kind::Label);
+  EXPECT_TRUE(item->use_is);
+}
+
+TEST(GQLParser, DeleteStatement) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) DELETE n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_GE(query->clauses.size(), 2);
+
+  const auto* delete_clause = query->clauses[1]->as<GAST::GQLDeleteClause>();
+  ASSERT_NE(delete_clause, nullptr);
+  EXPECT_EQ(delete_clause->detach_mode, GAST::GQLDeleteClause::DetachMode::None);
+  EXPECT_EQ(delete_clause->items.size(), 1);
+}
+
+TEST(GQLParser, DetachDeleteStatement) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) DETACH DELETE n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* delete_clause = query->clauses[1]->as<GAST::GQLDeleteClause>();
+  ASSERT_NE(delete_clause, nullptr);
+  EXPECT_EQ(delete_clause->detach_mode, GAST::GQLDeleteClause::DetachMode::Detach);
+}
+
+TEST(GQLParser, NodetachDeleteStatement) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) NODETACH DELETE n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* delete_clause = query->clauses[1]->as<GAST::GQLDeleteClause>();
+  ASSERT_NE(delete_clause, nullptr);
+  EXPECT_EQ(delete_clause->detach_mode, GAST::GQLDeleteClause::DetachMode::NoDetach);
+}
+
+TEST(GQLParser, DeleteMultipleItems) {
+  auto ast = parseDMLOrThrow("MATCH (n)-[e]->(m) DELETE n, e, m");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* delete_clause = query->clauses[1]->as<GAST::GQLDeleteClause>();
+  ASSERT_NE(delete_clause, nullptr);
+  EXPECT_EQ(delete_clause->items.size(), 3);
+}
+
+TEST(GQLParser, MatchInsertReturn) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) INSERT (m:Employee {name: n.name})-[e:WORKS_AT]->(c:Company) RETURN m");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_GE(query->clauses.size(), 3);
+
+  EXPECT_NE(query->clauses[0]->as<GAST::GQLMatchClause>(), nullptr);
+  EXPECT_NE(query->clauses[1]->as<GAST::GQLInsertClause>(), nullptr);
+  EXPECT_NE(query->clauses[2]->as<GAST::GQLReturnClause>(), nullptr);
+}
+
+TEST(GQLParser, InsertClauseFormatRoundTrip) {
+  auto ast = parseDMLOrThrow("INSERT (n:Person {name: 'Alice'})");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* insert_clause = query->clauses[0]->as<GAST::GQLInsertClause>();
+  ASSERT_NE(insert_clause, nullptr);
+
+  String formatted = formatAST(*insert_clause);
+  EXPECT_TRUE(formatted.find("INSERT") != String::npos);
+  EXPECT_TRUE(formatted.find("Person") != String::npos);
+}
+
+TEST(GQLParser, SetClauseFormatRoundTrip) {
+  auto ast = parseDMLOrThrow("MATCH (n) SET n.x = 1 RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* set_clause = query->clauses[1]->as<GAST::GQLSetClause>();
+  ASSERT_NE(set_clause, nullptr);
+
+  String formatted = formatAST(*set_clause);
+  EXPECT_EQ(formatted, "SET n.x = 1");
+}
+
+TEST(GQLParser, RemoveClauseFormatRoundTrip) {
+  auto ast = parseDMLOrThrow("MATCH (n) REMOVE n.x RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* remove_clause = query->clauses[1]->as<GAST::GQLRemoveClause>();
+  ASSERT_NE(remove_clause, nullptr);
+
+  String formatted = formatAST(*remove_clause);
+  EXPECT_EQ(formatted, "REMOVE n.x");
+}
+
+TEST(GQLParser, DeleteClauseFormatRoundTrip) {
+  auto ast = parseDMLOrThrow("MATCH (n) DETACH DELETE n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* delete_clause = query->clauses[1]->as<GAST::GQLDeleteClause>();
+  ASSERT_NE(delete_clause, nullptr);
+
+  String formatted = formatAST(*delete_clause);
+  EXPECT_EQ(formatted, "DETACH DELETE n");
+}
+
+TEST(GQLParser, InsertCloneRoundTrip) {
+  auto ast = parseDMLOrThrow("INSERT (n:Person {name: 'Alice'})-[e:KNOWS]->(m:Person)");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  auto original = query->clauses[0];
+  auto cloned = original->clone();
+  EXPECT_NE(cloned.get(), original.get());
+  EXPECT_EQ(formatAST(*cloned), formatAST(*original));
+}
+
+TEST(GQLParser, SetCloneRoundTrip) {
+  auto ast = parseDMLOrThrow("MATCH (n) SET n.age = 30, n IS Employee RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  auto original = query->clauses[1];
+  auto cloned = original->clone();
+  EXPECT_NE(cloned.get(), original.get());
+  EXPECT_EQ(formatAST(*cloned), formatAST(*original));
+}
+
+TEST(GQLParser, InsertLeftEdge) {
+  auto ast = parseDMLOrThrow("INSERT (n:Person)<-[e:KNOWS]-(m:Person)");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* insert_clause = query->clauses[0]->as<GAST::GQLInsertClause>();
+  ASSERT_NE(insert_clause, nullptr);
+  const auto* path = insert_clause->path_patterns[0]->as<GAST::GQLInsertPathPattern>();
+  ASSERT_NE(path, nullptr);
+  EXPECT_EQ(path->elements.size(), 3);
+
+  const auto* edge = path->elements[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::Left);
+}
+
+TEST(GQLParser, InsertMultiLabel) {
+  auto ast = parseDMLOrThrow("INSERT (n:Person&Employee {name: 'Alice'})");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+
+  const auto* insert_clause = query->clauses[0]->as<GAST::GQLInsertClause>();
+  ASSERT_NE(insert_clause, nullptr);
+  const auto* path = insert_clause->path_patterns[0]->as<GAST::GQLInsertPathPattern>();
+  ASSERT_NE(path, nullptr);
+
+  const auto* node = path->elements[0]->as<GAST::GQLNodePattern>();
+  ASSERT_NE(node, nullptr);
+  ASSERT_NE(node->label_expression, nullptr);
+
+  const auto* label = node->label_expression->as<GAST::GQLLabelExpression>();
+  ASSERT_NE(label, nullptr);
+  EXPECT_EQ(label->kind, GAST::GQLLabelExpression::Kind::Conjunction);
+}
+
+// --- DML CALL via direct entry ---
+
+TEST(GQLParser, DmlCallProcedure) {
+  auto ast = parseDMLOrThrow("MATCH (n:Person) CALL myProc(n.name) RETURN n");
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  EXPECT_GE(query->clauses.size(), 3);
+
+  const auto* call = query->clauses[1]->as<GAST::GQLCallNamedClause>();
+  ASSERT_NE(call, nullptr);
+  EXPECT_NE(call->procedure, nullptr);
+  EXPECT_EQ(call->arguments.size(), 1);
+}
+
+// --- Value function coverage tests ---
+
+TEST(GQLParser, DatetimeCurrentDateNoArgs) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN CURRENT_DATE");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN CURRENT_DATE");
+}
+
+TEST(GQLParser, DatetimeDateFunctionWithString) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DATE('2024-01-15')");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DATE('2024-01-15')");
+}
+
+TEST(GQLParser, DatetimeCurrentTimestampNoArgs) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN CURRENT_TIMESTAMP");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN CURRENT_TIMESTAMP");
+}
+
+TEST(GQLParser, DatetimeZonedDatetimeWithString) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN ZONED_DATETIME('2024-01-15T10:30:00Z')");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN ZONED_DATETIME('2024-01-15T10:30:00Z')");
+}
+
+TEST(GQLParser, DatetimeLocalTimeNoArgs) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN LOCAL_TIME");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN LOCAL_TIME");
+}
+
+TEST(GQLParser, DatetimeLocalTimestampNoArgs) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN LOCAL_TIMESTAMP");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN LOCAL_TIMESTAMP");
+}
+
+TEST(GQLParser, DurationFunctionWithString) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DURATION('P1Y2M')");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DURATION('P1Y2M')");
+}
+
+TEST(GQLParser, ElementsFunctionShape) {
+  auto ast = parseGraphOrThrow("MATCH p = (a)-[e]->(b) RETURN ELEMENTS(p)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* func = getExpr(ret->items[0]);
+  ASSERT_NE(func, nullptr);
+  EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(func->text, "ELEMENTS");
+  EXPECT_EQ(func->children.size(), 1);
+  EXPECT_EQ(formatAST(*clauses), "MATCH p = (a)-[e]->(b) RETURN ELEMENTS(p)");
+}
+
+TEST(GQLParser, DatetimeFunctionCloneRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DATE('2024-01-15')");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, DurationFunctionCloneRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DURATION('P1Y2M')");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, ElementsFunctionRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH p = (a)-[e]->(b) RETURN ELEMENTS(p)");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+// --- datetimeSubtraction tests ---
+
+TEST(GQLParser, DurationBetweenDayToSecondRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN DURATION_BETWEEN(a.created_at, b.created_at) DAY TO SECOND");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN DURATION_BETWEEN(a.created_at, b.created_at) DAY TO SECOND");
+}
+
+TEST(GQLParser, DurationBetweenYearToMonthRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN DURATION_BETWEEN(a.start, a.end) YEAR TO MONTH");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN DURATION_BETWEEN(a.start, a.end) YEAR TO MONTH");
+}
+
+TEST(GQLParser, DurationBetweenShape) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DURATION_BETWEEN(n.start, n.end) DAY TO SECOND");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* func = getExpr(ret->items[0]);
+  ASSERT_NE(func, nullptr);
+  EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::DurationBetween);
+  EXPECT_EQ(func->temporal_qualifier, GAST::GQLExpr::TemporalQualifier::DayToSecond);
+  EXPECT_EQ(func->children.size(), 2);
+}
+
+TEST(GQLParser, DurationBetweenNoQualifierRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DURATION_BETWEEN(n.start, n.end)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* func = getExpr(ret->items[0]);
+  ASSERT_NE(func, nullptr);
+  EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::DurationBetween);
+  EXPECT_EQ(func->temporal_qualifier, GAST::GQLExpr::TemporalQualifier::None);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DURATION_BETWEEN(n.start, n.end)");
+}
+
+TEST(GQLParser, DurationBetweenCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DURATION_BETWEEN(n.start, n.end) YEAR TO MONTH");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+// --- trimSingleCharacterOrByteString tests ---
+
+TEST(GQLParser, TrimLeadingFromRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TRIM(LEADING FROM n.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN TRIM(LEADING FROM n.name)");
+}
+
+TEST(GQLParser, TrimTrailingCharRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TRIM(TRAILING 'x' FROM n.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN TRIM(TRAILING 'x' FROM n.name)");
+}
+
+TEST(GQLParser, TrimBothCharRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TRIM(BOTH ' ' FROM n.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN TRIM(BOTH ' ' FROM n.name)");
+}
+
+TEST(GQLParser, TrimSourceOnlyRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TRIM(n.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN TRIM(n.name)");
+}
+
+TEST(GQLParser, TrimShape) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TRIM(BOTH 'x' FROM n.name)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* func = getExpr(ret->items[0]);
+  ASSERT_NE(func, nullptr);
+  EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::TrimString);
+  EXPECT_EQ(func->trim_spec, GAST::GQLExpr::TrimSpec::Both);
+  EXPECT_EQ(func->children.size(), 2);
+}
+
+TEST(GQLParser, TrimCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TRIM(LEADING 'a' FROM n.name)");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+// --- CASE whenOperand structured coverage tests ---
+
+TEST(GQLParser, SimpleCasePropertyOperandRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.status WHEN 'active' THEN 1 WHEN 'inactive' THEN 0 END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Simple);
+  EXPECT_NE(case_expr->operand, nullptr);
+
+  const auto* operand_expr = case_expr->operand->as<GAST::GQLExpr>();
+  ASSERT_NE(operand_expr, nullptr);
+  EXPECT_EQ(operand_expr->kind, GAST::GQLExpr::Kind::Property);
+}
+
+TEST(GQLParser, SimpleCaseCompOpWhenRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.score WHEN > 90 THEN 'A' WHEN > 80 THEN 'B' ELSE 'C' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 2);
+
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(when0->text, ">");
+  EXPECT_EQ(when0->children.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN CASE a.score WHEN > 90 THEN 'A' WHEN > 80 THEN 'B' ELSE 'C' END");
+}
+
+TEST(GQLParser, SimpleCaseStringLiteralWhenRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.type WHEN 'person' THEN 1 WHEN 'org' THEN 2 ELSE 0 END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN CASE a.type WHEN 'person' THEN 1 WHEN 'org' THEN 2 ELSE 0 END");
+}
+
+TEST(GQLParser, SearchedCaseStructuredPredicateRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE WHEN a.age > 18 THEN 'adult' ELSE 'minor' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN CASE WHEN (a.age > 18) THEN 'adult' ELSE 'minor' END");
+}
+
+TEST(GQLParser, SimpleCaseClonePreservesWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.status WHEN 'active' THEN 1 ELSE 0 END");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+// --- CASE multi-operand and predicate-part2 tests ---
+
+TEST(GQLParser, SimpleCaseMultiOperandListRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.status WHEN 1, 2, 3 THEN 'ok' ELSE 'bad' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN CASE a.status WHEN 1, 2, 3 THEN 'ok' ELSE 'bad' END");
+}
+
+TEST(GQLParser, SimpleCaseMultiOperandListShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.status WHEN 1, 2 THEN 'match' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::ExprList);
+  EXPECT_EQ(when0->children.size(), 2);
+}
+
+TEST(GQLParser, SimpleCaseNullPredicateWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.name WHEN IS NULL THEN 'unknown' ELSE a.name END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(when0->text, "IS");
+  EXPECT_EQ(when0->children.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN CASE a.name WHEN IS NULL THEN 'unknown' ELSE a.name END");
+}
+
+TEST(GQLParser, SimpleCaseDirectedPredicateWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN CASE e WHEN IS DIRECTED THEN 'yes' ELSE 'no' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(when0->text, "IS");
+  EXPECT_EQ(when0->children.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN CASE e WHEN IS DIRECTED THEN 'yes' ELSE 'no' END");
+}
+
+TEST(GQLParser, SimpleCaseSourcePredicateWhenShape) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) RETURN CASE a WHEN IS SOURCE OF e THEN 'src' ELSE 'other' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(when0->text, "IS SOURCE OF");
+  EXPECT_EQ(when0->children.size(), 2);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN CASE a WHEN IS SOURCE OF e THEN 'src' ELSE 'other' END");
+}
+
+TEST(GQLParser, SimpleCaseMultiOperandCloneIsDeep) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.x WHEN 1, 2, 3 THEN 'a' ELSE 'b' END");
+  auto cloned = ast->clone();
+  EXPECT_EQ(formatAST(*ast), formatAST(*cloned));
+}
+
+TEST(GQLParser, SimpleCaseMixedOperandTypesRoundTrip) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN CASE a.score WHEN > 90 THEN 'A' WHEN 50, 60 THEN 'C' ELSE 'F' END");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  ASSERT_EQ(case_expr->when_operands.size(), 2);
+
+  const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when0, nullptr);
+  EXPECT_EQ(when0->kind, GAST::GQLExpr::Kind::BinaryOp);
+
+  const auto* when1 = case_expr->when_operands[1]->as<GAST::GQLExpr>();
+  ASSERT_NE(when1, nullptr);
+  EXPECT_EQ(when1->kind, GAST::GQLExpr::Kind::ExprList);
 }
 
 #endif

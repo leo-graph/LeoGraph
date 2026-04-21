@@ -34,6 +34,7 @@ The GQL parser follows the exact same pattern.
 The GQL grammar is sourced from the [opengql/grammar](https://github.com/opengql/grammar) repository, which provides a language-independent ANTLR grammar conforming to ISO GQL.
 
 Key characteristics of the grammar:
+
 - **Case-insensitive** keywords (`options { caseInsensitive = true; }`)
 - **Combined** lexer and parser rules in a single `GQL.g4` file
 - Covers the full GQL standard: `MATCH`, `RETURN`, `WHERE`, `INSERT`, `DELETE`, DDL, session management, transactions
@@ -78,40 +79,42 @@ add_library(ch_contrib::gql_grammar STATIC
 target_link_libraries(ch_contrib::gql_grammar PUBLIC ch_contrib::antlr4_runtime)
 ```
 
-## GQL Subset (Phase 1)
+## Current Lowering-Facing Slice
 
-The initial implementation supports a core subset of GQL:
+The current implementation supports the parser-facing slice that is already stable enough for downstream lowering to consume without re-parsing source text:
 
 ### Supported Statements
 
-| Statement | Example | Priority |
-|-----------|---------|----------|
-| `MATCH ... RETURN` | `MATCH (a:Person) RETURN a.name` | P0 |
-| `MATCH ... WHERE ... RETURN` | `MATCH (a)-[e]->(b) WHERE a.age > 25 RETURN b` | P0 |
-| `CREATE PROPERTY GRAPH` | `CREATE PROPERTY GRAPH g VERTEX TABLES (...) EDGE TABLES (...)` | P1 |
-| `DROP PROPERTY GRAPH` | `DROP PROPERTY GRAPH g` | P1 |
-| `MATCH` with multi-hop | `MATCH (a)-[:E*1..5]->(b) RETURN b` | P3 |
+| Statement | Example | Notes |
+|-----------|---------|-------|
+| `MATCH ... RETURN` | `MATCH (a:Person) RETURN a.name` | Core linear query path |
+| `OPTIONAL MATCH` | `OPTIONAL MATCH (a)-[e]->(b) RETURN b` | Includes block-wrapper support |
+| graph `SELECT` | `SELECT a FROM { MATCH (a) RETURN a }` | Normalizes to `GQLSelectClause` plus optional `GQLPageClause` |
+| focused `USE` query | `USE foo MATCH (a) RETURN a` | Preserves `USE` as a structured clause |
+| named / inline `CALL` | `CALL foo(a) YIELD x RETURN x` | Distinct AST nodes for named vs inline calls |
+| `INSERT` | `INSERT (n:Person {name: 'Alice'})` | `GQLInsertClause` with `GQLInsertPathPattern` (via `parseStatement` direct entry) |
+| `SET` | `MATCH (n) SET n.age = 30` | `GQLSetClause` with property / all-properties / label items (via `parseStatement`) |
+| `REMOVE` | `MATCH (n) REMOVE n.age` | `GQLRemoveClause` with property / label items (via `parseStatement`) |
+| `DELETE` | `MATCH (n) DELETE n` | `GQLDeleteClause` with `DETACH` / `NODETACH` modes (via `parseStatement`) |
+| nested query | `{ MATCH (a) RETURN a } NEXT YIELD a { RETURN a }` | Preserves `GQLSubquery` wrapper |
 
 ### Supported Patterns
 
 | Pattern | Syntax | Description |
 |---------|--------|-------------|
-| Node | `(a:Label)` | Vertex with optional variable and label |
-| Directed edge | `-[e:Label]->` | Outgoing edge |
-| Reverse edge | `<-[e:Label]-` | Incoming edge |
-| Undirected edge | `~[e:Label]~` | Undirected edge |
-| Multi-hop | `-[:Label*1..N]->` | Variable-length path |
-| Property filter | `(a {name: 'Alice'})` | Inline property predicate |
+| Node / edge | `(a:Label)` / `-[e:Label]->` | Core classic pattern nodes |
+| Parenthesized path | `((a)-[e]->(b))?` | Keeps its own wrapper plus outer quantifier |
+| Classic alternation | `(a)-[e]->(b) | (c)-[f]->(d)` | Preserved via `GQLPathPatternAlternation` |
+| Simplified path | `()-/ :A | :B /->()` | Preserved via `GQLSimplifiedPathPattern` / `GQLSimplifiedPathExpr` |
+| Counted search prefix | `MATCH ANY 3 PATHS ...` | Count preserved as `GQLCountSpec` |
+| Quantified non-edge primary | `(a){2}` | Preserved via `GQLQuantifiedPathPrimary` |
 
 ### Deferred Features
 
-- `INSERT` / `DELETE` / `SET` / `REMOVE` (graph DML)
-- `USE graphExpression` (multi-graph)
 - `SESSION` / `START TRANSACTION` (session management)
-- `CALL` procedure
-- Path modes (`WALK`, `TRAIL`, `SIMPLE`, `ACYCLIC`)
-- `SHORTEST` path queries
-- `OPTIONAL MATCH`
+- broader schema / graph / binding-reference decomposition beyond the current wrapper nodes
+- remaining expression-primary branches (`valueQueryExpression`, `letValueExpression`, `pathValueConstructor`, complex `whenOperand` forms) that still fall outside the current lowering-facing expression slice
+- any future graph-selection forms beyond the current heuristic top-level `CALL` / graph-`SELECT` / focused-`USE` routing
 
 ## Graph AST Design
 
@@ -176,11 +179,22 @@ IAST
   +-- GQLForClause            -- `FOR`
   +-- GQLPageClause           -- standalone `ORDER BY` / `OFFSET` / `LIMIT`
   |
+  +-- GQLInsertClause         -- `INSERT` with insert path patterns
+  +-- GQLInsertPathPattern    -- node-edge chain in an insert clause
+  +-- GQLSetClause            -- `SET` with property / all-properties / label items
+  +-- GQLRemoveClause         -- `REMOVE` with property / label items
+  +-- GQLDeleteClause         -- `DELETE` with `DETACH` / `NODETACH` modes
+  |
   +-- GQLPathPattern
-  +-- GQLPathPatternPrefix
+  +-- GQLPathTerm
+  +-- GQLPathPatternAlternation
+  +-- GQLPathModePrefix
+  +-- GQLPathSearchPrefix
+  +-- GQLCountSpec
   +-- GQLParenthesizedPathPattern
   +-- GQLSimplifiedPathPattern
   +-- GQLSimplifiedPathExpr
+  +-- GQLQuantifiedPathPrimary
   +-- GQLNodePattern
   +-- GQLEdgePattern
   +-- GQLLabelExpression
@@ -190,7 +204,7 @@ IAST
   +-- GQLExpr                 -- current expression skeleton
 ```
 
-Pattern nodes stay graph-native, while expressions still use a thin `GQLExpr` layer or local raw-text fallbacks where the refactor is not complete yet. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
+Pattern nodes stay graph-native, while expressions use a `GQLExpr` layer. Most value-function branches are now structurally represented: numeric functions (all 13 branches), character/string functions (including `TRIM` via `GQLExpr::TrimString` with explicit `TrimSpec`), datetime functions, duration functions (including `DURATION_BETWEEN` via `GQLExpr::DurationBetween` with `TemporalQualifier`), and list functions. Remaining raw-text fallbacks are limited to `valueQueryExpression`, `letValueExpression`, `pathValueConstructor`, and complex `whenOperand` forms. `GQLExpr::Kind::FunctionCall` carries aggregate `DISTINCT` / `ALL` through a `SetQuantifier` field instead of stringifying the modifier back into raw text. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
 
 ### Visitor Organization
 
@@ -211,8 +225,13 @@ Two rules are especially important:
 - `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.
 - binding-variable initializers should preserve `bindingTableExpression` as `GQLBindingTableExpression` unless the grammar branch is still explicitly unsupported.
 - `visitGraphPattern` and `visitPathPattern` should preserve graph/path prefixes structurally instead of degrading them to raw text or `Unsupported`.
+- counted path-search prefixes should preserve their numeric or dynamic parameter payload via `GQLCountSpec` instead of storing the count as a raw string.
+- classic `pathPatternExpression` should preserve `pathTerm` and top-level `|` / `|+|` alternation structurally via `GQLPathTerm` / `GQLPathPatternAlternation`, with `GQLPathPattern` and `GQLParenthesizedPathPattern` owning a single `expression` child instead of flattening operands into their parent `children`.
+- quantified classic path primaries that cannot carry a quantifier inline should preserve the wrapper explicitly via `GQLQuantifiedPathPrimary`.
 - `visitPpSimplifiedPathPatternExpression` should keep simplified path forms in dedicated `GQLSimplifiedPathPattern` / `GQLSimplifiedPathExpr` nodes instead of forcing them into `GQLEdgePattern`. `GQLSimplifiedPathExpr` round-trip preserves the AST shape but normalizes whitespace around binary operators such as `|`, `|+|`, `&`, and concatenation; tests should assert shape plus the normalized form rather than the raw source string.
+- classic-pattern alternation and simplified-path alternation deliberately use parallel node families; they should not be merged into one shared node type.
 - `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubquery`) instead of stringifying the body.
+- aggregate `DISTINCT` / `ALL` should stay structured on `GQLExpr::FunctionCall` instead of being prefixed back into an argument raw-text payload.
 - If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.
 
 These two constraints keep the query contract stable while the lower layers continue to expand.
@@ -221,22 +240,26 @@ These two constraints keep the query contract stable while the lower layers cont
 
 ### Current `antlr4` Entry
 
-The current `antlr4` entry is `GQLParserUtils::parseCompositeQueryStatement`.
+The primary `antlr4` entry is `GQLParserUtils::parseCompositeQueryStatement` for query statements. A secondary entry `GQLParserUtils::parseStatement` is available for DML-containing statements; it uses the grammar `statement` rule which is a superset that includes both `compositeQueryStatement` and `linearDataModifyingStatement` as alternatives. This secondary entry is currently used for direct AST construction and testing via `parseDMLOrThrow`, not yet routed through `ParserGraphQuery`.
 
 ```cpp
-ASTPtr parseQuery(std::string_view query)
+ASTPtr parseQuery(std::string_view query, bool use_statement_rule = false)
 {
-    auto * parse_tree = OPENGQL::GQLParserUtils::parseCompositeQueryStatement(query);
     OPENGQL::GQLParseTreeVisitor visitor;
+    if (use_statement_rule) {
+        auto * parse_tree = OPENGQL::GQLParserUtils::parseStatement(query);
+        return std::any_cast<ASTPtr>(visitor.visit(parse_tree));
+    }
+    auto * parse_tree = OPENGQL::GQLParserUtils::parseCompositeQueryStatement(query);
     return std::any_cast<ASTPtr>(visitor.visit(parse_tree));
 }
 ```
 
-This means the internal refactor currently centers on complete query statements, not on isolated clause fragments.
-
 ### Top-Level ClickHouse Parser Entry
 
-`ParserGraphQuery` is still a thin outer adapter. Today it only routes a subset of top-level prefixes into the `antlr4` path, and that gating is intentionally treated as a later integration task.
+`ParserGraphQuery` is still a thin outer adapter. It currently routes strong graph prefixes such as `MATCH`, `OPTIONAL MATCH`, and `CALL` directly into the `antlr4` path, and uses heuristic gating for weaker prefixes such as top-level graph-shaped `SELECT` and focused `USE`. Because `ParserGraphQuery` runs before the regular SQL parser chain in `ParserQuery`, weak-prefix routing must fall back cleanly when the `antlr4` parse fails so plain SQL is not stolen accidentally.
+
+DML statements are not yet routed through `ParserGraphQuery`. The DML AST layer is fully structured via `parseStatement` direct entry, but top-level DML routing (INSERT/SET/REMOVE/DELETE prefix detection, SQL compatibility fallback) is deferred to a future entry routing phase.
 
 The current parser work therefore focuses on making:
 
@@ -260,6 +283,6 @@ The useful tests at this phase are shape tests for the normalized AST contract:
 
 1. query-root tests: verify whether a query returns `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
 2. clause-order tests: verify that linear queries preserve clause order inside `GQLSingleQuery`;
-3. wrapper tests: verify that top-level `SELECT` normalizes to `GQLSelectClause` plus optional `GQLPageClause`, and `{ ... }` keeps a `GQLSubquery` wrapper;
-4. path tests: verify that parenthesized and simplified path primaries keep their own AST families, and that outer `?` / `{m,n}` quantifiers attach to the path-primary wrapper instead of being folded into an edge node;
-4. pattern and expression tests: verify the current structured coverage and make raw-text fallbacks explicit where they still exist.
+3. wrapper tests: verify that top-level graph `SELECT` normalizes to `GQLSelectClause` plus optional `GQLPageClause`, `{ ... }` keeps a `GQLSubquery` wrapper, and weak top-level prefixes still fall back to plain SQL when they are not graph-shaped;
+4. path tests: verify that parenthesized and simplified path primaries keep their own AST families, that classic `|` / `|+|` alternation preserves `GQLPathPatternAlternation`, and that outer `?` / `{m,n}` quantifiers attach to either the native primary or `GQLQuantifiedPathPrimary` instead of being folded into an edge node;
+5. pattern and expression tests: verify the current structured coverage, including aggregate `DISTINCT` / `ALL`, counted path prefixes, dynamic/special value primaries, `TRIM` shape/spec assertions, and `DURATION_BETWEEN` qualifier assertions, and make raw-text fallbacks explicit where they still exist.
