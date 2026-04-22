@@ -1404,7 +1404,10 @@ Ptr makeNpvepExpr(GQLParser::NonParenthesizedValueExpressionPrimaryContext *npve
 Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &visitor, Ptr case_operand = {}) {
   if (auto *npvep = wo->nonParenthesizedValueExpressionPrimary()) return makeNpvepExpr(npvep, visitor);
 
-  auto cloneLeft = [&]() -> Ptr { return case_operand ? case_operand->clone() : GQLExpr::rawText("?"); };
+  auto cloneLeft = [&]() -> Ptr {
+    if (!case_operand) throwUnsupported("simple CASE operand", wo);
+    return case_operand->clone();
+  };
 
   if (wo->compOp()) {
     auto right = castAny<Ptr>(visitor.visit(wo->valueExpression()));
