@@ -2,6 +2,7 @@
 
 #include <Common/Exception.h>
 #include <Core/Field.h>
+#include <Core/Settings.h>
 #include <Core/SettingsEnums.h>
 #include <Core/SettingsFields.h>
 
@@ -131,4 +132,18 @@ GTEST_TEST(SettingMySQLDataTypesSupport, SetInvalidString) {
   EXPECT_NO_THROW(setting = String(", "));
   ASSERT_TRUE(setting.changed);
   ASSERT_EQ(std::vector<MySQLDataTypesSupport>{}, setting.value);
+}
+
+namespace DB::Setting
+{
+extern const SettingsDialect dialect;
+}
+
+GTEST_TEST(SettingsAlias, QueryLanguageResolvesToDialect)
+{
+    DB::Settings settings;
+    ASSERT_TRUE(settings.has("query_language"));
+    settings.set("query_language", Field("gql"));
+    EXPECT_EQ(settings[DB::Setting::dialect], DB::Dialect::gql);
+    EXPECT_TRUE(settings.isChanged("dialect"));
 }

@@ -161,9 +161,12 @@ IMPLEMENT_SETTING_ENUM(MsgPackUUIDRepresentation, ErrorCodes::BAD_ARGUMENTS,
                         {"str", FormatSettings::MsgPackUUIDRepresentation::STR},
                         {"ext", FormatSettings::MsgPackUUIDRepresentation::EXT}})
 
-IMPLEMENT_SETTING_ENUM(
-    Dialect, ErrorCodes::BAD_ARGUMENTS,
-    {{"clickhouse", Dialect::clickhouse}, {"kusto", Dialect::kusto}, {"prql", Dialect::prql}, {"promql", Dialect::promql}})
+IMPLEMENT_SETTING_ENUM(Dialect, ErrorCodes::BAD_ARGUMENTS,
+                       {{"clickhouse", Dialect::clickhouse},
+                        {"kusto", Dialect::kusto},
+                        {"prql", Dialect::prql},
+                        {"promql", Dialect::promql},
+                        {"gql", Dialect::gql}})
 
 IMPLEMENT_SETTING_ENUM(ParallelReplicasCustomKeyFilterType, ErrorCodes::BAD_ARGUMENTS,
                        {{"default", ParallelReplicasCustomKeyFilterType::DEFAULT}, {"range", ParallelReplicasCustomKeyFilterType::RANGE}})

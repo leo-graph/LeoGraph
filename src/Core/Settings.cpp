@@ -98,9 +98,9 @@ extern const int BAD_ARGUMENTS;
 #define OBSOLETE_SETTINGS(DECLARE, DECLARE_WITH_ALIAS)
 #else
 #define COMMON_SETTINGS(DECLARE, DECLARE_WITH_ALIAS) \
-    DECLARE(Dialect, dialect, Dialect::clickhouse, R"(
+    DECLARE_WITH_ALIAS(Dialect, dialect, Dialect::clickhouse, R"(
 Which dialect will be used to parse query
-)", 0)\
+)", 0, query_language)\
     DECLARE(UInt64, min_compress_block_size, 65536, R"(
 For [MergeTree](../../engines/table-engines/mergetree-family/mergetree.md) tables. In order to reduce latency when processing queries, a block is compressed when writing the next mark if its size is at least `min_compress_block_size`. By default, 65,536.
 
@@ -7543,6 +7543,9 @@ Enable Kusto Query Language (KQL) - an alternative to SQL.
 )", EXPERIMENTAL) \
     DECLARE(Bool, allow_experimental_prql_dialect, false, R"(
 Enable PRQL - an alternative to SQL.
+)", EXPERIMENTAL) \
+    DECLARE(Bool, allow_experimental_gql_dialect, false, R"(
+Enable GQL (Graph Query Language, ISO/IEC 39075) - a graph query dialect.
 )", EXPERIMENTAL) \
     DECLARE(Bool, enable_adaptive_memory_spill_scheduler, false, R"(
 Trigger processor to spill data into external storage adpatively. grace join is supported at present.

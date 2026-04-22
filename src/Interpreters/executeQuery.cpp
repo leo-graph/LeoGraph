@@ -30,6 +30,7 @@
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Parsers/ASTShowProcesslistQuery.h>
 #include <Parsers/ASTTransactionControl.h>
+#include <Parsers/graph/ParserGQLQuery.h>
 #include <Parsers/Kusto/parseKQLQuery.h>
 #include <Parsers/Kusto/ParserKQLStatement.h>
 #include <Parsers/parseQuery.h>
@@ -113,6 +114,7 @@ extern const Event ASTFuzzerQueries;
 namespace DB {
 namespace Setting {
 extern const SettingsBool allow_experimental_analyzer;
+extern const SettingsBool allow_experimental_gql_dialect;
 extern const SettingsBool allow_experimental_kusto_dialect;
 extern const SettingsBool allow_experimental_prql_dialect;
 extern const SettingsBool allow_settings_after_format_in_insert;
@@ -977,6 +979,15 @@ static BlockIO executeQueryImpl(const char *begin, const char *end, ContextMutab
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
                         "Support for PRQL is disabled (turn on setting 'allow_experimental_prql_dialect')");
       ParserPRQLQuery parser(max_query_size, settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+      out_ast =
+          parseQuery(parser, begin, end, "", max_query_size, settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+    }
+    else if (settings[Setting::dialect] == Dialect::gql && !internal)
+    {
+      if (!settings[Setting::allow_experimental_gql_dialect])
+        throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
+                        "Support for GQL dialect is disabled (turn on setting 'allow_experimental_gql_dialect')");
+      ParserGQLQuery parser;
       out_ast =
           parseQuery(parser, begin, end, "", max_query_size, settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
     } else if (settings[Setting::dialect] == Dialect::promql && !internal) {

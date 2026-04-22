@@ -5,7 +5,9 @@
 #  include <Common/Exception.h>
 #  include <gtest/gtest.h>
 #  include <IO/WriteBufferFromString.h>
+#  include <Parsers/ASTSetQuery.h>
 #  include <Parsers/graph/GraphAST.h>
+#  include <Parsers/graph/ParserGQLQuery.h>
 #  include <Parsers/graph/ParserGraphQuery.h>
 #  include <Parsers/parseQuery.h>
 #  include <Parsers/ParserQuery.h>
@@ -3586,6 +3588,101 @@ TEST(GQLParser, SimpleCasePathConstructorWhenRoundTrip) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) RETURN CASE a WHEN PATH[a, e, b] THEN 'path' ELSE 'no' END");
+}
+
+// ---------------------------------------------------------------------------
+// ParserGQLQuery (dialect=gql) tests
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+ASTPtr parseViaDialectParser(const String & query)
+{
+    ParserGQLQuery parser;
+    return DB::parseQuery(parser, query, 0, 0, 0);
+}
+
+}
+
+TEST(GQLParser, DialectParserMatchReturn)
+{
+    auto ast = parseViaDialectParser("MATCH (n) RETURN n");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    EXPECT_GE(sq->clauses.size(), 1);
+    EXPECT_EQ(formatAST(*sq), "MATCH (n) RETURN n");
+}
+
+TEST(GQLParser, DialectParserMatchWhereReturn)
+{
+    auto ast = parseViaDialectParser("MATCH (n:Person) WHERE n.age > 30 RETURN n.name");
+    ASSERT_NE(ast, nullptr);
+    EXPECT_EQ(formatAST(*ast), "MATCH (n:Person) WHERE n.age > 30 RETURN n.name");
+}
+
+TEST(GQLParser, DialectParserEdgePattern)
+{
+    auto ast = parseViaDialectParser("MATCH (a)-[e:KNOWS]->(b) RETURN a, b");
+    ASSERT_NE(ast, nullptr);
+    EXPECT_EQ(formatAST(*ast), "MATCH (a)-[e:KNOWS]->(b) RETURN a, b");
+}
+
+TEST(GQLParser, DialectParserSetDialectPassthrough)
+{
+    auto ast = parseViaDialectParser("SET dialect = 'clickhouse'");
+    ASSERT_NE(ast, nullptr);
+    const auto * set = ast->as<ASTSetQuery>();
+    ASSERT_NE(set, nullptr);
+    ASSERT_EQ(set->changes.size(), 1);
+    EXPECT_EQ(set->changes[0].name, "dialect");
+}
+
+TEST(GQLParser, DialectParserSetQueryLanguagePassthrough)
+{
+    auto ast = parseViaDialectParser("SET query_language = 'clickhouse'");
+    ASSERT_NE(ast, nullptr);
+    const auto * set = ast->as<ASTSetQuery>();
+    ASSERT_NE(set, nullptr);
+    ASSERT_EQ(set->changes.size(), 1);
+    EXPECT_EQ(set->changes[0].name, "query_language");
+}
+
+TEST(GQLParser, DialectParserSetPropertyGoesToGQL)
+{
+    auto ast = parseViaDialectParser("MATCH (n) SET n.x = 1");
+    ASSERT_NE(ast, nullptr);
+    const auto * set_q = ast->as<ASTSetQuery>();
+    EXPECT_EQ(set_q, nullptr);
+}
+
+TEST(GQLParser, DialectParserNonDialectSettingGoesToGQL)
+{
+    auto ast = parseViaDialectParser("MATCH (n) SET n.age = 30");
+    ASSERT_NE(ast, nullptr);
+    const auto * set_q = ast->as<ASTSetQuery>();
+    EXPECT_EQ(set_q, nullptr);
+    EXPECT_NE(formatAST(*ast).find("SET"), String::npos);
+}
+
+TEST(GQLParser, DialectParserBareSetGoesToGQL)
+{
+    auto ast = parseViaDialectParser("SET n.x = 1");
+    ASSERT_NE(ast, nullptr);
+    const auto * set_q = ast->as<ASTSetQuery>();
+    EXPECT_EQ(set_q, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_EQ(sq->clauses.size(), 1);
+    EXPECT_NE(sq->clauses[0]->as<GAST::GQLSetClause>(), nullptr);
+}
+
+TEST(GQLParser, DialectParserDMLInsert)
+{
+    auto ast = parseViaDialectParser("INSERT (:Person {name: 'Alice', age: 30})");
+    ASSERT_NE(ast, nullptr);
+    EXPECT_NE(formatAST(*ast).find("INSERT"), String::npos);
 }
 
 #endif
