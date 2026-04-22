@@ -1867,8 +1867,6 @@ Ptr makeLinearDataModifyingQuery(GQLParser::LinearDataModifyingStatementContext 
 
 }  // namespace
 
-Ptr GQLParseTreeVisitor::makeRawTextExpr(antlr4::ParserRuleContext *context) const { return GQLExpr::rawText(getText(context)); }
-
 Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedure_body, antlr4::ParserRuleContext *context) {
   auto *statement_block = procedure_body ? procedure_body->statementBlock() : nullptr;
 

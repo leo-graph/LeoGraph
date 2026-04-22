@@ -106,9 +106,6 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitLinearDataModifyingStatement(GQLParser::LinearDataModifyingStatementContext* context) override;
 
   AST::Ptr buildSubquery(GQLParser::ProcedureBodyContext* procedure_body, antlr4::ParserRuleContext* context);
-
- private:
-  AST::Ptr makeRawTextExpr(antlr4::ParserRuleContext* context) const;
 };
 
 }  // namespace DB::OPENGQL
