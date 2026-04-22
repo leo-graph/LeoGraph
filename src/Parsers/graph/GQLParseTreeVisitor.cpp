@@ -1322,7 +1322,7 @@ Ptr makeResultExpr(GQLParser::ResultContext *context, GQLParseTreeVisitor &visit
 
   if (auto *result_expr = context->resultExpression()) return castAny<Ptr>(visitor.visit(result_expr->valueExpression()));
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("result expression", context);
 }
 
 Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVisitor &visitor);
@@ -1395,10 +1395,10 @@ Ptr makeNpvepExpr(GQLParser::NonParenthesizedValueExpressionPrimaryContext *npve
       return GQLExpr::property(std::move(base), getText(special->propertyName()->identifier()));
     }
     if (auto structured = tryMakeStructuredValuePrimary(special, visitor)) return structured;
-    return GQLExpr::rawText(getText(special));
+    throwUnsupported("non-parenthesized value expression primary special case", special);
   }
 
-  return GQLExpr::rawText(getText(npvep));
+  throwUnsupported("non-parenthesized value expression primary", npvep);
 }
 
 Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &visitor, Ptr case_operand = {}) {
@@ -1470,7 +1470,7 @@ Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &
     return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal(right_text));
   }
 
-  return GQLExpr::rawText(getText(wo));
+  throwUnsupported("when operand", wo);
 }
 
 Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVisitor &visitor) {
@@ -1485,7 +1485,7 @@ Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVi
   }
 
   auto *spec = context->caseSpecification();
-  if (!spec) return GQLExpr::rawText(getText(context));
+  if (!spec) throwUnsupported("case expression", context);
 
   if (auto *searched = spec->searchedCase()) {
     auto expr = make_intrusive<GQLCaseExpr>(GQLCaseExpr::Form::Searched);
@@ -1546,7 +1546,7 @@ Ptr makeCaseExpression(GQLParser::CaseExpressionContext *context, GQLParseTreeVi
     return Ptr(expr);
   }
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("case specification", context);
 }
 
 Ptr makeCastSpecification(GQLParser::CastSpecificationContext *context, GQLParseTreeVisitor &visitor) {
@@ -3006,7 +3006,7 @@ std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpres
 
   if (auto structured = tryMakeStructuredValuePrimary(context, *this)) return structured;
 
-  return makeRawTextExpr(context);
+  throwUnsupported("value expression primary", context);
 }
 
 std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::UnsignedValueSpecificationContext *context) {
@@ -3024,7 +3024,7 @@ std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::Unsigne
     }
   }
 
-  return makeRawTextExpr(context);
+  throwUnsupported("unsigned value specification", context);
 }
 
 std::any GQLParseTreeVisitor::visitUnsignedLiteral(GQLParser::UnsignedLiteralContext *context) {
