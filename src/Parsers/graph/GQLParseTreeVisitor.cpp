@@ -2946,7 +2946,7 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
     return GQLExpr::unaryOp("EXISTS ", std::move(operand));
   }
 
-  return makeRawTextExpr(context);
+  throwUnsupported("predicate", context);
 }
 
 std::any GQLParseTreeVisitor::visitNormalizedPredicateExprAlt(GQLParser::NormalizedPredicateExprAltContext *context) {
