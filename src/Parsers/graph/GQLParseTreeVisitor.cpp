@@ -1125,7 +1125,7 @@ Ptr makeNumericValueFunction(GQLParser::NumericValueFunctionContext *numeric, GQ
     return GQLExpr::functionCall("EXP", std::move(arguments));
   }
 
-  return GQLExpr::rawText(getText(numeric));
+  throwUnsupported("numeric value function", numeric);
 }
 
 Ptr makeCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionContext *context, GQLParseTreeVisitor &visitor) {
@@ -1183,7 +1183,7 @@ Ptr makeCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionCo
     return GQLExpr::trimString(std::move(source), spec, std::move(trim_char));
   }
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("character or byte string function", context);
 }
 
 Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
@@ -1247,7 +1247,7 @@ Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, 
     return GQLExpr::functionCall("LOCAL_DATETIME", std::move(args));
   }
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("datetime value function", context);
 }
 
 Ptr makeDurationValueFunction(GQLParser::DurationValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
@@ -1267,7 +1267,7 @@ Ptr makeDurationValueFunction(GQLParser::DurationValueFunctionContext *context, 
     return GQLExpr::functionCall("ABS", std::move(args));
   }
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("duration value function", context);
 }
 
 Ptr makeListValueFunction(GQLParser::ListValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
@@ -1284,7 +1284,7 @@ Ptr makeListValueFunction(GQLParser::ListValueFunctionContext *context, GQLParse
     return GQLExpr::functionCall("TRIM", std::move(args));
   }
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("list value function", context);
 }
 
 Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
@@ -1312,7 +1312,7 @@ Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisi
     return GQLExpr::durationBetween(std::move(left), std::move(right), qualifier);
   }
 
-  return GQLExpr::rawText(getText(context));
+  throwUnsupported("value function", context);
 }
 
 Ptr makeResultExpr(GQLParser::ResultContext *context, GQLParseTreeVisitor &visitor) {
