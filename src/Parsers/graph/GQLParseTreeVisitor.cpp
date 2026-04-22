@@ -1188,61 +1188,61 @@ Ptr makeCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionCo
 
 Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
   if (auto *date_fn = context->dateFunction()) {
-    if (date_fn->CURRENT_DATE()) return GQLExpr::rawText("CURRENT_DATE");
+    if (date_fn->CURRENT_DATE()) return GQLExpr::bareKeywordFunction("CURRENT_DATE");
     PtrList args;
     if (auto *params = date_fn->dateFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
         args.push_back(makeRecordConstructor(rc, visitor));
       else
-        args.push_back(GQLExpr::rawText(getText(params)));
+        args.push_back(GQLExpr::literal(getText(params)));
     }
     return GQLExpr::functionCall("DATE", std::move(args));
   }
 
   if (auto *time_fn = context->timeFunction()) {
-    if (time_fn->CURRENT_TIME()) return GQLExpr::rawText("CURRENT_TIME");
+    if (time_fn->CURRENT_TIME()) return GQLExpr::bareKeywordFunction("CURRENT_TIME");
     PtrList args;
     if (auto *params = time_fn->timeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
         args.push_back(makeRecordConstructor(rc, visitor));
       else
-        args.push_back(GQLExpr::rawText(getText(params)));
+        args.push_back(GQLExpr::literal(getText(params)));
     }
     return GQLExpr::functionCall("ZONED_TIME", std::move(args));
   }
 
   if (auto *datetime_fn = context->datetimeFunction()) {
-    if (datetime_fn->CURRENT_TIMESTAMP()) return GQLExpr::rawText("CURRENT_TIMESTAMP");
+    if (datetime_fn->CURRENT_TIMESTAMP()) return GQLExpr::bareKeywordFunction("CURRENT_TIMESTAMP");
     PtrList args;
     if (auto *params = datetime_fn->datetimeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
         args.push_back(makeRecordConstructor(rc, visitor));
       else
-        args.push_back(GQLExpr::rawText(getText(params)));
+        args.push_back(GQLExpr::literal(getText(params)));
     }
     return GQLExpr::functionCall("ZONED_DATETIME", std::move(args));
   }
 
   if (auto *localtime_fn = context->localtimeFunction()) {
-    if (!localtime_fn->LEFT_PAREN()) return GQLExpr::rawText("LOCAL_TIME");
+    if (!localtime_fn->LEFT_PAREN()) return GQLExpr::bareKeywordFunction("LOCAL_TIME");
     PtrList args;
     if (auto *params = localtime_fn->timeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
         args.push_back(makeRecordConstructor(rc, visitor));
       else
-        args.push_back(GQLExpr::rawText(getText(params)));
+        args.push_back(GQLExpr::literal(getText(params)));
     }
     return GQLExpr::functionCall("LOCAL_TIME", std::move(args));
   }
 
   if (auto *localdatetime_fn = context->localdatetimeFunction()) {
-    if (localdatetime_fn->LOCAL_TIMESTAMP()) return GQLExpr::rawText("LOCAL_TIMESTAMP");
+    if (localdatetime_fn->LOCAL_TIMESTAMP()) return GQLExpr::bareKeywordFunction("LOCAL_TIMESTAMP");
     PtrList args;
     if (auto *params = localdatetime_fn->datetimeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
         args.push_back(makeRecordConstructor(rc, visitor));
       else
-        args.push_back(GQLExpr::rawText(getText(params)));
+        args.push_back(GQLExpr::literal(getText(params)));
     }
     return GQLExpr::functionCall("LOCAL_DATETIME", std::move(args));
   }
@@ -1257,7 +1257,7 @@ Ptr makeDurationValueFunction(GQLParser::DurationValueFunctionContext *context, 
     if (auto *rc = params->recordConstructor())
       args.push_back(makeRecordConstructor(rc, visitor));
     else
-      args.push_back(GQLExpr::rawText(getText(params)));
+      args.push_back(GQLExpr::literal(getText(params)));
     return GQLExpr::functionCall("DURATION", std::move(args));
   }
 

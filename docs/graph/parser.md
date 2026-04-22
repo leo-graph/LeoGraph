@@ -203,7 +203,7 @@ IAST
   +-- GQLExpr                 -- current expression skeleton
 ```
 
-Pattern nodes stay graph-native, while expressions use a `GQLExpr` layer. Most value-function branches are now structurally represented: numeric functions (all 13 branches), character/string functions (including `TRIM` via `GQLExpr::TrimString` with explicit `TrimSpec`), datetime functions, duration functions (including `DURATION_BETWEEN` via `GQLExpr::DurationBetween` with `TemporalQualifier`), and list functions. The expression-primary layer now also covers `valueQueryExpression` (`VALUE { subquery }`) via `GQLExpr::Kind::ValueQuery`, `letValueExpression` (`LET ... IN ... END`) via `GQLExpr::Kind::LetExpr`, and `pathValueConstructor` (`PATH [ ... ]`) via `GQLExpr::Kind::PathConstructor`. The `normalizedPredicatePart2` (`IS [NOT] [normalForm] NORMALIZED`) is now fully structured as a `GQLExpr::BinaryOp` in both the top-level `normalizedPredicateExprAlt` visitor and the `whenOperand` CASE branch. `GQLExpr::Kind::FunctionCall` carries aggregate `DISTINCT` / `ALL` through a `SetQuantifier` field instead of stringifying the modifier back into raw text. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
+Pattern nodes stay graph-native, while expressions use a `GQLExpr` layer. Most value-function branches are now structurally represented: numeric functions (all 13 branches), character/string functions (including `TRIM` via `GQLExpr::TrimString` with explicit `TrimSpec`), datetime functions, duration functions (including `DURATION_BETWEEN` via `GQLExpr::DurationBetween` with `TemporalQualifier`), and list functions. Bare keyword datetime forms (`CURRENT_DATE`, `CURRENT_TIME`, `CURRENT_TIMESTAMP`, `LOCAL_TIME`, `LOCAL_TIMESTAMP`) are structured as `GQLExpr::Kind::FunctionCall` with `bare_keyword = true`, so round-trip output omits parentheses. Datetime and duration value functions with string parameters (e.g. `DATE('2024-01-15')`, `ZONED_TIME('10:30:00+02:00')`, `DURATION('P1Y')`) store their argument as a `GQLExpr::Kind::Literal` child node instead of raw text. The expression-primary layer now also covers `valueQueryExpression` (`VALUE { subquery }`) via `GQLExpr::Kind::ValueQuery`, `letValueExpression` (`LET ... IN ... END`) via `GQLExpr::Kind::LetExpr`, and `pathValueConstructor` (`PATH [ ... ]`) via `GQLExpr::Kind::PathConstructor`. The `normalizedPredicatePart2` (`IS [NOT] [normalForm] NORMALIZED`) is now fully structured as a `GQLExpr::BinaryOp` in both the top-level `normalizedPredicateExprAlt` visitor and the `whenOperand` CASE branch. `GQLExpr::Kind::FunctionCall` carries aggregate `DISTINCT` / `ALL` through a `SetQuantifier` field instead of stringifying the modifier back into raw text. Inside `GQLSubquery`, wrapper-level metadata such as `AT schema`, binding definitions, and `NEXT YIELD` now also have dedicated AST nodes instead of being stored as top-level raw-text leaves. `schemaReference`, `graphExpression`, `bindingTableExpression`, and binding initializers are also wrapped in dedicated nodes so the nested procedure-body contract can grow without reshaping its parents.
 
 ### Visitor Organization
 
@@ -214,26 +214,14 @@ The visitor is organized in the same high-level layers as the grammar:
 - pattern-level visitors such as `visitGraphPattern`, `visitPathPattern`, `visitNodePattern`, and `visitEdgePattern` build graph-specific subtrees;
 - expression-level visitors build `GQLExpr` and related leaf nodes.
 
-Two rules are especially important:
+Key design constraints for the visitor:
 
 - `visitSelectStatement` must finish reading the needed parse-tree branches before it constructs `GQLSelectClause`, then emit a `GQLSingleQuery` and append `GQLPageClause` only when paging exists.
 - `visitNestedQuerySpecification` must preserve a `GQLSubquery` wrapper instead of unwrapping its inner query.
-- `visitCallQueryStatement` should preserve named and inline procedure calls as different AST node types instead of folding them back into one boolean-driven clause.
-- inline `CALL` should preserve `variableScopeClause` structurally when present instead of rejecting it.
-- `visitGroupByClause` should build a dedicated `GQLGroupByClause` instead of storing `GROUP BY ...` as raw text.
-- `visitUseGraphClause` and graph-qualified `SELECT FROM` source builders should preserve `graphExpression` as `GQLGraphExpression` instead of a top-level raw-text expression.
-- binding-variable initializers should preserve `bindingTableExpression` as `GQLBindingTableExpression` unless the grammar branch is still explicitly unsupported.
-- `visitGraphPattern` and `visitPathPattern` should preserve graph/path prefixes structurally instead of degrading them to raw text or `Unsupported`.
-- counted path-search prefixes should preserve their numeric or dynamic parameter payload via `GQLCountSpec` instead of storing the count as a raw string.
-- classic `pathPatternExpression` should preserve `pathTerm` and top-level `|` / `|+|` alternation structurally via `GQLPathTerm` / `GQLPathPatternAlternation`, with `GQLPathPattern` and `GQLParenthesizedPathPattern` owning a single `expression` child instead of flattening operands into their parent `children`.
-- quantified classic path primaries that cannot carry a quantifier inline should preserve the wrapper explicitly via `GQLQuantifiedPathPrimary`.
-- `visitPpSimplifiedPathPatternExpression` should keep simplified path forms in dedicated `GQLSimplifiedPathPattern` / `GQLSimplifiedPathExpr` nodes instead of forcing them into `GQLEdgePattern`. `GQLSimplifiedPathExpr` round-trip preserves the AST shape but normalizes whitespace around binary operators such as `|`, `|+|`, `&`, and concatenation; tests should assert shape plus the normalized form rather than the raw source string.
-- classic-pattern alternation and simplified-path alternation deliberately use parallel node families; they should not be merged into one shared node type.
-- `visitPredicateExprAlt` should keep `EXISTS` operands as structured AST children (`GQLGraphPatternBlock`, `GQLMatchStatementBlock`, or `GQLSubquery`) instead of stringifying the body.
-- aggregate `DISTINCT` / `ALL` should stay structured on `GQLExpr::FunctionCall` instead of being prefixed back into an argument raw-text payload.
+- Classic-pattern alternation and simplified-path alternation deliberately use parallel node families (`GQLPathPatternAlternation` vs `GQLSimplifiedPathExpr`); they should not be merged into one shared node type.
 - If a nested procedure body contains a non-query statement that the current query AST cannot represent, the visitor should fail explicitly instead of hiding it inside a top-level raw-text query node.
 
-These two constraints keep the query contract stable while the lower layers continue to expand.
+These constraints keep the query contract stable while the lower layers continue to expand.
 
 ## Parser Pipeline
 
@@ -258,7 +246,7 @@ ASTPtr parseQuery(std::string_view query, bool use_statement_rule = false)
 
 `ParserGraphQuery` is still a thin outer adapter. It currently routes strong graph prefixes such as `MATCH`, `OPTIONAL MATCH`, and `CALL` directly into the `antlr4` path, and uses heuristic gating for weaker prefixes such as top-level graph-shaped `SELECT` and focused `USE`. Because `ParserGraphQuery` runs before the regular SQL parser chain in `ParserQuery`, weak-prefix routing must fall back cleanly when the `antlr4` parse fails so plain SQL is not stolen accidentally.
 
-DML statements are not yet routed through `ParserGraphQuery`. The DML AST layer is fully structured via `parseStatement` direct entry, but top-level DML routing (INSERT/SET/REMOVE/DELETE prefix detection, SQL compatibility fallback) is deferred to a future entry routing phase.
+DML statements are not yet routed through `ParserGraphQuery`. The DML AST layer is fully structured via `parseStatement` direct entry, but top-level DML routing (`INSERT`/`SET`/`REMOVE`/`DELETE` prefix detection, SQL compatibility fallback) is deferred to a future entry routing phase.
 
 Longer term, top-level parser selection should not depend on `ParserGraphQuery` heuristics. `ParserGraphQuery` exists because the current codebase still sits inside the ClickHouse SQL parser chain, but that makes every widened GQL prefix compete with existing SQL syntax.
 

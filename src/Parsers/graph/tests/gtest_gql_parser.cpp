@@ -2976,6 +2976,33 @@ TEST(GQLParser, DatetimeCurrentDateNoArgs) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN CURRENT_DATE");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "CURRENT_DATE");
+  EXPECT_TRUE(expr->bare_keyword);
+  EXPECT_TRUE(expr->children.empty());
+}
+
+TEST(GQLParser, DatetimeCurrentTimeNoArgs) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN CURRENT_TIME");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN CURRENT_TIME");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "CURRENT_TIME");
+  EXPECT_TRUE(expr->bare_keyword);
+  EXPECT_TRUE(expr->children.empty());
 }
 
 TEST(GQLParser, DatetimeDateFunctionWithString) {
@@ -2983,6 +3010,20 @@ TEST(GQLParser, DatetimeDateFunctionWithString) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DATE('2024-01-15')");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "DATE");
+  EXPECT_FALSE(expr->bare_keyword);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* arg = expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(arg, nullptr);
+  EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(arg->text, "'2024-01-15'");
 }
 
 TEST(GQLParser, DatetimeCurrentTimestampNoArgs) {
@@ -2990,6 +3031,16 @@ TEST(GQLParser, DatetimeCurrentTimestampNoArgs) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN CURRENT_TIMESTAMP");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "CURRENT_TIMESTAMP");
+  EXPECT_TRUE(expr->bare_keyword);
+  EXPECT_TRUE(expr->children.empty());
 }
 
 TEST(GQLParser, DatetimeZonedDatetimeWithString) {
@@ -2997,6 +3048,62 @@ TEST(GQLParser, DatetimeZonedDatetimeWithString) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN ZONED_DATETIME('2024-01-15T10:30:00Z')");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "ZONED_DATETIME");
+  EXPECT_FALSE(expr->bare_keyword);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* arg = expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(arg, nullptr);
+  EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(arg->text, "'2024-01-15T10:30:00Z'");
+}
+
+TEST(GQLParser, DatetimeZonedTimeWithString) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN ZONED_TIME('10:30:00+02:00')");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN ZONED_TIME('10:30:00+02:00')");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "ZONED_TIME");
+  EXPECT_FALSE(expr->bare_keyword);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* arg = expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(arg, nullptr);
+  EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(arg->text, "'10:30:00+02:00'");
+}
+
+TEST(GQLParser, DatetimeLocalTimeWithString) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN LOCAL_TIME('10:30:00')");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN LOCAL_TIME('10:30:00')");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "LOCAL_TIME");
+  EXPECT_FALSE(expr->bare_keyword);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* arg = expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(arg, nullptr);
+  EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(arg->text, "'10:30:00'");
 }
 
 TEST(GQLParser, DatetimeLocalTimeNoArgs) {
@@ -3004,6 +3111,37 @@ TEST(GQLParser, DatetimeLocalTimeNoArgs) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN LOCAL_TIME");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "LOCAL_TIME");
+  EXPECT_TRUE(expr->bare_keyword);
+  EXPECT_TRUE(expr->children.empty());
+}
+
+TEST(GQLParser, DatetimeLocalDatetimeWithString) {
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN LOCAL_DATETIME('2024-01-15T10:30:00')");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN LOCAL_DATETIME('2024-01-15T10:30:00')");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "LOCAL_DATETIME");
+  EXPECT_FALSE(expr->bare_keyword);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* arg = expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(arg, nullptr);
+  EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(arg->text, "'2024-01-15T10:30:00'");
 }
 
 TEST(GQLParser, DatetimeLocalTimestampNoArgs) {
@@ -3011,6 +3149,16 @@ TEST(GQLParser, DatetimeLocalTimestampNoArgs) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN LOCAL_TIMESTAMP");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "LOCAL_TIMESTAMP");
+  EXPECT_TRUE(expr->bare_keyword);
+  EXPECT_TRUE(expr->children.empty());
 }
 
 TEST(GQLParser, DurationFunctionWithString) {
@@ -3018,6 +3166,20 @@ TEST(GQLParser, DurationFunctionWithString) {
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DURATION('P1Y2M')");
+  ASSERT_GE(clauses->clauses.size(), 2);
+  const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
+  ASSERT_NE(ret, nullptr);
+  ASSERT_GE(ret->items.size(), 1);
+  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "DURATION");
+  EXPECT_FALSE(expr->bare_keyword);
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* arg = expr->children[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(arg, nullptr);
+  EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(arg->text, "'P1Y2M'");
 }
 
 TEST(GQLParser, ElementsFunctionShape) {
@@ -3683,6 +3845,156 @@ TEST(GQLParser, DialectParserDMLInsert)
     auto ast = parseViaDialectParser("INSERT (:Person {name: 'Alice', age: 30})");
     ASSERT_NE(ast, nullptr);
     EXPECT_NE(formatAST(*ast).find("INSERT"), String::npos);
+}
+
+// -- Dialect parser coverage sweep ------------------------------------------
+//
+// Tests below verify that ParserGQLQuery can parse common GQL query patterns
+// end-to-end with proper AST structure.
+
+TEST(GQLParser, DialectParserCountAggregate)
+{
+    auto ast = parseViaDialectParser("MATCH (n) RETURN count(n)");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 2);
+    EXPECT_NE(sq->clauses[0]->as<GAST::GQLMatchClause>(), nullptr);
+    const auto * ret = sq->clauses[1]->as<GAST::GQLReturnClause>();
+    ASSERT_NE(ret, nullptr);
+    ASSERT_GE(ret->items.size(), 1);
+    const auto * count_expr = ret->items[0]->as<GAST::GQLExpr>();
+    ASSERT_NE(count_expr, nullptr);
+    EXPECT_EQ(count_expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+    EXPECT_EQ(count_expr->text, "COUNT");
+    EXPECT_EQ(count_expr->children.size(), 1);
+}
+
+TEST(GQLParser, DialectParserOrderByLimit)
+{
+    auto ast = parseViaDialectParser("MATCH (n) RETURN n ORDER BY n.name LIMIT 10");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 3);
+    EXPECT_NE(sq->clauses[0]->as<GAST::GQLMatchClause>(), nullptr);
+    EXPECT_NE(sq->clauses[1]->as<GAST::GQLReturnClause>(), nullptr);
+    EXPECT_NE(sq->clauses[2]->as<GAST::GQLPageClause>(), nullptr);
+    auto fmt = formatAST(*ast);
+    EXPECT_NE(fmt.find("ORDER BY"), String::npos);
+    EXPECT_NE(fmt.find("LIMIT"), String::npos);
+}
+
+TEST(GQLParser, DialectParserUnionAll)
+{
+    auto ast = parseViaDialectParser("MATCH (a) RETURN a UNION ALL MATCH (b) RETURN b");
+    ASSERT_NE(ast, nullptr);
+    const auto * cq = ast->as<GAST::GQLCombinedQuery>();
+    ASSERT_NE(cq, nullptr);
+    ASSERT_EQ(cq->queries.size(), 2);
+    EXPECT_NE(cq->queries[0]->as<GAST::GQLSingleQuery>(), nullptr);
+    EXPECT_NE(cq->queries[1]->as<GAST::GQLSingleQuery>(), nullptr);
+    EXPECT_NE(formatAST(*ast).find("UNION ALL"), String::npos);
+}
+
+TEST(GQLParser, DialectParserCaseExpression)
+{
+    auto ast = parseViaDialectParser("MATCH (n) RETURN CASE WHEN n.age > 30 THEN 'old' ELSE 'young' END");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 2);
+    const auto * ret = sq->clauses[1]->as<GAST::GQLReturnClause>();
+    ASSERT_NE(ret, nullptr);
+    ASSERT_GE(ret->items.size(), 1);
+    EXPECT_NE(ret->items[0]->as<GAST::GQLCaseExpr>(), nullptr);
+    auto fmt = formatAST(*ast);
+    EXPECT_NE(fmt.find("CASE"), String::npos);
+    EXPECT_NE(fmt.find("WHEN"), String::npos);
+    EXPECT_NE(fmt.find("ELSE"), String::npos);
+}
+
+TEST(GQLParser, DialectParserSumDistinct)
+{
+    auto ast = parseViaDialectParser("MATCH (n) RETURN sum(DISTINCT n.score)");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 2);
+    const auto * ret = sq->clauses[1]->as<GAST::GQLReturnClause>();
+    ASSERT_NE(ret, nullptr);
+    ASSERT_GE(ret->items.size(), 1);
+    const auto * sum_expr = ret->items[0]->as<GAST::GQLExpr>();
+    ASSERT_NE(sum_expr, nullptr);
+    EXPECT_EQ(sum_expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+    EXPECT_EQ(sum_expr->text, "SUM");
+    EXPECT_EQ(sum_expr->set_quantifier, GAST::GQLExpr::SetQuantifier::Distinct);
+}
+
+TEST(GQLParser, DialectParserSemicolonTruncation)
+{
+    const String input = "MATCH (n) RETURN n; MATCH (m) RETURN m";
+    const char * pos = input.data();
+    const char * end = input.data() + input.size();
+    ParserGQLQuery parser;
+    auto ast = parseQueryAndMovePosition(parser, pos, end, "", true, 0, 0, 0);
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    EXPECT_EQ(formatAST(*ast), "MATCH (n) RETURN n");
+    ASSERT_LT(pos, end);
+    while (pos < end && (*pos == ' ' || *pos == ';'))
+        ++pos;
+    String remaining(pos, static_cast<size_t>(end - pos));
+    EXPECT_EQ(remaining, "MATCH (m) RETURN m");
+}
+
+TEST(GQLParser, DialectParserLetClause)
+{
+    auto ast = parseViaDialectParser("LET x = 1 MATCH (n) WHERE n.id = x RETURN n");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 3);
+    EXPECT_NE(sq->clauses[0]->as<GAST::GQLLetClause>(), nullptr);
+    EXPECT_NE(sq->clauses[1]->as<GAST::GQLMatchClause>(), nullptr);
+    auto fmt = formatAST(*ast);
+    EXPECT_NE(fmt.find("LET"), String::npos);
+}
+
+TEST(GQLParser, DialectParserSelectFromNestedQuery)
+{
+    auto ast = parseViaDialectParser("SELECT a.name FROM { MATCH (a) RETURN a }");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 1);
+    const auto * sel = sq->clauses[0]->as<GAST::GQLSelectClause>();
+    ASSERT_NE(sel, nullptr);
+    ASSERT_GE(sel->items.size(), 1);
+    ASSERT_NE(sel->source, nullptr);
+    const auto * subq = sel->source->as<GAST::GQLSubquery>();
+    ASSERT_NE(subq, nullptr);
+    EXPECT_NE(subq->query, nullptr);
+    EXPECT_NE(formatAST(*ast).find("SELECT"), String::npos);
+    EXPECT_NE(formatAST(*ast).find("FROM"), String::npos);
+}
+
+TEST(GQLParser, DialectParserSelectFromGraphNestedQuery)
+{
+    auto ast = parseViaDialectParser("SELECT a.name FROM g { MATCH (a) RETURN a }");
+    ASSERT_NE(ast, nullptr);
+    const auto * sq = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(sq, nullptr);
+    ASSERT_GE(sq->clauses.size(), 1);
+    const auto * sel = sq->clauses[0]->as<GAST::GQLSelectClause>();
+    ASSERT_NE(sel, nullptr);
+    ASSERT_GE(sel->items.size(), 1);
+    ASSERT_NE(sel->source, nullptr);
+    const auto * src_item = sel->source->as<GAST::GQLSelectSourceItem>();
+    ASSERT_NE(src_item, nullptr);
+    EXPECT_NE(src_item->graph_reference, nullptr);
+    EXPECT_NE(src_item->source, nullptr);
 }
 
 #endif

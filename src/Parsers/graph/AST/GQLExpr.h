@@ -83,6 +83,12 @@ class GQLExpr final : public DB::ASTWithAlias {
     return Ptr(expression);
   }
 
+  static Ptr bareKeywordFunction(const String& name) {
+    auto expression = make_intrusive<GQLExpr>(Kind::FunctionCall, name);
+    expression->bare_keyword = true;
+    return Ptr(expression);
+  }
+
   static Ptr castExpr(Ptr operand, const String& target_type) {
     auto expression = make_intrusive<GQLExpr>(Kind::Cast, target_type);
     expression->children.push_back(std::move(operand));
@@ -163,6 +169,7 @@ class GQLExpr final : public DB::ASTWithAlias {
   SetQuantifier set_quantifier = SetQuantifier::None;
   TrimSpec trim_spec = TrimSpec::None;
   TemporalQualifier temporal_qualifier = TemporalQualifier::None;
+  bool bare_keyword = false;
 
  protected:
   void formatImplWithoutAlias(WriteBuffer& ostr, const FormatSettings& settings, FormatState& state,
@@ -203,13 +210,18 @@ class GQLExpr final : public DB::ASTWithAlias {
       }
 
       case Kind::FunctionCall: {
-        ostr << text << "(";
-        if (set_quantifier != SetQuantifier::None) {
-          ostr << (set_quantifier == SetQuantifier::Distinct ? "DISTINCT" : "ALL");
-          if (!children.empty()) ostr << " ";
+        ostr << text;
+        if (!bare_keyword)
+        {
+          ostr << "(";
+          if (set_quantifier != SetQuantifier::None)
+          {
+            ostr << (set_quantifier == SetQuantifier::Distinct ? "DISTINCT" : "ALL");
+            if (!children.empty()) ostr << " ";
+          }
+          detail::formatChildren(ostr, settings, state, frame, children, ", ");
+          ostr << ")";
         }
-        detail::formatChildren(ostr, settings, state, frame, children, ", ");
-        ostr << ")";
         return;
       }
 
