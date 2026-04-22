@@ -48,6 +48,10 @@ class GQLExpr final : public DB::ASTWithAlias {
     ValueQuery,
     LetExpr,
     PathConstructor,
+    DynamicParameter,
+    SpecialValue,
+    TemporalLiteral,
+    DurationLiteral,
     RawText,
   };
 
@@ -149,6 +153,24 @@ class GQLExpr final : public DB::ASTWithAlias {
     return GQLExpr::binaryOp(op, std::move(operand), GQLExpr::literal(right_text));
   }
 
+  static Ptr dynamicParameter(const String& text) { return Ptr(make_intrusive<GQLExpr>(Kind::DynamicParameter, text)); }
+
+  static Ptr specialValue(const String& text) { return Ptr(make_intrusive<GQLExpr>(Kind::SpecialValue, text)); }
+
+  static Ptr temporalLiteral(const String& keyword, Ptr string_value)
+  {
+    auto expression = make_intrusive<GQLExpr>(Kind::TemporalLiteral, keyword);
+    expression->children.push_back(std::move(string_value));
+    return Ptr(expression);
+  }
+
+  static Ptr durationLiteral(Ptr string_value)
+  {
+    auto expression = make_intrusive<GQLExpr>(Kind::DurationLiteral, "DURATION");
+    expression->children.push_back(std::move(string_value));
+    return Ptr(expression);
+  }
+
   static Ptr rawText(const String& text) { return Ptr(make_intrusive<GQLExpr>(Kind::RawText, text)); }
 
   String getID(char delim) const override { return "GQLExpr" + (delim + text); }
@@ -177,6 +199,8 @@ class GQLExpr final : public DB::ASTWithAlias {
     switch (kind) {
       case Kind::Identifier:
       case Kind::Literal:
+      case Kind::DynamicParameter:
+      case Kind::SpecialValue:
       case Kind::RawText:
         ostr << text;
         return;
@@ -296,6 +320,13 @@ class GQLExpr final : public DB::ASTWithAlias {
           ostr << " YEAR TO MONTH";
         else if (temporal_qualifier == TemporalQualifier::DayToSecond)
           ostr << " DAY TO SECOND";
+        return;
+      }
+
+      case Kind::TemporalLiteral:
+      case Kind::DurationLiteral: {
+        ostr << text << " ";
+        if (!children.empty() && children.front()) children.front()->format(ostr, settings, state, frame);
         return;
       }
     }

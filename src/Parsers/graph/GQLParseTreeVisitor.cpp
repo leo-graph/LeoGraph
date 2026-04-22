@@ -1318,7 +1318,7 @@ Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisi
 Ptr makeResultExpr(GQLParser::ResultContext *context, GQLParseTreeVisitor &visitor) {
   if (!context) return {};
 
-  if (context->nullLiteral()) return GQLExpr::literal("NULL");
+  if (context->nullLiteral()) return GQLExpr::specialValue("NULL");
 
   if (auto *result_expr = context->resultExpression()) return castAny<Ptr>(visitor.visit(result_expr->valueExpression()));
 
@@ -1413,7 +1413,7 @@ Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &
 
   if (auto *null_part = wo->nullPredicatePart2()) {
     const String op = null_part->NOT() ? "IS NOT" : "IS";
-    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal("NULL"));
+    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::specialValue("NULL"));
   }
 
   if (auto *vt_part = wo->valueTypePredicatePart2()) {
@@ -1555,7 +1555,7 @@ Ptr makeCastSpecification(GQLParser::CastSpecificationContext *context, GQLParse
   Ptr operand;
   if (auto *cast_operand = context->castOperand()) {
     if (cast_operand->nullLiteral())
-      operand = GQLExpr::literal("NULL");
+      operand = GQLExpr::specialValue("NULL");
     else if (cast_operand->valueExpression())
       operand = castAny<Ptr>(visitor.visit(cast_operand->valueExpression()));
   }
@@ -2824,7 +2824,7 @@ std::any GQLParseTreeVisitor::visitSignedExprAlt(GQLParser::SignedExprAltContext
 
 std::any GQLParseTreeVisitor::visitIsNotExprAlt(GQLParser::IsNotExprAltContext *context) {
   const String op = context->NOT() ? "IS NOT" : "IS";
-  return GQLExpr::binaryOp(op, castAny<Ptr>(visit(context->valueExpression())), GQLExpr::literal(getText(context->truthValue())));
+  return GQLExpr::binaryOp(op, castAny<Ptr>(visit(context->valueExpression())), GQLExpr::specialValue(getText(context->truthValue())));
 }
 
 std::any GQLParseTreeVisitor::visitNotExprAlt(GQLParser::NotExprAltContext *context) {
@@ -2863,7 +2863,7 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
 
   if (auto *null_predicate = predicate->nullPredicate()) {
     const String op = null_predicate->nullPredicatePart2()->NOT() ? "IS NOT" : "IS";
-    return GQLExpr::binaryOp(op, castAny<Ptr>(visit(null_predicate->valueExpressionPrimary())), GQLExpr::literal("NULL"));
+    return GQLExpr::binaryOp(op, castAny<Ptr>(visit(null_predicate->valueExpressionPrimary())), GQLExpr::specialValue("NULL"));
   }
 
   if (auto *value_type_predicate = predicate->valueTypePredicate()) {
@@ -3016,11 +3016,11 @@ std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::Unsigne
 
   if (auto *general = context->generalValueSpecification()) {
     if (general->dynamicParameterSpecification()) {
-      return GQLExpr::literal(getText(general->dynamicParameterSpecification()));
+      return GQLExpr::dynamicParameter(getText(general->dynamicParameterSpecification()));
     }
 
     if (general->SESSION_USER()) {
-      return GQLExpr::literal("SESSION_USER");
+      return GQLExpr::specialValue("SESSION_USER");
     }
   }
 
@@ -3029,6 +3029,27 @@ std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::Unsigne
 
 std::any GQLParseTreeVisitor::visitUnsignedLiteral(GQLParser::UnsignedLiteralContext *context) {
   if (auto *general_literal = context->generalLiteral()) {
+    if (general_literal->BOOLEAN_LITERAL()) {
+      return GQLExpr::specialValue(general_literal->BOOLEAN_LITERAL()->getText());
+    }
+
+    if (general_literal->nullLiteral()) {
+      return GQLExpr::specialValue("NULL");
+    }
+
+    if (auto *temporal = general_literal->temporalLiteral()) {
+      if (auto *date_lit = temporal->dateLiteral())
+        return GQLExpr::temporalLiteral("DATE", GQLExpr::literal(getText(date_lit->dateString())));
+      if (auto *time_lit = temporal->timeLiteral())
+        return GQLExpr::temporalLiteral("TIME", GQLExpr::literal(getText(time_lit->timeString())));
+      if (auto *dt_lit = temporal->datetimeLiteral()) {
+        String keyword = dt_lit->TIMESTAMP() ? "TIMESTAMP" : "DATETIME";
+        return GQLExpr::temporalLiteral(keyword, GQLExpr::literal(getText(dt_lit->datetimeString())));
+      }
+    }
+
+    if (auto *dur = general_literal->durationLiteral()) return GQLExpr::durationLiteral(GQLExpr::literal(getText(dur->durationString())));
+
     if (auto *list_literal = general_literal->listLiteral()) {
       return makeListConstructor(list_literal->listValueConstructorByEnumeration(), *this);
     }

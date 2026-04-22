@@ -1038,7 +1038,7 @@ TEST(GQLParser, TruthValuePredicateKeepsStructure) {
   ASSERT_NE(left, nullptr);
   ASSERT_NE(right, nullptr);
   EXPECT_EQ(left->text, "a");
-  EXPECT_EQ(right->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(right->kind, GAST::GQLExpr::Kind::SpecialValue);
   EXPECT_EQ(right->text, "TRUE");
 }
 
@@ -1063,7 +1063,50 @@ TEST(GQLParser, NullPredicateKeepsStructure) {
   ASSERT_NE(null_literal, nullptr);
   EXPECT_EQ(property->kind, GAST::GQLExpr::Kind::Property);
   EXPECT_EQ(property->text, "name");
+  EXPECT_EQ(null_literal->kind, GAST::GQLExpr::Kind::SpecialValue);
   EXPECT_EQ(null_literal->text, "NULL");
+}
+
+TEST(GQLParser, DirectedPredicateMarkerStaysLiteral) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) WHERE e IS DIRECTED RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+
+  const auto* predicate = getExpr(where->expression);
+  ASSERT_NE(predicate, nullptr);
+  EXPECT_EQ(predicate->text, "IS");
+  ASSERT_EQ(predicate->children.size(), 2);
+
+  const auto* right = getExpr(predicate->children[1]);
+  ASSERT_NE(right, nullptr);
+  EXPECT_EQ(right->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(right->text, "DIRECTED");
+}
+
+TEST(GQLParser, ValueTypePredicateMarkerStaysLiteral) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE a IS TYPED STRING RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+
+  const auto* predicate = getExpr(where->expression);
+  ASSERT_NE(predicate, nullptr);
+  EXPECT_EQ(predicate->text, "IS");
+  ASSERT_EQ(predicate->children.size(), 2);
+
+  const auto* right = getExpr(predicate->children[1]);
+  ASSERT_NE(right, nullptr);
+  EXPECT_EQ(right->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(right->text, "STRING");
 }
 
 TEST(GQLParser, PropertyExistsPredicateBecomesFunctionCall) {
@@ -2292,30 +2335,39 @@ TEST(GQLParser, AggregateFunctionsKeepSetQuantifierStructure) {
 }
 
 TEST(GQLParser, ValuePrimaryKeepsDynamicAndSpecialValuesStructured) {
-  auto ast = parseGraphOrThrow("MATCH (a) RETURN $x, SESSION_USER, ELEMENT_ID(a)");
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN $x, SESSION_USER, TRUE, NULL, ELEMENT_ID(a)");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
   ASSERT_EQ(clauses->clauses.size(), 2);
 
   const auto* return_clause = getReturnClause(*clauses);
   ASSERT_NE(return_clause, nullptr);
-  ASSERT_EQ(return_clause->items.size(), 3);
+  ASSERT_EQ(return_clause->items.size(), 5);
 
   const auto* parameter = getExpr(return_clause->items[0]);
   const auto* session_user = getExpr(return_clause->items[1]);
-  const auto* element_id = getExpr(return_clause->items[2]);
+  const auto* truth_value = getExpr(return_clause->items[2]);
+  const auto* null_value = getExpr(return_clause->items[3]);
+  const auto* element_id = getExpr(return_clause->items[4]);
   ASSERT_NE(parameter, nullptr);
   ASSERT_NE(session_user, nullptr);
+  ASSERT_NE(truth_value, nullptr);
+  ASSERT_NE(null_value, nullptr);
   ASSERT_NE(element_id, nullptr);
 
-  EXPECT_EQ(parameter->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(parameter->kind, GAST::GQLExpr::Kind::DynamicParameter);
   EXPECT_EQ(parameter->text, "$x");
-  EXPECT_EQ(session_user->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(session_user->kind, GAST::GQLExpr::Kind::SpecialValue);
   EXPECT_EQ(session_user->text, "SESSION_USER");
+  EXPECT_EQ(truth_value->kind, GAST::GQLExpr::Kind::SpecialValue);
+  EXPECT_EQ(truth_value->text, "TRUE");
+  EXPECT_EQ(null_value->kind, GAST::GQLExpr::Kind::SpecialValue);
+  EXPECT_EQ(null_value->text, "NULL");
   EXPECT_EQ(element_id->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(element_id->text, "ELEMENT_ID");
   ASSERT_EQ(element_id->children.size(), 1);
   EXPECT_EQ(getExpr(element_id->children[0])->text, "a");
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN $x, SESSION_USER, TRUE, NULL, ELEMENT_ID(a)");
 }
 
 TEST(GQLParser, FormatNodePattern) {
@@ -2469,7 +2521,10 @@ TEST(GQLParser, CastNullOperand) {
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::Cast);
   EXPECT_EQ(expr->text, "STRING");
   ASSERT_EQ(expr->children.size(), 1);
-  EXPECT_EQ(getExpr(expr->children[0])->text, "NULL");
+  const auto* null_operand = getExpr(expr->children[0]);
+  ASSERT_NE(null_operand, nullptr);
+  EXPECT_EQ(null_operand->kind, GAST::GQLExpr::Kind::SpecialValue);
+  EXPECT_EQ(null_operand->text, "NULL");
   EXPECT_EQ(formatAST(*expr), "CAST(NULL AS STRING)");
 }
 
@@ -3180,6 +3235,118 @@ TEST(GQLParser, DurationFunctionWithString) {
   ASSERT_NE(arg, nullptr);
   EXPECT_EQ(arg->kind, GAST::GQLExpr::Kind::Literal);
   EXPECT_EQ(arg->text, "'P1Y2M'");
+}
+
+// --- Temporal / duration literal syntax (no parentheses) ---
+
+TEST(GQLParser, TemporalLiteralDate)
+{
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DATE '2024-01-15'");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DATE '2024-01-15'");
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::TemporalLiteral);
+  EXPECT_EQ(expr->text, "DATE");
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* val = getExpr(expr->children[0]);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(val->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(val->text, "'2024-01-15'");
+}
+
+TEST(GQLParser, TemporalLiteralTime)
+{
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TIME '10:30:00'");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN TIME '10:30:00'");
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::TemporalLiteral);
+  EXPECT_EQ(expr->text, "TIME");
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* val = getExpr(expr->children[0]);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(val->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(val->text, "'10:30:00'");
+}
+
+TEST(GQLParser, TemporalLiteralDatetime)
+{
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DATETIME '2024-01-15T10:30:00'");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DATETIME '2024-01-15T10:30:00'");
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::TemporalLiteral);
+  EXPECT_EQ(expr->text, "DATETIME");
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* val = getExpr(expr->children[0]);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(val->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(val->text, "'2024-01-15T10:30:00'");
+}
+
+TEST(GQLParser, TemporalLiteralTimestamp)
+{
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN TIMESTAMP '2024-01-15T10:30:00Z'");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN TIMESTAMP '2024-01-15T10:30:00Z'");
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::TemporalLiteral);
+  EXPECT_EQ(expr->text, "TIMESTAMP");
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* val = getExpr(expr->children[0]);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(val->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(val->text, "'2024-01-15T10:30:00Z'");
+}
+
+TEST(GQLParser, DurationLiteral)
+{
+  auto ast = parseGraphOrThrow("MATCH (n) RETURN DURATION 'P1Y2M'");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (n) RETURN DURATION 'P1Y2M'");
+
+  const auto* ret = getReturnClause(*clauses);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::DurationLiteral);
+  EXPECT_EQ(expr->text, "DURATION");
+  ASSERT_EQ(expr->children.size(), 1);
+  const auto* val = getExpr(expr->children[0]);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(val->kind, GAST::GQLExpr::Kind::Literal);
+  EXPECT_EQ(val->text, "'P1Y2M'");
 }
 
 TEST(GQLParser, ElementsFunctionShape) {
