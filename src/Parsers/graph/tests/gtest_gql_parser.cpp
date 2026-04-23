@@ -1683,6 +1683,105 @@ TEST(GQLParser, MatchParsesPathModePrefix) {
   EXPECT_EQ(formatAST(*clauses), "MATCH TRAIL (a)-[e]->(b) RETURN a");
 }
 
+TEST(GQLParser, MatchPathModeWalk) {
+  auto ast = parseGraphOrThrow("MATCH WALK (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathModePrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Walk);
+  EXPECT_EQ(formatAST(*clauses), "MATCH WALK (a)-[e]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH WALK (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchPathModeSimple) {
+  auto ast = parseGraphOrThrow("MATCH SIMPLE (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathModePrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Simple);
+  EXPECT_EQ(formatAST(*clauses), "MATCH SIMPLE (a)-[e]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH SIMPLE (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchPathModeAcyclic) {
+  auto ast = parseGraphOrThrow("MATCH ACYCLIC (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathModePrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Acyclic);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ACYCLIC (a)-[e]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH ACYCLIC (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, KeepPathModeWalk) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP WALK RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_NE(match->keep_clause, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+  const auto* path_prefix = getPathModePrefix(keep->path_prefix);
+  ASSERT_NE(path_prefix, nullptr);
+  EXPECT_EQ(path_prefix->path_mode, GAST::PathMode::Walk);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP WALK RETURN a");
+  assertNormalizedRoundTrip("MATCH (a)-[e]->(b) KEEP WALK RETURN a");
+}
+
+TEST(GQLParser, KeepPathModeSimple) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP SIMPLE RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_NE(match->keep_clause, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+  const auto* path_prefix = getPathModePrefix(keep->path_prefix);
+  ASSERT_NE(path_prefix, nullptr);
+  EXPECT_EQ(path_prefix->path_mode, GAST::PathMode::Simple);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP SIMPLE RETURN a");
+  assertNormalizedRoundTrip("MATCH (a)-[e]->(b) KEEP SIMPLE RETURN a");
+}
+
+TEST(GQLParser, KeepPathModeAcyclic) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP ACYCLIC RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_NE(match->keep_clause, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+  const auto* path_prefix = getPathModePrefix(keep->path_prefix);
+  ASSERT_NE(path_prefix, nullptr);
+  EXPECT_EQ(path_prefix->path_mode, GAST::PathMode::Acyclic);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP ACYCLIC RETURN a");
+  assertNormalizedRoundTrip("MATCH (a)-[e]->(b) KEEP ACYCLIC RETURN a");
+}
+
 TEST(GQLParser, MatchParsesPathSearchPrefixAnyShortest) {
   auto ast = parseGraphOrThrow("MATCH ANY SHORTEST (a)-[*]->(b) RETURN a");
   const auto* clauses = getClausesQuery(ast);
