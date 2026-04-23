@@ -623,8 +623,18 @@ Ptr makeGraphExpression(GQLParser::GraphExpressionContext *context, GQLParseTree
     return {};
   }
 
-  if (context->graphReference()) {
-    return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::GraphReference, getText(context->graphReference())));
+  if (auto *graph_ref = context->graphReference()) {
+    if (graph_ref->catalogObjectParentReference() && graph_ref->graphName()) {
+      auto obj_name = make_intrusive<GQLCatalogObjectName>(getText(graph_ref->graphName()));
+      populateParentReference(*obj_name, graph_ref->catalogObjectParentReference());
+      return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::QualifiedGraphRef, String{}, Ptr(obj_name)));
+    }
+    if (graph_ref->homeGraph())
+      return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::HomeGraphRef, getText(graph_ref->homeGraph())));
+    if (graph_ref->referenceParameterSpecification())
+      return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::ParameterGraphRef,
+                                                    getText(graph_ref->referenceParameterSpecification())));
+    return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::DelimitedGraphRef, getText(graph_ref)));
   }
 
   if (context->currentGraph()) {

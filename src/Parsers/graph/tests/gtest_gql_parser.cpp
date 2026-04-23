@@ -6002,6 +6002,62 @@ TEST(GQLParser, CatalogQualifiedGraphTypeNameDotParent) {
     EXPECT_EQ(formatAST(*stmt), "DROP GRAPH TYPE catalog.myType");
 }
 
+TEST(GQLParser, GraphRefQualifiedInUse) {
+    auto ast = parseGraphOrThrow("USE catalog.myGraph RETURN 1");
+    ASSERT_NE(ast, nullptr);
+    const auto* single = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(single, nullptr);
+    ASSERT_GE(single->clauses.size(), 2);
+    const auto* use = single->clauses[0]->as<GAST::GQLUseClause>();
+    ASSERT_NE(use, nullptr);
+    ASSERT_NE(use->graph_reference, nullptr);
+    const auto* graph_expr = use->graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph_expr, nullptr);
+    EXPECT_EQ(graph_expr->kind, GAST::GQLGraphExpression::Kind::QualifiedGraphRef);
+    ASSERT_NE(graph_expr->value, nullptr);
+    const auto* obj_name = graph_expr->value->as<GAST::GQLCatalogObjectName>();
+    ASSERT_NE(obj_name, nullptr);
+    EXPECT_EQ(obj_name->name, "myGraph");
+    ASSERT_EQ(obj_name->parent_parts.size(), 1);
+    EXPECT_EQ(obj_name->parent_parts[0], "catalog");
+    EXPECT_EQ(obj_name->schema_ref, nullptr);
+    EXPECT_EQ(formatAST(*ast), "USE catalog.myGraph RETURN 1");
+}
+
+TEST(GQLParser, GraphRefHomeGraph) {
+    auto ast = parseGraphOrThrow("USE HOME_GRAPH RETURN 1");
+    ASSERT_NE(ast, nullptr);
+    const auto* single = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(single, nullptr);
+    ASSERT_GE(single->clauses.size(), 2);
+    const auto* use = single->clauses[0]->as<GAST::GQLUseClause>();
+    ASSERT_NE(use, nullptr);
+    ASSERT_NE(use->graph_reference, nullptr);
+    const auto* graph_expr = use->graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph_expr, nullptr);
+    EXPECT_EQ(graph_expr->kind, GAST::GQLGraphExpression::Kind::HomeGraphRef);
+    EXPECT_EQ(graph_expr->value, nullptr);
+}
+
+TEST(GQLParser, GraphRefQualifiedInLikeSource) {
+    auto ast = parseDMLOrThrow("CREATE GRAPH h LIKE catalog.g");
+    ASSERT_NE(ast, nullptr);
+    const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+    ASSERT_NE(stmt, nullptr);
+    EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::LikeGraph);
+    ASSERT_NE(stmt->source_reference, nullptr);
+    const auto* graph_expr = stmt->source_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph_expr, nullptr);
+    EXPECT_EQ(graph_expr->kind, GAST::GQLGraphExpression::Kind::QualifiedGraphRef);
+    ASSERT_NE(graph_expr->value, nullptr);
+    const auto* obj_name = graph_expr->value->as<GAST::GQLCatalogObjectName>();
+    ASSERT_NE(obj_name, nullptr);
+    EXPECT_EQ(obj_name->name, "g");
+    ASSERT_EQ(obj_name->parent_parts.size(), 1);
+    EXPECT_EQ(obj_name->parent_parts[0], "catalog");
+    EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH h LIKE catalog.g");
+}
+
 TEST(GQLParser, CatalogCreateGraphAnyWithCopySource) {
   auto ast = parseDMLOrThrow("CREATE GRAPH g ANY AS COPY OF h");
   ASSERT_NE(ast, nullptr);

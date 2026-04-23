@@ -10,7 +10,10 @@ class GQLGraphExpression final : public DB::IAST
 public:
     enum class Kind : UInt8
     {
-        GraphReference,
+        QualifiedGraphRef,
+        DelimitedGraphRef,
+        HomeGraphRef,
+        ParameterGraphRef,
         CurrentGraph,
         ObjectExpression,
         ObjectNameOrBindingVariable,
