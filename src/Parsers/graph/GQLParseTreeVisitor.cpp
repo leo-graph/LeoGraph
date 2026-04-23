@@ -594,6 +594,12 @@ Ptr makeCatalogObjectName(GQLParser::CatalogGraphTypeParentAndNameContext *conte
   return Ptr(make_intrusive<GQLCatalogObjectName>(getText(context->graphTypeName()), std::move(parent)));
 }
 
+Ptr makeGraphTypeRef(GQLParser::GraphTypeReferenceContext *context) {
+  if (auto *name = context->catalogGraphTypeParentAndName()) return makeCatalogObjectName(name);
+  if (auto *param = context->referenceParameterSpecification()) return GQLExpr::literal(getText(param));
+  return GQLExpr::literal(getText(context));
+}
+
 Ptr makeBindingInitializer(GQLBindingInitializer::Kind kind, Ptr value) {
   return Ptr(make_intrusive<GQLBindingInitializer>(kind, std::move(value)));
 }
@@ -2723,11 +2729,11 @@ std::any GQLParseTreeVisitor::visitCreateGraphStatement(GQLParser::CreateGraphSt
   } else if (auto *of_type = context->ofGraphType()) {
     if (of_type->graphTypeLikeGraph()) {
       stmt->source_kind = GQLCatalogStatement::SourceKind::LikeGraph;
-      stmt->source_reference = GQLExpr::literal(getText(of_type->graphTypeLikeGraph()->graphExpression()));
+      stmt->source_reference = makeGraphExpression(of_type->graphTypeLikeGraph()->graphExpression(), *this);
       if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
     } else if (of_type->graphTypeReference()) {
       stmt->source_kind = GQLCatalogStatement::SourceKind::TypeReference;
-      stmt->source_reference = GQLExpr::literal(getText(of_type->graphTypeReference()));
+      stmt->source_reference = makeGraphTypeRef(of_type->graphTypeReference());
       if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
     } else if (of_type->nestedGraphTypeSpecification()) {
       stmt->source_kind = GQLCatalogStatement::SourceKind::NestedSpec;
@@ -2763,11 +2769,11 @@ std::any GQLParseTreeVisitor::visitCreateGraphTypeStatement(GQLParser::CreateGra
   auto *source = context->graphTypeSource();
   if (source->copyOfGraphType()) {
     stmt->source_kind = GQLCatalogStatement::SourceKind::CopyOfType;
-    stmt->source_reference = GQLExpr::literal(getText(source->copyOfGraphType()->graphTypeReference()));
+    stmt->source_reference = makeGraphTypeRef(source->copyOfGraphType()->graphTypeReference());
     if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
   } else if (source->graphTypeLikeGraph()) {
     stmt->source_kind = GQLCatalogStatement::SourceKind::LikeGraph;
-    stmt->source_reference = GQLExpr::literal(getText(source->graphTypeLikeGraph()->graphExpression()));
+    stmt->source_reference = makeGraphExpression(source->graphTypeLikeGraph()->graphExpression(), *this);
     if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
   } else if (source->nestedGraphTypeSpecification()) {
     stmt->source_kind = GQLCatalogStatement::SourceKind::NestedSpec;
