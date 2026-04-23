@@ -2742,8 +2742,8 @@ std::any GQLParseTreeVisitor::visitCreateGraphStatement(GQLParser::CreateGraphSt
   }
 
   if (context->graphSource()) {
-    if (!stmt->source_text.empty()) stmt->source_text += " ";
-    stmt->source_text += getText(context->graphSource());
+    stmt->copy_source = makeGraphExpression(context->graphSource()->graphExpression(), *this);
+    if (stmt->copy_source) stmt->children.push_back(stmt->copy_source);
   }
 
   return Ptr(stmt);

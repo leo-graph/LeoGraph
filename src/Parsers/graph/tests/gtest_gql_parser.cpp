@@ -5969,6 +5969,20 @@ TEST(GQLParser, CatalogCreateGraphOfType) {
   EXPECT_EQ(type_ref->name, "gt");
 }
 
+TEST(GQLParser, CatalogCreateGraphAnyWithCopySource) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH g ANY AS COPY OF h");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::Any);
+  EXPECT_EQ(stmt->source_reference, nullptr);
+  ASSERT_NE(stmt->copy_source, nullptr);
+  const auto* graph_expr = stmt->copy_source->as<GAST::GQLGraphExpression>();
+  ASSERT_NE(graph_expr, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH g ANY AS COPY OF h");
+}
+
 TEST(GQLParser, CatalogDropGraphType) {
   auto ast = parseDMLOrThrow("DROP GRAPH TYPE IF EXISTS gt");
   ASSERT_NE(ast, nullptr);

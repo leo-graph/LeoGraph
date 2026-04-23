@@ -70,10 +70,13 @@ public:
         result->children.clear();
         result->name_reference = name_reference ? name_reference->clone() : Ptr{};
         result->source_reference = source_reference ? source_reference->clone() : Ptr{};
+        result->copy_source = copy_source ? copy_source->clone() : Ptr{};
         if (result->name_reference)
             result->children.push_back(result->name_reference);
         if (result->source_reference)
             result->children.push_back(result->source_reference);
+        if (result->copy_source)
+            result->children.push_back(result->copy_source);
         return result;
     }
 
@@ -87,6 +90,7 @@ public:
 
     SourceKind source_kind = SourceKind::None;
     Ptr source_reference;
+    Ptr copy_source;
     String source_text;
 
 protected:
@@ -139,6 +143,7 @@ protected:
     {
         f(nullptr, &name_reference);
         f(nullptr, &source_reference);
+        f(nullptr, &copy_source);
     }
 
 private:
@@ -174,6 +179,12 @@ private:
 
         if (source_kind != SourceKind::None && source_kind != SourceKind::NestedSpec && !source_text.empty())
             ostr << " " << source_text;
+
+        if (copy_source)
+        {
+            ostr << " AS COPY OF ";
+            copy_source->format(ostr, settings, state, frame);
+        }
     }
 };
 
