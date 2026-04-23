@@ -1241,6 +1241,114 @@ TEST(GQLParser, RightEdgeWithRangeQuantifier) {
   EXPECT_EQ(quantifier->upper, "5");
 }
 
+TEST(GQLParser, EdgeDirectionLeft) {
+  auto ast = parseGraphOrThrow("MATCH (a)<-[e]-(b) RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::Left);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)<-[e]-(b) RETURN e");
+  assertNormalizedRoundTrip("MATCH (a)<-[e]-(b) RETURN e");
+}
+
+TEST(GQLParser, EdgeDirectionUndirected) {
+  auto ast = parseGraphOrThrow("MATCH (a)~[e]~(b) RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::Undirected);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)~[e]~(b) RETURN e");
+  assertNormalizedRoundTrip("MATCH (a)~[e]~(b) RETURN e");
+}
+
+TEST(GQLParser, EdgeDirectionLeftOrUndirected) {
+  auto ast = parseGraphOrThrow("MATCH (a)<~[e]~(b) RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::LeftOrUndirected);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)<~[e]~(b) RETURN e");
+  assertNormalizedRoundTrip("MATCH (a)<~[e]~(b) RETURN e");
+}
+
+TEST(GQLParser, EdgeDirectionUndirectedOrRight) {
+  auto ast = parseGraphOrThrow("MATCH (a)~[e]~>(b) RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::UndirectedOrRight);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)~[e]~>(b) RETURN e");
+  assertNormalizedRoundTrip("MATCH (a)~[e]~>(b) RETURN e");
+}
+
+TEST(GQLParser, EdgeDirectionLeftOrRight) {
+  auto ast = parseGraphOrThrow("MATCH (a)<-[e]->(b) RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::LeftOrRight);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)<-[e]->(b) RETURN e");
+  assertNormalizedRoundTrip("MATCH (a)<-[e]->(b) RETURN e");
+}
+
+TEST(GQLParser, EdgeDirectionAny) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]-(b) RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  EXPECT_EQ(edge->direction, GAST::EdgeDirection::Any);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]-(b) RETURN e");
+  assertNormalizedRoundTrip("MATCH (a)-[e]-(b) RETURN e");
+}
+
 TEST(GQLParser, LabelConjunction) {
   auto ast = parseGraphOrThrow("MATCH (n:Person&Employee) RETURN n");
   const auto* clauses = getClausesQuery(ast);
