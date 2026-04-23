@@ -471,6 +471,54 @@ TEST(GQLParser, FocusedNestedQueryKeepsSubqueryWrapper) {
   EXPECT_EQ(formatAST(*subquery), "{ MATCH (a) RETURN a }");
 }
 
+TEST(GQLParser, FocusedUsePrimitiveReturn) {
+  auto ast = parseGraphOrThrow("USE foo RETURN 1");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  EXPECT_EQ(getGraphExpression(getUseClause(*clauses, 0)->graph_reference)->text, "foo");
+  ASSERT_NE(getReturnClause(*clauses), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "USE foo RETURN 1");
+  assertNormalizedRoundTrip("USE foo RETURN 1");
+}
+
+TEST(GQLParser, FocusedUseFinish) {
+  auto ast = parseGraphOrThrow("USE foo FINISH");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  EXPECT_EQ(getGraphExpression(getUseClause(*clauses, 0)->graph_reference)->text, "foo");
+  ASSERT_NE(getFinishClause(*clauses, 1), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "USE foo FINISH");
+  assertNormalizedRoundTrip("USE foo FINISH");
+}
+
+TEST(GQLParser, FocusedUseMultiPartClauseOrder) {
+  auto ast = parseGraphOrThrow("USE foo MATCH (a) USE bar MATCH (b) RETURN a, b");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 5);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  EXPECT_EQ(getGraphExpression(getUseClause(*clauses, 0)->graph_reference)->text, "foo");
+  ASSERT_NE(getMatchClause(*clauses, 1), nullptr);
+  ASSERT_NE(getUseClause(*clauses, 2), nullptr);
+  EXPECT_EQ(getGraphExpression(getUseClause(*clauses, 2)->graph_reference)->text, "bar");
+  ASSERT_NE(getMatchClause(*clauses, 3), nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 4), nullptr);
+  assertNormalizedRoundTrip("USE foo MATCH (a) USE bar MATCH (b) RETURN a, b");
+}
+
+TEST(GQLParser, FocusedUseTopLevelParserPrimitiveReturn) {
+  auto ast = parseTopLevelOrThrow("USE foo RETURN 1");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  ASSERT_NE(getReturnClause(*clauses), nullptr);
+}
+
 TEST(GQLParser, SelectStatementBuildsStructuredSingleQuery) {
   auto ast = parseGraphOrThrow(
       "SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE a IS NOT NULL GROUP BY a HAVING a IS NOT NULL ORDER BY a DESC OFFSET 1 "
