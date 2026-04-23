@@ -582,6 +582,18 @@ Ptr makeSchemaReferenceFromCatalogName(GQLParser::CatalogSchemaParentAndNameCont
   return Ptr(reference);
 }
 
+Ptr makeCatalogObjectName(GQLParser::CatalogGraphParentAndNameContext *context) {
+  String parent;
+  if (auto *parent_ref = context->catalogObjectParentReference()) parent = getText(parent_ref);
+  return Ptr(make_intrusive<GQLCatalogObjectName>(getText(context->graphName()), std::move(parent)));
+}
+
+Ptr makeCatalogObjectName(GQLParser::CatalogGraphTypeParentAndNameContext *context) {
+  String parent;
+  if (auto *parent_ref = context->catalogObjectParentReference()) parent = getText(parent_ref);
+  return Ptr(make_intrusive<GQLCatalogObjectName>(getText(context->graphTypeName()), std::move(parent)));
+}
+
 Ptr makeBindingInitializer(GQLBindingInitializer::Kind kind, Ptr value) {
   return Ptr(make_intrusive<GQLBindingInitializer>(kind, std::move(value)));
 }
@@ -2703,16 +2715,30 @@ std::any GQLParseTreeVisitor::visitCreateGraphStatement(GQLParser::CreateGraphSt
   stmt->is_property = (context->PROPERTY() != nullptr);
   stmt->or_replace = (context->REPLACE() != nullptr);
   stmt->if_not_exists = (context->IF() != nullptr && !stmt->or_replace);
-  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphParentAndName()));
+  stmt->name_reference = makeCatalogObjectName(context->catalogGraphParentAndName());
   if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
 
-  String tail;
-  if (context->openGraphType())
-    tail = getText(context->openGraphType());
-  else if (context->ofGraphType())
-    tail = getText(context->ofGraphType());
-  if (context->graphSource()) tail += " " + getText(context->graphSource());
-  stmt->source_text = std::move(tail);
+  if (context->openGraphType()) {
+    stmt->source_kind = GQLCatalogStatement::SourceKind::Any;
+  } else if (auto *of_type = context->ofGraphType()) {
+    if (of_type->graphTypeLikeGraph()) {
+      stmt->source_kind = GQLCatalogStatement::SourceKind::LikeGraph;
+      stmt->source_reference = GQLExpr::literal(getText(of_type->graphTypeLikeGraph()->graphExpression()));
+      if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
+    } else if (of_type->graphTypeReference()) {
+      stmt->source_kind = GQLCatalogStatement::SourceKind::TypeReference;
+      stmt->source_reference = GQLExpr::literal(getText(of_type->graphTypeReference()));
+      if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
+    } else if (of_type->nestedGraphTypeSpecification()) {
+      stmt->source_kind = GQLCatalogStatement::SourceKind::NestedSpec;
+      stmt->source_text = getText(of_type->nestedGraphTypeSpecification());
+    }
+  }
+
+  if (context->graphSource()) {
+    if (!stmt->source_text.empty()) stmt->source_text += " ";
+    stmt->source_text += getText(context->graphSource());
+  }
 
   return Ptr(stmt);
 }
@@ -2721,7 +2747,7 @@ std::any GQLParseTreeVisitor::visitDropGraphStatement(GQLParser::DropGraphStatem
   auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::DropGraph);
   stmt->is_property = (context->PROPERTY() != nullptr);
   stmt->if_exists = (context->IF() != nullptr);
-  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphParentAndName()));
+  stmt->name_reference = makeCatalogObjectName(context->catalogGraphParentAndName());
   if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
   return Ptr(stmt);
 }
@@ -2731,9 +2757,23 @@ std::any GQLParseTreeVisitor::visitCreateGraphTypeStatement(GQLParser::CreateGra
   stmt->is_property = (context->PROPERTY() != nullptr);
   stmt->or_replace = (context->REPLACE() != nullptr);
   stmt->if_not_exists = (context->IF() != nullptr && !stmt->or_replace);
-  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphTypeParentAndName()));
+  stmt->name_reference = makeCatalogObjectName(context->catalogGraphTypeParentAndName());
   if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
-  stmt->source_text = getText(context->graphTypeSource());
+
+  auto *source = context->graphTypeSource();
+  if (source->copyOfGraphType()) {
+    stmt->source_kind = GQLCatalogStatement::SourceKind::CopyOfType;
+    stmt->source_reference = GQLExpr::literal(getText(source->copyOfGraphType()->graphTypeReference()));
+    if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
+  } else if (source->graphTypeLikeGraph()) {
+    stmt->source_kind = GQLCatalogStatement::SourceKind::LikeGraph;
+    stmt->source_reference = GQLExpr::literal(getText(source->graphTypeLikeGraph()->graphExpression()));
+    if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
+  } else if (source->nestedGraphTypeSpecification()) {
+    stmt->source_kind = GQLCatalogStatement::SourceKind::NestedSpec;
+    stmt->source_text = getText(source->nestedGraphTypeSpecification());
+  }
+
   return Ptr(stmt);
 }
 
@@ -2741,7 +2781,7 @@ std::any GQLParseTreeVisitor::visitDropGraphTypeStatement(GQLParser::DropGraphTy
   auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::DropGraphType);
   stmt->is_property = (context->PROPERTY() != nullptr);
   stmt->if_exists = (context->IF() != nullptr);
-  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphTypeParentAndName()));
+  stmt->name_reference = makeCatalogObjectName(context->catalogGraphTypeParentAndName());
   if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
   return Ptr(stmt);
 }

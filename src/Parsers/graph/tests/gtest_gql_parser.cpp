@@ -5884,6 +5884,13 @@ TEST(GQLParser, CatalogCreatePropertyGraphAny) {
   EXPECT_FALSE(stmt->if_not_exists);
   EXPECT_FALSE(stmt->or_replace);
   ASSERT_NE(stmt->name_reference, nullptr);
+  const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(obj_name, nullptr);
+  EXPECT_EQ(obj_name->name, "g");
+  EXPECT_TRUE(obj_name->parent_text.empty());
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::Any);
+  EXPECT_EQ(stmt->source_reference, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "CREATE PROPERTY GRAPH g ANY");
 }
 
 TEST(GQLParser, CatalogDropPropertyGraph) {
@@ -5895,17 +5902,61 @@ TEST(GQLParser, CatalogDropPropertyGraph) {
   EXPECT_TRUE(stmt->is_property);
   EXPECT_FALSE(stmt->if_exists);
   ASSERT_NE(stmt->name_reference, nullptr);
+  const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(obj_name, nullptr);
+  EXPECT_EQ(obj_name->name, "g");
   EXPECT_EQ(formatAST(*stmt), "DROP PROPERTY GRAPH g");
 }
 
-TEST(GQLParser, CatalogCreateGraphType) {
-  auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt AS LIKE GRAPH g");
+TEST(GQLParser, CatalogCreateGraphTypeLikeGraph) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt LIKE GRAPH g");
   ASSERT_NE(ast, nullptr);
   const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraphType);
   EXPECT_FALSE(stmt->is_property);
   ASSERT_NE(stmt->name_reference, nullptr);
+  const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(obj_name, nullptr);
+  EXPECT_EQ(obj_name->name, "gt");
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::LikeGraph);
+  ASSERT_NE(stmt->source_reference, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH TYPE gt LIKE GRAPH g");
+}
+
+TEST(GQLParser, CatalogCreateGraphTypeCopyOf) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt2 COPY OF gt1");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraphType);
+  const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(obj_name, nullptr);
+  EXPECT_EQ(obj_name->name, "gt2");
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::CopyOfType);
+  ASSERT_NE(stmt->source_reference, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH TYPE gt2 COPY OF gt1");
+}
+
+TEST(GQLParser, CatalogCreateGraphLikeGraph) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH h LIKE GRAPH g");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::LikeGraph);
+  ASSERT_NE(stmt->source_reference, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH h LIKE GRAPH g");
+}
+
+TEST(GQLParser, CatalogCreateGraphOfType) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH h gt");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::TypeReference);
+  ASSERT_NE(stmt->source_reference, nullptr);
 }
 
 TEST(GQLParser, CatalogDropGraphType) {
@@ -5917,6 +5968,9 @@ TEST(GQLParser, CatalogDropGraphType) {
   EXPECT_TRUE(stmt->if_exists);
   EXPECT_FALSE(stmt->is_property);
   ASSERT_NE(stmt->name_reference, nullptr);
+  const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(obj_name, nullptr);
+  EXPECT_EQ(obj_name->name, "gt");
   EXPECT_EQ(formatAST(*stmt), "DROP GRAPH TYPE IF EXISTS gt");
 }
 
