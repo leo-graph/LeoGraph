@@ -1890,6 +1890,10 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
 
     if (statement->linearDataModifyingStatement()) return makeLinearDataModifyingQuery(statement->linearDataModifyingStatement(), *this);
 
+    if (statement->linearCatalogModifyingStatement()) {
+      throwUnsupported("nested catalog-modifying statement (DDL)", statement);
+    }
+
     throwUnsupported("nested non-query statement", statement);
   };
 

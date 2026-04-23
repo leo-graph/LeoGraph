@@ -868,12 +868,12 @@ TEST(GQLParser, ValueExpressionBindingTableExpressionWithBinding) {
   EXPECT_EQ(table_child->text, "t");
 }
 
-TEST(GQLParser, NestedQueryRejectsNonQueryStatement) {
+TEST(GQLParser, NestedQueryRejectsCatalogModifyingStatement) {
   try {
-    (void)parseGraphOrThrow("{ INSERT () }");
+    (void)parseGraphOrThrow("CALL { DROP GRAPH g }");
     FAIL() << "Expected `DB::Exception`";
   } catch (const DB::Exception& e) {
-    EXPECT_NE(e.message().find("nested non-query statement"), String::npos);
+    EXPECT_NE(e.message().find("nested catalog-modifying statement"), String::npos);
   }
 }
 
@@ -4570,6 +4570,72 @@ TEST(GQLParser, DialectParserSelectFromGraphNestedQuery) {
   ASSERT_NE(src_item, nullptr);
   EXPECT_NE(src_item->graph_reference, nullptr);
   EXPECT_NE(src_item->source, nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// Normalized formatAST round-trip idempotency tests
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void assertNormalizedRoundTrip(std::string_view query)
+{
+  SCOPED_TRACE(query);
+  auto ast1 = parseGraphOrThrow(query);
+  ASSERT_NE(ast1, nullptr);
+  auto first = formatAST(*ast1);
+  ASSERT_FALSE(first.empty());
+
+  auto ast2 = parseGraphOrThrow(first);
+  ASSERT_NE(ast2, nullptr) << "re-parse failed for: " << first;
+  auto second = formatAST(*ast2);
+  EXPECT_EQ(second, first);
+}
+
+}  // namespace
+
+TEST(GQLParser, RoundTripSimpleMatchReturn) {
+  assertNormalizedRoundTrip("MATCH (n) RETURN n");
+}
+
+TEST(GQLParser, RoundTripMatchWhereReturn) {
+  assertNormalizedRoundTrip("MATCH (n:Person) WHERE n.age > 30 RETURN n.name");
+}
+
+TEST(GQLParser, RoundTripEdgePattern) {
+  assertNormalizedRoundTrip("MATCH (a)-[e:KNOWS]->(b) RETURN a, b");
+}
+
+TEST(GQLParser, RoundTripOrderByLimitOffset) {
+  assertNormalizedRoundTrip("MATCH (a) ORDER BY a DESC OFFSET 1 LIMIT 2 RETURN a");
+}
+
+TEST(GQLParser, RoundTripArithmeticAndFunctions) {
+  assertNormalizedRoundTrip("RETURN 1 + 2 * 3, ABS(-1), FLOOR(3.14)");
+}
+
+TEST(GQLParser, RoundTripCastAndSearchedCase) {
+  assertNormalizedRoundTrip("MATCH (a) RETURN CAST(a.score AS INT32), CASE WHEN a.x > 0 THEN 1 ELSE 0 END");
+}
+
+TEST(GQLParser, RoundTripTemporalDurationLiterals) {
+  assertNormalizedRoundTrip("RETURN DATE '2024-01-15', DURATION 'P1Y2M'");
+}
+
+TEST(GQLParser, RoundTripAggregates) {
+  assertNormalizedRoundTrip("MATCH (n) RETURN COUNT(*), SUM(DISTINCT n.x)");
+}
+
+TEST(GQLParser, RoundTripDynamicParamAndSpecialValues) {
+  assertNormalizedRoundTrip("MATCH (a) RETURN $x, SESSION_USER, TRUE, NULL");
+}
+
+TEST(GQLParser, RoundTripListAndRecordConstructors) {
+  assertNormalizedRoundTrip("RETURN [1, 2, 3], RECORD {name: 1}");
+}
+
+TEST(GQLParser, RoundTripStringFunctions) {
+  assertNormalizedRoundTrip("MATCH (a) RETURN CHAR_LENGTH(a.name), UPPER(a.name)");
 }
 
 #endif

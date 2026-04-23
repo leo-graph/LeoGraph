@@ -264,7 +264,7 @@ Under `dialect = gql` (equivalently `query_language = gql`), the top-level entry
 
 Known limitations of the current skeleton:
 
-- Distributed / remote-node queries (`HedgedConnections`, `MultiplexedConnections`) do not yet reset or propagate the `gql` dialect. Queries forwarded to remote shards will be parsed with the remote node's default dialect.
+- Distributed / remote-node queries (`HedgedConnections`, `MultiplexedConnections`) reset foreign dialects to `clickhouse` before forwarding, but do not propagate `gql` to remote shards. Distributed GQL execution is not a usable path until GQL-to-SQL lowering exists.
 - Interpreter / lowering is not yet wired: parsed GQL AST will enter `InterpreterFactory` but will fail with "unsupported" until lowering is implemented.
 
 The current parser work therefore focuses on making:
