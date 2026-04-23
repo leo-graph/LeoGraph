@@ -5556,6 +5556,72 @@ TEST(GQLParser, DialectParserSetQueryLanguagePassthrough) {
   EXPECT_EQ(set->changes[0].name, "query_language");
 }
 
+TEST(GQLParser, DialectParserSetMaxThreadsPassthrough) {
+  auto ast = parseViaDialectParser("SET max_threads = 1");
+  ASSERT_NE(ast, nullptr);
+  const auto* set = ast->as<ASTSetQuery>();
+  ASSERT_NE(set, nullptr);
+  ASSERT_EQ(set->changes.size(), 1);
+  EXPECT_EQ(set->changes[0].name, "max_threads");
+}
+
+TEST(GQLParser, DialectParserSetMultipleSettingsPassthrough) {
+  auto ast = parseViaDialectParser("SET max_threads = 1, allow_experimental_gql_dialect = 1");
+  ASSERT_NE(ast, nullptr);
+  const auto* set = ast->as<ASTSetQuery>();
+  ASSERT_NE(set, nullptr);
+  ASSERT_EQ(set->changes.size(), 2);
+  EXPECT_EQ(set->changes[0].name, "max_threads");
+  EXPECT_EQ(set->changes[1].name, "allow_experimental_gql_dialect");
+}
+
+TEST(GQLParser, DialectParserSetDefaultPassthrough) {
+  auto ast = parseViaDialectParser("SET max_threads = DEFAULT");
+  ASSERT_NE(ast, nullptr);
+  const auto* set = ast->as<ASTSetQuery>();
+  ASSERT_NE(set, nullptr);
+  ASSERT_EQ(set->default_settings.size(), 1);
+  EXPECT_EQ(set->default_settings[0], "max_threads");
+}
+
+TEST(GQLParser, DialectParserSetAllPropertiesGoesToGQL) {
+  auto ast = parseViaDialectParser("SET n = {name: 'Bob', age: 25}");
+  ASSERT_NE(ast, nullptr);
+  const auto* set_q = ast->as<ASTSetQuery>();
+  EXPECT_EQ(set_q, nullptr);
+  const auto* sq = ast->as<GAST::GQLSingleQuery>();
+  ASSERT_NE(sq, nullptr);
+  ASSERT_EQ(sq->clauses.size(), 1);
+  EXPECT_NE(sq->clauses[0]->as<GAST::GQLSetClause>(), nullptr);
+}
+
+TEST(GQLParser, DialectParserSetDefaultNonSettingRejectsPassthrough) {
+  try {
+    (void)parseViaDialectParser("SET n = DEFAULT");
+    FAIL() << "Expected `DB::Exception`";
+  } catch (const DB::Exception&) {
+  }
+}
+
+TEST(GQLParser, DialectParserSetMixedRejectsPassthrough) {
+  try {
+    (void)parseViaDialectParser("SET max_threads = DEFAULT, n.x = 1");
+    FAIL() << "Expected `DB::Exception`";
+  } catch (const DB::Exception&) {
+  }
+}
+
+TEST(GQLParser, DialectParserSetLabelGoesToGQL) {
+  auto ast = parseViaDialectParser("SET n IS Employee");
+  ASSERT_NE(ast, nullptr);
+  const auto* set_q = ast->as<ASTSetQuery>();
+  EXPECT_EQ(set_q, nullptr);
+  const auto* sq = ast->as<GAST::GQLSingleQuery>();
+  ASSERT_NE(sq, nullptr);
+  ASSERT_EQ(sq->clauses.size(), 1);
+  EXPECT_NE(sq->clauses[0]->as<GAST::GQLSetClause>(), nullptr);
+}
+
 TEST(GQLParser, DialectParserSetPropertyGoesToGQL) {
   auto ast = parseViaDialectParser("MATCH (n) SET n.x = 1");
   ASSERT_NE(ast, nullptr);

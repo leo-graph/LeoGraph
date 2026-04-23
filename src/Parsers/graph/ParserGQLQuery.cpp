@@ -1,3 +1,4 @@
+#include <Core/Settings.h>
 #include <Parsers/ASTSetQuery.h>
 #include <Parsers/graph/GQLParserUtils.h>
 #include <Parsers/graph/GQLParseTreeVisitor.h>
@@ -10,14 +11,21 @@ namespace DB {
 
 namespace {
 
-bool isDialectSwitchSet(const ASTPtr& ast) {
+bool isClickHouseSet(const ASTPtr& ast) {
   const auto* set = ast->as<ASTSetQuery>();
   if (!set) return false;
-  if (!set->default_settings.empty() || !set->query_parameters.empty()) return false;
+
+  if (set->changes.empty() && set->query_parameters.empty() && set->default_settings.empty()) return false;
+
   for (const auto& change : set->changes) {
-    if (change.name != "dialect" && change.name != "query_language") return false;
+    if (!Settings::hasBuiltin(change.name)) return false;
   }
-  return !set->changes.empty();
+
+  for (const auto& name : set->default_settings) {
+    if (!Settings::hasBuiltin(name)) return false;
+  }
+
+  return true;
 }
 
 }  // namespace
@@ -26,7 +34,7 @@ bool ParserGQLQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
   auto before_set = pos;
   ParserSetQuery set_p;
   ASTPtr set_node;
-  if (set_p.parse(pos, set_node, expected) && isDialectSwitchSet(set_node)) {
+  if (set_p.parse(pos, set_node, expected) && isClickHouseSet(set_node)) {
     node = std::move(set_node);
     return true;
   }
