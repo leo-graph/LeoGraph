@@ -2099,6 +2099,123 @@ TEST(GQLParser, ParenthesizedPathPatternCloneKeepsChildrenOrder) {
   EXPECT_NE(cloned_parenthesized->children[4]->as<GAST::GQLQuantifier>(), nullptr);
 }
 
+TEST(GQLParser, ParenthesizedPathPatternSubpathVariable) {
+  auto ast = parseGraphOrThrow("MATCH (p = (a)-[e]->(b)) RETURN p");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
+  ASSERT_NE(parenthesized, nullptr);
+  ASSERT_NE(parenthesized->subpath_variable, nullptr);
+  EXPECT_EQ(getExpr(parenthesized->subpath_variable)->text, "p");
+  EXPECT_EQ(parenthesized->prefix, nullptr);
+  EXPECT_EQ(parenthesized->where, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (p = (a)-[e]->(b)) RETURN p");
+  assertNormalizedRoundTrip("MATCH (p = (a)-[e]->(b)) RETURN p");
+}
+
+TEST(GQLParser, ParenthesizedPathPatternPathModePrefix) {
+  auto ast = parseGraphOrThrow("MATCH (TRAIL (a)-[e]->(b)) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
+  ASSERT_NE(parenthesized, nullptr);
+  EXPECT_EQ(parenthesized->subpath_variable, nullptr);
+  ASSERT_NE(parenthesized->prefix, nullptr);
+  const auto* prefix = getPathModePrefix(parenthesized->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Trail);
+  EXPECT_EQ(parenthesized->where, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (TRAIL (a)-[e]->(b)) RETURN a");
+  assertNormalizedRoundTrip("MATCH (TRAIL (a)-[e]->(b)) RETURN a");
+}
+
+TEST(GQLParser, ParenthesizedPathPatternWhereClause) {
+  auto ast = parseGraphOrThrow("MATCH ((a)-[e]->(b) WHERE e IS NOT NULL) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
+  ASSERT_NE(parenthesized, nullptr);
+  EXPECT_EQ(parenthesized->subpath_variable, nullptr);
+  EXPECT_EQ(parenthesized->prefix, nullptr);
+  ASSERT_NE(parenthesized->where, nullptr);
+  const auto* where = parenthesized->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+  ASSERT_NE(getExpr(where->expression), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ((a)-[e]->(b) WHERE (e IS NOT NULL)) RETURN a");
+  assertNormalizedRoundTrip("MATCH ((a)-[e]->(b) WHERE (e IS NOT NULL)) RETURN a");
+}
+
+TEST(GQLParser, ParenthesizedPathPatternFullCloneDeep) {
+  auto ast = parseGraphOrThrow("MATCH (q = TRAIL (a)-[e]->(b) WHERE e)? RETURN e");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 1);
+
+  const auto* parenthesized = getParenthesizedPathPattern(term->factors[0]);
+  ASSERT_NE(parenthesized, nullptr);
+  ASSERT_NE(parenthesized->subpath_variable, nullptr);
+  EXPECT_EQ(getExpr(parenthesized->subpath_variable)->text, "q");
+  ASSERT_NE(parenthesized->prefix, nullptr);
+  const auto* orig_prefix = getPathModePrefix(parenthesized->prefix);
+  ASSERT_NE(orig_prefix, nullptr);
+  EXPECT_EQ(orig_prefix->path_mode, GAST::PathMode::Trail);
+  ASSERT_NE(parenthesized->where, nullptr);
+  ASSERT_NE(parenthesized->quantifier, nullptr);
+
+  String original_fmt = formatAST(*parenthesized);
+  auto cloned = parenthesized->clone();
+  const auto* cp = getParenthesizedPathPattern(cloned);
+  ASSERT_NE(cp, nullptr);
+  ASSERT_NE(cp->subpath_variable, nullptr);
+  EXPECT_NE(cp->subpath_variable.get(), parenthesized->subpath_variable.get());
+  ASSERT_NE(cp->prefix, nullptr);
+  EXPECT_NE(cp->prefix.get(), parenthesized->prefix.get());
+  const auto* cloned_prefix = getPathModePrefix(cp->prefix);
+  ASSERT_NE(cloned_prefix, nullptr);
+  EXPECT_EQ(cloned_prefix->path_mode, GAST::PathMode::Trail);
+  ASSERT_NE(cp->where, nullptr);
+  EXPECT_NE(cp->where.get(), parenthesized->where.get());
+  ASSERT_NE(cp->quantifier, nullptr);
+  EXPECT_NE(cp->quantifier.get(), parenthesized->quantifier.get());
+  EXPECT_EQ(formatAST(*cp), original_fmt);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (q = TRAIL (a)-[e]->(b) WHERE e)? RETURN e");
+  assertNormalizedRoundTrip("MATCH (q = TRAIL (a)-[e]->(b) WHERE e)? RETURN e");
+}
+
 TEST(GQLParser, SimplifiedPathPatternBuildsDedicatedElementTree) {
   auto ast = parseGraphOrThrow("MATCH (a)-/LIKES FOLLOWS+/->(b) RETURN b");
   const auto* clauses = getClausesQuery(ast);
