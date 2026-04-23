@@ -1545,6 +1545,72 @@ TEST(GQLParser, StandaloneOrderByStatementKeepsStructuredPageClause) {
   EXPECT_EQ(formatAST(*page), "ORDER BY a DESC LIMIT 3");
 }
 
+TEST(GQLParser, StandaloneOffsetOnly) {
+  auto ast = parseGraphOrThrow("MATCH (a) OFFSET 2 RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+  const auto* page = getPageClause(*clauses, 1);
+  ASSERT_NE(page, nullptr);
+  EXPECT_EQ(page->order_by, nullptr);
+  ASSERT_NE(page->offset, nullptr);
+  EXPECT_EQ(getExpr(page->offset)->text, "2");
+  EXPECT_EQ(page->limit, nullptr);
+  EXPECT_EQ(formatAST(*page), "OFFSET 2");
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+  assertNormalizedRoundTrip("MATCH (a) OFFSET 2 RETURN a");
+}
+
+TEST(GQLParser, StandaloneLimitOnly) {
+  auto ast = parseGraphOrThrow("MATCH (a) LIMIT 5 RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+  const auto* page = getPageClause(*clauses, 1);
+  ASSERT_NE(page, nullptr);
+  EXPECT_EQ(page->order_by, nullptr);
+  EXPECT_EQ(page->offset, nullptr);
+  ASSERT_NE(page->limit, nullptr);
+  EXPECT_EQ(getExpr(page->limit)->text, "5");
+  EXPECT_EQ(formatAST(*page), "LIMIT 5");
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+  assertNormalizedRoundTrip("MATCH (a) LIMIT 5 RETURN a");
+}
+
+TEST(GQLParser, StandaloneOffsetAndLimit) {
+  auto ast = parseGraphOrThrow("MATCH (a) OFFSET 2 LIMIT 5 RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+  const auto* page = getPageClause(*clauses, 1);
+  ASSERT_NE(page, nullptr);
+  EXPECT_EQ(page->order_by, nullptr);
+  ASSERT_NE(page->offset, nullptr);
+  EXPECT_EQ(getExpr(page->offset)->text, "2");
+  ASSERT_NE(page->limit, nullptr);
+  EXPECT_EQ(getExpr(page->limit)->text, "5");
+  EXPECT_EQ(formatAST(*page), "OFFSET 2 LIMIT 5");
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+  assertNormalizedRoundTrip("MATCH (a) OFFSET 2 LIMIT 5 RETURN a");
+}
+
+TEST(GQLParser, FocusedUseLimitOnly) {
+  auto ast = parseGraphOrThrow("USE foo MATCH (a) LIMIT 5 RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 4);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  ASSERT_NE(getMatchClause(*clauses, 1), nullptr);
+  const auto* page = getPageClause(*clauses, 2);
+  ASSERT_NE(page, nullptr);
+  EXPECT_EQ(formatAST(*page), "LIMIT 5");
+  ASSERT_NE(getReturnClause(*clauses, 3), nullptr);
+  assertNormalizedRoundTrip("USE foo MATCH (a) LIMIT 5 RETURN a");
+}
+
 TEST(GQLParser, FinishStatementKeepsStructuredClause) {
   auto ast = parseGraphOrThrow("MATCH (a) FINISH");
   const auto* clauses = getClausesQuery(ast);
