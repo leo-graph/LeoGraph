@@ -335,6 +335,20 @@ void attachChildIfPresent(IAST& owner, const ASTPtr& child) {
   if (child) owner.children.push_back(child);
 }
 
+void assertNormalizedRoundTrip(std::string_view query)
+{
+  SCOPED_TRACE(query);
+  auto ast1 = parseGraphOrThrow(query);
+  ASSERT_NE(ast1, nullptr);
+  auto first = formatAST(*ast1);
+  ASSERT_FALSE(first.empty());
+
+  auto ast2 = parseGraphOrThrow(first);
+  ASSERT_NE(ast2, nullptr) << "re-parse failed for: " << first;
+  auto second = formatAST(*ast2);
+  EXPECT_EQ(second, first);
+}
+
 }  // namespace
 
 TEST(GQLParser, SimpleMatchClause) {
@@ -2409,6 +2423,103 @@ TEST(GQLParser, GraphPatternBlockCloneKeepsChildrenOrder) {
   EXPECT_NE(cloned_block->children[0]->as<GAST::GQLPathPattern>(), nullptr);
   EXPECT_NE(cloned_block->children[1]->as<GAST::GQLKeepClause>(), nullptr);
   EXPECT_NE(cloned_block->children[2]->as<GAST::GQLWhereClause>(), nullptr);
+}
+
+TEST(GQLParser, KeepAnyCountedPathsPrefix) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP ANY 2 PATHS RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(keep->path_prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+  EXPECT_TRUE(prefix->use_paths_keyword);
+  ASSERT_NE(prefix->count, nullptr);
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->text, "2");
+  EXPECT_EQ(count->kind, GAST::CountSpecKind::Integer);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP ANY 2 PATHS RETURN a");
+  assertNormalizedRoundTrip("MATCH (a)-[e]->(b) KEEP ANY 2 PATHS RETURN a");
+}
+
+TEST(GQLParser, KeepAllShortestTrailPathsPrefix) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP ALL SHORTEST TRAIL PATHS RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(keep->path_prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::AllShortest);
+  EXPECT_EQ(prefix->path_mode, GAST::PathMode::Trail);
+  EXPECT_TRUE(prefix->has_path_keyword);
+  EXPECT_TRUE(prefix->use_paths_keyword);
+  EXPECT_EQ(prefix->count, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP ALL SHORTEST TRAIL PATHS RETURN a");
+  assertNormalizedRoundTrip("MATCH (a)-[e]->(b) KEEP ALL SHORTEST TRAIL PATHS RETURN a");
+}
+
+TEST(GQLParser, KeepShortestDynamicParamGroups) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) KEEP SHORTEST $n GROUPS RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+
+  const auto* prefix = getPathSearchPrefix(keep->path_prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::CountedShortestGroup);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Groups);
+  EXPECT_TRUE(prefix->use_groups_keyword);
+  ASSERT_NE(prefix->count, nullptr);
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->text, "$n");
+  EXPECT_EQ(count->kind, GAST::CountSpecKind::DynamicParameter);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) KEEP SHORTEST $n GROUPS RETURN a");
+  assertNormalizedRoundTrip("MATCH (a)-[e]->(b) KEEP SHORTEST $n GROUPS RETURN a");
+}
+
+TEST(GQLParser, KeepSearchPrefixInExistsBlock) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE EXISTS { (a)-[e]->(b) KEEP ANY 3 PATHS } RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+  const auto* exists = getExpr(where->expression);
+  ASSERT_NE(exists, nullptr);
+  ASSERT_EQ(exists->children.size(), 1);
+
+  const auto* block = getGraphPatternBlock(exists->children[0]);
+  ASSERT_NE(block, nullptr);
+  ASSERT_NE(block->keep_clause, nullptr);
+
+  const auto* keep = getKeepClause(block->keep_clause);
+  ASSERT_NE(keep, nullptr);
+  const auto* prefix = getPathSearchPrefix(keep->path_prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+  ASSERT_NE(prefix->count, nullptr);
+  EXPECT_EQ(getCountSpec(prefix->count)->text, "3");
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS { (a)-[e]->(b) KEEP ANY 3 PATHS } RETURN a");
 }
 
 TEST(GQLParser, ExistsPredicateKeepsMatchStatementBlock) {
@@ -4575,24 +4686,6 @@ TEST(GQLParser, DialectParserSelectFromGraphNestedQuery) {
 // ---------------------------------------------------------------------------
 // Normalized formatAST round-trip idempotency tests
 // ---------------------------------------------------------------------------
-
-namespace {
-
-void assertNormalizedRoundTrip(std::string_view query)
-{
-  SCOPED_TRACE(query);
-  auto ast1 = parseGraphOrThrow(query);
-  ASSERT_NE(ast1, nullptr);
-  auto first = formatAST(*ast1);
-  ASSERT_FALSE(first.empty());
-
-  auto ast2 = parseGraphOrThrow(first);
-  ASSERT_NE(ast2, nullptr) << "re-parse failed for: " << first;
-  auto second = formatAST(*ast2);
-  EXPECT_EQ(second, first);
-}
-
-}  // namespace
 
 TEST(GQLParser, RoundTripSimpleMatchReturn) {
   assertNormalizedRoundTrip("MATCH (n) RETURN n");
