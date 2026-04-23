@@ -2,20 +2,23 @@
 
 #include <Parsers/graph/AST/Utils.h>
 
+#include <vector>
+
 namespace DB::OPENGQL::AST
 {
 
 class GQLCatalogObjectName final : public DB::IAST
 {
 public:
-    explicit GQLCatalogObjectName(String name_, String parent_text_ = {})
+    explicit GQLCatalogObjectName(String name_)
         : name(std::move(name_))
-        , parent_text(std::move(parent_text_))
     {
     }
 
     String name;
-    String parent_text;
+    Ptr schema_ref;
+    bool has_slash_after_schema = false;
+    std::vector<String> parent_parts;
 
     String getID(char delim) const override
     {
@@ -24,15 +27,31 @@ public:
 
     ASTPtr clone() const override
     {
-        return make_intrusive<GQLCatalogObjectName>(*this);
+        auto result = make_intrusive<GQLCatalogObjectName>(*this);
+        result->children.clear();
+        result->schema_ref = schema_ref ? schema_ref->clone() : Ptr{};
+        if (result->schema_ref)
+            result->children.push_back(result->schema_ref);
+        return result;
     }
 
 protected:
-    void formatImpl(WriteBuffer & ostr, const FormatSettings &, FormatState &, FormatStateStacked) const override
+    void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
     {
-        if (!parent_text.empty())
-            ostr << parent_text;
+        if (schema_ref)
+        {
+            schema_ref->format(ostr, settings, state, frame);
+            if (has_slash_after_schema)
+                ostr << "/";
+        }
+        for (const auto & part : parent_parts)
+            ostr << part << ".";
         ostr << name;
+    }
+
+    void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override
+    {
+        f(nullptr, &schema_ref);
     }
 };
 

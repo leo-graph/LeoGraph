@@ -5887,7 +5887,8 @@ TEST(GQLParser, CatalogCreatePropertyGraphAny) {
   const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
   ASSERT_NE(obj_name, nullptr);
   EXPECT_EQ(obj_name->name, "g");
-  EXPECT_TRUE(obj_name->parent_text.empty());
+  EXPECT_TRUE(obj_name->parent_parts.empty());
+  EXPECT_EQ(obj_name->schema_ref, nullptr);
   EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::Any);
   EXPECT_EQ(stmt->source_reference, nullptr);
   EXPECT_EQ(formatAST(*stmt), "CREATE PROPERTY GRAPH g ANY");
@@ -5967,6 +5968,38 @@ TEST(GQLParser, CatalogCreateGraphOfType) {
   const auto* type_ref = stmt->source_reference->as<GAST::GQLCatalogObjectName>();
   ASSERT_NE(type_ref, nullptr);
   EXPECT_EQ(type_ref->name, "gt");
+}
+
+TEST(GQLParser, CatalogQualifiedGraphNameDotParent) {
+    auto ast = parseDMLOrThrow("CREATE GRAPH catalog.myGraph ANY");
+    ASSERT_NE(ast, nullptr);
+    const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+    ASSERT_NE(stmt, nullptr);
+    EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+    ASSERT_NE(stmt->name_reference, nullptr);
+    const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+    ASSERT_NE(obj_name, nullptr);
+    EXPECT_EQ(obj_name->name, "myGraph");
+    EXPECT_EQ(obj_name->schema_ref, nullptr);
+    ASSERT_EQ(obj_name->parent_parts.size(), 1);
+    EXPECT_EQ(obj_name->parent_parts[0], "catalog");
+    EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH catalog.myGraph ANY");
+}
+
+TEST(GQLParser, CatalogQualifiedGraphTypeNameDotParent) {
+    auto ast = parseDMLOrThrow("DROP GRAPH TYPE catalog.myType");
+    ASSERT_NE(ast, nullptr);
+    const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+    ASSERT_NE(stmt, nullptr);
+    EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropGraphType);
+    ASSERT_NE(stmt->name_reference, nullptr);
+    const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+    ASSERT_NE(obj_name, nullptr);
+    EXPECT_EQ(obj_name->name, "myType");
+    EXPECT_EQ(obj_name->schema_ref, nullptr);
+    ASSERT_EQ(obj_name->parent_parts.size(), 1);
+    EXPECT_EQ(obj_name->parent_parts[0], "catalog");
+    EXPECT_EQ(formatAST(*stmt), "DROP GRAPH TYPE catalog.myType");
 }
 
 TEST(GQLParser, CatalogCreateGraphAnyWithCopySource) {

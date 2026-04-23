@@ -582,16 +582,28 @@ Ptr makeSchemaReferenceFromCatalogName(GQLParser::CatalogSchemaParentAndNameCont
   return Ptr(reference);
 }
 
+void populateParentReference(GQLCatalogObjectName &obj, GQLParser::CatalogObjectParentReferenceContext *parent_ref) {
+  if (!parent_ref) return;
+
+  if (auto *schema = parent_ref->schemaReference()) {
+    obj.schema_ref = makeSchemaReference(schema);
+    if (obj.schema_ref) obj.children.push_back(obj.schema_ref);
+    obj.has_slash_after_schema = (parent_ref->SOLIDUS() != nullptr);
+  }
+
+  for (auto *obj_name : parent_ref->objectName()) obj.parent_parts.push_back(getText(obj_name));
+}
+
 Ptr makeCatalogObjectName(GQLParser::CatalogGraphParentAndNameContext *context) {
-  String parent;
-  if (auto *parent_ref = context->catalogObjectParentReference()) parent = getText(parent_ref);
-  return Ptr(make_intrusive<GQLCatalogObjectName>(getText(context->graphName()), std::move(parent)));
+  auto result = make_intrusive<GQLCatalogObjectName>(getText(context->graphName()));
+  populateParentReference(*result, context->catalogObjectParentReference());
+  return Ptr(result);
 }
 
 Ptr makeCatalogObjectName(GQLParser::CatalogGraphTypeParentAndNameContext *context) {
-  String parent;
-  if (auto *parent_ref = context->catalogObjectParentReference()) parent = getText(parent_ref);
-  return Ptr(make_intrusive<GQLCatalogObjectName>(getText(context->graphTypeName()), std::move(parent)));
+  auto result = make_intrusive<GQLCatalogObjectName>(getText(context->graphTypeName()));
+  populateParentReference(*result, context->catalogObjectParentReference());
+  return Ptr(result);
 }
 
 Ptr makeGraphTypeRef(GQLParser::GraphTypeReferenceContext *context) {
