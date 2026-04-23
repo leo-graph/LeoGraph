@@ -519,6 +519,65 @@ TEST(GQLParser, FocusedUseTopLevelParserPrimitiveReturn) {
   ASSERT_NE(getReturnClause(*clauses), nullptr);
 }
 
+TEST(GQLParser, FilterSearchConditionBuildsWhereClause) {
+  auto ast = parseGraphOrThrow("MATCH (a) FILTER a.age > 30 RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+  const auto* filter = clauses->clauses[1]->as<GAST::GQLWhereClause>();
+  ASSERT_NE(filter, nullptr);
+  ASSERT_NE(getExpr(filter->expression), nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE (a.age > 30) RETURN a");
+  assertNormalizedRoundTrip("MATCH (a) WHERE (a.age > 30) RETURN a");
+}
+
+TEST(GQLParser, FilterWhereClauseNormalizesToWhere) {
+  auto ast = parseGraphOrThrow("MATCH (a) FILTER WHERE a.age > 30 RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+  const auto* filter = clauses->clauses[1]->as<GAST::GQLWhereClause>();
+  ASSERT_NE(filter, nullptr);
+  ASSERT_NE(getExpr(filter->expression), nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE (a.age > 30) RETURN a");
+  assertNormalizedRoundTrip("MATCH (a) WHERE (a.age > 30) RETURN a");
+}
+
+TEST(GQLParser, FocusedUseWithFilter) {
+  auto ast = parseGraphOrThrow("USE foo MATCH (a) FILTER a IS NOT NULL RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 4);
+  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
+  ASSERT_NE(getMatchClause(*clauses, 1), nullptr);
+  const auto* filter = clauses->clauses[2]->as<GAST::GQLWhereClause>();
+  ASSERT_NE(filter, nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 3), nullptr);
+  assertNormalizedRoundTrip("USE foo MATCH (a) WHERE (a IS NOT NULL) RETURN a");
+}
+
+TEST(GQLParser, FilterExistsSubquery) {
+  auto ast = parseGraphOrThrow("MATCH (a) FILTER EXISTS { MATCH (a)-[e]->(b) } RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+  ASSERT_NE(getMatchClause(*clauses, 0), nullptr);
+  const auto* filter = clauses->clauses[1]->as<GAST::GQLWhereClause>();
+  ASSERT_NE(filter, nullptr);
+  const auto* exists = getExpr(filter->expression);
+  ASSERT_NE(exists, nullptr);
+  EXPECT_EQ(exists->kind, GAST::GQLExpr::Kind::UnaryOp);
+  EXPECT_EQ(exists->text, "EXISTS ");
+  ASSERT_EQ(exists->children.size(), 1);
+  ASSERT_NE(getMatchStatementBlock(exists->children[0]), nullptr);
+  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS { MATCH (a)-[e]->(b) } RETURN a");
+}
+
 TEST(GQLParser, SelectStatementBuildsStructuredSingleQuery) {
   auto ast = parseGraphOrThrow(
       "SELECT DISTINCT a AS x FROM { MATCH (a) RETURN a } WHERE a IS NOT NULL GROUP BY a HAVING a IS NOT NULL ORDER BY a DESC OFFSET 1 "
