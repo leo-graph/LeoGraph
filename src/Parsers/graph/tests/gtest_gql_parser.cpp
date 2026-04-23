@@ -1805,6 +1805,64 @@ TEST(GQLParser, MatchClauseKeepsMatchModeAndYield) {
   EXPECT_EQ(formatAST(*clauses), "MATCH REPEATABLE ELEMENTS (a)-[e]->(b) YIELD e RETURN e");
 }
 
+TEST(GQLParser, MatchModeRepeatableElementBindings) {
+  auto ast = parseGraphOrThrow("MATCH REPEATABLE ELEMENT BINDINGS (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  EXPECT_EQ(match->match_mode, GAST::GraphMatchMode::RepeatableElementBindings);
+  EXPECT_EQ(formatAST(*clauses), "MATCH REPEATABLE ELEMENT BINDINGS (a)-[e]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH REPEATABLE ELEMENT BINDINGS (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchModeDifferentEdges) {
+  auto ast = parseGraphOrThrow("MATCH DIFFERENT EDGES (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  EXPECT_EQ(match->match_mode, GAST::GraphMatchMode::DifferentEdges);
+  EXPECT_EQ(formatAST(*clauses), "MATCH DIFFERENT EDGES (a)-[e]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH DIFFERENT EDGES (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, MatchModeDifferentEdgeBindings) {
+  auto ast = parseGraphOrThrow("MATCH DIFFERENT EDGE BINDINGS (a)-[e]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  EXPECT_EQ(match->match_mode, GAST::GraphMatchMode::DifferentEdgeBindings);
+  EXPECT_EQ(formatAST(*clauses), "MATCH DIFFERENT EDGE BINDINGS (a)-[e]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH DIFFERENT EDGE BINDINGS (a)-[e]->(b) RETURN a");
+}
+
+TEST(GQLParser, ExistsBlockMatchModeDifferentEdges) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE EXISTS { DIFFERENT EDGES (a)-[e]->(b) } RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  ASSERT_NE(match->where, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+  const auto* exists = getExpr(where->expression);
+  ASSERT_NE(exists, nullptr);
+  EXPECT_EQ(exists->kind, GAST::GQLExpr::Kind::UnaryOp);
+  ASSERT_EQ(exists->children.size(), 1);
+
+  const auto* block = getGraphPatternBlock(exists->children[0]);
+  ASSERT_NE(block, nullptr);
+  EXPECT_EQ(block->match_mode, GAST::GraphMatchMode::DifferentEdges);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS { DIFFERENT EDGES (a)-[e]->(b) } RETURN a");
+  assertNormalizedRoundTrip("MATCH (a) WHERE EXISTS { DIFFERENT EDGES (a)-[e]->(b) } RETURN a");
+}
+
 TEST(GQLParser, ParenthesizedPathPatternKeepsQuestionQuantifier) {
   auto ast = parseGraphOrThrow("MATCH ((a)-[e]->(b))? RETURN e");
   const auto* clauses = getClausesQuery(ast);
