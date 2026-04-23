@@ -989,13 +989,12 @@ TEST(GQLParser, ValueExpressionBindingTableExpressionWithBinding) {
   EXPECT_EQ(table_child->text, "t");
 }
 
-TEST(GQLParser, NestedQueryRejectsCatalogModifyingStatement) {
-  try {
-    (void)parseGraphOrThrow("CALL { DROP GRAPH g }");
-    FAIL() << "Expected `DB::Exception`";
-  } catch (const DB::Exception& e) {
-    EXPECT_NE(e.message().find("nested catalog-modifying statement"), String::npos);
-  }
+TEST(GQLParser, NestedCallAcceptsCatalogModifyingStatement) {
+  auto ast = parseGraphOrThrow("CALL { DROP GRAPH g }");
+  ASSERT_NE(ast, nullptr);
+  const auto* sq = ast->as<GAST::GQLSingleQuery>();
+  ASSERT_NE(sq, nullptr);
+  ASSERT_GE(sq->clauses.size(), 1);
 }
 
 TEST(GQLParser, SelectStatementBuildsStructuredGraphMatchSourceList) {
@@ -5840,6 +5839,119 @@ TEST(GQLParser, RoundTripListAndRecordConstructors) {
 
 TEST(GQLParser, RoundTripStringFunctions) {
   assertNormalizedRoundTrip("MATCH (a) RETURN CHAR_LENGTH(a.name), UPPER(a.name)");
+}
+
+TEST(GQLParser, CatalogCreateSchema) {
+  auto ast = parseDMLOrThrow("CREATE SCHEMA IF NOT EXISTS /foo");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateSchema);
+  EXPECT_TRUE(stmt->if_not_exists);
+  EXPECT_FALSE(stmt->if_exists);
+  EXPECT_FALSE(stmt->or_replace);
+  ASSERT_NE(stmt->name_reference, nullptr);
+  const auto* schema_ref = stmt->name_reference->as<GAST::GQLSchemaReference>();
+  ASSERT_NE(schema_ref, nullptr);
+  EXPECT_EQ(schema_ref->kind, GAST::GQLSchemaReference::Kind::AbsolutePath);
+  EXPECT_EQ(schema_ref->name, "foo");
+  EXPECT_EQ(formatAST(*stmt), "CREATE SCHEMA IF NOT EXISTS /foo");
+}
+
+TEST(GQLParser, CatalogDropSchema) {
+  auto ast = parseDMLOrThrow("DROP SCHEMA IF EXISTS /foo");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropSchema);
+  EXPECT_TRUE(stmt->if_exists);
+  EXPECT_FALSE(stmt->if_not_exists);
+  ASSERT_NE(stmt->name_reference, nullptr);
+  const auto* schema_ref = stmt->name_reference->as<GAST::GQLSchemaReference>();
+  ASSERT_NE(schema_ref, nullptr);
+  EXPECT_EQ(schema_ref->kind, GAST::GQLSchemaReference::Kind::AbsolutePath);
+  EXPECT_EQ(schema_ref->name, "foo");
+  EXPECT_EQ(formatAST(*stmt), "DROP SCHEMA IF EXISTS /foo");
+}
+
+TEST(GQLParser, CatalogCreatePropertyGraphAny) {
+  auto ast = parseDMLOrThrow("CREATE PROPERTY GRAPH g ANY");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+  EXPECT_TRUE(stmt->is_property);
+  EXPECT_FALSE(stmt->if_not_exists);
+  EXPECT_FALSE(stmt->or_replace);
+  ASSERT_NE(stmt->name_reference, nullptr);
+}
+
+TEST(GQLParser, CatalogDropPropertyGraph) {
+  auto ast = parseDMLOrThrow("DROP PROPERTY GRAPH g");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropGraph);
+  EXPECT_TRUE(stmt->is_property);
+  EXPECT_FALSE(stmt->if_exists);
+  ASSERT_NE(stmt->name_reference, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "DROP PROPERTY GRAPH g");
+}
+
+TEST(GQLParser, CatalogCreateGraphType) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt AS LIKE GRAPH g");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraphType);
+  EXPECT_FALSE(stmt->is_property);
+  ASSERT_NE(stmt->name_reference, nullptr);
+}
+
+TEST(GQLParser, CatalogDropGraphType) {
+  auto ast = parseDMLOrThrow("DROP GRAPH TYPE IF EXISTS gt");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropGraphType);
+  EXPECT_TRUE(stmt->if_exists);
+  EXPECT_FALSE(stmt->is_property);
+  ASSERT_NE(stmt->name_reference, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "DROP GRAPH TYPE IF EXISTS gt");
+}
+
+TEST(GQLParser, NestedCallDDLNoLongerThrows) {
+  auto ast = parseDMLOrThrow("CALL { DROP GRAPH g }");
+  ASSERT_NE(ast, nullptr);
+  const auto* sq = ast->as<GAST::GQLSingleQuery>();
+  ASSERT_NE(sq, nullptr);
+}
+
+TEST(GQLParser, CatalogViaDialectParser) {
+  auto ast = parseViaDialectParser("CREATE SCHEMA IF NOT EXISTS /bar");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateSchema);
+  const auto* schema_ref = stmt->name_reference->as<GAST::GQLSchemaReference>();
+  ASSERT_NE(schema_ref, nullptr);
+  EXPECT_EQ(schema_ref->name, "bar");
+}
+
+TEST(GQLParser, CatalogCallProcedureInLinearDDL) {
+  auto ast = parseDMLOrThrow("CREATE SCHEMA /foo CALL myproc()");
+  ASSERT_NE(ast, nullptr);
+  const auto* sq = ast->as<GAST::GQLSingleQuery>();
+  ASSERT_NE(sq, nullptr);
+  ASSERT_EQ(sq->clauses.size(), 2);
+
+  const auto* ddl = sq->clauses[0]->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(ddl, nullptr);
+  EXPECT_EQ(ddl->kind, GAST::GQLCatalogStatement::Kind::CreateSchema);
+
+  const auto* call = sq->clauses[1]->as<GAST::GQLCallNamedClause>();
+  ASSERT_NE(call, nullptr);
+  ASSERT_NE(call->procedure, nullptr);
 }
 
 #endif

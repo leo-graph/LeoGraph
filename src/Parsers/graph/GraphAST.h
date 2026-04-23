@@ -11,6 +11,7 @@
 #include <Parsers/graph/AST/GQLCallNamedClause.h>
 #include <Parsers/graph/AST/GQLCallVariableScopeClause.h>
 #include <Parsers/graph/AST/GQLCaseExpr.h>
+#include <Parsers/graph/AST/GQLCatalogStatement.h>
 #include <Parsers/graph/AST/GQLCombinedQuery.h>
 #include <Parsers/graph/AST/GQLCountSpec.h>
 #include <Parsers/graph/AST/GQLDeleteClause.h>

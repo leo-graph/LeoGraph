@@ -74,6 +74,13 @@ class GQLParseTreeVisitor final : public GQLBaseVisitor {
   std::any visitLabelExpressionWildcard(GQLParser::LabelExpressionWildcardContext* context) override;
   std::any visitLabelExpressionParenthesized(GQLParser::LabelExpressionParenthesizedContext* context) override;
   std::any visitPrimitiveResultStatement(GQLParser::PrimitiveResultStatementContext* context) override;
+  std::any visitLinearCatalogModifyingStatement(GQLParser::LinearCatalogModifyingStatementContext* context) override;
+  std::any visitCreateSchemaStatement(GQLParser::CreateSchemaStatementContext* context) override;
+  std::any visitDropSchemaStatement(GQLParser::DropSchemaStatementContext* context) override;
+  std::any visitCreateGraphStatement(GQLParser::CreateGraphStatementContext* context) override;
+  std::any visitDropGraphStatement(GQLParser::DropGraphStatementContext* context) override;
+  std::any visitCreateGraphTypeStatement(GQLParser::CreateGraphTypeStatementContext* context) override;
+  std::any visitDropGraphTypeStatement(GQLParser::DropGraphTypeStatementContext* context) override;
   std::any visitReturnStatement(GQLParser::ReturnStatementContext* context) override;
   std::any visitReturnStatementBody(GQLParser::ReturnStatementBodyContext* context) override;
   std::any visitReturnItemList(GQLParser::ReturnItemListContext* context) override;

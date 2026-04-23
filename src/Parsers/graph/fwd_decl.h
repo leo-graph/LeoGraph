@@ -73,6 +73,7 @@ class GQLBindingVariableDefinition;
 class GQLBindingVariableDefinitionBlock;
 class GQLCallClauseBase;
 class GQLCaseExpr;
+class GQLCatalogStatement;
 class GQLCallInlineClause;
 class GQLCallNamedClause;
 class GQLCallVariableScopeClause;

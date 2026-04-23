@@ -574,6 +574,14 @@ Ptr makeSchemaReference(GQLParser::SchemaReferenceContext *context) {
   throwUnsupported("schema reference", context);
 }
 
+Ptr makeSchemaReferenceFromCatalogName(GQLParser::CatalogSchemaParentAndNameContext *context) {
+  auto reference = make_intrusive<GQLSchemaReference>(GQLSchemaReference::Kind::AbsolutePath, getText(context->schemaName()));
+  if (auto *abs_dir = context->absoluteDirectoryPath()) {
+    reference->directory_parts = getDirectoryParts(abs_dir->simpleDirectoryPath());
+  }
+  return Ptr(reference);
+}
+
 Ptr makeBindingInitializer(GQLBindingInitializer::Kind kind, Ptr value) {
   return Ptr(make_intrusive<GQLBindingInitializer>(kind, std::move(value)));
 }
@@ -1890,9 +1898,7 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
 
     if (statement->linearDataModifyingStatement()) return makeLinearDataModifyingQuery(statement->linearDataModifyingStatement(), *this);
 
-    if (statement->linearCatalogModifyingStatement()) {
-      throwUnsupported("nested catalog-modifying statement (DDL)", statement);
-    }
+    if (statement->linearCatalogModifyingStatement()) return castAny<Ptr>(visit(statement->linearCatalogModifyingStatement()));
 
     throwUnsupported("nested non-query statement", statement);
   };
@@ -2661,6 +2667,83 @@ std::any GQLParseTreeVisitor::visitLabelExpressionWildcard(GQLParser::LabelExpre
 
 std::any GQLParseTreeVisitor::visitLabelExpressionParenthesized(GQLParser::LabelExpressionParenthesizedContext *context) {
   return castAny<Ptr>(visit(context->labelExpression()));
+}
+
+std::any GQLParseTreeVisitor::visitLinearCatalogModifyingStatement(GQLParser::LinearCatalogModifyingStatementContext *context) {
+  PtrList stmts;
+  for (auto *simple : context->simpleCatalogModifyingStatement()) {
+    if (simple->primitiveCatalogModifyingStatement()) {
+      stmts.push_back(castAny<Ptr>(visit(simple->primitiveCatalogModifyingStatement())));
+    } else if (simple->callCatalogModifyingProcedureStatement()) {
+      stmts.push_back(makeCallClause(simple->callCatalogModifyingProcedureStatement()->callProcedureStatement(), *this));
+    }
+  }
+  if (stmts.size() == 1) return stmts[0];
+  return makeSingleQuery(std::move(stmts));
+}
+
+std::any GQLParseTreeVisitor::visitCreateSchemaStatement(GQLParser::CreateSchemaStatementContext *context) {
+  auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::CreateSchema);
+  stmt->if_not_exists = (context->IF() != nullptr);
+  stmt->name_reference = makeSchemaReferenceFromCatalogName(context->catalogSchemaParentAndName());
+  if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
+  return Ptr(stmt);
+}
+
+std::any GQLParseTreeVisitor::visitDropSchemaStatement(GQLParser::DropSchemaStatementContext *context) {
+  auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::DropSchema);
+  stmt->if_exists = (context->IF() != nullptr);
+  stmt->name_reference = makeSchemaReferenceFromCatalogName(context->catalogSchemaParentAndName());
+  if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
+  return Ptr(stmt);
+}
+
+std::any GQLParseTreeVisitor::visitCreateGraphStatement(GQLParser::CreateGraphStatementContext *context) {
+  auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::CreateGraph);
+  stmt->is_property = (context->PROPERTY() != nullptr);
+  stmt->or_replace = (context->REPLACE() != nullptr);
+  stmt->if_not_exists = (context->IF() != nullptr && !stmt->or_replace);
+  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphParentAndName()));
+  if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
+
+  String tail;
+  if (context->openGraphType())
+    tail = getText(context->openGraphType());
+  else if (context->ofGraphType())
+    tail = getText(context->ofGraphType());
+  if (context->graphSource()) tail += " " + getText(context->graphSource());
+  stmt->source_text = std::move(tail);
+
+  return Ptr(stmt);
+}
+
+std::any GQLParseTreeVisitor::visitDropGraphStatement(GQLParser::DropGraphStatementContext *context) {
+  auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::DropGraph);
+  stmt->is_property = (context->PROPERTY() != nullptr);
+  stmt->if_exists = (context->IF() != nullptr);
+  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphParentAndName()));
+  if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
+  return Ptr(stmt);
+}
+
+std::any GQLParseTreeVisitor::visitCreateGraphTypeStatement(GQLParser::CreateGraphTypeStatementContext *context) {
+  auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::CreateGraphType);
+  stmt->is_property = (context->PROPERTY() != nullptr);
+  stmt->or_replace = (context->REPLACE() != nullptr);
+  stmt->if_not_exists = (context->IF() != nullptr && !stmt->or_replace);
+  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphTypeParentAndName()));
+  if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
+  stmt->source_text = getText(context->graphTypeSource());
+  return Ptr(stmt);
+}
+
+std::any GQLParseTreeVisitor::visitDropGraphTypeStatement(GQLParser::DropGraphTypeStatementContext *context) {
+  auto stmt = make_intrusive<GQLCatalogStatement>(GQLCatalogStatement::Kind::DropGraphType);
+  stmt->is_property = (context->PROPERTY() != nullptr);
+  stmt->if_exists = (context->IF() != nullptr);
+  stmt->name_reference = GQLExpr::literal(getText(context->catalogGraphTypeParentAndName()));
+  if (stmt->name_reference) stmt->children.push_back(stmt->name_reference);
+  return Ptr(stmt);
 }
 
 std::any GQLParseTreeVisitor::visitPrimitiveResultStatement(GQLParser::PrimitiveResultStatementContext *context) {
