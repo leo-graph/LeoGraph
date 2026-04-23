@@ -52,7 +52,9 @@ class GQLExpr final : public DB::ASTWithAlias {
     SpecialValue,
     TemporalLiteral,
     DurationLiteral,
-    RawText,
+    VariableExpression,
+    GraphExpression,
+    BindingTableExpression,
   };
 
   explicit GQLExpr(Kind kind_, String text_ = {}) : kind(kind_), text(std::move(text_)) {}
@@ -157,21 +159,35 @@ class GQLExpr final : public DB::ASTWithAlias {
 
   static Ptr specialValue(const String& text) { return Ptr(make_intrusive<GQLExpr>(Kind::SpecialValue, text)); }
 
-  static Ptr temporalLiteral(const String& keyword, Ptr string_value)
-  {
+  static Ptr temporalLiteral(const String& keyword, Ptr string_value) {
     auto expression = make_intrusive<GQLExpr>(Kind::TemporalLiteral, keyword);
     expression->children.push_back(std::move(string_value));
     return Ptr(expression);
   }
 
-  static Ptr durationLiteral(Ptr string_value)
-  {
+  static Ptr durationLiteral(Ptr string_value) {
     auto expression = make_intrusive<GQLExpr>(Kind::DurationLiteral, "DURATION");
     expression->children.push_back(std::move(string_value));
     return Ptr(expression);
   }
 
-  static Ptr rawText(const String& text) { return Ptr(make_intrusive<GQLExpr>(Kind::RawText, text)); }
+  static Ptr variableExpression(Ptr operand) {
+    auto expression = make_intrusive<GQLExpr>(Kind::VariableExpression, "VARIABLE");
+    expression->children.push_back(std::move(operand));
+    return Ptr(expression);
+  }
+
+  static Ptr graphExpression(Ptr graph, bool property_prefix) {
+    auto expression = make_intrusive<GQLExpr>(Kind::GraphExpression, property_prefix ? "PROPERTY GRAPH" : "GRAPH");
+    expression->children.push_back(std::move(graph));
+    return Ptr(expression);
+  }
+
+  static Ptr bindingTableExpression(Ptr table, bool binding_prefix) {
+    auto expression = make_intrusive<GQLExpr>(Kind::BindingTableExpression, binding_prefix ? "BINDING TABLE" : "TABLE");
+    expression->children.push_back(std::move(table));
+    return Ptr(expression);
+  }
 
   String getID(char delim) const override { return "GQLExpr" + (delim + text); }
 
@@ -201,7 +217,6 @@ class GQLExpr final : public DB::ASTWithAlias {
       case Kind::Literal:
       case Kind::DynamicParameter:
       case Kind::SpecialValue:
-      case Kind::RawText:
         ostr << text;
         return;
 
@@ -235,11 +250,9 @@ class GQLExpr final : public DB::ASTWithAlias {
 
       case Kind::FunctionCall: {
         ostr << text;
-        if (!bare_keyword)
-        {
+        if (!bare_keyword) {
           ostr << "(";
-          if (set_quantifier != SetQuantifier::None)
-          {
+          if (set_quantifier != SetQuantifier::None) {
             ostr << (set_quantifier == SetQuantifier::Distinct ? "DISTINCT" : "ALL");
             if (!children.empty()) ostr << " ";
           }
@@ -324,7 +337,10 @@ class GQLExpr final : public DB::ASTWithAlias {
       }
 
       case Kind::TemporalLiteral:
-      case Kind::DurationLiteral: {
+      case Kind::DurationLiteral:
+      case Kind::VariableExpression:
+      case Kind::GraphExpression:
+      case Kind::BindingTableExpression: {
         ostr << text << " ";
         if (!children.empty() && children.front()) children.front()->format(ostr, settings, state, frame);
         return;

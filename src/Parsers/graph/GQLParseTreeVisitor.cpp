@@ -139,8 +139,6 @@ Ptr makeCallVariableScopeClause(GQLParser::VariableScopeClauseContext *context) 
   return Ptr(clause);
 }
 
-Ptr makeRawTextClause(const String &text) { return GQLExpr::rawText(text); }
-
 void appendClause(PtrList &clauses, Ptr clause) {
   if (clause) clauses.push_back(std::move(clause));
 }
@@ -580,7 +578,9 @@ Ptr makeBindingInitializer(GQLBindingInitializer::Kind kind, Ptr value) {
   return Ptr(make_intrusive<GQLBindingInitializer>(kind, std::move(value)));
 }
 
-Ptr makeGraphExpression(GQLParser::GraphExpressionContext *context, GQLParseTreeVisitor &) {
+Ptr makeObjectExpressionPrimary(GQLParser::ObjectExpressionPrimaryContext *context, GQLParseTreeVisitor &visitor);
+
+Ptr makeGraphExpression(GQLParser::GraphExpressionContext *context, GQLParseTreeVisitor &visitor) {
   if (!context) {
     return {};
   }
@@ -600,7 +600,7 @@ Ptr makeGraphExpression(GQLParser::GraphExpressionContext *context, GQLParseTree
 
   if (context->objectExpressionPrimary()) {
     return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::ObjectExpression, String{},
-                                                  makeRawTextClause(getText(context->objectExpressionPrimary()))));
+                                                  makeObjectExpressionPrimary(context->objectExpressionPrimary(), visitor)));
   }
 
   throwUnsupported("graph expression", context);
@@ -629,7 +629,7 @@ Ptr makeBindingTableExpression(GQLParser::BindingTableExpressionContext *context
 
   if (context->objectExpressionPrimary()) {
     return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::ObjectExpression, String{},
-                                                         makeRawTextClause(getText(context->objectExpressionPrimary()))));
+                                                         makeObjectExpressionPrimary(context->objectExpressionPrimary(), visitor)));
   }
 
   throwUnsupported("binding table expression", context);
@@ -1013,7 +1013,7 @@ Ptr makeAggregateFunction(GQLParser::AggregateFunctionContext *context, GQLParse
     }
 
     if (auto *independent = binary->independentValueExpression()) {
-      arguments.push_back(castAny<Ptr>(visitor.visit(independent->numericValueExpression())));
+      arguments.push_back(castAny<Ptr>(visitor.visit(independent)));
     }
 
     return GQLExpr::functionCall(getText(binary->binarySetFunctionType()), std::move(arguments), set_quantifier);
@@ -1026,19 +1026,19 @@ Ptr makeNumericValueFunction(GQLParser::NumericValueFunctionContext *numeric, GQ
   if (auto *length = numeric->lengthExpression()) {
     if (auto *char_length = length->charLengthExpression()) {
       PtrList arguments;
-      arguments.push_back(castAny<Ptr>(visitor.visit(char_length->characterStringValueExpression()->valueExpression())));
+      arguments.push_back(castAny<Ptr>(visitor.visit(char_length->characterStringValueExpression())));
       return GQLExpr::functionCall(char_length->CHAR_LENGTH() ? "CHAR_LENGTH" : "CHARACTER_LENGTH", std::move(arguments));
     }
 
     if (auto *byte_length = length->byteLengthExpression()) {
       PtrList arguments;
-      arguments.push_back(castAny<Ptr>(visitor.visit(byte_length->byteStringValueExpression()->valueExpression())));
+      arguments.push_back(castAny<Ptr>(visitor.visit(byte_length->byteStringValueExpression())));
       return GQLExpr::functionCall(byte_length->BYTE_LENGTH() ? "BYTE_LENGTH" : "OCTET_LENGTH", std::move(arguments));
     }
 
     if (auto *path_length = length->pathLengthExpression()) {
       PtrList arguments;
-      arguments.push_back(castAny<Ptr>(visitor.visit(path_length->pathValueExpression()->valueExpression())));
+      arguments.push_back(castAny<Ptr>(visitor.visit(path_length->pathValueExpression())));
       return GQLExpr::functionCall("PATH_LENGTH", std::move(arguments));
     }
   }
@@ -1046,12 +1046,12 @@ Ptr makeNumericValueFunction(GQLParser::NumericValueFunctionContext *numeric, GQ
   if (auto *cardinality = numeric->cardinalityExpression()) {
     PtrList arguments;
     if (cardinality->cardinalityExpressionArgument()) {
-      arguments.push_back(castAny<Ptr>(visitor.visit(cardinality->cardinalityExpressionArgument()->valueExpression())));
+      arguments.push_back(castAny<Ptr>(visitor.visit(cardinality->cardinalityExpressionArgument())));
       return GQLExpr::functionCall("CARDINALITY", std::move(arguments));
     }
 
     if (cardinality->listValueExpression()) {
-      arguments.push_back(castAny<Ptr>(visitor.visit(cardinality->listValueExpression()->valueExpression())));
+      arguments.push_back(castAny<Ptr>(visitor.visit(cardinality->listValueExpression())));
       return GQLExpr::functionCall("SIZE", std::move(arguments));
     }
   }
@@ -1076,15 +1076,15 @@ Ptr makeNumericValueFunction(GQLParser::NumericValueFunctionContext *numeric, GQ
 
   if (auto *modulus = numeric->modulusExpression()) {
     PtrList arguments;
-    arguments.push_back(castAny<Ptr>(visitor.visit(modulus->numericValueExpressionDividend()->numericValueExpression())));
-    arguments.push_back(castAny<Ptr>(visitor.visit(modulus->numericValueExpressionDivisor()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(modulus->numericValueExpressionDividend())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(modulus->numericValueExpressionDivisor())));
     return GQLExpr::functionCall("MOD", std::move(arguments));
   }
 
   if (auto *power = numeric->powerFunction()) {
     PtrList arguments;
-    arguments.push_back(castAny<Ptr>(visitor.visit(power->numericValueExpressionBase()->numericValueExpression())));
-    arguments.push_back(castAny<Ptr>(visitor.visit(power->numericValueExpressionExponent()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(power->numericValueExpressionBase())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(power->numericValueExpressionExponent())));
     return GQLExpr::functionCall("POWER", std::move(arguments));
   }
 
@@ -1102,8 +1102,8 @@ Ptr makeNumericValueFunction(GQLParser::NumericValueFunctionContext *numeric, GQ
 
   if (auto *gen_log = numeric->generalLogarithmFunction()) {
     PtrList arguments;
-    arguments.push_back(castAny<Ptr>(visitor.visit(gen_log->generalLogarithmBase()->numericValueExpression())));
-    arguments.push_back(castAny<Ptr>(visitor.visit(gen_log->generalLogarithmArgument()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(gen_log->generalLogarithmBase())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(gen_log->generalLogarithmArgument())));
     return GQLExpr::functionCall("LOG", std::move(arguments));
   }
 
@@ -1132,7 +1132,7 @@ Ptr makeCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionCo
   if (auto *sub = context->subCharacterOrByteString()) {
     PtrList arguments;
     arguments.push_back(castAny<Ptr>(visitor.visit(sub->valueExpression())));
-    arguments.push_back(castAny<Ptr>(visitor.visit(sub->stringLength()->numericValueExpression())));
+    arguments.push_back(castAny<Ptr>(visitor.visit(sub->stringLength())));
     return GQLExpr::functionCall(sub->LEFT() ? "LEFT" : "RIGHT", std::move(arguments));
   }
 
@@ -1165,7 +1165,7 @@ Ptr makeCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionCo
 
   if (auto *single_trim = context->trimSingleCharacterOrByteString()) {
     auto *operands = single_trim->trimOperands();
-    auto source = castAny<Ptr>(visitor.visit(operands->trimCharacterOrByteStringSource()->valueExpression()));
+    auto source = castAny<Ptr>(visitor.visit(operands->trimCharacterOrByteStringSource()));
 
     GQLExpr::TrimSpec spec = GQLExpr::TrimSpec::None;
     if (auto *ts = operands->trimSpecification()) {
@@ -1192,7 +1192,7 @@ Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, 
     PtrList args;
     if (auto *params = date_fn->dateFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
-        args.push_back(makeRecordConstructor(rc, visitor));
+        args.push_back(castAny<Ptr>(visitor.visit(rc)));
       else
         args.push_back(GQLExpr::literal(getText(params)));
     }
@@ -1204,7 +1204,7 @@ Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, 
     PtrList args;
     if (auto *params = time_fn->timeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
-        args.push_back(makeRecordConstructor(rc, visitor));
+        args.push_back(castAny<Ptr>(visitor.visit(rc)));
       else
         args.push_back(GQLExpr::literal(getText(params)));
     }
@@ -1216,7 +1216,7 @@ Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, 
     PtrList args;
     if (auto *params = datetime_fn->datetimeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
-        args.push_back(makeRecordConstructor(rc, visitor));
+        args.push_back(castAny<Ptr>(visitor.visit(rc)));
       else
         args.push_back(GQLExpr::literal(getText(params)));
     }
@@ -1228,7 +1228,7 @@ Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, 
     PtrList args;
     if (auto *params = localtime_fn->timeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
-        args.push_back(makeRecordConstructor(rc, visitor));
+        args.push_back(castAny<Ptr>(visitor.visit(rc)));
       else
         args.push_back(GQLExpr::literal(getText(params)));
     }
@@ -1240,7 +1240,7 @@ Ptr makeDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context, 
     PtrList args;
     if (auto *params = localdatetime_fn->datetimeFunctionParameters()) {
       if (auto *rc = params->recordConstructor())
-        args.push_back(makeRecordConstructor(rc, visitor));
+        args.push_back(castAny<Ptr>(visitor.visit(rc)));
       else
         args.push_back(GQLExpr::literal(getText(params)));
     }
@@ -1255,7 +1255,7 @@ Ptr makeDurationValueFunction(GQLParser::DurationValueFunctionContext *context, 
     PtrList args;
     auto *params = duration_fn->durationFunctionParameters();
     if (auto *rc = params->recordConstructor())
-      args.push_back(makeRecordConstructor(rc, visitor));
+      args.push_back(castAny<Ptr>(visitor.visit(rc)));
     else
       args.push_back(GQLExpr::literal(getText(params)));
     return GQLExpr::functionCall("DURATION", std::move(args));
@@ -1273,13 +1273,13 @@ Ptr makeDurationValueFunction(GQLParser::DurationValueFunctionContext *context, 
 Ptr makeListValueFunction(GQLParser::ListValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
   if (auto *elements_fn = context->elementsFunction()) {
     PtrList args;
-    args.push_back(castAny<Ptr>(visitor.visit(elements_fn->pathValueExpression()->valueExpression())));
+    args.push_back(castAny<Ptr>(visitor.visit(elements_fn->pathValueExpression())));
     return GQLExpr::functionCall("ELEMENTS", std::move(args));
   }
 
   if (auto *trim_list = context->trimListFunction()) {
     PtrList args;
-    args.push_back(castAny<Ptr>(visitor.visit(trim_list->listValueExpression()->valueExpression())));
+    args.push_back(castAny<Ptr>(visitor.visit(trim_list->listValueExpression())));
     args.push_back(castAny<Ptr>(visitor.visit(trim_list->numericValueExpression())));
     return GQLExpr::functionCall("TRIM", std::move(args));
   }
@@ -1290,20 +1290,20 @@ Ptr makeListValueFunction(GQLParser::ListValueFunctionContext *context, GQLParse
 Ptr makeValueFunction(GQLParser::ValueFunctionContext *context, GQLParseTreeVisitor &visitor) {
   if (!context) return {};
 
-  if (auto *numeric = context->numericValueFunction()) return makeNumericValueFunction(numeric, visitor);
+  if (auto *numeric = context->numericValueFunction()) return castAny<Ptr>(visitor.visit(numeric));
 
-  if (auto *char_fn = context->characterOrByteStringFunction()) return makeCharacterOrByteStringFunction(char_fn, visitor);
+  if (auto *char_fn = context->characterOrByteStringFunction()) return castAny<Ptr>(visitor.visit(char_fn));
 
-  if (auto *datetime = context->datetimeValueFunction()) return makeDatetimeValueFunction(datetime, visitor);
+  if (auto *datetime = context->datetimeValueFunction()) return castAny<Ptr>(visitor.visit(datetime));
 
-  if (auto *duration = context->durationValueFunction()) return makeDurationValueFunction(duration, visitor);
+  if (auto *duration = context->durationValueFunction()) return castAny<Ptr>(visitor.visit(duration));
 
-  if (auto *list_fn = context->listValueFunction()) return makeListValueFunction(list_fn, visitor);
+  if (auto *list_fn = context->listValueFunction()) return castAny<Ptr>(visitor.visit(list_fn));
 
   if (auto *dt_sub = context->datetimeSubtraction()) {
     auto *params = dt_sub->datetimeSubtractionParameters();
-    auto left = castAny<Ptr>(visitor.visit(params->datetimeValueExpression1()->datetimeValueExpression()->valueExpression()));
-    auto right = castAny<Ptr>(visitor.visit(params->datetimeValueExpression2()->datetimeValueExpression()->valueExpression()));
+    auto left = castAny<Ptr>(visitor.visit(params->datetimeValueExpression1()->datetimeValueExpression()));
+    auto right = castAny<Ptr>(visitor.visit(params->datetimeValueExpression2()->datetimeValueExpression()));
 
     GQLExpr::TemporalQualifier qualifier = GQLExpr::TemporalQualifier::None;
     if (auto *tq = dt_sub->temporalDurationQualifier()) {
@@ -1320,7 +1320,7 @@ Ptr makeResultExpr(GQLParser::ResultContext *context, GQLParseTreeVisitor &visit
 
   if (context->nullLiteral()) return GQLExpr::specialValue("NULL");
 
-  if (auto *result_expr = context->resultExpression()) return castAny<Ptr>(visitor.visit(result_expr->valueExpression()));
+  if (auto *result_expr = context->resultExpression()) return castAny<Ptr>(visitor.visit(result_expr));
 
   throwUnsupported("result expression", context);
 }
@@ -1342,7 +1342,7 @@ Ptr makeLetValueExpr(GQLParser::LetValueExpressionContext *context, GQLParseTree
       String raw_type;
       if (auto *initializer = value_definition->optTypedValueInitializer()) {
         if (initializer->valueType()) raw_type = getText(initializer->valueType());
-        if (initializer->valueInitializer()) value = castAny<Ptr>(visitor.visit(initializer->valueInitializer()->valueExpression()));
+        if (initializer->valueInitializer()) value = castAny<Ptr>(visitor.visit(initializer->valueInitializer()));
       }
       assignment =
           Ptr(make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(raw_type)));
@@ -1360,45 +1360,51 @@ Ptr makePathValueConstructorExpr(GQLParser::PathValueConstructorContext *context
   auto *by_enum = context->pathValueConstructorByEnumeration();
   auto *elem_list = by_enum->pathElementList();
   PtrList elements;
-  elements.push_back(
-      castAny<Ptr>(visitor.visit(elem_list->pathElementListStart()->nodeReferenceValueExpression()->valueExpressionPrimary())));
+  elements.push_back(castAny<Ptr>(visitor.visit(elem_list->pathElementListStart()->nodeReferenceValueExpression())));
   for (auto *step : elem_list->pathElementListStep()) {
-    elements.push_back(castAny<Ptr>(visitor.visit(step->edgeReferenceValueExpression()->valueExpressionPrimary())));
-    elements.push_back(castAny<Ptr>(visitor.visit(step->nodeReferenceValueExpression()->valueExpressionPrimary())));
+    elements.push_back(castAny<Ptr>(visitor.visit(step->edgeReferenceValueExpression())));
+    elements.push_back(castAny<Ptr>(visitor.visit(step->nodeReferenceValueExpression())));
   }
   return GQLExpr::pathConstructor(std::move(elements));
 }
 
 template <typename Context>
 Ptr tryMakeStructuredValuePrimary(Context *context, GQLParseTreeVisitor &visitor) {
-  if (auto *value_query = context->valueQueryExpression()) return makeValueQueryExpr(value_query, visitor);
-  if (auto *let_expr = context->letValueExpression()) return makeLetValueExpr(let_expr, visitor);
-  if (auto *path_ctor = context->pathValueConstructor()) return makePathValueConstructorExpr(path_ctor, visitor);
+  if (auto *value_query = context->valueQueryExpression()) return castAny<Ptr>(visitor.visit(value_query));
+  if (auto *let_expr = context->letValueExpression()) return castAny<Ptr>(visitor.visit(let_expr));
+  if (auto *path_ctor = context->pathValueConstructor()) return castAny<Ptr>(visitor.visit(path_ctor));
   return {};
+}
+
+Ptr makeNpvepSpecialCaseExpr(GQLParser::NonParenthesizedValueExpressionPrimarySpecialCaseContext *special, GQLParseTreeVisitor &visitor) {
+  if (special->unsignedValueSpecification()) return castAny<Ptr>(visitor.visit(special->unsignedValueSpecification()));
+  if (special->aggregateFunction()) return castAny<Ptr>(visitor.visit(special->aggregateFunction()));
+  if (special->caseExpression()) return castAny<Ptr>(visitor.visit(special->caseExpression()));
+  if (special->castSpecification()) return castAny<Ptr>(visitor.visit(special->castSpecification()));
+  if (special->element_idFunction()) {
+    PtrList args;
+    args.push_back(GQLExpr::identifier(getElementVariableName(special->element_idFunction()->elementVariableReference())));
+    return GQLExpr::functionCall("ELEMENT_ID", std::move(args));
+  }
+  if (special->propertyName()) {
+    auto base = castAny<Ptr>(visitor.visit(special->valueExpressionPrimary()));
+    return GQLExpr::property(std::move(base), getText(special->propertyName()->identifier()));
+  }
+  if (auto structured = tryMakeStructuredValuePrimary(special, visitor)) return structured;
+  throwUnsupported("non-parenthesized value expression primary special case", special);
 }
 
 Ptr makeNpvepExpr(GQLParser::NonParenthesizedValueExpressionPrimaryContext *npvep, GQLParseTreeVisitor &visitor) {
   if (auto *bvr = npvep->bindingVariableReference()) return GQLExpr::identifier(getText(bvr->bindingVariable()));
-
-  if (auto *special = npvep->nonParenthesizedValueExpressionPrimarySpecialCase()) {
-    if (special->unsignedValueSpecification()) return castAny<Ptr>(visitor.visit(special->unsignedValueSpecification()));
-    if (special->aggregateFunction()) return makeAggregateFunction(special->aggregateFunction(), visitor);
-    if (special->caseExpression()) return makeCaseExpression(special->caseExpression(), visitor);
-    if (special->castSpecification()) return makeCastSpecification(special->castSpecification(), visitor);
-    if (special->element_idFunction()) {
-      PtrList args;
-      args.push_back(GQLExpr::identifier(getElementVariableName(special->element_idFunction()->elementVariableReference())));
-      return GQLExpr::functionCall("ELEMENT_ID", std::move(args));
-    }
-    if (special->propertyName()) {
-      auto base = castAny<Ptr>(visitor.visit(special->valueExpressionPrimary()));
-      return GQLExpr::property(std::move(base), getText(special->propertyName()->identifier()));
-    }
-    if (auto structured = tryMakeStructuredValuePrimary(special, visitor)) return structured;
-    throwUnsupported("non-parenthesized value expression primary special case", special);
-  }
-
+  if (auto *special = npvep->nonParenthesizedValueExpressionPrimarySpecialCase()) return makeNpvepSpecialCaseExpr(special, visitor);
   throwUnsupported("non-parenthesized value expression primary", npvep);
+}
+
+Ptr makeObjectExpressionPrimary(GQLParser::ObjectExpressionPrimaryContext *context, GQLParseTreeVisitor &visitor) {
+  if (context->VARIABLE()) return GQLExpr::variableExpression(castAny<Ptr>(visitor.visit(context->valueExpressionPrimary())));
+  if (auto *paren = context->parenthesizedValueExpression()) return castAny<Ptr>(visitor.visit(paren));
+  if (auto *special = context->nonParenthesizedValueExpressionPrimarySpecialCase()) return makeNpvepSpecialCaseExpr(special, visitor);
+  throwUnsupported("object expression primary", context);
 }
 
 Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &visitor, Ptr case_operand = {}) {
@@ -1948,9 +1954,9 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
       auto *initializer = value_definition->optTypedValueInitializer();
       definition->raw_type =
           getTypedRawType(initializer ? initializer->typed() : nullptr, initializer ? initializer->valueType() : nullptr);
-      definition->initializer = make_binding_initializer(initializer ? initializer->valueInitializer() : nullptr,
-                                                         initializer ? initializer->valueInitializer()->valueExpression() : nullptr,
-                                                         GQLBindingInitializer::Kind::Value);
+      auto *vi = initializer ? initializer->valueInitializer() : nullptr;
+      if (!vi) throwUnsupported("binding variable initializer", initializer);
+      definition->initializer = makeBindingInitializer(GQLBindingInitializer::Kind::Value, castAny<Ptr>(visit(vi)));
       appendClause(definition->children, definition->initializer);
       return Ptr(definition);
     }
@@ -2255,7 +2261,7 @@ std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQ
         if (auto *initializer = value_definition->optTypedValueInitializer()) {
           if (initializer->valueType()) raw_type = getText(initializer->valueType());
 
-          if (initializer->valueInitializer()) value = castAny<Ptr>(visit(initializer->valueInitializer()->valueExpression()));
+          if (initializer->valueInitializer()) value = castAny<Ptr>(visit(initializer->valueInitializer()));
         }
 
         assignment = Ptr(
@@ -2275,7 +2281,7 @@ std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQ
     auto clause = make_intrusive<GQLForClause>();
     auto *statement = context->forStatement();
     clause->alias = getText(statement->forItem()->forItemAlias()->bindingVariable());
-    clause->source = castAny<Ptr>(visit(statement->forItem()->forItemSource()->valueExpression()));
+    clause->source = castAny<Ptr>(visit(statement->forItem()->forItemSource()));
     appendClause(clause->children, clause->source);
 
     if (auto *ordinality_or_offset = statement->forOrdinalityOrOffset()) {
@@ -2799,7 +2805,7 @@ std::any GQLParseTreeVisitor::visitOffsetClause(GQLParser::OffsetClauseContext *
 }
 
 std::any GQLParseTreeVisitor::visitSearchCondition(GQLParser::SearchConditionContext *context) {
-  return castAny<Ptr>(visit(context->booleanValueExpression()->valueExpression()));
+  return visit(context->booleanValueExpression());
 }
 
 std::any GQLParseTreeVisitor::visitAggregatingValueExpression(GQLParser::AggregatingValueExpressionContext *context) {
@@ -2833,7 +2839,7 @@ std::any GQLParseTreeVisitor::visitNotExprAlt(GQLParser::NotExprAltContext *cont
 }
 
 std::any GQLParseTreeVisitor::visitValueFunctionExprAlt(GQLParser::ValueFunctionExprAltContext *context) {
-  return makeValueFunction(context->valueFunction(), *this);
+  return visit(context->valueFunction());
 }
 
 std::any GQLParseTreeVisitor::visitConcatenationExprAlt(GQLParser::ConcatenationExprAltContext *context) {
@@ -2970,13 +2976,259 @@ std::any GQLParseTreeVisitor::visitNormalizedPredicateExprAlt(GQLParser::Normali
   return GQLExpr::normalizedPredicate(std::move(operand), negated, form);
 }
 
+std::any GQLParseTreeVisitor::visitNumericValueExpression(GQLParser::NumericValueExpressionContext *context) {
+  if (context->valueExpressionPrimary()) return visit(context->valueExpressionPrimary());
+
+  if (context->numericValueFunction()) return visit(context->numericValueFunction());
+
+  if (context->sign) {
+    auto operand = castAny<Ptr>(visit(context->numericValueExpression(0)));
+    if (context->sign->getType() == GQLParser::MINUS_SIGN) return std::any(GQLExpr::unaryOp("-", std::move(operand)));
+    return std::any(std::move(operand));
+  }
+
+  if (context->operator_) {
+    auto left = castAny<Ptr>(visit(context->numericValueExpression(0)));
+    auto right = castAny<Ptr>(visit(context->numericValueExpression(1)));
+    return std::any(GQLExpr::binaryOp(context->operator_->getText(), std::move(left), std::move(right)));
+  }
+
+  throwUnsupported("numeric value expression", context);
+}
+
+std::any GQLParseTreeVisitor::visitPropertyGraphExprAlt(GQLParser::PropertyGraphExprAltContext *context) {
+  bool property = context->PROPERTY() != nullptr;
+  auto graph = makeGraphExpression(context->graphExpression(), *this);
+  return GQLExpr::graphExpression(std::move(graph), property);
+}
+
+std::any GQLParseTreeVisitor::visitBindingTableExprAlt(GQLParser::BindingTableExprAltContext *context) {
+  bool binding = context->BINDING() != nullptr;
+  auto table = makeBindingTableExpression(context->bindingTableExpression(), *this);
+  return GQLExpr::bindingTableExpression(std::move(table), binding);
+}
+
+std::any GQLParseTreeVisitor::visitParenthesizedValueExpression(GQLParser::ParenthesizedValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitNonParenthesizedValueExpressionPrimary(
+    GQLParser::NonParenthesizedValueExpressionPrimaryContext *context) {
+  return std::any(makeNpvepExpr(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitNonParenthesizedValueExpressionPrimarySpecialCase(
+    GQLParser::NonParenthesizedValueExpressionPrimarySpecialCaseContext *context) {
+  return std::any(makeNpvepSpecialCaseExpr(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitObjectExpressionPrimary(GQLParser::ObjectExpressionPrimaryContext *context) {
+  return std::any(makeObjectExpressionPrimary(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitCharacterStringValueExpression(GQLParser::CharacterStringValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitByteStringValueExpression(GQLParser::ByteStringValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitPathValueExpression(GQLParser::PathValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitListValueExpression(GQLParser::ListValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitDatetimeValueExpression(GQLParser::DatetimeValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitDurationValueExpression(GQLParser::DurationValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitNodeReferenceValueExpression(GQLParser::NodeReferenceValueExpressionContext *context) {
+  return visit(context->valueExpressionPrimary());
+}
+
+std::any GQLParseTreeVisitor::visitEdgeReferenceValueExpression(GQLParser::EdgeReferenceValueExpressionContext *context) {
+  return visit(context->valueExpressionPrimary());
+}
+
+std::any GQLParseTreeVisitor::visitValueQueryExpression(GQLParser::ValueQueryExpressionContext *context) {
+  return std::any(makeValueQueryExpr(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitLetValueExpression(GQLParser::LetValueExpressionContext *context) {
+  return std::any(makeLetValueExpr(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitPathValueConstructor(GQLParser::PathValueConstructorContext *context) {
+  return std::any(makePathValueConstructorExpr(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitListValueConstructorByEnumeration(GQLParser::ListValueConstructorByEnumerationContext *context) {
+  return std::any(makeListConstructor(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitRecordConstructor(GQLParser::RecordConstructorContext *context) {
+  return std::any(makeRecordConstructor(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitListLiteral(GQLParser::ListLiteralContext *context) {
+  return visit(context->listValueConstructorByEnumeration());
+}
+
+std::any GQLParseTreeVisitor::visitRecordLiteral(GQLParser::RecordLiteralContext *context) { return visit(context->recordConstructor()); }
+
+std::any GQLParseTreeVisitor::visitAggregateFunction(GQLParser::AggregateFunctionContext *context) {
+  return std::any(makeAggregateFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitValueFunction(GQLParser::ValueFunctionContext *context) {
+  return std::any(makeValueFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitNumericValueFunction(GQLParser::NumericValueFunctionContext *context) {
+  return std::any(makeNumericValueFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitCharacterOrByteStringFunction(GQLParser::CharacterOrByteStringFunctionContext *context) {
+  return std::any(makeCharacterOrByteStringFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitDatetimeValueFunction(GQLParser::DatetimeValueFunctionContext *context) {
+  return std::any(makeDatetimeValueFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitDurationValueFunction(GQLParser::DurationValueFunctionContext *context) {
+  return std::any(makeDurationValueFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitListValueFunction(GQLParser::ListValueFunctionContext *context) {
+  return std::any(makeListValueFunction(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitCaseExpression(GQLParser::CaseExpressionContext *context) {
+  return std::any(makeCaseExpression(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitCastSpecification(GQLParser::CastSpecificationContext *context) {
+  return std::any(makeCastSpecification(context, *this));
+}
+
+std::any GQLParseTreeVisitor::visitGeneralValueSpecification(GQLParser::GeneralValueSpecificationContext *context) {
+  if (context->dynamicParameterSpecification()) return visit(context->dynamicParameterSpecification());
+  if (context->SESSION_USER()) return GQLExpr::specialValue("SESSION_USER");
+  throwUnsupported("general value specification", context);
+}
+
+std::any GQLParseTreeVisitor::visitDynamicParameterSpecification(GQLParser::DynamicParameterSpecificationContext *context) {
+  return GQLExpr::dynamicParameter(getText(context));
+}
+
+std::any GQLParseTreeVisitor::visitGeneralLiteral(GQLParser::GeneralLiteralContext *context) {
+  if (context->BOOLEAN_LITERAL()) return GQLExpr::specialValue(context->BOOLEAN_LITERAL()->getText());
+  if (context->characterStringLiteral()) return GQLExpr::literal(getText(context));
+  if (context->BYTE_STRING_LITERAL()) return GQLExpr::literal(getText(context));
+  if (context->nullLiteral()) return visit(context->nullLiteral());
+  if (context->temporalLiteral()) return visit(context->temporalLiteral());
+  if (context->durationLiteral()) return visit(context->durationLiteral());
+  if (context->listLiteral()) return visit(context->listLiteral());
+  if (context->recordLiteral()) return visit(context->recordLiteral());
+  throwUnsupported("general literal", context);
+}
+
+std::any GQLParseTreeVisitor::visitNullLiteral(GQLParser::NullLiteralContext *) { return GQLExpr::specialValue("NULL"); }
+
+std::any GQLParseTreeVisitor::visitTemporalLiteral(GQLParser::TemporalLiteralContext *context) {
+  if (context->dateLiteral()) return visit(context->dateLiteral());
+  if (context->timeLiteral()) return visit(context->timeLiteral());
+  if (context->datetimeLiteral()) return visit(context->datetimeLiteral());
+  throwUnsupported("temporal literal", context);
+}
+
+std::any GQLParseTreeVisitor::visitDateLiteral(GQLParser::DateLiteralContext *context) {
+  return GQLExpr::temporalLiteral("DATE", GQLExpr::literal(getText(context->dateString())));
+}
+
+std::any GQLParseTreeVisitor::visitTimeLiteral(GQLParser::TimeLiteralContext *context) {
+  return GQLExpr::temporalLiteral("TIME", GQLExpr::literal(getText(context->timeString())));
+}
+
+std::any GQLParseTreeVisitor::visitDatetimeLiteral(GQLParser::DatetimeLiteralContext *context) {
+  String keyword = context->TIMESTAMP() ? "TIMESTAMP" : "DATETIME";
+  return GQLExpr::temporalLiteral(keyword, GQLExpr::literal(getText(context->datetimeString())));
+}
+
+std::any GQLParseTreeVisitor::visitDurationLiteral(GQLParser::DurationLiteralContext *context) {
+  return GQLExpr::durationLiteral(GQLExpr::literal(getText(context->durationString())));
+}
+
+std::any GQLParseTreeVisitor::visitValueInitializer(GQLParser::ValueInitializerContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitBooleanValueExpression(GQLParser::BooleanValueExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitResultExpression(GQLParser::ResultExpressionContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitCardinalityExpressionArgument(GQLParser::CardinalityExpressionArgumentContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitTrimCharacterOrByteStringSource(GQLParser::TrimCharacterOrByteStringSourceContext *context) {
+  return visit(context->valueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitStringLength(GQLParser::StringLengthContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitIndependentValueExpression(GQLParser::IndependentValueExpressionContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitForItemSource(GQLParser::ForItemSourceContext *context) { return visit(context->valueExpression()); }
+
+std::any GQLParseTreeVisitor::visitNumericValueExpressionDividend(GQLParser::NumericValueExpressionDividendContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitNumericValueExpressionDivisor(GQLParser::NumericValueExpressionDivisorContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitNumericValueExpressionBase(GQLParser::NumericValueExpressionBaseContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitNumericValueExpressionExponent(GQLParser::NumericValueExpressionExponentContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitGeneralLogarithmBase(GQLParser::GeneralLogarithmBaseContext *context) {
+  return visit(context->numericValueExpression());
+}
+
+std::any GQLParseTreeVisitor::visitGeneralLogarithmArgument(GQLParser::GeneralLogarithmArgumentContext *context) {
+  return visit(context->numericValueExpression());
+}
+
 std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpressionPrimaryContext *context) {
   if (context->bindingVariableReference()) {
     return GQLExpr::identifier(getText(context->bindingVariableReference()->bindingVariable()));
   }
 
   if (context->aggregateFunction()) {
-    return makeAggregateFunction(context->aggregateFunction(), *this);
+    return visit(context->aggregateFunction());
   }
 
   if (context->unsignedValueSpecification()) {
@@ -2988,7 +3240,7 @@ std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpres
   }
 
   if (context->parenthesizedValueExpression()) {
-    return castAny<Ptr>(visit(context->parenthesizedValueExpression()->valueExpression()));
+    return visit(context->parenthesizedValueExpression());
   }
 
   if (auto *element_id_function = context->element_idFunction()) {
@@ -2998,11 +3250,11 @@ std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpres
   }
 
   if (auto *case_expr = context->caseExpression()) {
-    return makeCaseExpression(case_expr, *this);
+    return visit(case_expr);
   }
 
   if (auto *cast_spec = context->castSpecification()) {
-    return makeCastSpecification(cast_spec, *this);
+    return visit(cast_spec);
   }
 
   if (auto structured = tryMakeStructuredValuePrimary(context, *this)) return structured;
@@ -3011,55 +3263,13 @@ std::any GQLParseTreeVisitor::visitValueExpressionPrimary(GQLParser::ValueExpres
 }
 
 std::any GQLParseTreeVisitor::visitUnsignedValueSpecification(GQLParser::UnsignedValueSpecificationContext *context) {
-  if (context->unsignedLiteral()) {
-    return castAny<Ptr>(visit(context->unsignedLiteral()));
-  }
-
-  if (auto *general = context->generalValueSpecification()) {
-    if (general->dynamicParameterSpecification()) {
-      return GQLExpr::dynamicParameter(getText(general->dynamicParameterSpecification()));
-    }
-
-    if (general->SESSION_USER()) {
-      return GQLExpr::specialValue("SESSION_USER");
-    }
-  }
-
+  if (context->unsignedLiteral()) return visit(context->unsignedLiteral());
+  if (context->generalValueSpecification()) return visit(context->generalValueSpecification());
   throwUnsupported("unsigned value specification", context);
 }
 
 std::any GQLParseTreeVisitor::visitUnsignedLiteral(GQLParser::UnsignedLiteralContext *context) {
-  if (auto *general_literal = context->generalLiteral()) {
-    if (general_literal->BOOLEAN_LITERAL()) {
-      return GQLExpr::specialValue(general_literal->BOOLEAN_LITERAL()->getText());
-    }
-
-    if (general_literal->nullLiteral()) {
-      return GQLExpr::specialValue("NULL");
-    }
-
-    if (auto *temporal = general_literal->temporalLiteral()) {
-      if (auto *date_lit = temporal->dateLiteral())
-        return GQLExpr::temporalLiteral("DATE", GQLExpr::literal(getText(date_lit->dateString())));
-      if (auto *time_lit = temporal->timeLiteral())
-        return GQLExpr::temporalLiteral("TIME", GQLExpr::literal(getText(time_lit->timeString())));
-      if (auto *dt_lit = temporal->datetimeLiteral()) {
-        String keyword = dt_lit->TIMESTAMP() ? "TIMESTAMP" : "DATETIME";
-        return GQLExpr::temporalLiteral(keyword, GQLExpr::literal(getText(dt_lit->datetimeString())));
-      }
-    }
-
-    if (auto *dur = general_literal->durationLiteral()) return GQLExpr::durationLiteral(GQLExpr::literal(getText(dur->durationString())));
-
-    if (auto *list_literal = general_literal->listLiteral()) {
-      return makeListConstructor(list_literal->listValueConstructorByEnumeration(), *this);
-    }
-
-    if (auto *record_literal = general_literal->recordLiteral()) {
-      return makeRecordConstructor(record_literal->recordConstructor(), *this);
-    }
-  }
-
+  if (context->generalLiteral()) return visit(context->generalLiteral());
   return GQLExpr::literal(getText(context));
 }
 
