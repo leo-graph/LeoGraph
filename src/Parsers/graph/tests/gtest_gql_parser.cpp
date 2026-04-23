@@ -1891,6 +1891,84 @@ TEST(GQLParser, PathSearchPrefixCloneIsDeep) {
   EXPECT_EQ(formatAST(*cloned_prefix), "SHORTEST 3 GROUPS");
 }
 
+TEST(GQLParser, PathSearchPrefixAll) {
+  auto ast = parseGraphOrThrow("MATCH ALL (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::All);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::None);
+  EXPECT_EQ(prefix->count, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ALL (a)-[*]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH ALL (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, PathSearchPrefixAnyNoCount) {
+  auto ast = parseGraphOrThrow("MATCH ANY (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::None);
+  EXPECT_EQ(prefix->count, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ANY (a)-[*]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH ANY (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, PathSearchPrefixAllShortest) {
+  auto ast = parseGraphOrThrow("MATCH ALL SHORTEST (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::AllShortest);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::None);
+  EXPECT_EQ(prefix->count, nullptr);
+  EXPECT_EQ(formatAST(*clauses), "MATCH ALL SHORTEST (a)-[*]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH ALL SHORTEST (a)-[*]->(b) RETURN a");
+}
+
+TEST(GQLParser, PathSearchPrefixCountedShortestPaths) {
+  auto ast = parseGraphOrThrow("MATCH SHORTEST 2 PATHS (a)-[*]->(b) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* prefix = getPathSearchPrefix(path->prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::CountedShortest);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+  ASSERT_NE(prefix->count, nullptr);
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->kind, GAST::CountSpecKind::Integer);
+  EXPECT_EQ(count->text, "2");
+  EXPECT_TRUE(prefix->has_path_keyword);
+  EXPECT_TRUE(prefix->use_paths_keyword);
+  EXPECT_EQ(formatAST(*clauses), "MATCH SHORTEST 2 PATHS (a)-[*]->(b) RETURN a");
+  assertNormalizedRoundTrip("MATCH SHORTEST 2 PATHS (a)-[*]->(b) RETURN a");
+}
+
 TEST(GQLParser, MatchClauseKeepsMatchModeAndYield) {
   auto ast = parseGraphOrThrow("MATCH REPEATABLE ELEMENTS (a)-[e]->(b) YIELD e RETURN e");
   const auto* clauses = getClausesQuery(ast);
