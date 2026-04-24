@@ -2,21 +2,22 @@
 
 ## Stable Anchor
 
-- Branch: `gql-ast-refactor`
-- Last stable checkpoint pushed to remote: `463f4194807`
+- Branch: `parser/dev-gql-expression-completion`
+- Last stable checkpoint: see recent `[parser] ...` commits on the current branch.
 - Checkpoint summary:
   - `GQLParserUtils` owns the `antlr4` entry, `SLL -> LL` fallback, and error listeners.
   - `GQLParseTreeVisitor` builds a minimal `IAST`-based `GQL*` graph AST.
   - Graph AST nodes live under `src/Parsers/graph/AST/`.
-  - `ParserGraphQuery` can return the new graph AST for the currently supported top-level prefixes, including `MATCH`, `OPTIONAL MATCH`, named / inline `CALL`, graph-shaped `SELECT`, and focused `USE` queries guarded by heuristic fallback.
+  - `ParserGQLQuery` is the main parser-only entry for `Dialect::gql`; it routes full statements through `GQLParserUtils::parseStatement`.
+  - `ParserGraphQuery` remains a ClickHouse parser-chain compatibility adapter for selected graph-shaped prefixes guarded by heuristic fallback.
 
 ## Current Shape
 
 ### Parser pipeline
 
-- Entry lives in `src/Parsers/graph/GQLParserUtils.cpp`.
-- The current internal root rule is `compositeQueryStatement`.
-- This means the parser is currently centered around complete query statements, not standalone clause fragments.
+- Entry helpers live in `src/Parsers/graph/GQLParserUtils.cpp`.
+- The current main dialect-mode root rule is `statement`, reached through `ParserGQLQuery` and `GQLParserUtils::parseStatement`.
+- `parseStatement` covers query, DML, and catalog DDL AST construction; `parseCompositeQueryStatement` remains for query-only legacy paths and tests.
 - The current normalization rule is: keep `visit*` boundaries aligned with `GQL.g4`, but keep public query roots aligned with a semantic query model instead of grammar wrappers.
 
 ### AST layer
@@ -53,12 +54,21 @@ The currently supported minimal path is:
 - the older `visitSelectStatement` exception on `SELECT ... FROM ...` paths is fixed by gathering parse-tree data before constructing the final clause node
 - structured `CALL`, `LET`, and `FOR` clauses, including separate `GQLCallNamedClause` / `GQLCallInlineClause` nodes, structured procedure references, inline query-compatible `CALL { ... }`, inline `CALL (x, y) { ... }` variable scopes, `CALL ... YIELD`, typed `LET VALUE`, and `FOR ... WITH OFFSET` / `WITH ORDINALITY` fields
 - `graphExpression` payloads in `USE`, graph-qualified `SELECT FROM`, and graph variable initializers now build `GQLGraphExpression` instead of top-level raw-text placeholders
+- graph references, catalog object names, graph copy sources, and catalog DDL sources are structured as thin AST nodes where the grammar shape is clear
 - `bindingTableExpression` payloads in binding-table initializers now build `GQLBindingTableExpression`, including the nested-query form
 - structured `IS` truth checks and a first predicate subset such as `IS NULL`, `PROPERTY_EXISTS`, `ALL_DIFFERENT`, `SAME`, and source / destination predicates
 - structured path / graph prefixes, `GQLCountSpec` for counted path-search prefixes, classic `pathPatternExpression` alternation via `GQLPathTerm` / `GQLPathPatternAlternation`, `MATCH ... YIELD`, optional `MATCH` blocks, parenthesized path patterns with quantifiers, simplified path-pattern expressions, `GQLQuantifiedPathPrimary` wrappers for quantified / questioned non-element path primaries, and basic path / node / edge patterns
 - basic label expressions
 - a minimal expression subset with structured `ABS` / length / cardinality functions, structured aggregate `DISTINCT` / `ALL` via `GQLExpr::SetQuantifier`, structured `COUNT(*)`, structured `ELEMENT_ID`, structured `EXISTS` operands, structured dynamic parameters / `SESSION_USER`, structured list / record literals, structured `DURATION_BETWEEN` with `TemporalQualifier`, and structured `TRIM` with `TrimSpec` + optional trim character
 - simple set queries such as `UNION`, `UNION ALL`, and `EXCEPT`
+- DML (`INSERT`, `SET`, `REMOVE`, `DELETE`) and catalog DDL (`CREATE` / `DROP` schema, graph, graph type) through `ParserGQLQuery` / `parseStatement`
+
+### Parser-only raw text policy
+
+- `GQLCatalogStatement::source_text` is reserved for `NestedSpec` graph-type specifications and represents a deferred AST subtree.
+- `GQLAssignmentItem::raw_type` and `GQLBindingVariableDefinition::raw_type` remain raw type strings for parser-only v1; do not design a full type AST in this phase.
+- Plain literal tokens may stay as `GQLExpr::Kind::Literal`; raw text should be reduced only when it loses obvious graph-reference, catalog-name, graph-source, or expression structure.
+- New or changed `GQL*` nodes must keep `children` dense and non-null, deep-copy owned children in `clone`, and round-trip through normalized `formatAST`.
 
 ### Phase 5: Expression completion
 
@@ -68,7 +78,7 @@ The currently supported minimal path is:
 - `characterOrByteStringFunction` now covers all 5 branches structurally: `LEFT` / `RIGHT` (sub-character), `UPPER` / `LOWER` (fold), `BTRIM` / `LTRIM` / `RTRIM` (multi-trim), `NORMALIZE`, and `TRIM(trimOperands)` via `GQLExpr::TrimString` with explicit `TrimSpec` (Leading / Trailing / Both / None) and optional trim character child
 - `makeValueFunction` refactored: split into `makeNumericValueFunction` + `makeCharacterOrByteStringFunction` for cleaner structure; `datetimeValueFunction`, `durationValueFunction`, `listValueFunction` structurally covered as `GQLExpr::FunctionCall` (Round C); `datetimeSubtraction` structurally covered as `GQLExpr::DurationBetween` with `TemporalQualifier` (Round D)
 - `valueExpressionPrimary` now fully structured: `valueQueryExpression` maps to `GQLExpr::Kind::ValueQuery` with `GQLSubquery` child; `letValueExpression` maps to `GQLExpr::Kind::LetExpr` reusing `GQLAssignmentItem` bindings; `pathValueConstructor` maps to `GQLExpr::Kind::PathConstructor` with ordered node/edge children; `normalizedPredicateExprAlt` now has a dedicated `visitNormalizedPredicateExprAlt` override producing `BinaryOp` with `IS [NOT]` operator and `[form] NORMALIZED` literal right
-- current compile-closed snapshot has 19 explicit `throwUnsupported(...)` call sites in `GQLParseTreeVisitor.cpp` (all verified as defensive guardrails except L1365 which now has DML coverage) and 189 parser `gtest` cases in `gtest_gql_parser.cpp`
+- remaining `throwUnsupported(...)` sites should be tracked by category instead of stale line counts; the high-value parser-only categories are `predicate`, `valueExpressionPrimary`, `objectExpressionPrimary`, value-function families, and query-shape guardrails.
 
 ### Phase 6: DML statement support
 
@@ -77,9 +87,9 @@ The currently supported minimal path is:
 - insert patterns reuse existing `GQLNodePattern` / `GQLEdgePattern` nodes, with `labelSetSpecification` built as `GQLLabelExpression::Conjunction`
 - `callDataModifyingProcedureStatement` shares the same `makeCallClause` helper with `visitCallQueryStatement`, ensuring consistent AST output for both query-CALL and DML-CALL paths
 - `buildSubquery` now handles `linearDataModifyingStatement` in nested procedure bodies (resolves the L1365 `nested non-query statement` gap for DML)
-- DDL (`linearCatalogModifyingStatement`) remains unsupported and throws in nested procedure bodies
+- catalog DDL is now represented by `GQLCatalogStatement`; nested procedure bodies can carry catalog statements where the query-root contract permits it.
 
-- `GQLParserUtils::parseStatement` added as a direct ANTLR entry point for DML-containing queries, used by `parseDMLOrThrow` in tests; top-level `ParserGraphQuery` DML routing deferred to a future entry routing phase
+- `GQLParserUtils::parseStatement` is the main ANTLR entry for `ParserGQLQuery`, used for query, DML, and catalog DDL in explicit `Dialect::gql` mode; `ParserGraphQuery` routing remains heuristic and should not be expanded for this workstream.
 
 ### Simplified-path follow-up
 
@@ -95,6 +105,15 @@ The currently supported minimal path is:
 - Do not add a local fallback implementation of `__lsan_ignore_object`; use the shared declaration plus guarded call pattern.
 
 ## Recommended Next Steps
+
+Current parser-only priority is `GQL text -> normalized GQL IAST`. Do not spend this phase on binder, semantic analysis, interpreter, storage, catalog execution, or lowering. Prefer small implementation slices verified through `ParserGQLQuery` / `Dialect::gql` contract tests.
+
+Suggested order for the next implementation slices:
+
+1. reduce high-value `predicate` unsupported branches that affect common `WHERE`, `FILTER`, and `CASE WHEN` text;
+2. reduce `valueExpressionPrimary` and `objectExpressionPrimary` branches that can map cleanly onto existing `GQLExpr` / thin wrapper nodes;
+3. handle one value-function family at a time only when it closes a real AST shape gap;
+4. keep query-shape guardrails explicit and documented unless a stable query-root representation is clear.
 
 ### 1. Keep the new query contract stable while filling coverage
 

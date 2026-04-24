@@ -92,10 +92,11 @@ The current implementation supports the parser-facing slice that is already stab
 | graph `SELECT` | `SELECT a FROM { MATCH (a) RETURN a }` | Normalizes to `GQLSelectClause` plus optional `GQLPageClause` |
 | focused `USE` query | `USE foo MATCH (a) RETURN a` | Preserves `USE` as a structured clause |
 | named / inline `CALL` | `CALL foo(a) YIELD x RETURN x` | Distinct AST nodes for named vs inline calls |
-| `INSERT` | `INSERT (n:Person {name: 'Alice'})` | `GQLInsertClause` with `GQLInsertPathPattern` (via `parseStatement` direct entry) |
-| `SET` | `MATCH (n) SET n.age = 30` | `GQLSetClause` with property / all-properties / label items (via `parseStatement`) |
-| `REMOVE` | `MATCH (n) REMOVE n.age` | `GQLRemoveClause` with property / label items (via `parseStatement`) |
-| `DELETE` | `MATCH (n) DELETE n` | `GQLDeleteClause` with `DETACH` / `NODETACH` modes (via `parseStatement`) |
+| `INSERT` | `INSERT (n:Person {name: 'Alice'})` | `GQLInsertClause` with `GQLInsertPathPattern` through `ParserGQLQuery` / `parseStatement` |
+| `SET` | `MATCH (n) SET n.age = 30` | `GQLSetClause` with property / all-properties / label items through `ParserGQLQuery` / `parseStatement` |
+| `REMOVE` | `MATCH (n) REMOVE n.age` | `GQLRemoveClause` with property / label items through `ParserGQLQuery` / `parseStatement` |
+| `DELETE` | `MATCH (n) DELETE n` | `GQLDeleteClause` with `DETACH` / `NODETACH` modes through `ParserGQLQuery` / `parseStatement` |
+| catalog DDL | `CREATE GRAPH g ANY AS COPY OF h` | `GQLCatalogStatement` with structured object names and graph sources through `ParserGQLQuery` / `parseStatement` |
 | nested query | `{ MATCH (a) RETURN a } NEXT YIELD a { RETURN a }` | Preserves `GQLSubquery` wrapper |
 
 ### Supported Patterns
@@ -112,7 +113,8 @@ The current implementation supports the parser-facing slice that is already stab
 ### Deferred Features
 
 - `SESSION` / `START TRANSACTION` (session management)
-- broader schema / graph / binding-reference decomposition beyond the current wrapper nodes
+- binder, interpreter, storage, catalog execution, and query-plan lowering
+- full type AST for graph / binding-variable type declarations; parser-only v1 keeps raw type strings there
 - any future graph-selection forms beyond the current heuristic top-level `CALL` / graph-`SELECT` / focused-`USE` routing
 
 ## Graph AST Design
@@ -227,17 +229,15 @@ These constraints keep the query contract stable while the lower layers continue
 
 ### Current `antlr4` Entry
 
-The primary `antlr4` entry is `GQLParserUtils::parseCompositeQueryStatement` for query statements. A secondary entry `GQLParserUtils::parseStatement` is available for DML-containing statements; it uses the grammar `statement` rule which is a superset that includes both `compositeQueryStatement` and `linearDataModifyingStatement` as alternatives. This secondary entry is currently used for direct AST construction and testing via `parseDMLOrThrow`, not yet routed through `ParserGraphQuery`.
+The primary dialect-mode entry is `GQLParserUtils::parseStatement`, used by `ParserGQLQuery`. The grammar `statement` rule is a superset that includes query, DML, and catalog DDL alternatives, so `Dialect::gql` validates the main parser-only path with one normalized pipeline.
+
+`GQLParserUtils::parseCompositeQueryStatement` is still available for legacy query-only callers and tests that exercise the older `ParserGraphQuery` adapter, but it is no longer the target for new parser coverage.
 
 ```cpp
-ASTPtr parseQuery(std::string_view query, bool use_statement_rule = false)
+ASTPtr parseDialectGQL(std::string_view query)
 {
     OPENGQL::GQLParseTreeVisitor visitor;
-    if (use_statement_rule) {
-        auto * parse_tree = OPENGQL::GQLParserUtils::parseStatement(query);
-        return std::any_cast<ASTPtr>(visitor.visit(parse_tree));
-    }
-    auto * parse_tree = OPENGQL::GQLParserUtils::parseCompositeQueryStatement(query);
+    auto * parse_tree = OPENGQL::GQLParserUtils::parseStatement(query);
     return std::any_cast<ASTPtr>(visitor.visit(parse_tree));
 }
 ```
@@ -246,7 +246,7 @@ ASTPtr parseQuery(std::string_view query, bool use_statement_rule = false)
 
 `ParserGraphQuery` is still a thin outer adapter. It currently routes strong graph prefixes such as `MATCH`, `OPTIONAL MATCH`, and `CALL` directly into the `antlr4` path, and uses heuristic gating for weaker prefixes such as top-level graph-shaped `SELECT` and focused `USE`. Because `ParserGraphQuery` runs before the regular SQL parser chain in `ParserQuery`, weak-prefix routing must fall back cleanly when the `antlr4` parse fails so plain SQL is not stolen accidentally.
 
-DML statements are not yet routed through `ParserGraphQuery`. The DML AST layer is fully structured via `parseStatement` direct entry, but top-level DML routing (`INSERT`/`SET`/`REMOVE`/`DELETE` prefix detection, SQL compatibility fallback) is deferred to a future entry routing phase.
+DML and catalog DDL are not expanded through `ParserGraphQuery`. They are covered through `ParserGQLQuery` in explicit `Dialect::gql` mode, where the whole statement is routed to `parseStatement` without competing with normal ClickHouse SQL prefixes.
 
 Longer term, top-level parser selection should not depend on `ParserGraphQuery` heuristics. `ParserGraphQuery` exists because the current codebase still sits inside the ClickHouse SQL parser chain, but that makes every widened GQL prefix compete with existing SQL syntax.
 
@@ -256,7 +256,7 @@ Longer term, top-level parser selection should not depend on `ParserGraphQuery` 
 
 - **Setting**: `allow_experimental_gql_dialect` (default `false`, `EXPERIMENTAL` tier). When the dialect is `gql` but this flag is off, all dispatch points throw `SUPPORT_IS_DISABLED`.
 - **Alias**: `query_language` is a settings-level alias for `dialect` (declared via `DECLARE_WITH_ALIAS` in `Settings.cpp`). Both `SET dialect = 'gql'` and `SET query_language = 'gql'` route to the same `Dialect` enum and the same parser dispatch. `query_language` is not an independent setting; it resolves to `dialect` through the standard `BaseSettings` alias mechanism.
-- **Parser wrapper**: `ParserGQLQuery` (`src/Parsers/graph/ParserGQLQuery.h/cpp`) inherits from `IParserBase`. Unlike `ParserGraphQuery` it does NOT perform prefix heuristics; the entire query text up to the next semicolon is unconditionally routed through `GQLParserUtils::parseStatement` (the `statement` rule). Only `SET dialect = ...` or `SET query_language = ...` is allowed to pass through via `ParserSetQuery` (guarded by `isDialectSwitchSet`), so users can switch back to another dialect; all other `SET` statements (e.g. GQL property assignments like `SET n.x = 1`) go through the GQL parser.
+- **Parser wrapper**: `ParserGQLQuery` (`src/Parsers/graph/ParserGQLQuery.h/cpp`) inherits from `IParserBase`. Unlike `ParserGraphQuery` it does NOT perform prefix heuristics; the entire query text up to the next semicolon is routed through `GQLParserUtils::parseStatement` (the `statement` rule). Before that unconditional GQL parse, it gives `ParserSetQuery` one chance to parse real ClickHouse built-in settings. If every changed/defaulted setting name is a known ClickHouse setting, the statement is passed through as `ASTSetQuery`; otherwise the text stays on the GQL path, so graph assignments such as `SET n.x = 1` are not swallowed by ClickHouse `SET` syntax.
 - **Server dispatch** (`executeQueryImpl`): a `Dialect::gql` branch before the fallback `ParserQuery`.
 - **Client dispatch** (`ClientBase::parseQuery`, `LocalConnection`): matching `Dialect::gql` branches using the same `ParserGQLQuery`.
 
@@ -272,6 +272,16 @@ The current parser work therefore focuses on making:
 `GQL text -> antlr4 parse tree -> normalized GQL IAST`
 
 as complete and stable as possible before widening the top-level routing rules in `ParserQuery`.
+
+### Raw Text Policy
+
+The AST contract should keep obvious graph, catalog, and expression structure in typed `GQL*` nodes instead of storing source slices. Current acceptable raw-text fields are deliberately narrow:
+
+- `GQLCatalogStatement::source_text` is only for `NestedSpec` graph-type specifications, which remain a deferred AST subtree.
+- `GQLAssignmentItem::raw_type` and `GQLBindingVariableDefinition::raw_type` are temporary parser-only v1 strings for type declarations; designing a full type AST is out of scope for this front-end slice.
+- Plain literal tokens can stay as `GQLExpr::Kind::Literal`; only raw text that loses catalog, graph-reference, or expression structure should be reduced further.
+
+New or changed AST nodes should preserve a dense non-null `children` list, deep-copy all owned children in `clone`, and produce normalized `formatAST` output that can be reparsed through `ParserGQLQuery` / `parseStatement`.
 
 ## Error Handling
 

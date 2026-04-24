@@ -12,6 +12,8 @@
 #  include <Parsers/parseQuery.h>
 #  include <Parsers/ParserQuery.h>
 
+#  include <unordered_set>
+
 using namespace DB;
 
 namespace GAST = DB::OPENGQL::AST;
@@ -347,6 +349,41 @@ void assertNormalizedRoundTrip(std::string_view query)
   ASSERT_NE(ast2, nullptr) << "re-parse failed for: " << first;
   auto second = formatAST(*ast2);
   EXPECT_EQ(second, first);
+}
+
+void collectASTNodePointers(const IAST& ast, std::unordered_set<const IAST*>& pointers) {
+  pointers.insert(&ast);
+
+  for (const auto& child : ast.children) {
+    ASSERT_NE(child, nullptr);
+    collectASTNodePointers(*child, pointers);
+  }
+}
+
+void assertCloneHasNoSharedNodes(const IAST& ast, const std::unordered_set<const IAST*>& source_pointers) {
+  EXPECT_EQ(source_pointers.find(&ast), source_pointers.end()) << ast.getID();
+
+  for (const auto& child : ast.children) {
+    ASSERT_NE(child, nullptr);
+    assertCloneHasNoSharedNodes(*child, source_pointers);
+  }
+}
+
+void assertASTContract(const ASTPtr& ast) {
+  ASSERT_NE(ast, nullptr);
+
+  std::unordered_set<const IAST*> source_pointers;
+  collectASTNodePointers(*ast, source_pointers);
+
+  auto cloned = ast->clone();
+  ASSERT_NE(cloned, nullptr);
+  EXPECT_NE(cloned.get(), ast.get());
+  EXPECT_EQ(formatAST(*cloned), formatAST(*ast));
+  assertCloneHasNoSharedNodes(*cloned, source_pointers);
+
+  auto reparsed = parseDMLOrThrow(formatAST(*ast));
+  ASSERT_NE(reparsed, nullptr);
+  EXPECT_EQ(formatAST(*reparsed), formatAST(*ast));
 }
 
 }  // namespace
@@ -5839,6 +5876,133 @@ TEST(GQLParser, RoundTripListAndRecordConstructors) {
 
 TEST(GQLParser, RoundTripStringFunctions) {
   assertNormalizedRoundTrip("MATCH (a) RETURN CHAR_LENGTH(a.name), UPPER(a.name)");
+}
+
+TEST(GQLParser, ASTContractCanonicalQuery) {
+  auto ast = parseViaDialectParser("MATCH (n:Person) WHERE n.age > 30 RETURN n.name");
+  assertASTContract(ast);
+
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_EQ(query->clauses.size(), 2);
+
+  const auto* match = getMatchClause(*query, 0);
+  ASSERT_NE(match, nullptr);
+  ASSERT_EQ(match->children.size(), 2);
+  ASSERT_NE(match->where, nullptr);
+
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+  const auto* predicate = where->expression->as<GAST::GQLExpr>();
+  ASSERT_NE(predicate, nullptr);
+  EXPECT_EQ(predicate->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(predicate->text, ">");
+
+  const auto* ret = getReturnClause(*query, 1);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+  const auto* item = ret->items[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLExpr::Kind::Property);
+  EXPECT_EQ(item->text, "name");
+}
+
+TEST(GQLParser, ASTContractCanonicalPattern) {
+  auto ast = parseViaDialectParser("MATCH (a)-[e WHERE e.weight > 0]->(b) KEEP ANY 2 PATHS RETURN e");
+  assertASTContract(ast);
+
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  const auto* match = getMatchClause(*query, 0);
+  ASSERT_NE(match, nullptr);
+  ASSERT_EQ(match->children.size(), 3);
+  ASSERT_NE(match->keep_clause, nullptr);
+
+  const auto* keep = getKeepClause(match->keep_clause);
+  ASSERT_NE(keep, nullptr);
+  const auto* prefix = getPathSearchPrefix(keep->path_prefix);
+  ASSERT_NE(prefix, nullptr);
+  EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+  EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+  ASSERT_NE(prefix->count, nullptr);
+  const auto* count = getCountSpec(prefix->count);
+  ASSERT_NE(count, nullptr);
+  EXPECT_EQ(count->text, "2");
+
+  const auto* path = getOnlyPathPattern(*match);
+  ASSERT_NE(path, nullptr);
+  const auto* term = getPathTerm(*path);
+  ASSERT_NE(term, nullptr);
+  ASSERT_EQ(term->factors.size(), 3);
+  const auto* edge = term->factors[1]->as<GAST::GQLEdgePattern>();
+  ASSERT_NE(edge, nullptr);
+  ASSERT_NE(edge->where, nullptr);
+}
+
+TEST(GQLParser, ASTContractCanonicalExpression) {
+  auto ast = parseViaDialectParser("MATCH (a) RETURN CASE WHEN a.age > 18 THEN 'adult' ELSE 'minor' END");
+  assertASTContract(ast);
+
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  const auto* ret = getReturnClause(*query, 1);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  ASSERT_NE(case_expr, nullptr);
+  EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
+  ASSERT_EQ(case_expr->when_operands.size(), 1);
+  ASSERT_EQ(case_expr->then_results.size(), 1);
+  ASSERT_NE(case_expr->else_result, nullptr);
+
+  const auto* when = case_expr->when_operands[0]->as<GAST::GQLExpr>();
+  ASSERT_NE(when, nullptr);
+  EXPECT_EQ(when->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(when->text, ">");
+}
+
+TEST(GQLParser, ASTContractCanonicalDML) {
+  auto ast = parseViaDialectParser("MATCH (n) SET n.x = 1 RETURN n");
+  assertASTContract(ast);
+
+  const auto* query = getClausesQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_EQ(query->clauses.size(), 3);
+
+  const auto* set_clause = query->clauses[1]->as<GAST::GQLSetClause>();
+  ASSERT_NE(set_clause, nullptr);
+  ASSERT_EQ(set_clause->items.size(), 1);
+  ASSERT_EQ(set_clause->children.size(), 1);
+
+  const auto* item = set_clause->items[0]->as<GAST::GQLSetItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->kind, GAST::GQLSetItem::Kind::Property);
+  EXPECT_EQ(item->variable, "n");
+  EXPECT_EQ(item->property_or_label, "x");
+  ASSERT_NE(item->value, nullptr);
+}
+
+TEST(GQLParser, ASTContractCanonicalDDL) {
+  auto ast = parseViaDialectParser("CREATE GRAPH g ANY AS COPY OF h");
+  assertASTContract(ast);
+
+  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::Any);
+  ASSERT_NE(stmt->name_reference, nullptr);
+  ASSERT_NE(stmt->copy_source, nullptr);
+  ASSERT_EQ(stmt->children.size(), 2);
+
+  const auto* name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(name, nullptr);
+  EXPECT_EQ(name->name, "g");
+
+  const auto* copy_source = stmt->copy_source->as<GAST::GQLGraphExpression>();
+  ASSERT_NE(copy_source, nullptr);
+  EXPECT_EQ(copy_source->kind, GAST::GQLGraphExpression::Kind::ObjectNameOrBindingVariable);
+  EXPECT_EQ(copy_source->text, "h");
 }
 
 TEST(GQLParser, CatalogCreateSchema) {
