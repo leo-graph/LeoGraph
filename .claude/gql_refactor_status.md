@@ -70,6 +70,21 @@ The currently supported minimal path is:
 - Plain literal tokens may stay as `GQLExpr::Kind::Literal`; raw text should be reduced only when it loses obvious graph-reference, catalog-name, graph-source, or expression structure.
 - New or changed `GQL*` nodes must keep `children` dense and non-null, deep-copy owned children in `clone`, and round-trip through normalized `formatAST`.
 
+### Current `throwUnsupported` coverage map
+
+Track remaining `throwUnsupported` sites by parser-only impact, not by stale line numbers:
+
+| Category | Current status | Priority |
+|----------|----------------|----------|
+| `predicate` | Existing grammar alternatives are structurally handled in `visitPredicateExprAlt`; the generic `predicate` fallback is a defensive guardrail. | Low until a concrete grammar branch reproduces. |
+| `valueExpressionPrimary` / `nonParenthesizedValueExpressionPrimary` / `objectExpressionPrimary` | Current grammar alternatives are covered through `GQLExpr`, `GQLCaseExpr`, `GQLSubquery`, and path / let wrappers; remaining throws are defensive. | Low; do not churn without a failing input. |
+| value-function families | Numeric, string, datetime, duration, list, aggregate, and datetime-subtraction branches have thin `GQLExpr` coverage; remaining throws are family guardrails. | Medium only when a new canonical input exposes a missed branch. |
+| graph / binding / schema references | Most common graph references, catalog object names, graph sources, and binding-table references are thin structured AST; some grammar variants remain intentionally explicit unsupported. | Medium for obvious object-reference structure, otherwise defer. |
+| query-shape guardrails | focused query, primitive query, `SELECT` shape, alias-on-non-aliasable, and complex optional-match branches protect the stable root contract. | Keep unless a stable `GQLSingleQuery` / `GQLCombinedQuery` / `GQLSubquery` shape is clear. |
+| nested procedure metadata | `AT schema`, binding definitions, initializers, and `NEXT YIELD` are structured; unsupported initializer / non-query cases should stay explicit until represented. | Medium after expression gaps. |
+
+The next implementation slice should start from a concrete parser input that currently throws, then add the minimum AST structure and contract test for that input. Do not delete a guardrail just to reduce the count.
+
 ### Phase 5: Expression completion
 
 - `caseExpression` fully structured: `NULLIF` / `COALESCE` map to `GQLExpr::FunctionCall`, `CASE WHEN...END` (both simple and searched forms) use the new `GQLCaseExpr` AST node with `when_operands` / `then_results` / `else_result` fields; simple-CASE `caseOperand` and `whenOperand` now use `makeNpvepExpr` / `makeWhenOperandExpr` helpers for full expression dispatch; `compOp valueExpression` when-operands (e.g. `WHEN > 5`) structure as `GQLExpr::UnaryOp`; multi-operand `whenOperandList` (`WHEN 1, 2, 3`) uses `GQLExpr::ExprList` with individually structured children; `compOp` and predicate-part2 when-operands (IS NULL, IS DIRECTED, IS SOURCE OF, etc.) structured as `GQLExpr::BinaryOp` with cloned `caseOperand` as left child for complete predicate semantics, matching the existing full-predicate modeling pattern; `GQLCaseExpr::formatImplWithoutAlias` formats these BinaryOp when_operands as suffix-only (op + right) to preserve round-trip; `normalizedPredicatePart2` now fully structured as `BinaryOp` with `IS [NOT]` as operator and `[form] NORMALIZED` as literal right operand
