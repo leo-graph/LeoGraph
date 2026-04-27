@@ -17,7 +17,7 @@
 
 - Entry helpers live in `src/Parsers/graph/GQLParserUtils.cpp`.
 - The current main dialect-mode root rule is `statement`, reached through `ParserGQLQuery` and `GQLParserUtils::parseStatement`.
-- `parseStatement` covers query, DML, and catalog DDL AST construction; `parseCompositeQueryStatement` remains for query-only direct helpers and tests.
+- `parseStatement` covers query, DML, and catalog DDL AST construction; it is the only public ANTLR rule used by the GQL parser entry.
 - The current normalization rule is: keep `visit*` boundaries aligned with `GQL.g4`, but keep public query roots aligned with a semantic query model instead of grammar wrappers.
 
 ### AST layer

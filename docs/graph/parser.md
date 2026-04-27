@@ -231,8 +231,6 @@ These constraints keep the query contract stable while the lower layers continue
 
 The primary dialect-mode entry is `GQLParserUtils::parseStatement`, used by `ParserGQLQuery`. The grammar `statement` rule is a superset that includes query, DML, and catalog DDL alternatives, so `Dialect::gql` validates the main parser-only path with one normalized pipeline.
 
-`GQLParserUtils::parseCompositeQueryStatement` is still available for legacy query-only callers and focused parser tests, but it is no longer the target for new parser coverage.
-
 ```cpp
 ASTPtr parseDialectGQL(std::string_view query)
 {
@@ -247,8 +245,6 @@ ASTPtr parseDialectGQL(std::string_view query)
 Ordinary ClickHouse `ParserQuery` does not auto-detect GQL. GQL text is not routed through a prefix-sniffing fallback in ClickHouse mode, so inputs such as `MATCH ... RETURN ...`, graph-shaped `SELECT`, focused `USE`, and GQL `CALL` must fail as ClickHouse queries unless the session has selected `Dialect::gql`.
 
 Query, DML, and catalog DDL are covered through `ParserGQLQuery` in explicit `Dialect::gql` mode, where the whole statement is routed to `parseStatement` without competing with normal ClickHouse SQL prefixes.
-
-`ParserGraphQuery` and its prefix heuristics are no longer attached to the production ClickHouse parser chain. Any remaining direct uses should be treated as legacy parser-test helpers, not as a second product entry point.
 
 ### `Dialect::gql` Integration (Implemented)
 

@@ -182,10 +182,6 @@ GQLParser *GQLParserUtils::getParserSLL(IntStream *input) {
 
 void GQLParserUtils::parseProgram(std::string_view query) { parseWithFallback(query, &GQLParser::gqlProgram); }
 
-antlr4::ParserRuleContext *GQLParserUtils::parseCompositeQueryStatement(std::string_view query) {
-  return parseWithFallback(query, &GQLParser::compositeQueryStatement);
-}
-
 antlr4::ParserRuleContext *GQLParserUtils::parseStatement(std::string_view query) {
   return parseWithFallback(query, &GQLParser::statement);
 }

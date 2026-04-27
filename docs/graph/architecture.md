@@ -136,7 +136,7 @@ src/
 
   Parsers/
     Graph/                            -- GQL parsing
-      ParserGraphQuery.h/cpp
+      ParserGQLQuery.h/cpp
       GQLParsingUtil.h/cpp
       ASTGraphQuery.h
       ASTGraphPattern.h

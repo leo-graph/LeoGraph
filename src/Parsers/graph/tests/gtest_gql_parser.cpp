@@ -9,7 +9,6 @@
 #  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/GQLParserUtils.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
-#  include <Parsers/graph/ParserGraphQuery.h>
 #  include <Parsers/parseQuery.h>
 #  include <Parsers/ParserQuery.h>
 
@@ -21,9 +20,15 @@ namespace GAST = DB::OPENGQL::AST;
 
 namespace {
 
-ASTPtr parseGraphOrThrow(std::string_view query) { return DB::parseQuery(query); }
+ASTPtr parseGQLOrThrow(std::string_view query) {
+  ParserGQLQuery parser;
+  const String query_string(query);
+  return DB::parseQuery(parser, query_string, 0, 0, 0);
+}
 
-ASTPtr parseDMLOrThrow(std::string_view query) { return DB::parseQuery(query, true); }
+ASTPtr parseGraphOrThrow(std::string_view query) { return parseGQLOrThrow(query); }
+
+ASTPtr parseDMLOrThrow(std::string_view query) { return parseGQLOrThrow(query); }
 
 ASTPtr parseTopLevelOrThrow(const String& query) {
   ParserQuery parser(query.data() + query.size());
@@ -5665,8 +5670,7 @@ TEST(GQLParser, SimpleCasePathConstructorWhenRoundTrip) {
 namespace {
 
 ASTPtr parseViaDialectParser(const String& query) {
-  ParserGQLQuery parser;
-  return DB::parseQuery(parser, query, 0, 0, 0);
+  return parseGQLOrThrow(query);
 }
 
 }  // namespace
