@@ -9,7 +9,7 @@
   - `GQLParseTreeVisitor` builds a minimal `IAST`-based `GQL*` graph AST.
   - Graph AST nodes live under `src/Parsers/graph/AST/`.
   - `ParserGQLQuery` is the main parser-only entry for `Dialect::gql`; it routes full statements through `GQLParserUtils::parseStatement`.
-  - `ParserGraphQuery` remains a ClickHouse parser-chain compatibility adapter for selected graph-shaped prefixes guarded by heuristic fallback.
+  - Ordinary ClickHouse `ParserQuery` no longer routes graph-shaped prefixes into GQL; production GQL parsing requires explicit `Dialect::gql`.
 
 ## Current Shape
 
@@ -17,7 +17,7 @@
 
 - Entry helpers live in `src/Parsers/graph/GQLParserUtils.cpp`.
 - The current main dialect-mode root rule is `statement`, reached through `ParserGQLQuery` and `GQLParserUtils::parseStatement`.
-- `parseStatement` covers query, DML, and catalog DDL AST construction; `parseCompositeQueryStatement` remains for query-only legacy paths and tests.
+- `parseStatement` covers query, DML, and catalog DDL AST construction; `parseCompositeQueryStatement` remains for query-only direct helpers and tests.
 - The current normalization rule is: keep `visit*` boundaries aligned with `GQL.g4`, but keep public query roots aligned with a semantic query model instead of grammar wrappers.
 
 ### AST layer
@@ -104,7 +104,7 @@ The next implementation slice should start from a concrete parser input that cur
 - `buildSubquery` now handles `linearDataModifyingStatement` in nested procedure bodies (resolves the L1365 `nested non-query statement` gap for DML)
 - catalog DDL is now represented by `GQLCatalogStatement`; nested procedure bodies can carry catalog statements where the query-root contract permits it.
 
-- `GQLParserUtils::parseStatement` is the main ANTLR entry for `ParserGQLQuery`, used for query, DML, and catalog DDL in explicit `Dialect::gql` mode; `ParserGraphQuery` routing remains heuristic and should not be expanded for this workstream.
+- `GQLParserUtils::parseStatement` is the main ANTLR entry for `ParserGQLQuery`, used for query, DML, and catalog DDL in explicit `Dialect::gql` mode; do not reattach heuristic GQL routing to ordinary `ParserQuery`.
 
 ### Simplified-path follow-up
 
@@ -114,7 +114,7 @@ The next implementation slice should start from a concrete parser input that cur
 
 ## Important Boundaries
 
-- Top-level `ParserGraphQuery::parseImpl` must stay heuristic because it runs before the regular SQL parser chain in `ParserQuery`; weak prefixes such as `SELECT` and `USE` should only route into `antlr4` when the remaining token stream looks graph-shaped, and must fall back cleanly on parse exceptions.
+- Top-level GQL parsing is dialect-selected, not prefix-selected. Ordinary ClickHouse `ParserQuery` must not produce `GQL*` AST nodes for graph-shaped input.
 - Tests are useful as scratch coverage, but while the refactor is still long-lived they are not the primary progress gate.
 - Parser exceptions should use existing ClickHouse codes such as `SYNTAX_ERROR`.
 - Do not add a local fallback implementation of `__lsan_ignore_object`; use the shared declaration plus guarded call pattern.
@@ -143,7 +143,7 @@ Then reduce the query-level `throwUnsupported` cases.
 
 Suggested order:
 
-- keep the remaining top-level gaps focused on any future graph-selection forms that lowering proves it needs beyond the current heuristic `CALL` / graph-`SELECT` / focused-`USE` routing
+- keep the remaining top-level graph-selection gaps focused on explicit `Dialect::gql` coverage
 - widen nested query support beyond the single-statement unwrap path
 - keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again, with richer path semantics beyond the current simplified path-pattern AST as the next pattern-side topic
 - introduce a thin `GQLQuery` base or equivalent shared query helper only if later lowering really benefits from it; do not churn the current roots just for naming
@@ -176,12 +176,12 @@ Recommended direction:
 - keep the generic `GQLExpr::Kind` approach; extend with dedicated nodes only when structure demands it (as done with `GQLCaseExpr`, `DurationBetween`, `TrimString`);
 - postpone a large expression hierarchy until the parser coverage stabilizes.
 
-### 4. Revisit lowering and top-level integration later
+### 4. Revisit lowering later
 
 Only after the visitor coverage is broad enough should the refactor move to:
 
 - deciding how `GQL*` AST lowers into the long-term analyzer or execution layer;
-- widening or reshaping top-level parser gating in `ParserGraphQuery`.
+- revisiting product-level GQL dispatch if requirements change beyond explicit `Dialect::gql`.
 
 ## Files To Touch Next
 

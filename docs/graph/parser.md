@@ -115,7 +115,7 @@ The current implementation supports the parser-facing slice that is already stab
 - `SESSION` / `START TRANSACTION` (session management)
 - binder, interpreter, storage, catalog execution, and query-plan lowering
 - full type AST for graph / binding-variable type declarations; parser-only v1 keeps raw type strings there
-- any future graph-selection forms beyond the current heuristic top-level `CALL` / graph-`SELECT` / focused-`USE` routing
+- GQL text in ordinary ClickHouse sessions; production GQL parsing requires explicit `dialect = gql` / `query_language = gql`
 
 ## Graph AST Design
 
@@ -231,7 +231,7 @@ These constraints keep the query contract stable while the lower layers continue
 
 The primary dialect-mode entry is `GQLParserUtils::parseStatement`, used by `ParserGQLQuery`. The grammar `statement` rule is a superset that includes query, DML, and catalog DDL alternatives, so `Dialect::gql` validates the main parser-only path with one normalized pipeline.
 
-`GQLParserUtils::parseCompositeQueryStatement` is still available for legacy query-only callers and tests that exercise the older `ParserGraphQuery` adapter, but it is no longer the target for new parser coverage.
+`GQLParserUtils::parseCompositeQueryStatement` is still available for legacy query-only callers and focused parser tests, but it is no longer the target for new parser coverage.
 
 ```cpp
 ASTPtr parseDialectGQL(std::string_view query)
@@ -244,11 +244,11 @@ ASTPtr parseDialectGQL(std::string_view query)
 
 ### Top-Level ClickHouse Parser Entry
 
-`ParserGraphQuery` is still a thin outer adapter. It currently routes strong graph prefixes such as `MATCH`, `OPTIONAL MATCH`, and `CALL` directly into the `antlr4` path, and uses heuristic gating for weaker prefixes such as top-level graph-shaped `SELECT` and focused `USE`. Because `ParserGraphQuery` runs before the regular SQL parser chain in `ParserQuery`, weak-prefix routing must fall back cleanly when the `antlr4` parse fails so plain SQL is not stolen accidentally.
+Ordinary ClickHouse `ParserQuery` does not auto-detect GQL. GQL text is not routed through a prefix-sniffing fallback in ClickHouse mode, so inputs such as `MATCH ... RETURN ...`, graph-shaped `SELECT`, focused `USE`, and GQL `CALL` must fail as ClickHouse queries unless the session has selected `Dialect::gql`.
 
-DML and catalog DDL are not expanded through `ParserGraphQuery`. They are covered through `ParserGQLQuery` in explicit `Dialect::gql` mode, where the whole statement is routed to `parseStatement` without competing with normal ClickHouse SQL prefixes.
+Query, DML, and catalog DDL are covered through `ParserGQLQuery` in explicit `Dialect::gql` mode, where the whole statement is routed to `parseStatement` without competing with normal ClickHouse SQL prefixes.
 
-Longer term, top-level parser selection should not depend on `ParserGraphQuery` heuristics. `ParserGraphQuery` exists because the current codebase still sits inside the ClickHouse SQL parser chain, but that makes every widened GQL prefix compete with existing SQL syntax.
+`ParserGraphQuery` and its prefix heuristics are no longer attached to the production ClickHouse parser chain. Any remaining direct uses should be treated as legacy parser-test helpers, not as a second product entry point.
 
 ### `Dialect::gql` Integration (Implemented)
 
@@ -256,11 +256,11 @@ Longer term, top-level parser selection should not depend on `ParserGraphQuery` 
 
 - **Setting**: `allow_experimental_gql_dialect` (default `false`, `EXPERIMENTAL` tier). When the dialect is `gql` but this flag is off, all dispatch points throw `SUPPORT_IS_DISABLED`.
 - **Alias**: `query_language` is a settings-level alias for `dialect` (declared via `DECLARE_WITH_ALIAS` in `Settings.cpp`). Both `SET dialect = 'gql'` and `SET query_language = 'gql'` route to the same `Dialect` enum and the same parser dispatch. `query_language` is not an independent setting; it resolves to `dialect` through the standard `BaseSettings` alias mechanism.
-- **Parser wrapper**: `ParserGQLQuery` (`src/Parsers/graph/ParserGQLQuery.h/cpp`) inherits from `IParserBase`. Unlike `ParserGraphQuery` it does NOT perform prefix heuristics; the entire query text up to the next semicolon is routed through `GQLParserUtils::parseStatement` (the `statement` rule). Before that unconditional GQL parse, it gives `ParserSetQuery` one chance to parse real ClickHouse built-in settings. If every changed/defaulted setting name is a known ClickHouse setting, the statement is passed through as `ASTSetQuery`; otherwise the text stays on the GQL path, so graph assignments such as `SET n.x = 1` are not swallowed by ClickHouse `SET` syntax.
+- **Parser wrapper**: `ParserGQLQuery` (`src/Parsers/graph/ParserGQLQuery.h/cpp`) inherits from `IParserBase`. The entire query text up to the next semicolon is routed through `GQLParserUtils::parseStatement` (the `statement` rule). Before that unconditional GQL parse, it gives `ParserSetQuery` one chance to parse real ClickHouse built-in settings. If every changed/defaulted setting name is a known ClickHouse setting, the statement is passed through as `ASTSetQuery`; otherwise the text stays on the GQL path, so graph assignments such as `SET n.x = 1` are not swallowed by ClickHouse `SET` syntax.
 - **Server dispatch** (`executeQueryImpl`): a `Dialect::gql` branch before the fallback `ParserQuery`.
 - **Client dispatch** (`ClientBase::parseQuery`, `LocalConnection`): matching `Dialect::gql` branches using the same `ParserGQLQuery`.
 
-Under `dialect = gql` (equivalently `query_language = gql`), the top-level entry uses the GQL `statement` rule through `GQLParserUtils::parseStatement`, so query and DML statements share the same normalized GQL AST pipeline. Under `dialect = clickhouse`, ClickHouse `ParserQuery` remains responsible for SQL compatibility. This keeps language selection explicit and avoids growing prefix sniffing into a permanent mixed-parser architecture. If the product direction becomes GQL-only, the final cleanup is to remove the ClickHouse top-level SQL parser path instead of expanding `ParserGraphQuery` further. The spelling `query_language` is now a settings-level alias for `dialect`, so parser dispatch has a single source of truth.
+Under `dialect = gql` (equivalently `query_language = gql`), the top-level entry uses the GQL `statement` rule through `GQLParserUtils::parseStatement`, so query and DML statements share the same normalized GQL AST pipeline. Under `dialect = clickhouse`, ClickHouse `ParserQuery` remains responsible for SQL compatibility and does not produce `GQL*` AST nodes. This keeps language selection explicit and avoids growing prefix sniffing into a permanent mixed-parser architecture. The spelling `query_language` is now a settings-level alias for `dialect`, so parser dispatch has a single source of truth.
 
 Known limitations of the current skeleton:
 

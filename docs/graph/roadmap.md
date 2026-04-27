@@ -38,7 +38,7 @@ P3: Multi-hop Queries ──> P4: Optimization ──> P5: Advanced Features
 | 0.3 | Grammar adaptation | Trim or adapt `GQL.g4` for the supported subset (remove unsupported rules, resolve ambiguities) |
 | 0.4 | AST node classes | Implement `ASTGraphQuery`, `ASTGraphPattern`, `ASTNodePattern`, `ASTEdgePattern`, etc. |
 | 0.5 | ANTLR visitor | Implement `GQLParsingUtil` to convert ANTLR parse tree to Graph AST |
-| 0.6 | Parser entry point | Create `ParserGraphQuery` and register in `ParserQuery::parseImpl` |
+| 0.6 | Parser entry point | Create `ParserGQLQuery` and select it through explicit `Dialect::gql` dispatch |
 | 0.7 | Unit tests | Test parsing of: node pattern, edge pattern, simple MATCH, MATCH with WHERE |
 
 ### Acceptance Criteria
@@ -53,8 +53,8 @@ P3: Multi-hop Queries ──> P4: Optimization ──> P5: Advanced Features
 ```
 contrib/gql-grammar/GQL.g4
 contrib/gql-grammar-cmake/CMakeLists.txt
-src/Parsers/Graph/ParserGraphQuery.h
-src/Parsers/Graph/ParserGraphQuery.cpp
+src/Parsers/Graph/ParserGQLQuery.h
+src/Parsers/Graph/ParserGQLQuery.cpp
 src/Parsers/Graph/GQLParsingUtil.h
 src/Parsers/Graph/GQLParsingUtil.cpp
 src/Parsers/Graph/ASTGraphQuery.h
@@ -75,7 +75,7 @@ src/Parsers/Graph/tests/gtest_gql_parser.cpp
 ```
 contrib/CMakeLists.txt              -- add_contrib(gql-grammar-cmake gql-grammar)
 src/Parsers/CMakeLists.txt          -- add_subdirectory(Graph)
-src/Parsers/ParserQuery.cpp         -- Register ParserGraphQuery
+src/Interpreters/executeQuery.cpp   -- select ParserGQLQuery for Dialect::gql
 ```
 
 ---

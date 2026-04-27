@@ -6,9 +6,8 @@ namespace DB {
 
 /// Dialect-mode GQL parser: used when `SET dialect = 'gql'`
 /// (or equivalently `SET query_language = 'gql'`).
-/// Unlike ParserGraphQuery it does NOT rely on prefix heuristics --
-/// the entire query text is unconditionally routed through the ANTLR
-/// GQL `statement` grammar rule.
+/// This is the production GQL entry point: the entire query text is
+/// unconditionally routed through the ANTLR GQL `statement` grammar rule.
 class ParserGQLQuery final : public IParserBase {
  protected:
   const char* getName() const override { return "GQL dialect query"; }

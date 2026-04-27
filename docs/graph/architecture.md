@@ -21,7 +21,7 @@ This document describes the detailed architecture of Graph-on-ClickHouse, includ
 +-----------------------------v----------------------------------+
 | Layer 1: Parsing                                                |
 |                                                                 |
-|  ParserGraphQuery                                               |
+|  ParserGQLQuery (selected by Dialect::gql)                      |
 |    -> ANTLR4 GQL Lexer/Parser (generated from GQL.g4)          |
 |    -> GQLParsingUtil: ANTLR ParseTree -> Graph AST              |
 |                                                                 |
@@ -94,7 +94,7 @@ This document describes the detailed architecture of Graph-on-ClickHouse, includ
 
 ### Parsing -> Interpretation
 
-The `ParserGraphQuery` parser is registered in `ParserQuery::parseImpl` alongside existing SQL parsers. When a GQL keyword (e.g., `MATCH`, `CREATE PROPERTY GRAPH`) is detected, the parser delegates to the ANTLR4 GQL parser and converts the result to a Graph AST node.
+`ParserGQLQuery` is selected only when the session uses `Dialect::gql` (or the `query_language = gql` alias). Ordinary ClickHouse `ParserQuery` does not auto-detect graph-shaped prefixes; GQL text in ClickHouse mode is rejected instead of being converted into `GQL*` AST nodes.
 
 The `InterpreterFactory` maps Graph AST types to their interpreters:
 

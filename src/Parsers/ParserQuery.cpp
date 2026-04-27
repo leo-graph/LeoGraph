@@ -40,7 +40,6 @@
 #include <Parsers/Access/ParserGrantQuery.h>
 #include <Parsers/Access/ParserMoveAccessEntityQuery.h>
 #include <Parsers/Access/ParserSetRoleQuery.h>
-#include <Parsers/graph/ParserGraphQuery.h>
 
 namespace DB {
 
@@ -79,10 +78,6 @@ bool ParserQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
   ParserUpdateQuery update_p;
   ParserCopyQuery copy_p;
 
-  ParserGraphQuery graph_query_p;
-
-  /// Graph parsing is a compatibility fallback here. Keep it after ordinary SQL
-  /// parsers so weak GQL prefixes like SELECT and USE do not steal valid SQL.
   bool res = query_with_output_p.parse(pos, node, expected) || insert_p.parse(pos, node, expected) || use_p.parse(pos, node, expected) ||
              set_role_p.parse(pos, node, expected) || set_p.parse(pos, node, expected) || system_p.parse(pos, node, expected) ||
              create_user_p.parse(pos, node, expected) || create_role_p.parse(pos, node, expected) ||
@@ -96,8 +91,7 @@ bool ParserQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
              drop_index_p.parse(pos, node, expected) || drop_access_entity_p.parse(pos, node, expected) ||
              move_access_entity_p.parse(pos, node, expected) || grant_p.parse(pos, node, expected) ||
              check_grant_p.parse(pos, node, expected) || transaction_control_p.parse(pos, node, expected) ||
-             delete_p.parse(pos, node, expected) || update_p.parse(pos, node, expected) || copy_p.parse(pos, node, expected) ||
-             graph_query_p.parse(pos, node, expected);
+             delete_p.parse(pos, node, expected) || update_p.parse(pos, node, expected) || copy_p.parse(pos, node, expected);
 
   if (!res && allow_execute_as) {
     ParserQuery subquery_p{end, allow_settings_after_format_in_insert, implicit_select};

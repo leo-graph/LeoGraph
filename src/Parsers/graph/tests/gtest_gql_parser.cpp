@@ -449,45 +449,20 @@ TEST(GQLParser, SimpleMatchClause) {
   EXPECT_EQ(label->text, "Person");
 }
 
-TEST(GQLParser, OptionalMatchIsAcceptedByTopLevelParser) {
-  auto ast = parseTopLevelOrThrow("OPTIONAL MATCH (a) RETURN a");
-  const auto* clauses = getClausesQuery(ast);
-  ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 2);
-
-  const auto* match = getMatchClause(*clauses, 0);
-  ASSERT_NE(match, nullptr);
-  EXPECT_TRUE(match->optional);
-
-  const auto* return_clause = getReturnClause(*clauses, 1);
-  ASSERT_NE(return_clause, nullptr);
-  ASSERT_EQ(return_clause->items.size(), 1);
+TEST(GQLParser, OptionalMatchRequiresGQLDialect) {
+  EXPECT_THROW((void)parseTopLevelOrThrow("OPTIONAL MATCH (a) RETURN a"), DB::Exception);
 }
 
-TEST(GQLParser, GraphSelectIsAcceptedByTopLevelParser) {
-  auto ast = parseTopLevelOrThrow("SELECT a FROM { MATCH (a) RETURN a }");
-  const auto* clauses = getClausesQuery(ast);
-  ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 1);
-  ASSERT_NE(getSelectClause(*clauses, 0), nullptr);
+TEST(GQLParser, GraphSelectRequiresGQLDialect) {
+  EXPECT_THROW((void)parseTopLevelOrThrow("SELECT a FROM { MATCH (a) RETURN a }"), DB::Exception);
 }
 
-TEST(GQLParser, FocusedUseQueryIsAcceptedByTopLevelParser) {
-  auto ast = parseTopLevelOrThrow("USE foo MATCH (a) RETURN a");
-  const auto* clauses = getClausesQuery(ast);
-  ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 3);
-  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
-  ASSERT_NE(getMatchClause(*clauses, 1), nullptr);
-  ASSERT_NE(getReturnClause(*clauses, 2), nullptr);
+TEST(GQLParser, FocusedUseQueryRequiresGQLDialect) {
+  EXPECT_THROW((void)parseTopLevelOrThrow("USE foo MATCH (a) RETURN a"), DB::Exception);
 }
 
-TEST(GQLParser, CallIsAcceptedByTopLevelParser) {
-  auto ast = parseTopLevelOrThrow("CALL foo(a) YIELD x RETURN x");
-  const auto* clauses = getClausesQuery(ast);
-  ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 2);
-  ASSERT_NE(getCallNamedClause(*clauses, 0), nullptr);
+TEST(GQLParser, CallRequiresGQLDialect) {
+  EXPECT_THROW((void)parseTopLevelOrThrow("CALL foo(a) YIELD x RETURN x"), DB::Exception);
 }
 
 TEST(GQLParser, PlainSqlSelectFallsBackToSqlParser) {
@@ -495,7 +470,7 @@ TEST(GQLParser, PlainSqlSelectFallsBackToSqlParser) {
   ASSERT_EQ(ast->as<GAST::GQLSingleQuery>(), nullptr);
 }
 
-TEST(GQLParser, TopLevelGraphFallbackDoesNotStealClickHouseSettings) {
+TEST(GQLParser, TopLevelParserKeepsClickHouseSettings) {
   auto ast = parseTopLevelOrThrow("SET max_threads = 1");
   ASSERT_NE(ast, nullptr);
   ASSERT_NE(ast->as<ASTSetQuery>(), nullptr);
@@ -583,15 +558,6 @@ TEST(GQLParser, FocusedUseMultiPartClauseOrder) {
   ASSERT_NE(getMatchClause(*clauses, 3), nullptr);
   ASSERT_NE(getReturnClause(*clauses, 4), nullptr);
   assertNormalizedRoundTrip("USE foo MATCH (a) USE bar MATCH (b) RETURN a, b");
-}
-
-TEST(GQLParser, FocusedUseTopLevelParserPrimitiveReturn) {
-  auto ast = parseTopLevelOrThrow("USE foo RETURN 1");
-  const auto* clauses = getClausesQuery(ast);
-  ASSERT_NE(clauses, nullptr);
-  ASSERT_EQ(clauses->clauses.size(), 2);
-  ASSERT_NE(getUseClause(*clauses, 0), nullptr);
-  ASSERT_NE(getReturnClause(*clauses), nullptr);
 }
 
 TEST(GQLParser, FilterSearchConditionBuildsWhereClause) {

@@ -26,7 +26,7 @@ src/Parsers/Graph/
     GQLBaseVisitor.h/cpp   -- Generated visitor base class
   ASTGraphQuery.h/cpp      -- Graph AST node classes (9 classes)
   GQLParsingUtil.h/cpp     -- GQLASTBuilder visitor implementation
-  ParserGraphQuery.h/cpp   -- ClickHouse parser entry point
+  ParserGQLQuery.h/cpp     -- Dialect::gql parser entry point
 ```
 
 ### AST Node Classes
