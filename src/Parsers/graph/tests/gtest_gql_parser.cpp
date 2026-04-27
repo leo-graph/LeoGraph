@@ -303,20 +303,41 @@ const GAST::GQLGraphPatternBlock* getGraphPatternBlock(const ASTPtr& ast) {
   return block;
 }
 
+const GAST::GQLAliasedItem* getAliasedItem(const ASTPtr& ast) {
+  const auto* item = ast->as<GAST::GQLAliasedItem>();
+  EXPECT_NE(item, nullptr);
+  return item;
+}
+
+const ASTPtr& unwrapAliasedItemExpression(const ASTPtr& ast) {
+  if (const auto* item = ast->as<GAST::GQLAliasedItem>()) {
+    EXPECT_NE(item->expression, nullptr);
+    return item->expression;
+  }
+
+  return ast;
+}
+
 const GAST::GQLListConstructor* getListConstructor(const ASTPtr& ast) {
-  const auto* constructor = ast->as<GAST::GQLListConstructor>();
+  const auto* constructor = unwrapAliasedItemExpression(ast)->as<GAST::GQLListConstructor>();
   EXPECT_NE(constructor, nullptr);
   return constructor;
 }
 
 const GAST::GQLRecordConstructor* getRecordConstructor(const ASTPtr& ast) {
-  const auto* constructor = ast->as<GAST::GQLRecordConstructor>();
+  const auto* constructor = unwrapAliasedItemExpression(ast)->as<GAST::GQLRecordConstructor>();
   EXPECT_NE(constructor, nullptr);
   return constructor;
 }
 
 const GAST::GQLExpr* getExpr(const ASTPtr& ast) {
-  const auto* expression = ast->as<GAST::GQLExpr>();
+  const auto* expression = unwrapAliasedItemExpression(ast)->as<GAST::GQLExpr>();
+  EXPECT_NE(expression, nullptr);
+  return expression;
+}
+
+const GAST::GQLCaseExpr* getCaseExpr(const ASTPtr& ast) {
+  const auto* expression = unwrapAliasedItemExpression(ast)->as<GAST::GQLCaseExpr>();
   EXPECT_NE(expression, nullptr);
   return expression;
 }
@@ -628,10 +649,13 @@ TEST(GQLParser, SelectStatementBuildsStructuredSingleQuery) {
   EXPECT_TRUE(select_clause->distinct);
   ASSERT_EQ(select_clause->items.size(), 1);
 
-  const auto* item = getExpr(select_clause->items[0]);
+  const auto* select_item = getAliasedItem(select_clause->items[0]);
+  ASSERT_NE(select_item, nullptr);
+  EXPECT_EQ(select_item->alias, "x");
+
+  const auto* item = getExpr(select_item->expression);
   ASSERT_NE(item, nullptr);
   EXPECT_EQ(item->text, "a");
-  EXPECT_EQ(item->tryGetAlias(), "x");
 
   const auto* source = getSubquery(select_clause->source);
   ASSERT_NE(source, nullptr);
@@ -948,7 +972,7 @@ TEST(GQLParser, ValueExpressionGraphExpression) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::GraphExpression);
   EXPECT_EQ(expr->text, "GRAPH");
@@ -970,7 +994,7 @@ TEST(GQLParser, ValueExpressionPropertyGraphExpression) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::GraphExpression);
   EXPECT_EQ(expr->text, "PROPERTY GRAPH");
@@ -992,7 +1016,7 @@ TEST(GQLParser, ValueExpressionBindingTableExpression) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::BindingTableExpression);
   EXPECT_EQ(expr->text, "TABLE");
@@ -1014,7 +1038,7 @@ TEST(GQLParser, ValueExpressionBindingTableExpressionWithBinding) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::BindingTableExpression);
   EXPECT_EQ(expr->text, "BINDING TABLE");
@@ -1088,11 +1112,14 @@ TEST(GQLParser, NamedCallClauseBuildsStructuredNode) {
   const auto* yield_clause = getYieldClause(call->yield);
   ASSERT_NE(yield_clause, nullptr);
   ASSERT_EQ(yield_clause->items.size(), 1);
-  const auto* yield_item = getExpr(yield_clause->items[0]);
+  const auto* aliased_yield_item = getAliasedItem(yield_clause->items[0]);
+  ASSERT_NE(aliased_yield_item, nullptr);
+  EXPECT_EQ(aliased_yield_item->alias, "y");
+
+  const auto* yield_item = getExpr(aliased_yield_item->expression);
   ASSERT_NE(yield_item, nullptr);
   EXPECT_EQ(yield_item->kind, GAST::GQLExpr::Kind::Identifier);
   EXPECT_EQ(yield_item->text, "x");
-  EXPECT_EQ(yield_item->tryGetAlias(), "y");
   EXPECT_EQ(formatAST(*call), "CALL foo(a, b) YIELD x AS y");
 }
 
@@ -1936,9 +1963,13 @@ TEST(GQLParser, ReturnClauseKeepsAliasAndTail) {
   EXPECT_FALSE(return_clause->distinct);
   ASSERT_EQ(return_clause->items.size(), 2);
 
-  const auto* aliased = getExpr(return_clause->items[0]);
+  const auto* aliased = getAliasedItem(return_clause->items[0]);
   ASSERT_NE(aliased, nullptr);
-  EXPECT_EQ(aliased->tryGetAlias(), "name");
+  EXPECT_EQ(aliased->alias, "name");
+
+  const auto* expression = getExpr(aliased->expression);
+  ASSERT_NE(expression, nullptr);
+  EXPECT_EQ(expression->kind, GAST::GQLExpr::Kind::Property);
 
   const auto* page_clause = getPageClause(*clauses, 2);
   ASSERT_NE(page_clause, nullptr);
@@ -1959,6 +1990,110 @@ TEST(GQLParser, ReturnClauseKeepsAliasAndTail) {
   EXPECT_EQ(limit->kind, GAST::GQLExpr::Kind::Literal);
   EXPECT_EQ(offset->text, "2");
   EXPECT_EQ(limit->text, "5");
+}
+
+TEST(GQLParser, ReturnListConstructorAliasUsesAliasedItem) {
+  auto ast = parseGraphOrThrow("RETURN [1, 2] AS xs");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* return_clause = getReturnClause(*clauses);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 1);
+
+  const auto* item = getAliasedItem(return_clause->items[0]);
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->alias, "xs");
+  ASSERT_EQ(item->children.size(), 1);
+  EXPECT_EQ(item->children[0].get(), item->expression.get());
+
+  const auto* list = getListConstructor(item->expression);
+  ASSERT_NE(list, nullptr);
+  ASSERT_EQ(list->items.size(), 2);
+  EXPECT_EQ(getExpr(list->items[0])->text, "1");
+  EXPECT_EQ(getExpr(list->items[1])->text, "2");
+
+  auto cloned = item->clone();
+  const auto* cloned_item = getAliasedItem(cloned);
+  ASSERT_NE(cloned_item, nullptr);
+  EXPECT_EQ(cloned_item->alias, "xs");
+  ASSERT_NE(cloned_item->expression, nullptr);
+  EXPECT_NE(cloned_item->expression.get(), item->expression.get());
+  ASSERT_EQ(cloned_item->children.size(), 1);
+  EXPECT_EQ(formatAST(*item), "[1, 2] AS xs");
+}
+
+TEST(GQLParser, ReturnRecordConstructorAliasUsesAliasedItem) {
+  auto ast = parseGraphOrThrow("RETURN RECORD {x: 1} AS r");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* return_clause = getReturnClause(*clauses);
+  ASSERT_NE(return_clause, nullptr);
+  ASSERT_EQ(return_clause->items.size(), 1);
+
+  const auto* item = getAliasedItem(return_clause->items[0]);
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->alias, "r");
+  ASSERT_EQ(item->children.size(), 1);
+
+  const auto* record = getRecordConstructor(item->expression);
+  ASSERT_NE(record, nullptr);
+  EXPECT_TRUE(record->explicit_record_keyword);
+  ASSERT_EQ(record->fields.size(), 1);
+
+  const auto* field = record->fields[0]->as<GAST::GQLPropertyItem>();
+  ASSERT_NE(field, nullptr);
+  EXPECT_EQ(field->key, "x");
+  EXPECT_EQ(getExpr(field->value)->text, "1");
+  EXPECT_EQ(formatAST(*item), "RECORD {x: 1} AS r");
+}
+
+TEST(GQLParser, SelectListConstructorAliasUsesAliasedItem) {
+  auto ast = parseGraphOrThrow("SELECT [1] AS xs FROM { RETURN 1 }");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* select_clause = getSelectClause(*clauses, 0);
+  ASSERT_NE(select_clause, nullptr);
+  ASSERT_EQ(select_clause->items.size(), 1);
+
+  const auto* item = getAliasedItem(select_clause->items[0]);
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->alias, "xs");
+
+  const auto* list = getListConstructor(item->expression);
+  ASSERT_NE(list, nullptr);
+  ASSERT_EQ(list->items.size(), 1);
+  EXPECT_EQ(getExpr(list->items[0])->text, "1");
+
+  const auto* source = getSubquery(select_clause->source);
+  ASSERT_NE(source, nullptr);
+  ASSERT_NE(getClausesQuery(source->query), nullptr);
+}
+
+TEST(GQLParser, YieldAliasUsesAliasedItem) {
+  auto ast = parseGraphOrThrow("CALL foo() YIELD x AS y");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 1);
+
+  const auto* call = getCallNamedClause(*clauses, 0);
+  ASSERT_NE(call, nullptr);
+
+  const auto* yield_clause = getYieldClause(call->yield);
+  ASSERT_NE(yield_clause, nullptr);
+  ASSERT_EQ(yield_clause->items.size(), 1);
+
+  const auto* item = getAliasedItem(yield_clause->items[0]);
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->alias, "y");
+
+  const auto* expression = getExpr(item->expression);
+  ASSERT_NE(expression, nullptr);
+  EXPECT_EQ(expression->kind, GAST::GQLExpr::Kind::Identifier);
+  EXPECT_EQ(expression->text, "x");
+  EXPECT_EQ(formatAST(*call), "CALL foo() YIELD x AS y");
 }
 
 TEST(GQLParser, CompositeUnionQuery) {
@@ -3872,7 +4007,7 @@ TEST(GQLParser, SearchedCaseExpression) {
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
 
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
   EXPECT_EQ(case_expr->operand, nullptr);
@@ -3891,7 +4026,7 @@ TEST(GQLParser, SimpleCaseExpression) {
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
 
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Simple);
   EXPECT_NE(case_expr->operand, nullptr);
@@ -4059,7 +4194,7 @@ TEST(GQLParser, SearchedCaseCloneChildrenOrder) {
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
 
-  const auto* original = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* original = getCaseExpr(ret->items[0]);
   ASSERT_NE(original, nullptr);
 
   auto cloned_ast = original->clone();
@@ -4092,7 +4227,7 @@ TEST(GQLParser, SimpleCaseCloneChildrenOrder) {
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
 
-  const auto* original = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* original = getCaseExpr(ret->items[0]);
   ASSERT_NE(original, nullptr);
 
   auto cloned_ast = original->clone();
@@ -4443,7 +4578,7 @@ TEST(GQLParser, DatetimeCurrentDateNoArgs) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "CURRENT_DATE");
@@ -4460,7 +4595,7 @@ TEST(GQLParser, DatetimeCurrentTimeNoArgs) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "CURRENT_TIME");
@@ -4477,7 +4612,7 @@ TEST(GQLParser, DatetimeDateFunctionWithString) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "DATE");
@@ -4498,7 +4633,7 @@ TEST(GQLParser, DatetimeCurrentTimestampNoArgs) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "CURRENT_TIMESTAMP");
@@ -4515,7 +4650,7 @@ TEST(GQLParser, DatetimeZonedDatetimeWithString) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "ZONED_DATETIME");
@@ -4536,7 +4671,7 @@ TEST(GQLParser, DatetimeZonedTimeWithString) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "ZONED_TIME");
@@ -4557,7 +4692,7 @@ TEST(GQLParser, DatetimeLocalTimeWithString) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "LOCAL_TIME");
@@ -4578,7 +4713,7 @@ TEST(GQLParser, DatetimeLocalTimeNoArgs) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "LOCAL_TIME");
@@ -4595,7 +4730,7 @@ TEST(GQLParser, DatetimeLocalDatetimeWithString) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "LOCAL_DATETIME");
@@ -4616,7 +4751,7 @@ TEST(GQLParser, DatetimeLocalTimestampNoArgs) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "LOCAL_TIMESTAMP");
@@ -4633,7 +4768,7 @@ TEST(GQLParser, DurationFunctionWithString) {
   const auto* ret = clauses->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(expr->text, "DURATION");
@@ -4762,7 +4897,7 @@ TEST(GQLParser, NumericExpressionInFloor) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* floor_fn = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* floor_fn = getExpr(ret->items[0]);
   ASSERT_NE(floor_fn, nullptr);
   EXPECT_EQ(floor_fn->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(floor_fn->text, "FLOOR");
@@ -4806,7 +4941,7 @@ TEST(GQLParser, NumericExpressionInPower) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* power_fn = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* power_fn = getExpr(ret->items[0]);
   ASSERT_NE(power_fn, nullptr);
   EXPECT_EQ(power_fn->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(power_fn->text, "POWER");
@@ -4833,7 +4968,7 @@ TEST(GQLParser, NumericExpressionUnarySqrt) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* sqrt_fn = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* sqrt_fn = getExpr(ret->items[0]);
   ASSERT_NE(sqrt_fn, nullptr);
   EXPECT_EQ(sqrt_fn->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(sqrt_fn->text, "SQRT");
@@ -4898,7 +5033,7 @@ TEST(GQLParser, PathLengthPreservesPathConstructorChild) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* func = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* func = getExpr(ret->items[0]);
   ASSERT_NE(func, nullptr);
   EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(func->text, "PATH_LENGTH");
@@ -4920,7 +5055,7 @@ TEST(GQLParser, ElementsPreservesIdentifierChild) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* func = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* func = getExpr(ret->items[0]);
   ASSERT_NE(func, nullptr);
   EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(func->text, "ELEMENTS");
@@ -4942,7 +5077,7 @@ TEST(GQLParser, DurationBetweenPreservesTemporalLiteralChildren) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* func = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* func = getExpr(ret->items[0]);
   ASSERT_NE(func, nullptr);
   EXPECT_EQ(func->kind, GAST::GQLExpr::Kind::DurationBetween);
   ASSERT_EQ(func->children.size(), 2);
@@ -4967,7 +5102,7 @@ TEST(GQLParser, ListConstructorPreservesBinaryOpChild) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* list = ret->items[0]->as<GAST::GQLListConstructor>();
+  const auto* list = getListConstructor(ret->items[0]);
   ASSERT_NE(list, nullptr);
   ASSERT_EQ(list->items.size(), 2);
 
@@ -4991,7 +5126,7 @@ TEST(GQLParser, RecordConstructorPreservesBinaryOpValue) {
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
 
-  const auto* record = ret->items[0]->as<GAST::GQLRecordConstructor>();
+  const auto* record = getRecordConstructor(ret->items[0]);
   ASSERT_NE(record, nullptr);
   ASSERT_EQ(record->fields.size(), 1);
 
@@ -5118,7 +5253,7 @@ TEST(GQLParser, SimpleCasePropertyOperandRoundTrip) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Simple);
   EXPECT_NE(case_expr->operand, nullptr);
@@ -5135,7 +5270,7 @@ TEST(GQLParser, SimpleCaseCompOpWhenRoundTrip) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   ASSERT_EQ(case_expr->when_operands.size(), 2);
 
@@ -5183,7 +5318,7 @@ TEST(GQLParser, SimpleCaseMultiOperandListShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   ASSERT_EQ(case_expr->when_operands.size(), 1);
 
@@ -5200,7 +5335,7 @@ TEST(GQLParser, SimpleCaseNullPredicateWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   ASSERT_EQ(case_expr->when_operands.size(), 1);
 
@@ -5219,7 +5354,7 @@ TEST(GQLParser, SimpleCaseDirectedPredicateWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
   ASSERT_NE(when0, nullptr);
@@ -5236,7 +5371,7 @@ TEST(GQLParser, SimpleCaseSourcePredicateWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   const auto* when0 = case_expr->when_operands[0]->as<GAST::GQLExpr>();
   ASSERT_NE(when0, nullptr);
@@ -5259,7 +5394,7 @@ TEST(GQLParser, SimpleCaseMixedOperandTypesRoundTrip) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   ASSERT_EQ(case_expr->when_operands.size(), 2);
 
@@ -5280,7 +5415,7 @@ TEST(GQLParser, ValueQueryExpressionShape) {
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::ValueQuery);
   ASSERT_EQ(expr->children.size(), 1);
@@ -5309,7 +5444,7 @@ TEST(GQLParser, LetValueExpressionShape) {
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::LetExpr);
   ASSERT_GE(expr->children.size(), 2);
@@ -5332,7 +5467,7 @@ TEST(GQLParser, LetValueExpressionMultiBindingShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::LetExpr);
   ASSERT_EQ(expr->children.size(), 3);
@@ -5352,7 +5487,7 @@ TEST(GQLParser, PathValueConstructorShape) {
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::PathConstructor);
   EXPECT_EQ(expr->children.size(), 3);
@@ -5425,7 +5560,7 @@ TEST(GQLParser, SimpleCaseNormalizedPredicateWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   ASSERT_EQ(case_expr->when_operands.size(), 1);
 
@@ -5450,7 +5585,7 @@ TEST(GQLParser, LetValueExpressionValueKeywordShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::LetExpr);
   ASSERT_GE(expr->children.size(), 2);
@@ -5466,7 +5601,7 @@ TEST(GQLParser, SearchedCasePathConstructorWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
   ASSERT_EQ(case_expr->when_operands.size(), 1);
@@ -5494,7 +5629,7 @@ TEST(GQLParser, SearchedCaseValueQueryWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
   ASSERT_EQ(case_expr->when_operands.size(), 1);
@@ -5523,7 +5658,7 @@ TEST(GQLParser, SimpleCasePathConstructorWhenShape) {
 
   const auto* ret = getReturnClause(*clauses);
   ASSERT_NE(ret, nullptr);
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   ASSERT_EQ(case_expr->when_operands.size(), 1);
 
@@ -5705,7 +5840,7 @@ TEST(GQLParser, DialectParserCountAggregate) {
   const auto* ret = sq->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* count_expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* count_expr = getExpr(ret->items[0]);
   ASSERT_NE(count_expr, nullptr);
   EXPECT_EQ(count_expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(count_expr->text, "COUNT");
@@ -5746,7 +5881,7 @@ TEST(GQLParser, DialectParserCaseExpression) {
   const auto* ret = sq->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  EXPECT_NE(ret->items[0]->as<GAST::GQLCaseExpr>(), nullptr);
+  EXPECT_NE(getCaseExpr(ret->items[0]), nullptr);
   auto fmt = formatAST(*ast);
   EXPECT_NE(fmt.find("CASE"), String::npos);
   EXPECT_NE(fmt.find("WHEN"), String::npos);
@@ -5762,7 +5897,7 @@ TEST(GQLParser, DialectParserSumDistinct) {
   const auto* ret = sq->clauses[1]->as<GAST::GQLReturnClause>();
   ASSERT_NE(ret, nullptr);
   ASSERT_GE(ret->items.size(), 1);
-  const auto* sum_expr = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* sum_expr = getExpr(ret->items[0]);
   ASSERT_NE(sum_expr, nullptr);
   EXPECT_EQ(sum_expr->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(sum_expr->text, "SUM");
@@ -5901,7 +6036,7 @@ TEST(GQLParser, ASTContractCanonicalQuery) {
   const auto* ret = getReturnClause(*query, 1);
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
-  const auto* item = ret->items[0]->as<GAST::GQLExpr>();
+  const auto* item = getExpr(ret->items[0]);
   ASSERT_NE(item, nullptr);
   EXPECT_EQ(item->kind, GAST::GQLExpr::Kind::Property);
   EXPECT_EQ(item->text, "name");
@@ -5949,7 +6084,7 @@ TEST(GQLParser, ASTContractCanonicalExpression) {
   ASSERT_NE(ret, nullptr);
   ASSERT_EQ(ret->items.size(), 1);
 
-  const auto* case_expr = ret->items[0]->as<GAST::GQLCaseExpr>();
+  const auto* case_expr = getCaseExpr(ret->items[0]);
   ASSERT_NE(case_expr, nullptr);
   EXPECT_EQ(case_expr->form, GAST::GQLCaseExpr::Form::Searched);
   ASSERT_EQ(case_expr->when_operands.size(), 1);

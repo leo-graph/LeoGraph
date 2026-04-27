@@ -67,6 +67,7 @@ using PtrTo = boost::intrusive_ptr<T>;
 
 class GQLAssignmentItem;
 class GQLAtSchemaClause;
+class GQLAliasedItem;
 class GQLBindingTableExpression;
 class GQLBindingInitializer;
 class GQLBindingVariableDefinition;

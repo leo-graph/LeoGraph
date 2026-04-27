@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Parsers/graph/AST/GQLAliasedItem.h>
 #include <Parsers/graph/AST/GQLAssignmentItem.h>
 #include <Parsers/graph/AST/GQLAtSchemaClause.h>
 #include <Parsers/graph/AST/GQLBindingInitializer.h>

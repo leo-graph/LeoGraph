@@ -31,6 +31,10 @@ T castAny(const std::any &value) {
   throw Exception(ErrorCodes::SYNTAX_ERROR, "Unsupported GQL {} in the current graph AST visitor: {}", feature, getText(context));
 }
 
+Ptr makeAliasedItem(Ptr expression, String alias = {}) {
+  return Ptr(make_intrusive<GQLAliasedItem>(std::move(expression), std::move(alias)));
+}
+
 struct PatternBindingTable {
   GraphMatchMode match_mode = GraphMatchMode::None;
   Ptr keep_clause;
@@ -692,15 +696,11 @@ PtrList makeYieldItems(GQLParser::YieldItemListContext *context) {
 
   for (auto *item : context->yieldItem()) {
     auto expression = GQLExpr::identifier(getText(item->yieldItemName()->fieldName()));
+    String alias;
 
-    if (item->yieldItemAlias()) {
-      if (auto *with_alias = dynamic_cast<ASTWithAlias *>(expression.get()))
-        with_alias->setAlias(getText(item->yieldItemAlias()->bindingVariable()));
-      else
-        throwUnsupported("yield item alias on non-aliasable expression", item);
-    }
+    if (item->yieldItemAlias()) alias = getText(item->yieldItemAlias()->bindingVariable());
 
-    items.push_back(expression);
+    items.push_back(makeAliasedItem(expression, std::move(alias)));
   }
 
   return items;
@@ -2107,15 +2107,11 @@ std::any GQLParseTreeVisitor::visitSelectStatement(GQLParser::SelectStatementCon
     if (auto *items_context = context->selectItemList()) {
       for (auto *item_context : items_context->selectItem()) {
         auto expression = castAny<Ptr>(visit(item_context->aggregatingValueExpression()));
+        String alias;
 
-        if (item_context->selectItemAlias()) {
-          if (auto *with_alias = dynamic_cast<ASTWithAlias *>(expression.get()))
-            with_alias->setAlias(getText(item_context->selectItemAlias()->identifier()));
-          else
-            throwUnsupported("select item alias on non-aliasable expression", item_context);
-        }
+        if (item_context->selectItemAlias()) alias = getText(item_context->selectItemAlias()->identifier());
 
-        items.push_back(expression);
+        items.push_back(makeAliasedItem(expression, std::move(alias)));
       }
     }
   }
@@ -2882,16 +2878,11 @@ std::any GQLParseTreeVisitor::visitReturnItemList(GQLParser::ReturnItemListConte
 
 std::any GQLParseTreeVisitor::visitReturnItem(GQLParser::ReturnItemContext *context) {
   auto expression = castAny<Ptr>(visit(context->aggregatingValueExpression()));
+  String alias;
 
-  if (context->returnItemAlias()) {
-    if (auto *with_alias = dynamic_cast<ASTWithAlias *>(expression.get())) {
-      with_alias->setAlias(getText(context->returnItemAlias()->identifier()));
-    } else {
-      throwUnsupported("return item alias on non-aliasable expression", context);
-    }
-  }
+  if (context->returnItemAlias()) alias = getText(context->returnItemAlias()->identifier());
 
-  return expression;
+  return makeAliasedItem(expression, std::move(alias));
 }
 
 std::any GQLParseTreeVisitor::visitGroupByClause(GQLParser::GroupByClauseContext *context) {

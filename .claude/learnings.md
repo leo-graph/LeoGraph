@@ -48,3 +48,4 @@
 - `ParserGraphQuery` runs before the regular SQL parser chain in `ParserQuery`, so widening top-level graph routing for weak prefixes such as `SELECT` or `USE` must stay heuristic and fall back cleanly on parse exceptions instead of greedily stealing plain SQL.
 - For a future `GQL` language mode, prefer extending ClickHouse's existing `dialect` setting with `Dialect::gql` and dispatching in `executeQueryImpl` before constructing `ParserQuery`; `query_language = gql` should be an alias/wrapper, not a second parser-selection setting.
 - In `GQL.g4`, `graphTypeLikeGraph` is `LIKE graphExpression`, and `graphExpression` does not include a `GRAPH` keyword; tests and round-trip expectations should use forms like `LIKE g`, not `LIKE GRAPH g`.
+- For `GQL` `RETURN` / `SELECT` / `YIELD` aliases, model the alias at item-wrapper level instead of adding `ASTWithAlias` to individual expression nodes; this keeps aliases generic for list, record, case, and future expression ASTs.
