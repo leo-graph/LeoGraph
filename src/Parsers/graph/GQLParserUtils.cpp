@@ -46,6 +46,26 @@ namespace {
 
 void ignoreLSanObject(const void *ptr) { __lsan_ignore_object(ptr); }
 
+void ensureCompleteInput(CommonTokenStream &tokens, std::string_view query) {
+  if (tokens.LA(1) == Token::EOF) return;
+
+  const auto *token = tokens.LT(1);
+  const String token_text = token ? token->getText() : String{};
+  throw Exception(ErrorCodes::SYNTAX_ERROR, "Unexpected token after GQL statement: {}. input: {}", token_text, query);
+}
+
+template <typename Context>
+Context *parseComplete(OPENGQL::GQLParser *parser, CommonTokenStream &tokens, Context *(OPENGQL::GQLParser::*parse_rule)(),
+                       std::string_view query) {
+  auto *context = (parser->*parse_rule)();
+  if (parser->getNumberOfSyntaxErrors() != 0)
+    throw Exception(ErrorCodes::SYNTAX_ERROR, "GQL parser reported {} syntax error(s). input: {}", parser->getNumberOfSyntaxErrors(),
+                    query);
+
+  ensureCompleteInput(tokens, query);
+  return context;
+}
+
 ANTLRInputStream *getLexerInput() {
   static thread_local ANTLRInputStream *input;
 
@@ -82,11 +102,12 @@ Context *parseWithFallback(std::string_view query, Context *(OPENGQL::GQLParser:
   OPENGQL::GQLParser *parser = OPENGQL::GQLParserUtils::getParserSLL(&tokens);
 
   try {
-    return (parser->*parse_rule)();
+    return parseComplete(parser, tokens, parse_rule, query);
   } catch (ParseCancellationException &) {
     parser->reset();
+    tokens.seek(0);
     parser = OPENGQL::GQLParserUtils::getParserLL(&tokens);
-    return (parser->*parse_rule)();
+    return parseComplete(parser, tokens, parse_rule, query);
   } catch (Exception &e) {
     e.addMessage("\nerror when parse gql query: {}.", query);
     throw;

@@ -2714,7 +2714,6 @@ std::any GQLParseTreeVisitor::visitLinearCatalogModifyingStatement(GQLParser::Li
       stmts.push_back(makeCallClause(simple->callCatalogModifyingProcedureStatement()->callProcedureStatement(), *this));
     }
   }
-  if (stmts.size() == 1) return stmts[0];
   return makeSingleQuery(std::move(stmts));
 }
 

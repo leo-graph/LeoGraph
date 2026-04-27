@@ -7,6 +7,7 @@
 #  include <IO/WriteBufferFromString.h>
 #  include <Parsers/ASTSetQuery.h>
 #  include <Parsers/graph/GraphAST.h>
+#  include <Parsers/graph/GQLParserUtils.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
 #  include <Parsers/graph/ParserGraphQuery.h>
 #  include <Parsers/parseQuery.h>
@@ -44,6 +45,15 @@ const GAST::GQLSingleQuery* getSingleQuery(const ASTPtr& ast) {
 }
 
 const GAST::GQLSingleQuery* getClausesQuery(const ASTPtr& ast) { return getSingleQuery(ast); }
+
+const GAST::GQLCatalogStatement* getCatalogStatement(const ASTPtr& ast, size_t index = 0) {
+  const auto* query = getSingleQuery(ast);
+  if (!query || index >= query->clauses.size()) return nullptr;
+
+  const auto* stmt = query->clauses[index]->as<GAST::GQLCatalogStatement>();
+  EXPECT_NE(stmt, nullptr);
+  return stmt;
+}
 
 const GAST::GQLMatchClause* getMatchClause(const GAST::GQLSingleQuery& clauses, size_t index = 0) {
   if (index >= clauses.clauses.size()) return nullptr;
@@ -482,6 +492,13 @@ TEST(GQLParser, CallIsAcceptedByTopLevelParser) {
 
 TEST(GQLParser, PlainSqlSelectFallsBackToSqlParser) {
   auto ast = parseTopLevelOrThrow("SELECT 1");
+  ASSERT_EQ(ast->as<GAST::GQLSingleQuery>(), nullptr);
+}
+
+TEST(GQLParser, TopLevelGraphFallbackDoesNotStealClickHouseSettings) {
+  auto ast = parseTopLevelOrThrow("SET max_threads = 1");
+  ASSERT_NE(ast, nullptr);
+  ASSERT_NE(ast->as<ASTSetQuery>(), nullptr);
   ASSERT_EQ(ast->as<GAST::GQLSingleQuery>(), nullptr);
 }
 
@@ -5709,6 +5726,14 @@ TEST(GQLParser, DialectParserEdgePattern) {
   EXPECT_EQ(formatAST(*ast), "MATCH (a)-[e:KNOWS]->(b) RETURN a, b");
 }
 
+TEST(GQLParser, ParseStatementRejectsUnconsumedTokens) {
+  try {
+    (void)OPENGQL::GQLParserUtils::parseStatement("MATCH (n) RETURN n; MATCH (m) RETURN m");
+    FAIL() << "Expected `DB::Exception`";
+  } catch (const DB::Exception&) {
+  }
+}
+
 TEST(GQLParser, DialectParserSetDialectPassthrough) {
   auto ast = parseViaDialectParser("SET dialect = 'clickhouse'");
   ASSERT_NE(ast, nullptr);
@@ -5798,6 +5823,10 @@ TEST(GQLParser, DialectParserSetPropertyGoesToGQL) {
   ASSERT_NE(ast, nullptr);
   const auto* set_q = ast->as<ASTSetQuery>();
   EXPECT_EQ(set_q, nullptr);
+  const auto* sq = ast->as<GAST::GQLSingleQuery>();
+  ASSERT_NE(sq, nullptr);
+  ASSERT_EQ(sq->clauses.size(), 2);
+  EXPECT_NE(sq->clauses[1]->as<GAST::GQLSetClause>(), nullptr);
 }
 
 TEST(GQLParser, DialectParserNonDialectSettingGoesToGQL) {
@@ -6122,7 +6151,10 @@ TEST(GQLParser, ASTContractCanonicalDDL) {
   auto ast = parseViaDialectParser("CREATE GRAPH g ANY AS COPY OF h");
   assertASTContract(ast);
 
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* query = getSingleQuery(ast);
+  ASSERT_NE(query, nullptr);
+  ASSERT_EQ(query->clauses.size(), 1);
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
   EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::Any);
@@ -6143,7 +6175,7 @@ TEST(GQLParser, ASTContractCanonicalDDL) {
 TEST(GQLParser, CatalogCreateSchema) {
   auto ast = parseDMLOrThrow("CREATE SCHEMA IF NOT EXISTS /foo");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateSchema);
   EXPECT_TRUE(stmt->if_not_exists);
@@ -6160,7 +6192,7 @@ TEST(GQLParser, CatalogCreateSchema) {
 TEST(GQLParser, CatalogDropSchema) {
   auto ast = parseDMLOrThrow("DROP SCHEMA IF EXISTS /foo");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropSchema);
   EXPECT_TRUE(stmt->if_exists);
@@ -6176,7 +6208,7 @@ TEST(GQLParser, CatalogDropSchema) {
 TEST(GQLParser, CatalogCreatePropertyGraphAny) {
   auto ast = parseDMLOrThrow("CREATE PROPERTY GRAPH g ANY");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
   EXPECT_TRUE(stmt->is_property);
@@ -6196,7 +6228,7 @@ TEST(GQLParser, CatalogCreatePropertyGraphAny) {
 TEST(GQLParser, CatalogDropPropertyGraph) {
   auto ast = parseDMLOrThrow("DROP PROPERTY GRAPH g");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropGraph);
   EXPECT_TRUE(stmt->is_property);
@@ -6211,7 +6243,7 @@ TEST(GQLParser, CatalogDropPropertyGraph) {
 TEST(GQLParser, CatalogCreateGraphTypeLikeGraph) {
   auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt LIKE g");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraphType);
   EXPECT_FALSE(stmt->is_property);
@@ -6229,7 +6261,7 @@ TEST(GQLParser, CatalogCreateGraphTypeLikeGraph) {
 TEST(GQLParser, CatalogCreateGraphTypeCopyOf) {
   auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt2 COPY OF gt1");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraphType);
   const auto* obj_name = stmt->name_reference->as<GAST::GQLCatalogObjectName>();
@@ -6246,7 +6278,7 @@ TEST(GQLParser, CatalogCreateGraphTypeCopyOf) {
 TEST(GQLParser, CatalogCreateGraphLikeGraph) {
   auto ast = parseDMLOrThrow("CREATE GRAPH h LIKE g");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
   EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::LikeGraph);
@@ -6259,7 +6291,7 @@ TEST(GQLParser, CatalogCreateGraphLikeGraph) {
 TEST(GQLParser, CatalogCreateGraphOfType) {
   auto ast = parseDMLOrThrow("CREATE GRAPH h gt");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
   EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::TypeReference);
@@ -6272,7 +6304,7 @@ TEST(GQLParser, CatalogCreateGraphOfType) {
 TEST(GQLParser, CatalogQualifiedGraphNameDotParent) {
     auto ast = parseDMLOrThrow("CREATE GRAPH catalog.myGraph ANY");
     ASSERT_NE(ast, nullptr);
-    const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+    const auto* stmt = getCatalogStatement(ast);
     ASSERT_NE(stmt, nullptr);
     EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
     ASSERT_NE(stmt->name_reference, nullptr);
@@ -6288,7 +6320,7 @@ TEST(GQLParser, CatalogQualifiedGraphNameDotParent) {
 TEST(GQLParser, CatalogQualifiedGraphTypeNameDotParent) {
     auto ast = parseDMLOrThrow("DROP GRAPH TYPE catalog.myType");
     ASSERT_NE(ast, nullptr);
-    const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+    const auto* stmt = getCatalogStatement(ast);
     ASSERT_NE(stmt, nullptr);
     EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropGraphType);
     ASSERT_NE(stmt->name_reference, nullptr);
@@ -6341,7 +6373,7 @@ TEST(GQLParser, GraphRefHomeGraph) {
 TEST(GQLParser, GraphRefQualifiedInLikeSource) {
     auto ast = parseDMLOrThrow("CREATE GRAPH h LIKE catalog.g");
     ASSERT_NE(ast, nullptr);
-    const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+    const auto* stmt = getCatalogStatement(ast);
     ASSERT_NE(stmt, nullptr);
     EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::LikeGraph);
     ASSERT_NE(stmt->source_reference, nullptr);
@@ -6360,7 +6392,7 @@ TEST(GQLParser, GraphRefQualifiedInLikeSource) {
 TEST(GQLParser, CatalogCreateGraphAnyWithCopySource) {
   auto ast = parseDMLOrThrow("CREATE GRAPH g ANY AS COPY OF h");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
   EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::Any);
@@ -6374,7 +6406,7 @@ TEST(GQLParser, CatalogCreateGraphAnyWithCopySource) {
 TEST(GQLParser, CatalogDropGraphType) {
   auto ast = parseDMLOrThrow("DROP GRAPH TYPE IF EXISTS gt");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::DropGraphType);
   EXPECT_TRUE(stmt->if_exists);
@@ -6396,7 +6428,7 @@ TEST(GQLParser, NestedCallDDLNoLongerThrows) {
 TEST(GQLParser, CatalogViaDialectParser) {
   auto ast = parseViaDialectParser("CREATE SCHEMA IF NOT EXISTS /bar");
   ASSERT_NE(ast, nullptr);
-  const auto* stmt = ast->as<GAST::GQLCatalogStatement>();
+  const auto* stmt = getCatalogStatement(ast);
   ASSERT_NE(stmt, nullptr);
   EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateSchema);
   const auto* schema_ref = stmt->name_reference->as<GAST::GQLSchemaReference>();

@@ -92,7 +92,7 @@ bool ParserGraphQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
   if (!looksLikeGraphQuery(upper_text)) return false;
 
   try {
-    node = parseQuery(gql_text);
+    node = parseQuery(gql_text, true);
   } catch (const DB::Exception&) {
     if (isWeakGraphPrefix(upper_text)) return false;
     throw;
