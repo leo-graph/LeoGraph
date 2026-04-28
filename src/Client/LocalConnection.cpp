@@ -190,7 +190,6 @@ void LocalConnection::sendQuery(const ConnectionTimeouts &, const String &query,
       if (!settings[Setting::allow_experimental_gql_dialect])
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
                         "Support for GQL dialect is disabled (turn on setting 'allow_experimental_gql_dialect')");
-      parser = std::make_unique<ParserGQLQuery>();
     }
     else
       parser =
@@ -201,6 +200,13 @@ void LocalConnection::sendQuery(const ConnectionTimeouts &, const String &query,
       parsed_query = parseKQLQueryAndMovePosition(*parser, begin, end, "",
                                                   /*allow_multi_statements*/ false, settings[Setting::max_query_size],
                                                   settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+    else if (dialect == Dialect::gql)
+    {
+      ParserGQLQuery gql_parser;
+      parsed_query = parseGQLQueryAndMovePosition(gql_parser, begin, end, "",
+                                                  /*allow_multi_statements*/ false, settings[Setting::max_query_size],
+                                                  settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+    }
     else
       parsed_query = parseQueryAndMovePosition(*parser, begin, end, "",
                                                /*allow_multi_statements*/ false, settings[Setting::max_query_size],

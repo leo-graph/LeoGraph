@@ -988,8 +988,8 @@ static BlockIO executeQueryImpl(const char *begin, const char *end, ContextMutab
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
                         "Support for GQL dialect is disabled (turn on setting 'allow_experimental_gql_dialect')");
       ParserGQLQuery parser;
-      out_ast =
-          parseQuery(parser, begin, end, "", max_query_size, settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+      out_ast = parseGQLQuery(parser, begin, end, "", max_query_size, settings[Setting::max_parser_depth],
+                              settings[Setting::max_parser_backtracks]);
     } else if (settings[Setting::dialect] == Dialect::promql && !internal) {
       if (!settings[Setting::allow_experimental_time_series_table])
         throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,

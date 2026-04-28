@@ -48,3 +48,7 @@
 - In `GQL.g4`, `graphTypeLikeGraph` is `LIKE graphExpression`, and `graphExpression` does not include a `GRAPH` keyword; tests and round-trip expectations should use forms like `LIKE g`, not `LIKE GRAPH g`.
 - For `GQL` `RETURN` / `SELECT` / `YIELD` aliases, model the alias at item-wrapper level instead of adding `ASTWithAlias` to individual expression nodes; this keeps aliases generic for list, record, case, and future expression ASTs.
 - GQL production routing should go only through `ParserGQLQuery` selected by `Dialect::gql`; do not add prefix-sniffing GQL fallback to ordinary `ParserQuery`, because GQL text in a ClickHouse session must not produce `GQL*` AST.
+- `GQL` production parsing should not use the generic `tryParseQuery` driver, because ClickHouse's lexer can reject valid `GQL` tokens such as standalone `|` before the ANTLR grammar sees the text.
+- Keep `ParserGQLQuery` focused on single `GQL` statement-to-AST parsing; ClickHouse session settings compatibility and query-stream splitting belong outside the parser class.
+- Do not make `ParserGQLQuery` an `IParserBase` implementation just to fit ClickHouse's SQL token driver; `Dialect::gql` should call a GQL-specific driver that passes text to ANTLR directly.
+- Keep the `GQL` dialect parser class and its small ClickHouse driver functions in `ParserGQLQuery.*` until they grow into genuinely separate modules; a separate `parseGQLQuery.*` file makes the entrypoint look duplicated.

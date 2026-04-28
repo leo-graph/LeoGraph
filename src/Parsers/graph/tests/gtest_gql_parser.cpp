@@ -23,7 +23,7 @@ namespace {
 ASTPtr parseGQLOrThrow(std::string_view query) {
   ParserGQLQuery parser;
   const String query_string(query);
-  return DB::parseQuery(parser, query_string, 0, 0, 0);
+  return DB::parseGQLQuery(parser, query_string, 0, 0, 0);
 }
 
 ASTPtr parseGraphOrThrow(std::string_view query) { return parseGQLOrThrow(query); }
@@ -5704,50 +5704,10 @@ TEST(GQLParser, ParseStatementRejectsUnconsumedTokens) {
   }
 }
 
-TEST(GQLParser, DialectParserSetDialectPassthrough) {
-  auto ast = parseViaDialectParser("SET dialect = 'clickhouse'");
-  ASSERT_NE(ast, nullptr);
-  const auto* set = ast->as<ASTSetQuery>();
-  ASSERT_NE(set, nullptr);
-  ASSERT_EQ(set->changes.size(), 1);
-  EXPECT_EQ(set->changes[0].name, "dialect");
-}
-
-TEST(GQLParser, DialectParserSetQueryLanguagePassthrough) {
-  auto ast = parseViaDialectParser("SET query_language = 'clickhouse'");
-  ASSERT_NE(ast, nullptr);
-  const auto* set = ast->as<ASTSetQuery>();
-  ASSERT_NE(set, nullptr);
-  ASSERT_EQ(set->changes.size(), 1);
-  EXPECT_EQ(set->changes[0].name, "query_language");
-}
-
-TEST(GQLParser, DialectParserSetMaxThreadsPassthrough) {
-  auto ast = parseViaDialectParser("SET max_threads = 1");
-  ASSERT_NE(ast, nullptr);
-  const auto* set = ast->as<ASTSetQuery>();
-  ASSERT_NE(set, nullptr);
-  ASSERT_EQ(set->changes.size(), 1);
-  EXPECT_EQ(set->changes[0].name, "max_threads");
-}
-
-TEST(GQLParser, DialectParserSetMultipleSettingsPassthrough) {
-  auto ast = parseViaDialectParser("SET max_threads = 1, allow_experimental_gql_dialect = 1");
-  ASSERT_NE(ast, nullptr);
-  const auto* set = ast->as<ASTSetQuery>();
-  ASSERT_NE(set, nullptr);
-  ASSERT_EQ(set->changes.size(), 2);
-  EXPECT_EQ(set->changes[0].name, "max_threads");
-  EXPECT_EQ(set->changes[1].name, "allow_experimental_gql_dialect");
-}
-
-TEST(GQLParser, DialectParserSetDefaultPassthrough) {
-  auto ast = parseViaDialectParser("SET max_threads = DEFAULT");
-  ASSERT_NE(ast, nullptr);
-  const auto* set = ast->as<ASTSetQuery>();
-  ASSERT_NE(set, nullptr);
-  ASSERT_EQ(set->default_settings.size(), 1);
-  EXPECT_EQ(set->default_settings[0], "max_threads");
+TEST(GQLParser, DialectParserRejectsClickHouseSet) {
+  EXPECT_THROW((void)parseViaDialectParser("SET dialect = 'clickhouse'"), DB::Exception);
+  EXPECT_THROW((void)parseViaDialectParser("SET query_language = 'clickhouse'"), DB::Exception);
+  EXPECT_THROW((void)parseViaDialectParser("SET max_threads = 1"), DB::Exception);
 }
 
 TEST(GQLParser, DialectParserSetAllPropertiesGoesToGQL) {
@@ -5761,7 +5721,7 @@ TEST(GQLParser, DialectParserSetAllPropertiesGoesToGQL) {
   EXPECT_NE(sq->clauses[0]->as<GAST::GQLSetClause>(), nullptr);
 }
 
-TEST(GQLParser, DialectParserSetDefaultNonSettingRejectsPassthrough) {
+TEST(GQLParser, DialectParserSetDefaultNonSettingRejects) {
   try {
     (void)parseViaDialectParser("SET n = DEFAULT");
     FAIL() << "Expected `DB::Exception`";
@@ -5769,7 +5729,7 @@ TEST(GQLParser, DialectParserSetDefaultNonSettingRejectsPassthrough) {
   }
 }
 
-TEST(GQLParser, DialectParserSetMixedRejectsPassthrough) {
+TEST(GQLParser, DialectParserSetMixedRejects) {
   try {
     (void)parseViaDialectParser("SET max_threads = DEFAULT, n.x = 1");
     FAIL() << "Expected `DB::Exception`";
@@ -5903,20 +5863,24 @@ TEST(GQLParser, DialectParserSumDistinct) {
   EXPECT_EQ(sum_expr->set_quantifier, GAST::GQLExpr::SetQuantifier::Distinct);
 }
 
-TEST(GQLParser, DialectParserSemicolonTruncation) {
+TEST(GQLParser, DialectParserAcceptsTrailingSemicolon) {
+  const String input = "MATCH (n) RETURN n;";
+  const char* pos = input.data();
+  const char* end = input.data() + input.size();
+  ParserGQLQuery parser;
+  auto ast = parseGQLQueryAndMovePosition(parser, pos, end, "", false, 0, 0, 0);
+  ASSERT_NE(ast, nullptr);
+  EXPECT_EQ(formatAST(*ast), "MATCH (n) RETURN n");
+  EXPECT_EQ(pos, end);
+}
+
+TEST(GQLParser, DialectParserRejectsMultiStatementInput) {
   const String input = "MATCH (n) RETURN n; MATCH (m) RETURN m";
   const char* pos = input.data();
   const char* end = input.data() + input.size();
   ParserGQLQuery parser;
-  auto ast = parseQueryAndMovePosition(parser, pos, end, "", true, 0, 0, 0);
-  ASSERT_NE(ast, nullptr);
-  const auto* sq = ast->as<GAST::GQLSingleQuery>();
-  ASSERT_NE(sq, nullptr);
-  EXPECT_EQ(formatAST(*ast), "MATCH (n) RETURN n");
-  ASSERT_LT(pos, end);
-  while (pos < end && (*pos == ' ' || *pos == ';')) ++pos;
-  String remaining(pos, static_cast<size_t>(end - pos));
-  EXPECT_EQ(remaining, "MATCH (m) RETURN m");
+  EXPECT_THROW((void)parseGQLQueryAndMovePosition(parser, pos, end, "", true, 0, 0, 0), DB::Exception);
+  EXPECT_EQ(pos, input.data());
 }
 
 TEST(GQLParser, DialectParserLetClause) {
