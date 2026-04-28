@@ -125,10 +125,10 @@ Current parser-only priority is `GQL text -> normalized GQL IAST`. Do not spend 
 
 Suggested order for the next implementation slices:
 
-1. reduce high-value `predicate` unsupported branches that affect common `WHERE`, `FILTER`, and `CASE WHEN` text;
-2. reduce `valueExpressionPrimary` and `objectExpressionPrimary` branches that can map cleanly onto existing `GQLExpr` / thin wrapper nodes;
-3. handle one value-function family at a time only when it closes a real AST shape gap;
-4. keep query-shape guardrails explicit and documented unless a stable query-root representation is clear.
+1. start from concrete GQL input that currently reaches `throwUnsupported(...)`, then add the minimum AST shape and focused contract test for that input;
+2. keep `predicate`, `valueExpressionPrimary`, and value-function guardrails unless a real input proves a missing active grammar branch;
+3. spend the next parser-only effort on query-shape and reference-shape gaps only when the target root can stay within `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
+4. use `clickhouse local --allow_experimental_gql_dialect=1 --dialect=gql -q ...` as a quick smoke check: successful parser-only inputs currently fail later with `UNKNOWN_TYPE_OF_QUERY`, while parser gaps fail earlier with `SYNTAX_ERROR` or `Unsupported GQL ...`.
 
 ### 1. Keep the new query contract stable while filling coverage
 
@@ -139,13 +139,13 @@ The immediate rule is:
 - keep `GQLSingleQuery`, `GQLCombinedQuery`, and `GQLSubquery` as the intentional query-level wrappers;
 - keep `GQLSelectClause`, `GQLReturnClause`, and `GQLPageClause` as separate clause nodes instead of collapsing them back into one projection node.
 
-Then reduce the query-level `throwUnsupported` cases.
+Then reduce only query-level `throwUnsupported` cases that have a concrete reproducing input and a stable AST root shape.
 
 Suggested order:
 
 - keep the remaining top-level graph-selection gaps focused on explicit `Dialect::gql` coverage
 - widen nested query support beyond the single-statement unwrap path
-- keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again, with richer path semantics beyond the current simplified path-pattern AST as the next pattern-side topic
+- keep reducing the remaining query-level `throwUnsupported` branches before touching parser entry gating again; use richer path semantics beyond the current simplified path-pattern AST as a later pattern-side topic only when a failing parser-only input requires it
 - introduce a thin `GQLQuery` base or equivalent shared query helper only if later lowering really benefits from it; do not churn the current roots just for naming
 
 The goal of this phase is to make the current query-oriented root feel complete before adding more outer integration.
