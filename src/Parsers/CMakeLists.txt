@@ -8,6 +8,7 @@ add_headers_and_sources(clickhouse_parsers ./PRQL)
 add_headers_and_sources(clickhouse_parsers ./Kusto/KustoFunctions)
 add_headers_and_sources(clickhouse_parsers ./Prometheus)
 add_headers_and_sources(clickhouse_parsers ./graph)
+add_headers_and_sources(clickhouse_parsers ./graph/visitor)
 
 # GQL grammar: build generated ANTLR4 parser as a separate library
 if (TARGET ch_contrib::antlr4_cpp_runtime)
