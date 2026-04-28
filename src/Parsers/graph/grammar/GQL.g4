@@ -2,6 +2,14 @@ grammar GQL;
 
 options { caseInsensitive = true; }
 
+// ClickHouse production entry for the current parser-only phase.
+// We intentionally parse one complete executable GQL statement, not the full
+// session/transaction-level GQL program. `SEMICOLON* EOF` keeps the entry strict:
+// trailing semicolons are accepted, but unconsumed tokens after the statement are rejected.
+gqlStatement
+    : statement SEMICOLON* EOF
+    ;
+
 // 6 <GQL-program>
 
 gqlProgram
@@ -3748,6 +3756,8 @@ BRACKETED_COMMENT: '/*' .*? '*/' -> channel(HIDDEN);
 SIMPLE_COMMENT_SOLIDUS: '//' ~[\r\n]* -> channel(HIDDEN);
 
 SIMPLE_COMMENT_MINUS: '--' ~[\r\n]* -> channel(HIDDEN);
+
+SEMICOLON: ';';
 
 fragment GS : [\u001D];
 

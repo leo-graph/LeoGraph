@@ -17,6 +17,8 @@ class GQLVisitor : public antlr4::tree::AbstractParseTreeVisitor {
   /**
    * Visit parse trees produced by GQLParser.
    */
+  virtual std::any visitGqlStatement(GQLParser::GqlStatementContext *context) = 0;
+
   virtual std::any visitGqlProgram(GQLParser::GqlProgramContext *context) = 0;
 
   virtual std::any visitProgramActivity(GQLParser::ProgramActivityContext *context) = 0;

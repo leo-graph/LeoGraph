@@ -399,7 +399,8 @@ class GQLLexer : public antlr4::Lexer {
     WHITESPACE = 387,
     BRACKETED_COMMENT = 388,
     SIMPLE_COMMENT_SOLIDUS = 389,
-    SIMPLE_COMMENT_MINUS = 390
+    SIMPLE_COMMENT_MINUS = 390,
+    SEMICOLON = 391
   };
 
   explicit GQLLexer(antlr4::CharStream* input);
