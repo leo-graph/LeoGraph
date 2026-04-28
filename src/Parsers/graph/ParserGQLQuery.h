@@ -18,6 +18,7 @@ class ParserGQLQuery final
   ASTPtr parseStatementText(std::string_view query_text) const;
 };
 
+/// GQL query parser entry points
 ASTPtr tryParseGQLQuery(ParserGQLQuery& parser,
                         const char*& out_query_end,
                         const char* end,

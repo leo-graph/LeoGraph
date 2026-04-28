@@ -52,3 +52,4 @@
 - Keep `ParserGQLQuery` focused on single `GQL` statement-to-AST parsing; ClickHouse session settings compatibility and query-stream splitting belong outside the parser class.
 - Do not make `ParserGQLQuery` an `IParserBase` implementation just to fit ClickHouse's SQL token driver; `Dialect::gql` should call a GQL-specific driver that passes text to ANTLR directly.
 - Keep the `GQL` dialect parser class and its small ClickHouse driver functions in `ParserGQLQuery.*` until they grow into genuinely separate modules; a separate `parseGQLQuery.*` file makes the entrypoint look duplicated.
+- For complete `GQL` statement parsing, prefer a grammar-level EOF wrapper like `gqlStatement` over C++ token-stream tail checks; this matches the proven `kgraph` `cypherStmt` pattern.

@@ -3,6 +3,7 @@
 #include <Parsers/graph/ParserGQLQuery.h>
 
 #include <Common/Exception.h>
+#include <Parsers/IAST.h>
 
 #include <any>
 #include <cctype>
@@ -30,13 +31,6 @@ std::string_view makeSingleStatementView(const char* begin, const char* end)
 
   while (!query.empty() && isASCIISpace(query.back()))
     query.remove_suffix(1);
-
-  if (!query.empty() && query.back() == ';')
-  {
-    query.remove_suffix(1);
-    while (!query.empty() && isASCIISpace(query.back()))
-      query.remove_suffix(1);
-  }
 
   return query;
 }
