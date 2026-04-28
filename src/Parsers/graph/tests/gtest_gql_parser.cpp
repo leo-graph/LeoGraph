@@ -1888,7 +1888,7 @@ TEST(GQLParser, ValueTypePredicateMarkerStaysLiteral) {
 
   const auto* predicate = getExpr(where->expression);
   ASSERT_NE(predicate, nullptr);
-  EXPECT_EQ(predicate->text, "IS");
+  EXPECT_EQ(predicate->text, "IS TYPED");
   ASSERT_EQ(predicate->children.size(), 2);
 
   const auto* right = getExpr(predicate->children[1]);
@@ -1938,6 +1938,80 @@ TEST(GQLParser, AllDifferentPredicateBecomesFunctionCall) {
   EXPECT_EQ(function->kind, GAST::GQLExpr::Kind::FunctionCall);
   EXPECT_EQ(function->text, "ALL_DIFFERENT");
   ASSERT_EQ(function->children.size(), 3);
+}
+
+TEST(GQLParser, SamePredicateBecomesFunctionCall) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) WHERE SAME(a, b, e) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+
+  const auto* function = getExpr(where->expression);
+  ASSERT_NE(function, nullptr);
+  EXPECT_EQ(function->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(function->text, "SAME");
+  ASSERT_EQ(function->children.size(), 3);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a)-[e]->(b) WHERE SAME(a, b, e) RETURN a");
+}
+
+TEST(GQLParser, NegatedPredicatePartsKeepOperators) {
+  auto ast = parseGraphOrThrow(
+      "MATCH (a)-[e]->(b) WHERE (a IS NOT TYPED STRING) AND (e IS NOT DIRECTED) AND (a IS NOT LABELED Person) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+
+  const auto* root = getExpr(where->expression);
+  ASSERT_NE(root, nullptr);
+  EXPECT_EQ(root->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(root->text, "AND");
+  EXPECT_EQ(formatAST(*clauses),
+            "MATCH (a)-[e]->(b) WHERE (((a IS NOT TYPED STRING) AND (e IS NOT DIRECTED)) AND (a IS NOT LABELED Person)) RETURN a");
+}
+
+TEST(GQLParser, SourceDestinationPredicatesKeepOperators) {
+  auto ast = parseGraphOrThrow("MATCH (a)-[e]->(b) WHERE (a IS NOT SOURCE OF e) OR (b IS DESTINATION OF e) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+
+  const auto* root = getExpr(where->expression);
+  ASSERT_NE(root, nullptr);
+  EXPECT_EQ(root->kind, GAST::GQLExpr::Kind::BinaryOp);
+  EXPECT_EQ(root->text, "OR");
+  EXPECT_EQ(formatAST(*clauses),
+            "MATCH (a)-[e]->(b) WHERE ((a IS NOT SOURCE OF e) OR (b IS DESTINATION OF e)) RETURN a");
+}
+
+TEST(GQLParser, ParenthesizedExistsPredicateKeepsBlockShape) {
+  auto ast = parseGraphOrThrow("MATCH (a) WHERE EXISTS ((a)-[e]->(b)) RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* match = getMatchClause(*clauses);
+  ASSERT_NE(match, nullptr);
+  const auto* where = match->where->as<GAST::GQLWhereClause>();
+  ASSERT_NE(where, nullptr);
+
+  const auto* exists = getExpr(where->expression);
+  ASSERT_NE(exists, nullptr);
+  ASSERT_EQ(exists->children.size(), 1);
+  const auto* block = getGraphPatternBlock(exists->children[0]);
+  ASSERT_NE(block, nullptr);
+  EXPECT_TRUE(block->parenthesized);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) WHERE EXISTS ((a)-[e]->(b)) RETURN a");
 }
 
 TEST(GQLParser, ReturnClauseKeepsAliasAndTail) {
@@ -3984,6 +4058,24 @@ TEST(GQLParser, CaseAbbreviationCoalesce) {
   EXPECT_EQ(expr->text, "COALESCE");
   ASSERT_EQ(expr->children.size(), 3);
   EXPECT_EQ(formatAST(*clauses), "RETURN COALESCE(a.x, a.y, 0)");
+}
+
+TEST(GQLParser, CaseAbbreviationCoalesceColumnName) {
+  auto ast = parseGraphOrThrow("RETURN COALESCE(NULL, 1, 2)");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+
+  const auto* ret = getReturnClause(*clauses, 0);
+  ASSERT_NE(ret, nullptr);
+  ASSERT_EQ(ret->items.size(), 1);
+
+  const auto* expr = getExpr(ret->items[0]);
+  ASSERT_NE(expr, nullptr);
+  EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::FunctionCall);
+  EXPECT_EQ(expr->text, "COALESCE");
+  ASSERT_EQ(expr->children.size(), 3);
+  EXPECT_EQ(expr->getColumnName(), "COALESCE(NULL, 1, 2)");
+  EXPECT_EQ(formatAST(*clauses), "RETURN COALESCE(NULL, 1, 2)");
 }
 
 TEST(GQLParser, SearchedCaseExpression) {

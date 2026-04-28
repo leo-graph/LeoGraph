@@ -84,7 +84,11 @@ class GQLCaseExpr final : public DB::ASTWithAlias {
     ostr << " END";
   }
 
-  void appendColumnNameImpl(WriteBuffer& ostr) const override { ostr << detail::formatNodeToString(*this); }
+  void appendColumnNameImpl(WriteBuffer& ostr) const override {
+    IAST::FormatSettings settings(true);
+    IAST::FormatState state;
+    formatImplWithoutAlias(ostr, settings, state, {});
+  }
 };
 
 }  // namespace DB::OPENGQL::AST

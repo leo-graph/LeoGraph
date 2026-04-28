@@ -490,7 +490,7 @@ Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &
   }
 
   if (auto *vt_part = wo->valueTypePredicatePart2()) {
-    const String op = vt_part->NOT() ? "IS NOT" : "IS";
+    const String op = vt_part->NOT() ? "IS NOT TYPED" : "IS TYPED";
     return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal(getText(vt_part->valueType())));
   }
 
@@ -709,7 +709,7 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
   }
 
   if (auto *value_type_predicate = predicate->valueTypePredicate()) {
-    const String op = value_type_predicate->valueTypePredicatePart2()->NOT() ? "IS NOT" : "IS";
+    const String op = value_type_predicate->valueTypePredicatePart2()->NOT() ? "IS NOT TYPED" : "IS TYPED";
     return GQLExpr::binaryOp(op, castAny<Ptr>(visit(value_type_predicate->valueExpressionPrimary())),
                              GQLExpr::literal(getText(value_type_predicate->valueTypePredicatePart2()->valueType())));
   }
