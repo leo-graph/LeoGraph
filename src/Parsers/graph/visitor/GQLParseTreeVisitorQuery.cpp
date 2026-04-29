@@ -63,11 +63,12 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
       definition->property_keyword = graph_definition->PROPERTY() != nullptr;
       definition->name = getText(graph_definition->bindingVariable());
       auto *initializer = graph_definition->optTypedGraphInitializer();
-      definition->raw_type =
-          getTypedRawType(initializer ? initializer->typed() : nullptr, initializer ? initializer->graphReferenceValueType() : nullptr);
+      definition->type = makeGraphReferenceValueType(initializer ? initializer->typed() : nullptr,
+                                                     initializer ? initializer->graphReferenceValueType() : nullptr);
       definition->initializer = make_binding_initializer(initializer ? initializer->graphInitializer() : nullptr,
                                                          initializer ? initializer->graphInitializer()->graphExpression() : nullptr,
                                                          GQLBindingInitializer::Kind::Graph);
+      appendClause(definition->children, definition->type);
       appendClause(definition->children, definition->initializer);
       return Ptr(definition);
     }
@@ -77,12 +78,13 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
       definition->binding_keyword = binding_table_definition->BINDING() != nullptr;
       definition->name = getText(binding_table_definition->bindingVariable());
       auto *initializer = binding_table_definition->optTypedBindingTableInitializer();
-      definition->raw_type = getTypedRawType(initializer ? initializer->typed() : nullptr,
-                                             initializer ? initializer->bindingTableReferenceValueType() : nullptr);
+      definition->type = makeBindingTableReferenceValueType(initializer ? initializer->typed() : nullptr,
+                                                            initializer ? initializer->bindingTableReferenceValueType() : nullptr);
       definition->initializer =
           make_binding_initializer(initializer ? initializer->bindingTableInitializer() : nullptr,
                                    initializer ? initializer->bindingTableInitializer()->bindingTableExpression() : nullptr,
                                    GQLBindingInitializer::Kind::BindingTable);
+      appendClause(definition->children, definition->type);
       appendClause(definition->children, definition->initializer);
       return Ptr(definition);
     }
@@ -91,11 +93,11 @@ Ptr GQLParseTreeVisitor::buildSubquery(GQLParser::ProcedureBodyContext *procedur
       auto definition = make_intrusive<GQLBindingVariableDefinition>(GQLBindingVariableDefinition::Kind::Value);
       definition->name = getText(value_definition->bindingVariable());
       auto *initializer = value_definition->optTypedValueInitializer();
-      definition->raw_type =
-          getTypedRawType(initializer ? initializer->typed() : nullptr, initializer ? initializer->valueType() : nullptr);
+      definition->type = makeValueType(initializer ? initializer->typed() : nullptr, initializer ? initializer->valueType() : nullptr);
       auto *vi = initializer ? initializer->valueInitializer() : nullptr;
       if (!vi) throwUnsupported("binding variable initializer", initializer);
       definition->initializer = makeBindingInitializer(GQLBindingInitializer::Kind::Value, castAny<Ptr>(visit(vi)));
+      appendClause(definition->children, definition->type);
       appendClause(definition->children, definition->initializer);
       return Ptr(definition);
     }
@@ -391,16 +393,16 @@ std::any GQLParseTreeVisitor::visitPrimitiveQueryStatement(GQLParser::PrimitiveQ
 
       if (auto *value_definition = item->valueVariableDefinition()) {
         Ptr value;
-        String raw_type;
+        Ptr type;
 
         if (auto *initializer = value_definition->optTypedValueInitializer()) {
-          if (initializer->valueType()) raw_type = getText(initializer->valueType());
+          type = makeValueType(initializer->typed(), initializer->valueType());
 
           if (initializer->valueInitializer()) value = castAny<Ptr>(visit(initializer->valueInitializer()));
         }
 
-        assignment = Ptr(
-            make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(raw_type)));
+        assignment =
+            Ptr(make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(type)));
       } else {
         assignment = Ptr(make_intrusive<GQLAssignmentItem>(getText(item->bindingVariable()), castAny<Ptr>(visit(item->valueExpression()))));
       }

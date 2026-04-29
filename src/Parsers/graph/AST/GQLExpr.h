@@ -101,6 +101,13 @@ class GQLExpr final : public DB::ASTWithAlias {
     return Ptr(expression);
   }
 
+  static Ptr castExpr(Ptr operand, Ptr target_type) {
+    auto expression = make_intrusive<GQLExpr>(Kind::Cast);
+    if (operand) expression->children.push_back(std::move(operand));
+    if (target_type) expression->children.push_back(std::move(target_type));
+    return Ptr(expression);
+  }
+
   static Ptr trimString(Ptr source, TrimSpec spec, Ptr trim_char = nullptr) {
     auto expression = make_intrusive<GQLExpr>(Kind::TrimString);
     expression->trim_spec = spec;
@@ -265,7 +272,12 @@ class GQLExpr final : public DB::ASTWithAlias {
       case Kind::Cast: {
         ostr << "CAST(";
         if (!children.empty() && children.front()) children.front()->format(ostr, settings, state, frame);
-        ostr << " AS " << text << ")";
+        ostr << " AS ";
+        if (children.size() > 1 && children[1])
+          children[1]->format(ostr, settings, state, frame);
+        else
+          ostr << text;
+        ostr << ")";
         return;
       }
 

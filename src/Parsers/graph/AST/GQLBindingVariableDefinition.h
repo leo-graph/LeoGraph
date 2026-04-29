@@ -22,8 +22,8 @@ public:
 
     Kind kind;
     String name;
+    Ptr type;
     Ptr initializer;
-    String raw_type;
     bool property_keyword = false;
     bool binding_keyword = false;
 
@@ -33,8 +33,11 @@ public:
     {
         auto result = make_intrusive<GQLBindingVariableDefinition>(*this);
         result->children.clear();
+        result->type = type ? type->clone() : Ptr{};
         result->initializer = initializer ? initializer->clone() : Ptr{};
 
+        if (result->type)
+            result->children.push_back(result->type);
         if (result->initializer)
             result->children.push_back(result->initializer);
 
@@ -65,8 +68,11 @@ protected:
 
         ostr << name;
 
-        if (!raw_type.empty())
-            ostr << " " << raw_type;
+        if (type)
+        {
+            ostr << " ";
+            type->format(ostr, settings, state, frame);
+        }
 
         if (initializer)
         {
@@ -77,6 +83,7 @@ protected:
 
     void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override
     {
+        f(nullptr, &type);
         f(nullptr, &initializer);
     }
 };

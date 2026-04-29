@@ -67,7 +67,15 @@ std::any GQLParseTreeVisitor::visitCreateGraphStatement(GQLParser::CreateGraphSt
       if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
     } else if (of_type->nestedGraphTypeSpecification()) {
       stmt->source_kind = GQLCatalogStatement::SourceKind::NestedSpec;
-      stmt->source_text = getText(of_type->nestedGraphTypeSpecification());
+      auto source_type = make_intrusive<GQLTypeExpression>(GQLTypeExpression::Kind::GraphReference);
+      source_type->property_keyword = of_type->PROPERTY() != nullptr;
+      source_type->prefix =
+          of_type->typed() ? (of_type->typed()->DOUBLE_COLON() ? GQLTypeExpression::Prefix::DoubleColon : GQLTypeExpression::Prefix::Typed)
+                           : GQLTypeExpression::Prefix::None;
+      auto graph_type = makeNestedGraphTypeSpecification(of_type->nestedGraphTypeSpecification());
+      if (graph_type) source_type->children.push_back(std::move(graph_type));
+      stmt->source_reference = Ptr(source_type);
+      if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
     }
   }
 
@@ -107,7 +115,8 @@ std::any GQLParseTreeVisitor::visitCreateGraphTypeStatement(GQLParser::CreateGra
     if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
   } else if (source->nestedGraphTypeSpecification()) {
     stmt->source_kind = GQLCatalogStatement::SourceKind::NestedSpec;
-    stmt->source_text = getText(source->nestedGraphTypeSpecification());
+    stmt->source_reference = makeNestedGraphTypeSpecification(source->nestedGraphTypeSpecification());
+    if (stmt->source_reference) stmt->children.push_back(stmt->source_reference);
   }
 
   return Ptr(stmt);

@@ -403,13 +403,13 @@ Ptr makeLetValueExpr(GQLParser::LetValueExpressionContext *context, GQLParseTree
     Ptr assignment;
     if (auto *value_definition = def->valueVariableDefinition()) {
       Ptr value;
-      String raw_type;
+      Ptr type;
       if (auto *initializer = value_definition->optTypedValueInitializer()) {
-        if (initializer->valueType()) raw_type = getText(initializer->valueType());
+        type = makeValueType(initializer->typed(), initializer->valueType());
         if (initializer->valueInitializer()) value = castAny<Ptr>(visitor.visit(initializer->valueInitializer()));
       }
       assignment =
-          Ptr(make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(raw_type)));
+          Ptr(make_intrusive<GQLAssignmentItem>(getText(value_definition->bindingVariable()), std::move(value), true, std::move(type)));
     } else {
       assignment =
           Ptr(make_intrusive<GQLAssignmentItem>(getText(def->bindingVariable()), castAny<Ptr>(visitor.visit(def->valueExpression()))));
@@ -491,7 +491,7 @@ Ptr makeWhenOperandExpr(GQLParser::WhenOperandContext *wo, GQLParseTreeVisitor &
 
   if (auto *vt_part = wo->valueTypePredicatePart2()) {
     const String op = vt_part->NOT() ? "IS NOT TYPED" : "IS TYPED";
-    return GQLExpr::binaryOp(op, cloneLeft(), GQLExpr::literal(getText(vt_part->valueType())));
+    return GQLExpr::binaryOp(op, cloneLeft(), makeValueType(nullptr, vt_part->valueType()));
   }
 
   if (auto *dir_part = wo->directedPredicatePart2()) {
@@ -633,10 +633,8 @@ Ptr makeCastSpecification(GQLParser::CastSpecificationContext *context, GQLParse
       operand = castAny<Ptr>(visitor.visit(cast_operand->valueExpression()));
   }
 
-  String target_type;
-  if (auto *target = context->castTarget()) target_type = getText(target);
-
-  return GQLExpr::castExpr(std::move(operand), target_type);
+  auto *target = context->castTarget();
+  return GQLExpr::castExpr(std::move(operand), makeValueType(nullptr, target ? target->valueType() : nullptr));
 }
 
 std::any GQLParseTreeVisitor::visitSearchCondition(GQLParser::SearchConditionContext *context) {
@@ -711,7 +709,7 @@ std::any GQLParseTreeVisitor::visitPredicateExprAlt(GQLParser::PredicateExprAltC
   if (auto *value_type_predicate = predicate->valueTypePredicate()) {
     const String op = value_type_predicate->valueTypePredicatePart2()->NOT() ? "IS NOT TYPED" : "IS TYPED";
     return GQLExpr::binaryOp(op, castAny<Ptr>(visit(value_type_predicate->valueExpressionPrimary())),
-                             GQLExpr::literal(getText(value_type_predicate->valueTypePredicatePart2()->valueType())));
+                             makeValueType(nullptr, value_type_predicate->valueTypePredicatePart2()->valueType()));
   }
 
   if (auto *directed_predicate = predicate->directedPredicate()) {

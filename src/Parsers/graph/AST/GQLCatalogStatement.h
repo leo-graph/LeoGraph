@@ -110,7 +110,6 @@ public:
     SourceKind source_kind = SourceKind::None;
     Ptr source_reference;
     Ptr copy_source;
-    String source_text;
 
 protected:
     void formatImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override
@@ -191,13 +190,11 @@ private:
                     source_reference->format(ostr, settings, state, frame);
                 break;
             case SourceKind::NestedSpec:
-                if (!source_text.empty())
-                    ostr << " " << source_text;
+                ostr << " ";
+                if (source_reference)
+                    source_reference->format(ostr, settings, state, frame);
                 break;
         }
-
-        if (source_kind != SourceKind::None && source_kind != SourceKind::NestedSpec && !source_text.empty())
-            ostr << " " << source_text;
 
         if (copy_source)
         {

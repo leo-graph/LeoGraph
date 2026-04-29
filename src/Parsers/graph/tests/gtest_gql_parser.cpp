@@ -454,6 +454,20 @@ TEST(GQLParser, SimpleMatchClause) {
   EXPECT_EQ(label->text, "Person");
 }
 
+TEST(GQLParser, FormatParseFormatCorpus) {
+  const std::vector<std::string_view> queries = {
+      "RETURN 1 + x",
+      "RETURN ABS(x)",
+      "MATCH (n) RETURN n.name",
+      "LET VALUE y INT = 2 RETURN y",
+      "RETURN CAST(1 AS INT)",
+      "MATCH (n) WHERE n IS TYPED STRING RETURN n",
+      "CREATE GRAPH TYPE gt AS { (:Person {name STRING}) }",
+  };
+
+  for (auto query : queries) assertNormalizedRoundTrip(query);
+}
+
 TEST(GQLParser, OptionalMatchRequiresGQLDialect) {
   EXPECT_THROW((void)parseTopLevelOrThrow("OPTIONAL MATCH (a) RETURN a"), DB::Exception);
 }
@@ -760,7 +774,7 @@ TEST(GQLParser, NestedQueryPreservesStructuredSchemaAndBindings) {
   ASSERT_NE(binding_definition, nullptr);
   EXPECT_EQ(binding_definition->kind, GAST::GQLBindingVariableDefinition::Kind::Value);
   EXPECT_EQ(binding_definition->name, "x");
-  EXPECT_TRUE(binding_definition->raw_type.empty());
+  EXPECT_EQ(binding_definition->type, nullptr);
   const auto* initializer = getBindingInitializer(binding_definition->initializer);
   ASSERT_NE(initializer, nullptr);
   EXPECT_EQ(initializer->kind, GAST::GQLBindingInitializer::Kind::Value);
@@ -1204,14 +1218,18 @@ TEST(GQLParser, LetClauseBuildsStructuredItems) {
   ASSERT_NE(binding_assignment, nullptr);
   EXPECT_EQ(binding_assignment->name, "x");
   EXPECT_FALSE(binding_assignment->value_keyword);
-  EXPECT_TRUE(binding_assignment->raw_type.empty());
+  EXPECT_EQ(binding_assignment->type, nullptr);
   EXPECT_EQ(getExpr(binding_assignment->value)->text, "1");
 
   const auto* value_assignment = getAssignmentItem(let_clause->items[1]);
   ASSERT_NE(value_assignment, nullptr);
   EXPECT_EQ(value_assignment->name, "y");
   EXPECT_TRUE(value_assignment->value_keyword);
-  EXPECT_EQ(value_assignment->raw_type, "INT");
+  ASSERT_NE(value_assignment->type, nullptr);
+  const auto* assignment_type = value_assignment->type->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(assignment_type, nullptr);
+  EXPECT_EQ(assignment_type->kind, GAST::GQLTypeExpression::Kind::Name);
+  EXPECT_EQ(assignment_type->name, "INT");
   EXPECT_EQ(getExpr(value_assignment->value)->text, "2");
   EXPECT_EQ(formatAST(*let_clause), "LET x = 1, VALUE y INT = 2");
 }
@@ -1953,7 +1971,7 @@ TEST(GQLParser, DirectedPredicateMarkerStaysLiteral) {
   EXPECT_EQ(right->text, "DIRECTED");
 }
 
-TEST(GQLParser, ValueTypePredicateMarkerStaysLiteral) {
+TEST(GQLParser, ValueTypePredicateBuildsTypeAst) {
   auto ast = parseGraphOrThrow("MATCH (a) WHERE a IS TYPED STRING RETURN a");
   const auto* clauses = getClausesQuery(ast);
   ASSERT_NE(clauses, nullptr);
@@ -1968,10 +1986,10 @@ TEST(GQLParser, ValueTypePredicateMarkerStaysLiteral) {
   EXPECT_EQ(predicate->text, "IS TYPED");
   ASSERT_EQ(predicate->children.size(), 2);
 
-  const auto* right = getExpr(predicate->children[1]);
+  const auto* right = predicate->children[1]->as<GAST::GQLTypeExpression>();
   ASSERT_NE(right, nullptr);
-  EXPECT_EQ(right->kind, GAST::GQLExpr::Kind::Literal);
-  EXPECT_EQ(right->text, "STRING");
+  EXPECT_EQ(right->kind, GAST::GQLTypeExpression::Kind::Name);
+  EXPECT_EQ(right->name, "STRING");
 }
 
 TEST(GQLParser, PropertyExistsPredicateBecomesFunctionCall) {
@@ -4204,8 +4222,10 @@ TEST(GQLParser, CastSpecification) {
   const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::Cast);
-  EXPECT_EQ(expr->text, "INT32");
-  ASSERT_EQ(expr->children.size(), 1);
+  ASSERT_EQ(expr->children.size(), 2);
+  const auto* cast_type = expr->children[1]->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(cast_type, nullptr);
+  EXPECT_EQ(cast_type->name, "INT32");
   EXPECT_EQ(formatAST(*clauses), "RETURN CAST(a.score AS INT32)");
 }
 
@@ -4219,8 +4239,10 @@ TEST(GQLParser, CastNullOperand) {
   const auto* expr = getExpr(ret->items[0]);
   ASSERT_NE(expr, nullptr);
   EXPECT_EQ(expr->kind, GAST::GQLExpr::Kind::Cast);
-  EXPECT_EQ(expr->text, "STRING");
-  ASSERT_EQ(expr->children.size(), 1);
+  ASSERT_EQ(expr->children.size(), 2);
+  const auto* cast_type = expr->children[1]->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(cast_type, nullptr);
+  EXPECT_EQ(cast_type->name, "STRING");
   const auto* null_operand = getExpr(expr->children[0]);
   ASSERT_NE(null_operand, nullptr);
   EXPECT_EQ(null_operand->kind, GAST::GQLExpr::Kind::SpecialValue);
@@ -6380,6 +6402,70 @@ TEST(GQLParser, CatalogCreateGraphTypeCopyOf) {
   ASSERT_NE(type_ref, nullptr);
   EXPECT_EQ(type_ref->name, "gt1");
   EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH TYPE gt2 COPY OF gt1");
+}
+
+TEST(GQLParser, CatalogCreateGraphTypeNestedSpecBuildsGraphTypeAst) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH TYPE gt AS { (:Person {name STRING}) }");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = getCatalogStatement(ast);
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraphType);
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::NestedSpec);
+  ASSERT_NE(stmt->source_reference, nullptr);
+
+  const auto* graph_type = stmt->source_reference->as<GAST::GQLGraphTypeSpecification>();
+  ASSERT_NE(graph_type, nullptr);
+  ASSERT_EQ(graph_type->children.size(), 1);
+
+  const auto* node_type = graph_type->children[0]->as<GAST::GQLElementTypeSpecification>();
+  ASSERT_NE(node_type, nullptr);
+  EXPECT_EQ(node_type->kind, GAST::GQLElementTypeSpecification::Kind::Node);
+  ASSERT_EQ(node_type->labels.size(), 1);
+  EXPECT_EQ(node_type->labels[0], "Person");
+  ASSERT_NE(node_type->properties, nullptr);
+
+  const auto* properties = node_type->properties->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(properties, nullptr);
+  ASSERT_EQ(properties->children.size(), 1);
+  const auto* property = properties->children[0]->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(property, nullptr);
+  EXPECT_EQ(property->kind, GAST::GQLTypeExpression::Kind::Field);
+  EXPECT_EQ(property->name, "name");
+  ASSERT_EQ(property->children.size(), 1);
+  const auto* property_type = property->children[0]->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(property_type, nullptr);
+  EXPECT_EQ(property_type->name, "STRING");
+  EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH TYPE gt {(:Person {name STRING})}");
+  assertASTContract(ast);
+}
+
+TEST(GQLParser, CatalogCreateGraphTypedNestedSpecBuildsTypeAst) {
+  auto ast = parseDMLOrThrow("CREATE GRAPH g TYPED GRAPH { (:Person)-[:KNOWS {since INT}]->(:Person) }");
+  ASSERT_NE(ast, nullptr);
+  const auto* stmt = getCatalogStatement(ast);
+  ASSERT_NE(stmt, nullptr);
+  EXPECT_EQ(stmt->kind, GAST::GQLCatalogStatement::Kind::CreateGraph);
+  EXPECT_EQ(stmt->source_kind, GAST::GQLCatalogStatement::SourceKind::NestedSpec);
+  ASSERT_NE(stmt->source_reference, nullptr);
+
+  const auto* graph_ref_type = stmt->source_reference->as<GAST::GQLTypeExpression>();
+  ASSERT_NE(graph_ref_type, nullptr);
+  EXPECT_EQ(graph_ref_type->kind, GAST::GQLTypeExpression::Kind::GraphReference);
+  EXPECT_EQ(graph_ref_type->prefix, GAST::GQLTypeExpression::Prefix::Typed);
+  ASSERT_EQ(graph_ref_type->children.size(), 1);
+
+  const auto* graph_type = graph_ref_type->children[0]->as<GAST::GQLGraphTypeSpecification>();
+  ASSERT_NE(graph_type, nullptr);
+  ASSERT_EQ(graph_type->children.size(), 1);
+  const auto* edge_type = graph_type->children[0]->as<GAST::GQLElementTypeSpecification>();
+  ASSERT_NE(edge_type, nullptr);
+  EXPECT_EQ(edge_type->kind, GAST::GQLElementTypeSpecification::Kind::Edge);
+  EXPECT_EQ(edge_type->direction, GAST::EdgeDirection::Right);
+  ASSERT_EQ(edge_type->labels.size(), 1);
+  EXPECT_EQ(edge_type->labels[0], "KNOWS");
+  ASSERT_NE(edge_type->properties, nullptr);
+  EXPECT_EQ(formatAST(*stmt), "CREATE GRAPH g TYPED GRAPH {(:Person)-[:KNOWS {since INT}]->(:Person)}");
+  assertASTContract(ast);
 }
 
 TEST(GQLParser, CatalogCreateGraphLikeGraph) {

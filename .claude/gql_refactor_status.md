@@ -63,12 +63,14 @@ The currently supported minimal path is:
 - simple set queries such as `UNION`, `UNION ALL`, and `EXCEPT`
 - DML (`INSERT`, `SET`, `REMOVE`, `DELETE`) and catalog DDL (`CREATE` / `DROP` schema, graph, graph type) through `ParserGQLQuery` / `parseStatement`
 
-### Parser-only raw text policy
+### Parser-only AST reuse and raw text policy
 
-- `GQLCatalogStatement::source_text` is reserved for `NestedSpec` graph-type specifications and represents a deferred AST subtree.
-- `GQLAssignmentItem::raw_type` and `GQLBindingVariableDefinition::raw_type` remain raw type strings for parser-only v1; do not design a full type AST in this phase.
-- Plain literal tokens may stay as `GQLExpr::Kind::Literal`; raw text should be reduced only when it loses obvious graph-reference, catalog-name, graph-source, or expression structure.
-- New or changed `GQL*` nodes must keep `children` dense and non-null, deep-copy owned children in `clone`, and round-trip through normalized `formatAST`.
+- Use ClickHouse-native AST nodes for expression pieces whose semantics are identical to ClickHouse SQL, such as plain identifiers, literals, ordinary functions, and ordinary operators. Keep this behind graph visitor helper constructors so migration is incremental.
+- Keep GQL-specific semantics in `GQL*` nodes: property access, graph / binding-table expressions, path / value queries, pattern trees, type predicates, `GQLTypeExpression`, and `GQLGraphTypeSpecification`.
+- Typed declarations in `LET VALUE`, nested procedure binding definitions, `CAST`, and `IS TYPED` are structured with `GQLTypeExpression` instead of raw type strings.
+- Nested graph-type specifications in catalog DDL are structured with `GQLGraphTypeSpecification` / `GQLElementTypeSpecification`; do not reintroduce `GQLCatalogStatement::source_text` for this path.
+- Plain literal tokens may stay as parser leaves when no catalog, graph-reference, expression, or type structure is lost.
+- New or changed AST nodes must keep `children` dense and non-null, deep-copy owned children in `clone`, and round-trip through normalized `formatAST`.
 
 ### Current `throwUnsupported` coverage map
 
@@ -172,9 +174,9 @@ This section tracks the concrete places that are still incomplete or intentional
    - The current production entry is `gqlStatement -> statement EOF`; full `gqlProgram` with session and transaction activity is parsed only by the unused helper path.
    - If full standard coverage becomes a goal, add AST nodes and tests for `SESSION SET`, `SESSION RESET`, `SESSION CLOSE`, `START TRANSACTION`, `COMMIT`, and `ROLLBACK` before switching entry points.
 
-2. Replace raw graph-type and value-type text with structured AST after parser-only v1.
-   - `GQLCatalogStatement::source_text`, `GQLAssignmentItem::raw_type`, and `GQLBindingVariableDefinition::raw_type` are intentional parser-only placeholders today.
-   - A later phase should introduce graph type, node type, edge type, property type, and value type AST nodes so nested graph type specifications are no longer opaque strings.
+2. Continue hardening structured type AST coverage.
+   - `GQLTypeExpression` and `GQLGraphTypeSpecification` now replace the old raw type placeholders for typed declarations and nested graph-type catalog DDL.
+   - Follow-up work should expand graph type phrase forms, key-label-set metadata, and complex type leaf normalization only from concrete parser inputs.
 
 3. Define the parser / semantic-analysis boundary for type-validity checks.
    - The grammar intentionally accepts broad combinations for numeric, datetime, duration, string, list, path, and typed expressions.

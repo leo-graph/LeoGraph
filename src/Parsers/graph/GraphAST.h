@@ -22,6 +22,7 @@
 #include <Parsers/graph/AST/GQLForClause.h>
 #include <Parsers/graph/AST/GQLGraphExpression.h>
 #include <Parsers/graph/AST/GQLGraphPatternBlock.h>
+#include <Parsers/graph/AST/GQLGraphTypeSpecification.h>
 #include <Parsers/graph/AST/GQLGroupByClause.h>
 #include <Parsers/graph/AST/GQLInsertClause.h>
 #include <Parsers/graph/AST/GQLKeepClause.h>
@@ -57,6 +58,7 @@
 #include <Parsers/graph/AST/GQLSingleQuery.h>
 #include <Parsers/graph/AST/GQLSubquery.h>
 #include <Parsers/graph/AST/GQLSubqueryNextClause.h>
+#include <Parsers/graph/AST/GQLTypeExpression.h>
 #include <Parsers/graph/AST/GQLUseClause.h>
 #include <Parsers/graph/AST/GQLWhereClause.h>
 #include <Parsers/graph/AST/GQLYieldClause.h>

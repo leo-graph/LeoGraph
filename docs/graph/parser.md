@@ -114,7 +114,7 @@ The current implementation supports the parser-facing slice that is already stab
 
 - `SESSION` / `START TRANSACTION` (session management)
 - binder, interpreter, storage, catalog execution, and query-plan lowering
-- full type AST for graph / binding-variable type declarations; parser-only v1 keeps raw type strings there
+- semantic validation for type compatibility and catalog references; the parser only builds syntactic `GQLTypeExpression` / `GQLGraphTypeSpecification` nodes
 - GQL text in ordinary ClickHouse sessions; production GQL parsing requires explicit `dialect = gql` / `query_language = gql`
 
 ## Graph AST Design
@@ -272,13 +272,15 @@ The current parser work therefore focuses on making:
 
 as complete and stable as possible before widening the top-level routing rules in `ParserQuery`.
 
-### Raw Text Policy
+### AST Reuse And Raw Text Policy
 
-The AST contract should keep obvious graph, catalog, and expression structure in typed `GQL*` nodes instead of storing source slices. Current acceptable raw-text fields are deliberately narrow:
+The AST contract should keep obvious graph, catalog, expression, and type structure in typed AST nodes instead of storing source slices. The parser layer now uses two complementary representations:
 
-- `GQLCatalogStatement::source_text` is only for `NestedSpec` graph-type specifications, which remain a deferred AST subtree.
-- `GQLAssignmentItem::raw_type` and `GQLBindingVariableDefinition::raw_type` are temporary parser-only v1 strings for type declarations; designing a full type AST is out of scope for this front-end slice.
-- Plain literal tokens can stay as `GQLExpr::Kind::Literal`; only raw text that loses catalog, graph-reference, or expression structure should be reduced further.
+- Semantically identical ClickHouse SQL expression pieces should be built through ClickHouse-native AST nodes where practical, such as `ASTIdentifier`, `ASTLiteral`, `ASTFunction`, and `ASTExpressionList`. The graph visitor exposes helper constructors for this boundary so future migration is incremental instead of ad hoc.
+- GQL-specific syntax stays in `GQL*` nodes: property access, graph / binding-table expressions, path / value queries, pattern trees, type predicates, `GQLTypeExpression`, and `GQLGraphTypeSpecification`.
+- Typed declarations in `LET VALUE`, nested procedure binding definitions, `CAST`, and `IS TYPED` use `GQLTypeExpression` instead of raw type strings.
+- Nested graph-type specifications in catalog DDL use `GQLGraphTypeSpecification` / `GQLElementTypeSpecification` instead of `GQLCatalogStatement::source_text`.
+- Plain literal tokens can still stay as parser leaves when no catalog, graph-reference, expression, or type structure is lost.
 
 New or changed AST nodes should preserve a dense non-null `children` list, deep-copy all owned children in `clone`, and produce normalized `formatAST` output that can be reparsed through `ParserGQLQuery` / `parseStatement`.
 

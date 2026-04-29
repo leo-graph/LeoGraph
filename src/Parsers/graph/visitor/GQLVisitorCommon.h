@@ -1,5 +1,8 @@
 #pragma once
 #include <Common/Exception.h>
+#include <Parsers/ASTExpressionList.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Parsers/graph/visitor/GQLParseTreeVisitor.h>
 
 // `antlr4-common.h` undefines `EOF`, but `boost::multiprecision` still relies on it.
@@ -34,6 +37,23 @@ inline Ptr makeAliasedItem(Ptr expression, String alias = {}) {
   return Ptr(make_intrusive<GQLAliasedItem>(std::move(expression), std::move(alias)));
 }
 
+inline Ptr makeNativeIdentifier(String name) { return Ptr(make_intrusive<ASTIdentifier>(std::move(name))); }
+
+inline Ptr makeNativeFunction(String name, PtrList arguments) {
+  auto function = make_intrusive<ASTFunction>();
+  function->name = std::move(name);
+  function->arguments = make_intrusive<ASTExpressionList>();
+  function->arguments->children = std::move(arguments);
+  function->children.push_back(function->arguments);
+  return Ptr(function);
+}
+
+inline Ptr makeNativeOperator(String name, PtrList arguments) {
+  auto function = makeNativeFunction(std::move(name), std::move(arguments));
+  if (auto *native_function = function->as<ASTFunction>()) native_function->setIsOperator(true);
+  return function;
+}
+
 struct PatternBindingTable {
   GraphMatchMode match_mode = GraphMatchMode::None;
   Ptr keep_clause;
@@ -62,6 +82,13 @@ struct ResultTail {
 };
 
 Ptr makeOrderByAndPageClause(ResultTail &&tail);
+Ptr makeValueType(GQLParser::TypedContext *typed_context, GQLParser::ValueTypeContext *type_context);
+Ptr makeGraphReferenceValueType(GQLParser::TypedContext *typed_context, GQLParser::GraphReferenceValueTypeContext *type_context);
+Ptr makeBindingTableReferenceValueType(GQLParser::TypedContext *typed_context,
+                                       GQLParser::BindingTableReferenceValueTypeContext *type_context);
+Ptr makeNestedGraphTypeSpecification(GQLParser::NestedGraphTypeSpecificationContext *context);
+Ptr makeNodeTypeSpecification(GQLParser::NodeTypeSpecificationContext *context);
+Ptr makeEdgeTypeSpecification(GQLParser::EdgeTypeSpecificationContext *context);
 
 inline CombinedQueryOperator getCombinedQueryOperator(GQLParser::CompositeQueryExpressionContext *context) {
   if (auto *conjunction = context->queryConjunction()) {
@@ -121,24 +148,6 @@ inline String getElementVariableName(GQLParser::ElementVariableReferenceContext 
   auto *binding_reference = context ? context->bindingVariableReference() : nullptr;
   auto *binding_variable = binding_reference ? binding_reference->bindingVariable() : nullptr;
   return getText(binding_variable);
-}
-
-inline String getTypedRawType(GQLParser::TypedContext *typed_context, antlr4::ParserRuleContext *type_context) {
-  String result;
-
-  if (typed_context) {
-    result += getText(typed_context);
-  }
-
-  if (type_context) {
-    if (!result.empty()) {
-      result += " ";
-    }
-
-    result += getText(type_context);
-  }
-
-  return result;
 }
 
 inline std::vector<String> getDirectoryParts(GQLParser::SimpleDirectoryPathContext *context) {

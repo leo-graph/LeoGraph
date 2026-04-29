@@ -85,7 +85,9 @@ class GQLDeleteClause;
 class GQLExpr;
 class GQLFinishClause;
 class GQLForClause;
+class GQLElementTypeSpecification;
 class GQLGroupByClause;
+class GQLGraphTypeSpecification;
 class GQLLabelExpression;
 class GQLListConstructor;
 class GQLPropertyItem;
@@ -127,6 +129,7 @@ class GQLSubqueryNextClause;
 class GQLSimplifiedPathExpr;
 class GQLSimplifiedPathPattern;
 class GQLSingleQuery;
+class GQLTypeExpression;
 class GQLUseClause;
 class GQLYieldClause;
 
