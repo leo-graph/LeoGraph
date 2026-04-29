@@ -129,6 +129,8 @@ Current parser-only priority is `GQL text -> normalized GQL IAST`. Do not spend 
 
 This section tracks the concrete places that are still incomplete or intentionally deferred in the current `GQL` parser-to-AST work. Use it as implementation direction for follow-up parser branches.
 
+For interpreter / lowering handoff, use `docs/graph/gql_ast_interpreter_todo.md` as the current self-check document. It lists the stable AST surface, known parser gaps, and the fail-closed behavior expected from interpreter work.
+
 ### Parser-only v1 TODOs
 
 1. Preserve the `ParserGQLQuery` driver contract in docs and tests.
@@ -136,9 +138,9 @@ This section tracks the concrete places that are still incomplete or intentional
    - `allow_multi_statements` is currently ignored by the GQL driver because ClickHouse SQL token splitting is intentionally bypassed. If GQL multiquery support becomes necessary, design it explicitly instead of reintroducing ad-hoc semicolon splitting.
    - Keep tests for trailing semicolons, multi-statement rejection, explicit `Dialect::gql` dispatch, and ClickHouse-mode non-sniffing behavior.
 
-2. Preserve `ORDER BY ... NULLS FIRST/LAST`.
-   - Current grammar parses `nullOrdering`, but `GQLOrderByItem` only stores expression + descending flag.
-   - Add a nullable-ordering field to `GQLOrderByItem`, teach `visitSortSpecification` to populate it, update `formatImpl`, `clone`, and add round-trip tests for `NULLS FIRST` / `NULLS LAST`.
+2. Keep `ORDER BY ... NULLS FIRST/LAST` covered.
+   - `GQLOrderByItem` now stores `NullOrdering` and `visitSortSpecification` preserves `NULLS FIRST` / `NULLS LAST`.
+   - Keep round-trip and AST contract tests when adding new paging / ordering shapes.
 
 3. Tighten the active `throwUnsupported(...)` map with executable examples.
    - The remaining guardrails in expression, reference, and query-shape visitors should stay until a concrete input reaches them.
@@ -160,9 +162,9 @@ This section tracks the concrete places that are still incomplete or intentional
    - Existing tests cover many `Dialect::gql` routes; keep extending that matrix when new grammar shapes are enabled.
    - Useful additions: semicolon handling, multi-statement rejection, `SKIP` normalization, qualified procedure calls, qualified binding-table references, and unsupported full-program commands.
 
-8. Build a small `formatAST -> parse -> formatAST` idempotence corpus.
-   - Cover canonical query, pattern, expression, DML, and catalog DDL inputs.
-   - Each case should assert root kind, key fields, dense non-null `children`, `clone` deep-copy behavior, and normalized round-trip formatting.
+8. Keep extending the `formatAST -> parse -> formatAST` idempotence corpus.
+   - A small corpus now covers canonical query, pattern, expression, DML, and catalog DDL inputs.
+   - Each new feature should keep asserting root kind, key fields, dense non-null `children`, `clone` deep-copy behavior, and normalized round-trip formatting.
 
 9. Keep grammar generation reproducible across macOS and Linux.
    - Document the expected `ANTLR` tool version, the macOS `brew` path, the Linux jar path, and the generated-file check workflow.
