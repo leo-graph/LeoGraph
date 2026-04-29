@@ -9,6 +9,10 @@ doc_type: 'reference'
 
 # Graph Operators - Expand Execution Model
 
+> Status: target design. The current repository does not yet implement
+> `GraphScanStep`, `GraphExpandStep`, `GraphMultiHopExpandStep`, or graph-specific
+> runtime processors. The current implemented layer is the `GQL` parser and AST.
+
 This document describes the expand-based (BFS) execution model for graph queries, including the design of graph-specific `QueryPlanStep` and `IProcessor` implementations.
 
 ## Why Expand, Not Join

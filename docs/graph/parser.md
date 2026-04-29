@@ -1,5 +1,5 @@
 ---
-description: 'GQL Parser design: ANTLR4 integration and Graph AST'
+description: 'GQL Parser design: ANTLR4 integration and GQL AST'
 sidebar_label: 'GQL Parser'
 sidebar_position: 82
 slug: /development/graph/parser
@@ -10,6 +10,10 @@ doc_type: 'reference'
 # GQL Parser Design
 
 This document describes how the GQL (Graph Query Language, ISO/IEC 39075) parser is integrated into ClickHouse using ANTLR4.
+
+The current implementation is parser-only. It builds normalized ClickHouse
+`IAST` nodes for supported `GQL` syntax, but it does not execute graph queries
+yet.
 
 ## ANTLR4 Integration
 
@@ -27,7 +31,8 @@ src/Parsers/Prometheus/
   PrometheusQueryParsingUtil-antlr.cpp  -- ANTLR ParseTree -> ClickHouse AST
 ```
 
-The GQL parser follows the exact same pattern.
+The GQL parser reuses the same ANTLR4 runtime pattern, but keeps the local `GQL`
+grammar and generated sources under `src/Parsers/graph`.
 
 ### Grammar Source
 
@@ -37,47 +42,31 @@ Key characteristics of the grammar:
 
 - **Case-insensitive** keywords (`options { caseInsensitive = true; }`)
 - **Combined** lexer and parser rules in a single `GQL.g4` file
-- Covers the full GQL standard: `MATCH`, `RETURN`, `WHERE`, `INSERT`, `DELETE`, DDL, session management, transactions
+- The upstream grammar covers the broad GQL standard surface, including `MATCH`,
+  `RETURN`, `WHERE`, DML, DDL, session management, and transactions. The current
+  production LeoGraph entry intentionally parses one executable `statement`, not
+  the full `gqlProgram`.
 
-### Build Pipeline
+### Local Grammar And Generated Sources
 
 ```
-GQL.g4  ──(ANTLR4 tool)──>  GQLLexer.cpp / GQLParser.cpp / GQLVisitor.cpp
-                                    |
-                              (compiled into)
-                                    |
-                            ch_contrib::gql_grammar
-                                    |
-                              (linked by)
-                                    |
-                          src/Parsers/Graph/  (GQLParsingUtil.cpp)
+src/Parsers/graph/grammar/GQL.g4
+  -> src/Parsers/graph/grammar/generate.sh
+  -> src/Parsers/graph/generated/GQLLexer.*
+  -> src/Parsers/graph/generated/GQLParser.*
+  -> src/Parsers/graph/generated/GQLVisitor.*
+  -> src/Parsers/graph/visitor/GQLParseTreeVisitor*
+  -> src/Parsers/graph/AST/GQL*
 ```
 
-CMake configuration:
+After changing `GQL.g4`, regenerate the parser sources with:
 
-```cmake
-# contrib/gql-grammar-cmake/CMakeLists.txt
-set(GQL_GRAMMAR_DIR "${ClickHouse_SOURCE_DIR}/contrib/gql-grammar")
-set(GQL_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-
-add_custom_command(
-    OUTPUT
-        ${GQL_GENERATED_DIR}/GQLLexer.cpp
-        ${GQL_GENERATED_DIR}/GQLParser.cpp
-        ${GQL_GENERATED_DIR}/GQLBaseVisitor.cpp
-    COMMAND ${ANTLR4_EXECUTABLE} -Dlanguage=Cpp -visitor -no-listener
-            -o ${GQL_GENERATED_DIR}
-            ${GQL_GRAMMAR_DIR}/GQL.g4
-    DEPENDS ${GQL_GRAMMAR_DIR}/GQL.g4
-)
-
-add_library(ch_contrib::gql_grammar STATIC
-    ${GQL_GENERATED_DIR}/GQLLexer.cpp
-    ${GQL_GENERATED_DIR}/GQLParser.cpp
-    ${GQL_GENERATED_DIR}/GQLBaseVisitor.cpp
-)
-target_link_libraries(ch_contrib::gql_grammar PUBLIC ch_contrib::antlr4_runtime)
+```bash
+./src/Parsers/graph/grammar/generate.sh
 ```
+
+See `src/Parsers/graph/grammar/README.md` for platform-specific generator
+notes.
 
 ## Current Lowering-Facing Slice
 

@@ -9,6 +9,10 @@ doc_type: 'reference'
 
 # Graph Catalog and Table Mapping
 
+> Status: target design. The current repository has parser-level catalog DDL AST
+> support, but graph catalog execution, metadata persistence, and system table
+> integration are not implemented yet.
+
 This document describes how property graph definitions are managed and how they map to underlying ClickHouse tables.
 
 ## Overview

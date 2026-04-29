@@ -1,207 +1,179 @@
 ---
-description: 'Detailed architecture of the Graph-on-ClickHouse engine'
+description: 'LeoGraph architecture: current parser implementation and target graph execution layers'
 sidebar_label: 'Architecture'
 sidebar_position: 81
 slug: /development/graph/architecture
-title: 'Graph Engine Architecture'
+title: 'LeoGraph Architecture'
 doc_type: 'reference'
 ---
 
-# Graph Engine Architecture
+# LeoGraph Architecture
 
-This document describes the detailed architecture of Graph-on-ClickHouse, including module interactions, data flow, and integration points with the ClickHouse core.
+LeoGraph is being developed in layers. The current implemented layer is the
+`GQL` parser and AST contract. Catalog execution, interpreter lowering, and
+graph-specific query-plan operators are target architecture, not current runtime
+behavior.
 
-## System Layers
+## Current Implementation: Parser and AST
 
-```
-+================================================================+
-|                       GQL Query Text                            |
-+================================================================+
-                              |
-+-----------------------------v----------------------------------+
-| Layer 1: Parsing                                                |
-|                                                                 |
-|  ParserGQLQuery (selected by Dialect::gql)                      |
-|    -> ANTLR4 GQL Lexer/Parser (generated from GQL.g4)          |
-|    -> GQLParsingUtil: ANTLR ParseTree -> Graph AST              |
-|                                                                 |
-|  Output: ASTGraphQuery (or ASTCreateGraphStatement, etc.)       |
-+---------------------------------+------------------------------+
-                                  |
-+---------------------------------v------------------------------+
-| Layer 2: Interpretation                                         |
-|                                                                 |
-|  InterpreterFactory                                             |
-|    -> ASTGraphQuery       => InterpreterGraphQuery              |
-|    -> ASTCreateGraphStmt  => InterpreterCreateGraph             |
-|    -> ASTDropGraphStmt    => InterpreterDropGraph               |
-|                                                                 |
-|  InterpreterGraphQuery:                                         |
-|    1. Resolve graph from GraphCatalog                           |
-|    2. Extract MATCH patterns from AST                           |
-|    3. Build expand-based QueryPlan                              |
-|    4. Apply filters from WHERE clause                           |
-|    5. Build RETURN projection                                   |
-|                                                                 |
-|  Output: QueryPlan (tree of IQueryPlanStep)                     |
-+---------------------------------+------------------------------+
-                                  |
-+---------------------------------v------------------------------+
-| Layer 3: Graph Query Plan                                       |
-|                                                                 |
-|  Graph-specific steps:                                          |
-|    GraphScanStep        - Scan vertex/edge table                |
-|    GraphExpandStep      - Single-hop BFS expand                 |
-|    GraphMultiHopStep    - Multi-hop iterative BFS               |
-|                                                                 |
-|  Reused ClickHouse steps:                                       |
-|    FilterStep           - WHERE conditions                      |
-|    ExpressionStep       - Property access, computations         |
-|    SortingStep          - ORDER BY                              |
-|    LimitStep            - LIMIT                                 |
-|    DistinctStep         - DISTINCT                              |
-|    AggregatingStep      - Aggregations in RETURN                |
-|                                                                 |
-|  Output: QueryPipeline (DAG of IProcessor)                      |
-+---------------------------------+------------------------------+
-                                  |
-+---------------------------------v------------------------------+
-| Layer 4: Pipeline Execution (reused from ClickHouse)            |
-|                                                                 |
-|  Graph-specific processors:                                     |
-|    GraphExpandTransform       - Core expand logic               |
-|    GraphVertexLookupTransform - Vertex property retrieval       |
-|    GraphFrontierTracker       - Visited-set management          |
-|                                                                 |
-|  Reused ClickHouse processors:                                  |
-|    ReadFromMergeTree          - Table reads                     |
-|    FilterTransform            - Row filtering                   |
-|    ExpressionTransform        - Expression evaluation           |
-|                                                                 |
-|  PipelineExecutor drives execution                              |
-+---------------------------------+------------------------------+
-                                  |
-+---------------------------------v------------------------------+
-| Layer 5: Storage (ClickHouse native)                            |
-|                                                                 |
-|  Vertex tables: standard MergeTree / ReplacingMergeTree         |
-|  Edge tables:   standard MergeTree                              |
-|  Graph catalog: metadata persisted to disk                      |
-+----------------------------------------------------------------+
+The current parser pipeline is:
+
+```text
+GQL query text
+  -> explicit Dialect::gql dispatch
+  -> ParserGQLQuery
+  -> GQLParserUtils::parseStatement
+  -> ANTLR4 gqlStatement -> statement EOF
+  -> GQLParseTreeVisitor
+  -> GQL* IAST
 ```
 
-## Module Interactions
+Important properties of the current pipeline:
 
-### Parsing -> Interpretation
+- `GQL` text is parsed only when the session or caller selects `Dialect::gql`.
+- Ordinary ClickHouse `ParserQuery` does not sniff graph-looking prefixes such as
+  `MATCH`, `USE`, or graph-shaped `SELECT`.
+- `ParserGQLQuery` is a small dialect-specific parser wrapper, not an
+  `IParserBase` implementation.
+- The parser bypasses ClickHouse SQL token splitting and sends the complete
+  caller-provided `GQL` span to ANTLR.
+- The parser currently validates and builds AST only. A successfully parsed
+  statement can still fail later with `UNKNOWN_TYPE_OF_QUERY` because no graph
+  interpreter is registered yet.
 
-`ParserGQLQuery` is selected only when the session uses `Dialect::gql` (or the `query_language = gql` alias). Ordinary ClickHouse `ParserQuery` does not auto-detect graph-shaped prefixes; GQL text in ClickHouse mode is rejected instead of being converted into `GQL*` AST nodes.
+## Source Layout
 
-The `InterpreterFactory` maps Graph AST types to their interpreters:
+Current parser-related code lives under lowercase `src/Parsers/graph`:
 
-| AST Type | Interpreter |
-|----------|------------|
-| `ASTGraphQuery` | `InterpreterGraphQuery` |
-| `ASTCreateGraphStatement` | `InterpreterCreateGraph` |
-| `ASTDropGraphStatement` | `InterpreterDropGraph` |
+```text
+src/Parsers/graph/
+  ParserGQLQuery.h
+  ParserGQLQuery.cpp
+  GQLParserUtils.h
+  GQLParserUtils.cpp
+  GraphAST.h
+  fwd_decl.h
 
-### Interpretation -> Query Plan
+  grammar/
+    GQL.g4
+    README.md
+    generate.sh
 
-`InterpreterGraphQuery` is the central coordinator. Given a `MATCH` pattern, it:
+  generated/
+    GQLLexer.*
+    GQLParser.*
+    GQLVisitor.*
+    GQLBaseVisitor.*
 
-1. Looks up the property graph definition in `GraphCatalog`.
-2. Resolves each node/edge pattern to its underlying ClickHouse table via `VertexTableMapping` / `EdgeTableMapping`.
-3. Determines the expand order (which vertex to start from, based on selectivity hints).
-4. Generates a chain of `GraphScanStep` -> `GraphExpandStep` -> ... steps.
-5. Attaches `FilterStep` for WHERE conditions, pushing predicates as close to scans as possible.
-6. Adds projection for the RETURN clause.
+  AST/
+    GQLSingleQuery.h
+    GQLCombinedQuery.h
+    GQLSubquery.h
+    GQLCatalogStatement.h
+    ...
 
-### Query Plan -> Pipeline
+  visitor/
+    GQLParseTreeVisitor.h
+    GQLParseTreeVisitorQuery.cpp
+    GQLParseTreeVisitorProjection.cpp
+    GQLParseTreeVisitorPattern.cpp
+    GQLParseTreeVisitorExpression.cpp
+    GQLParseTreeVisitorDML.cpp
+    GQLParseTreeVisitorDDL.cpp
+    GQLParseTreeVisitorType.cpp
 
-Each `IQueryPlanStep::updatePipeline` method converts the logical step into physical processors:
-
-- `GraphScanStep::updatePipeline` creates a `ReadFromMergeTree` source with appropriate filters.
-- `GraphExpandStep::updatePipeline` creates a `GraphExpandTransform` that takes frontier IDs as input and produces expanded results.
-- `GraphMultiHopStep::updatePipeline` creates an iterative loop (similar to `RecursiveCTESource`) that repeatedly applies single-hop expansion.
-
-## Source Directory Layout
-
-```
-src/
-  Graph/                              -- Graph catalog and definitions
-    GraphCatalog.h/cpp
-    GraphDefinition.h
-    VertexTableMapping.h
-    EdgeTableMapping.h
-    GraphCatalogStorage.h/cpp
-
-  Parsers/
-    Graph/                            -- GQL parsing
-      ParserGQLQuery.h/cpp
-      GQLParsingUtil.h/cpp
-      ASTGraphQuery.h
-      ASTGraphPattern.h
-      ASTNodePattern.h
-      ASTEdgePattern.h
-      ASTPathPattern.h
-      ASTReturnClause.h
-      ASTCreateGraphStatement.h
-
-  Interpreters/
-    InterpreterGraphQuery.h/cpp       -- MATCH query execution
-    InterpreterCreateGraph.h/cpp      -- CREATE PROPERTY GRAPH
-    InterpreterDropGraph.h/cpp        -- DROP PROPERTY GRAPH
-
-  Processors/
-    QueryPlan/
-      GraphScanStep.h/cpp             -- Vertex/edge table scan
-      GraphExpandStep.h/cpp           -- Single-hop expand
-      GraphMultiHopExpandStep.h/cpp   -- Multi-hop iterative expand
-    Transforms/
-      GraphExpandTransform.h/cpp      -- Core expand processor
-      GraphVertexLookupTransform.h/cpp -- Vertex property lookup
-
-  Storages/
-    System/
-      StorageSystemGraphs.h/cpp       -- system.graphs
-      StorageSystemGraphVertices.h/cpp -- system.graph_vertices
-      StorageSystemGraphEdges.h/cpp   -- system.graph_edges
-
-contrib/
-  gql-grammar/GQL.g4                 -- GQL ANTLR4 grammar
-  gql-grammar-cmake/CMakeLists.txt   -- Grammar build configuration
+  tests/
+    gtest_gql_parser.cpp
 ```
 
-## Integration with ClickHouse Core
+Older documentation and early branches may mention `src/Parsers/Graph`,
+`ParserGraphQuery`, `GQLParsingUtil`, or `ASTGraphQuery`. Those names belong to
+the historical implementation shape and should not be used for new work.
 
-### Minimal Invasive Changes
+## AST Contract
 
-The graph engine integrates with ClickHouse through well-defined extension points:
+The parser produces ClickHouse-native AST nodes. Graph-specific nodes inherit
+from `IAST` or `ASTWithAlias`; they do not use the earlier kgraph `INode`
+ownership model.
 
-1. **Parser registration**: One `if` branch added to `ParserQuery::parseImpl`.
-2. **Interpreter registration**: Three entries added to `InterpreterFactory`.
-3. **System table registration**: Three entries added to `attachSystemTablesServer`.
-4. **Build system**: Two `add_contrib` entries in `contrib/CMakeLists.txt`.
+The stable public root shapes are:
 
-All graph-specific logic lives in dedicated directories (`src/Graph/`, `src/Parsers/Graph/`, `src/Processors/QueryPlan/Graph*`, `src/Processors/Transforms/Graph*`), minimizing impact on existing code.
+| Root | Purpose |
+|------|---------|
+| `GQLSingleQuery` | Linear query and DML clause sequences. |
+| `GQLCombinedQuery` | Set queries such as `UNION`, `UNION ALL`, and `EXCEPT`. |
+| `GQLSubquery` | Nested procedure bodies and `VALUE { ... }` style subqueries. |
+| `GQLCatalogStatement` | Catalog DDL such as `CREATE` / `DROP` schema, graph, or graph type statements. |
 
-### Reused ClickHouse Components
+AST ownership rules:
 
-| Component | How it is reused |
-|-----------|-----------------|
-| `ReadFromMergeTree` | Scan vertex/edge tables |
-| `FilterTransform` | Apply WHERE conditions |
-| `ExpressionTransform` | Evaluate property expressions |
-| `SortingStep` / `LimitStep` | ORDER BY / LIMIT in RETURN |
-| `AggregatingStep` | Aggregations in RETURN |
-| `DatabaseCatalog` | Resolve underlying table references |
-| `StorageFactory` | Create tables for graph DDL |
-| `Context` | Settings, authentication, quotas |
-| ANTLR4 C++ Runtime | Parse GQL (already in contrib for PromQL) |
+- `IAST::children` must remain dense and non-null.
+- Optional graph children should live in named fields and enter `children` only
+  when present.
+- `clone` must deep-copy owned children.
+- `formatAST -> parse -> formatAST` should preserve normalized output for
+  supported shapes.
 
-### Threading and Resource Management
+## Target Runtime Architecture
 
-Graph query execution reuses ClickHouse's thread pool and memory tracking:
+The intended end-to-end architecture is:
 
-- `GraphExpandTransform` executes within the standard `PipelineExecutor` thread pool.
-- Memory is tracked through ClickHouse's `MemoryTracker` (per-query limits apply).
-- Multi-hop iterations are bounded by a configurable `max_graph_expansion_depth` setting.
+```text
+GQL query text
+  -> ParserGQLQuery
+  -> GQL* IAST
+  -> Graph interpreter / analyzer
+  -> Graph catalog lookup and table mapping
+  -> ClickHouse QueryPlan with graph-specific steps
+  -> ClickHouse QueryPipeline
+  -> MergeTree-backed vertex and edge tables
+```
+
+The future runtime layers are:
+
+| Layer | Target Responsibility | Current State |
+|-------|-----------------------|---------------|
+| Interpreter / analyzer | Resolve graph names, validate AST, bind graph variables, and choose lowering strategy. | Not implemented. |
+| Graph catalog | Store property graph definitions and map labels / properties to ClickHouse tables and columns. | Design only. |
+| Query-plan operators | Represent scans, expand steps, multi-hop traversal, and vertex lookup. | Design only. |
+| Pipeline processors | Execute expand and lookup operations while reusing ClickHouse processors where possible. | Design only. |
+
+## Target Execution Model
+
+For graph pattern execution, the planned model is expand-based rather than a
+pure SQL-join rewrite:
+
+```text
+start vertex scan
+  -> expand through edge table
+  -> lookup destination vertices
+  -> filter / aggregate / project with ClickHouse plan steps
+```
+
+This model is intended to support variable-length paths, frontier pruning,
+visited-set tracking, and future graph algorithms. The design is documented in
+[Graph operators](operators.md), but these operators are not yet implemented.
+
+## Integration Boundaries
+
+Current integration points:
+
+- `Dialect::gql` in ClickHouse settings and dispatch.
+- `ParserGQLQuery` branches in server, client, and local connection parsing.
+- ANTLR4 runtime reuse through the existing ClickHouse contrib infrastructure.
+- Parser contract tests under `src/Parsers/graph/tests`.
+
+Future integration points:
+
+- Interpreter registration for supported `GQL*` roots.
+- Catalog metadata persistence and introspection.
+- Query-plan step registration or construction for graph scans and expands.
+- Runtime settings for graph traversal limits and resource controls.
+
+## Development Rule
+
+Parser work should continue to be parser-only until the interpreter boundary is
+implemented. Do not add semantic catalog checks, storage behavior, or execution
+workarounds inside the parser. If a valid standard input cannot yet be
+represented by the stable AST contract, keep an explicit `Unsupported GQL ...`
+exception and track the gap with a concrete input and expected AST shape.

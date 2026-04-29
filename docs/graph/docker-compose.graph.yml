@@ -1,4 +1,4 @@
-# Docker Compose for Graph-on-ClickHouse Development
+# Docker Compose for LeoGraph Development
 #
 # Usage:
 #   cd /path/to/ClickHouse
