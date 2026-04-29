@@ -55,6 +55,7 @@
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Parsers/ASTSetQuery.h>
 #include <Parsers/ASTUseQuery.h>
+#include <Parsers/graph/ParserGQLQuery.h>
 #include <Parsers/Kusto/parseKQLQuery.h>
 #include <Parsers/Kusto/ParserKQLStatement.h>
 #include <Parsers/parseQuery.h>
@@ -116,6 +117,7 @@ int clickhouseMain(int argc_, char **argv_);
 
 namespace DB {
 namespace Setting {
+extern const SettingsBool allow_experimental_gql_dialect;
 extern const SettingsBool allow_settings_after_format_in_insert;
 extern const SettingsBool async_insert;
 extern const SettingsDialect dialect;
@@ -357,6 +359,12 @@ ASTPtr ClientBase::parseQuery(const char *&pos, const char *end, const Settings 
   else if (dialect == Dialect::promql)
     parser = std::make_unique<ParserPrometheusQuery>(settings[Setting::promql_database], settings[Setting::promql_table],
                                                      Field{settings[Setting::promql_evaluation_time]});
+  else if (dialect == Dialect::gql)
+  {
+    if (!settings[Setting::allow_experimental_gql_dialect])
+      throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
+                      "Support for GQL dialect is disabled (turn on setting 'allow_experimental_gql_dialect')");
+  }
   else
     parser =
         std::make_unique<ParserQuery>(end, settings[Setting::allow_settings_after_format_in_insert], settings[Setting::implicit_select]);
@@ -367,6 +375,12 @@ ASTPtr ClientBase::parseQuery(const char *&pos, const char *end, const Settings 
       if (dialect == Dialect::kusto)
         res = tryParseKQLQuery(*parser, pos, end, message, nullptr, true, "", allow_multi_statements, max_length,
                                settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks], true);
+      else if (dialect == Dialect::gql)
+      {
+        ParserGQLQuery gql_parser;
+        res = tryParseGQLQuery(gql_parser, pos, end, message, nullptr, true, "", allow_multi_statements, max_length,
+                               settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+      }
       else
         res = tryParseQuery(*parser, pos, end, message, true, "", allow_multi_statements, max_length, settings[Setting::max_parser_depth],
                             settings[Setting::max_parser_backtracks], true);
@@ -384,6 +398,12 @@ ASTPtr ClientBase::parseQuery(const char *&pos, const char *end, const Settings 
     if (dialect == Dialect::kusto)
       res = parseKQLQueryAndMovePosition(*parser, pos, end, "", allow_multi_statements, max_length, settings[Setting::max_parser_depth],
                                          settings[Setting::max_parser_backtracks]);
+    else if (dialect == Dialect::gql)
+    {
+      ParserGQLQuery gql_parser;
+      res = parseGQLQueryAndMovePosition(gql_parser, pos, end, "", allow_multi_statements, max_length,
+                                         settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+    }
     else
       res = parseQueryAndMovePosition(*parser, pos, end, "", allow_multi_statements, max_length, settings[Setting::max_parser_depth],
                                       settings[Setting::max_parser_backtracks]);

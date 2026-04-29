@@ -18,8 +18,8 @@ class GQLParserUtils {
   static GQLParser *getParserLL(antlr4::IntStream *input);
   static GQLParser *getParserSLL(antlr4::IntStream *input);
 
-  static void parseProgram(std::string_view query);
-  static antlr4::ParserRuleContext *parseCompositeQueryStatement(std::string_view query);
+  [[maybe_unused]] static antlr4::ParserRuleContext *parseProgram(std::string_view query);
+  static antlr4::ParserRuleContext *parseStatement(std::string_view query);
 };
 
 }  // namespace DB::OPENGQL

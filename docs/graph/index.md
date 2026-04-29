@@ -100,6 +100,7 @@ Graph query optimization (predicate pushdown, scan filtering) reuses ClickHouse'
 |----------|-------------|
 | [Architecture](architecture.md) | Detailed system architecture and module interactions |
 | [GQL Parser](parser.md) | ANTLR4 integration, AST design, and parser pipeline |
+| [GQL AST / Interpreter Readiness](gql_ast_interpreter_todo.md) | Stable AST surface, known parser gaps, and interpreter self-check checklist |
 | [Graph Operators](operators.md) | Expand execution model, `QueryPlanStep` and `IProcessor` designs |
 | [Graph Catalog](catalog.md) | Property graph definitions, table mapping, and metadata storage |
 | [Roadmap](roadmap.md) | Phased implementation plan with milestones |

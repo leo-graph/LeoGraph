@@ -14,6 +14,8 @@ namespace DB::OPENGQL {
  */
 class GQLBaseVisitor : public GQLVisitor {
  public:
+  virtual std::any visitGqlStatement(GQLParser::GqlStatementContext *ctx) override { return visitChildren(ctx); }
+
   virtual std::any visitGqlProgram(GQLParser::GqlProgramContext *ctx) override { return visitChildren(ctx); }
 
   virtual std::any visitProgramActivity(GQLParser::ProgramActivityContext *ctx) override { return visitChildren(ctx); }

@@ -261,6 +261,7 @@ enum class Dialect : uint8_t {
   kusto,
   prql,
   promql,
+  gql,
 };
 
 DECLARE_SETTING_ENUM(Dialect)

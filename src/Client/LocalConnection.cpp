@@ -10,6 +10,7 @@
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/InternalTextLogsQueue.h>
 #include <Parsers/ASTInsertQuery.h>
+#include <Parsers/graph/ParserGQLQuery.h>
 #include <Parsers/Kusto/parseKQLQuery.h>
 #include <Parsers/Kusto/ParserKQLStatement.h>
 #include <Parsers/ParserQuery.h>
@@ -28,6 +29,7 @@
 
 namespace DB {
 namespace Setting {
+extern const SettingsBool allow_experimental_gql_dialect;
 extern const SettingsBool allow_settings_after_format_in_insert;
 extern const SettingsDialect dialect;
 extern const SettingsBool input_format_defaults_for_omitted_fields;
@@ -52,6 +54,7 @@ extern const int UNKNOWN_PACKET_FROM_SERVER;
 extern const int UNKNOWN_EXCEPTION;
 extern const int NOT_IMPLEMENTED;
 extern const int LOGICAL_ERROR;
+extern const int SUPPORT_IS_DISABLED;
 }  // namespace ErrorCodes
 
 LocalConnection::LocalConnection(ContextPtr context_, ReadBuffer *in_, bool send_progress_, bool send_profile_events_,
@@ -182,6 +185,12 @@ void LocalConnection::sendQuery(const ConnectionTimeouts &, const String &query,
     else if (dialect == Dialect::promql)
       parser = std::make_unique<ParserPrometheusQuery>(settings[Setting::promql_database], settings[Setting::promql_table],
                                                        Field{settings[Setting::promql_evaluation_time]});
+    else if (dialect == Dialect::gql)
+    {
+      if (!settings[Setting::allow_experimental_gql_dialect])
+        throw Exception(ErrorCodes::SUPPORT_IS_DISABLED,
+                        "Support for GQL dialect is disabled (turn on setting 'allow_experimental_gql_dialect')");
+    }
     else
       parser =
           std::make_unique<ParserQuery>(end, settings[Setting::allow_settings_after_format_in_insert], settings[Setting::implicit_select]);
@@ -191,6 +200,13 @@ void LocalConnection::sendQuery(const ConnectionTimeouts &, const String &query,
       parsed_query = parseKQLQueryAndMovePosition(*parser, begin, end, "",
                                                   /*allow_multi_statements*/ false, settings[Setting::max_query_size],
                                                   settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+    else if (dialect == Dialect::gql)
+    {
+      ParserGQLQuery gql_parser;
+      parsed_query = parseGQLQueryAndMovePosition(gql_parser, begin, end, "",
+                                                  /*allow_multi_statements*/ false, settings[Setting::max_query_size],
+                                                  settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
+    }
     else
       parsed_query = parseQueryAndMovePosition(*parser, begin, end, "",
                                                /*allow_multi_statements*/ false, settings[Setting::max_query_size],

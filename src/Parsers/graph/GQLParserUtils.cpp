@@ -77,7 +77,7 @@ OPENGQL::GQLLexer *getLexerImpl() {
 }
 
 template <typename Context>
-Context *parseWithFallback(std::string_view query, Context *(OPENGQL::GQLParser::*parse_rule)()) {
+Context *parseGQL(std::string_view query, Context *(OPENGQL::GQLParser::*parse_rule)()) {
   CommonTokenStream tokens(OPENGQL::GQLParserUtils::getLexer(query));
   OPENGQL::GQLParser *parser = OPENGQL::GQLParserUtils::getParserSLL(&tokens);
 
@@ -85,6 +85,7 @@ Context *parseWithFallback(std::string_view query, Context *(OPENGQL::GQLParser:
     return (parser->*parse_rule)();
   } catch (ParseCancellationException &) {
     parser->reset();
+    tokens.seek(0);
     parser = OPENGQL::GQLParserUtils::getParserLL(&tokens);
     return (parser->*parse_rule)();
   } catch (Exception &e) {
@@ -159,10 +160,19 @@ GQLParser *GQLParserUtils::getParserSLL(IntStream *input) {
   return parser;
 }
 
-void GQLParserUtils::parseProgram(std::string_view query) { parseWithFallback(query, &GQLParser::gqlProgram); }
+/// Full standard `GQL` program grammar entry. This is intentionally not used by
+/// `Dialect::gql` production parsing yet: `gqlProgram` carries session and
+/// transaction-level semantics, while the current parser-only path accepts one
+/// executable statement at a time.
+[[maybe_unused]] antlr4::ParserRuleContext *GQLParserUtils::parseProgram(std::string_view query) {
+  return parseGQL(query, &GQLParser::gqlProgram);
+}
 
-antlr4::ParserRuleContext *GQLParserUtils::parseCompositeQueryStatement(std::string_view query) {
-  return parseWithFallback(query, &GQLParser::compositeQueryStatement);
+antlr4::ParserRuleContext *GQLParserUtils::parseStatement(std::string_view query) {
+  // Production `Dialect::gql` entry. `gqlStatement` is a thin EOF wrapper around
+  // `statement`, so ANTLR rejects unconsumed trailing tokens while the existing
+  // visitor still receives the inner `statement` node it knows how to lower.
+  return parseGQL(query, &GQLParser::gqlStatement)->statement();
 }
 
 }  // namespace OPENGQL

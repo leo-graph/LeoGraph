@@ -41,10 +41,21 @@ enum class PathSearchKind : UInt8 {
   CountedShortestGroup,
 };
 
-enum class SetOperation : UInt8 {
-  Union,
-  Except,
-  Intersect,
+enum class CountKind : UInt8 {
+  None,
+  Paths,
+  Groups,
+};
+
+enum class CountSpecKind : UInt8;
+
+enum class CombinedQueryOperator : UInt8 {
+  UnionDistinct,
+  UnionAll,
+  ExceptDistinct,
+  ExceptAll,
+  IntersectDistinct,
+  IntersectAll,
   Otherwise,
 };
 
@@ -56,44 +67,70 @@ using PtrTo = boost::intrusive_ptr<T>;
 
 class GQLAssignmentItem;
 class GQLAtSchemaClause;
+class GQLAliasedItem;
 class GQLBindingTableExpression;
 class GQLBindingInitializer;
 class GQLBindingVariableDefinition;
 class GQLBindingVariableDefinitionBlock;
-class GQLCallClause;
+class GQLCallClauseBase;
+class GQLCaseExpr;
+class GQLCatalogObjectName;
+class GQLCatalogStatement;
+class GQLCallInlineClause;
+class GQLCallNamedClause;
+class GQLCallVariableScopeClause;
+class GQLCombinedQuery;
+class GQLCountSpec;
+class GQLDeleteClause;
 class GQLExpr;
 class GQLFinishClause;
 class GQLForClause;
+class GQLElementTypeSpecification;
 class GQLGroupByClause;
+class GQLGraphTypeSpecification;
 class GQLLabelExpression;
 class GQLListConstructor;
 class GQLPropertyItem;
 class GQLPropertyMap;
 class GQLQuantifier;
 class GQLRecordConstructor;
+class GQLReturnClause;
 class GQLNodePattern;
 class GQLEdgePattern;
 class GQLPathPattern;
-class GQLPathPatternPrefix;
+class GQLPathPatternAlternation;
+class GQLPathModePrefix;
+class GQLPathSearchPrefix;
+class GQLPathTerm;
+class GQLQuantifiedPathPrimary;
 class GQLParenthesizedPathPattern;
+class GQLRemoveClause;
+class GQLRemoveItem;
 class GQLGraphPatternBlock;
 class GQLGraphExpression;
+class GQLInsertClause;
+class GQLInsertPathPattern;
 class GQLMatchStatementBlock;
+class GQLKeepClause;
 class GQLWhereClause;
 class GQLLetClause;
 class GQLMatchClause;
 class GQLOrderByItem;
 class GQLOrderByClause;
 class GQLPageClause;
-class GQLProjectClause;
 class GQLSchemaReference;
+class GQLSelectClause;
 class GQLSelectSourceItem;
+class GQLSetClause;
+class GQLSetItem;
 class GQLSelectSourceList;
-class GQLSubqueryClause;
+class GQLSubquery;
 class GQLSubqueryNextClause;
+class GQLSimplifiedPathExpr;
+class GQLSimplifiedPathPattern;
+class GQLSingleQuery;
+class GQLTypeExpression;
 class GQLUseClause;
 class GQLYieldClause;
-class GQLClausesQuery;
-class GQLSetQuery;
 
 }  // namespace DB::OPENGQL::AST

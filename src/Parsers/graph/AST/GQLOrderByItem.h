@@ -6,7 +6,10 @@ namespace DB::OPENGQL::AST {
 
 class GQLOrderByItem final : public DB::IAST {
  public:
-  GQLOrderByItem(Ptr expression_, bool descending_) : expression(std::move(expression_)), descending(descending_) {
+  enum class NullOrdering { Unspecified, NullsFirst, NullsLast };
+
+  GQLOrderByItem(Ptr expression_, bool descending_, NullOrdering null_ordering_ = NullOrdering::Unspecified)
+      : expression(std::move(expression_)), descending(descending_), null_ordering(null_ordering_) {
     if (expression) children.push_back(expression);
   }
 
@@ -24,12 +27,19 @@ class GQLOrderByItem final : public DB::IAST {
 
   Ptr expression;
   bool descending;
+  NullOrdering null_ordering;
 
  protected:
   void formatImpl(WriteBuffer &ostr, const FormatSettings &settings, FormatState &state, FormatStateStacked frame) const override {
     if (expression) expression->format(ostr, settings, state, frame);
 
     if (descending) ostr << " DESC";
+
+    if (null_ordering == NullOrdering::NullsFirst) {
+      ostr << " NULLS FIRST";
+    } else if (null_ordering == NullOrdering::NullsLast) {
+      ostr << " NULLS LAST";
+    }
   }
 
   void forEachPointerToChild(std::function<void(IAST **, boost::intrusive_ptr<IAST> *)> f) override { f(nullptr, &expression); }

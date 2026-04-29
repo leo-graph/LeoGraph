@@ -40,7 +40,6 @@
 #include <Parsers/Access/ParserGrantQuery.h>
 #include <Parsers/Access/ParserMoveAccessEntityQuery.h>
 #include <Parsers/Access/ParserSetRoleQuery.h>
-#include <Parsers/graph/ParserGraphQuery.h>
 
 namespace DB {
 
@@ -79,23 +78,20 @@ bool ParserQuery::parseImpl(Pos& pos, ASTPtr& node, Expected& expected) {
   ParserUpdateQuery update_p;
   ParserCopyQuery copy_p;
 
-  ParserGraphQuery graph_query_p;
-
-  bool res = graph_query_p.parse(pos, node, expected) || query_with_output_p.parse(pos, node, expected) ||
-             insert_p.parse(pos, node, expected) || use_p.parse(pos, node, expected) || set_role_p.parse(pos, node, expected) ||
-             set_p.parse(pos, node, expected) || system_p.parse(pos, node, expected) || create_user_p.parse(pos, node, expected) ||
-             create_role_p.parse(pos, node, expected) || create_quota_p.parse(pos, node, expected) ||
-             create_row_policy_p.parse(pos, node, expected) || create_masking_policy_p.parse(pos, node, expected) ||
-             create_settings_profile_p.parse(pos, node, expected) || create_function_p.parse(pos, node, expected) ||
-             drop_function_p.parse(pos, node, expected) || create_workload_p.parse(pos, node, expected) ||
-             drop_workload_p.parse(pos, node, expected) || create_resource_p.parse(pos, node, expected) ||
-             drop_resource_p.parse(pos, node, expected) || create_named_collection_p.parse(pos, node, expected) ||
-             drop_named_collection_p.parse(pos, node, expected) || alter_named_collection_p.parse(pos, node, expected) ||
-             create_index_p.parse(pos, node, expected) || drop_index_p.parse(pos, node, expected) ||
-             drop_access_entity_p.parse(pos, node, expected) || move_access_entity_p.parse(pos, node, expected) ||
-             grant_p.parse(pos, node, expected) || check_grant_p.parse(pos, node, expected) ||
-             transaction_control_p.parse(pos, node, expected) || delete_p.parse(pos, node, expected) ||
-             update_p.parse(pos, node, expected) || copy_p.parse(pos, node, expected);
+  bool res = query_with_output_p.parse(pos, node, expected) || insert_p.parse(pos, node, expected) || use_p.parse(pos, node, expected) ||
+             set_role_p.parse(pos, node, expected) || set_p.parse(pos, node, expected) || system_p.parse(pos, node, expected) ||
+             create_user_p.parse(pos, node, expected) || create_role_p.parse(pos, node, expected) ||
+             create_quota_p.parse(pos, node, expected) || create_row_policy_p.parse(pos, node, expected) ||
+             create_masking_policy_p.parse(pos, node, expected) || create_settings_profile_p.parse(pos, node, expected) ||
+             create_function_p.parse(pos, node, expected) || drop_function_p.parse(pos, node, expected) ||
+             create_workload_p.parse(pos, node, expected) || drop_workload_p.parse(pos, node, expected) ||
+             create_resource_p.parse(pos, node, expected) || drop_resource_p.parse(pos, node, expected) ||
+             create_named_collection_p.parse(pos, node, expected) || drop_named_collection_p.parse(pos, node, expected) ||
+             alter_named_collection_p.parse(pos, node, expected) || create_index_p.parse(pos, node, expected) ||
+             drop_index_p.parse(pos, node, expected) || drop_access_entity_p.parse(pos, node, expected) ||
+             move_access_entity_p.parse(pos, node, expected) || grant_p.parse(pos, node, expected) ||
+             check_grant_p.parse(pos, node, expected) || transaction_control_p.parse(pos, node, expected) ||
+             delete_p.parse(pos, node, expected) || update_p.parse(pos, node, expected) || copy_p.parse(pos, node, expected);
 
   if (!res && allow_execute_as) {
     ParserQuery subquery_p{end, allow_settings_after_format_in_insert, implicit_select};

@@ -40,19 +40,46 @@ inline String formatNodeToString(const IAST& node) {
   return buffer.str();
 }
 
-inline const char* getSetOperationKeyword(SetOperation operation) {
+inline const char* getCombinedQueryOperatorKeyword(CombinedQueryOperator operation) {
   switch (operation) {
-    case SetOperation::Union:
+    case CombinedQueryOperator::UnionDistinct:
       return "UNION";
-    case SetOperation::Except:
+    case CombinedQueryOperator::UnionAll:
+      return "UNION ALL";
+    case CombinedQueryOperator::ExceptDistinct:
       return "EXCEPT";
-    case SetOperation::Intersect:
+    case CombinedQueryOperator::ExceptAll:
+      return "EXCEPT ALL";
+    case CombinedQueryOperator::IntersectDistinct:
       return "INTERSECT";
-    case SetOperation::Otherwise:
+    case CombinedQueryOperator::IntersectAll:
+      return "INTERSECT ALL";
+    case CombinedQueryOperator::Otherwise:
       return "OTHERWISE";
   }
 
   return "UNION";
+}
+
+inline const char *getPathModeKeyword(PathMode mode) {
+  switch (mode) {
+    case PathMode::Walk:
+      return "WALK";
+    case PathMode::Trail:
+      return "TRAIL";
+    case PathMode::Simple:
+      return "SIMPLE";
+    case PathMode::Acyclic:
+      return "ACYCLIC";
+    case PathMode::None:
+      return "";
+  }
+
+  return "";
+}
+
+inline const char *getPathKeyword(bool use_paths_keyword) {
+  return use_paths_keyword ? "PATHS" : "PATH";
 }
 
 inline void formatEdgePrefix(WriteBuffer& ostr, EdgeDirection direction) {
@@ -103,6 +130,105 @@ inline void formatEdgeSuffix(WriteBuffer& ostr, EdgeDirection direction) {
       break;
     case EdgeDirection::Any:
       ostr << "-";
+      break;
+  }
+}
+
+inline void formatSimplifiedPathPrefix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      ostr << "<-/";
+      break;
+    case EdgeDirection::Right:
+      ostr << "-/";
+      break;
+    case EdgeDirection::Undirected:
+      ostr << "~/";
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << "<-/";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      ostr << "<~/";
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << "~/";
+      break;
+    case EdgeDirection::Any:
+      ostr << "-/";
+      break;
+  }
+}
+
+inline void formatSimplifiedPathSuffix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      ostr << "/-";
+      break;
+    case EdgeDirection::Right:
+      ostr << "/->";
+      break;
+    case EdgeDirection::Undirected:
+      ostr << "/~";
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << "/->";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      ostr << "/~";
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << "/~>";
+      break;
+    case EdgeDirection::Any:
+      ostr << "/-";
+      break;
+  }
+}
+
+inline void formatSimplifiedDirectionOverridePrefix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      ostr << "<";
+      break;
+    case EdgeDirection::Right:
+      break;
+    case EdgeDirection::Undirected:
+      ostr << "~";
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << "<";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      ostr << "<~";
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << "~";
+      break;
+    case EdgeDirection::Any:
+      ostr << "-";
+      break;
+  }
+}
+
+inline void formatSimplifiedDirectionOverrideSuffix(WriteBuffer& ostr, EdgeDirection direction) {
+  switch (direction) {
+    case EdgeDirection::Left:
+      break;
+    case EdgeDirection::Right:
+      ostr << ">";
+      break;
+    case EdgeDirection::Undirected:
+      break;
+    case EdgeDirection::LeftOrRight:
+      ostr << ">";
+      break;
+    case EdgeDirection::LeftOrUndirected:
+      break;
+    case EdgeDirection::UndirectedOrRight:
+      ostr << ">";
+      break;
+    case EdgeDirection::Any:
       break;
   }
 }
