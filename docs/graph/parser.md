@@ -229,7 +229,9 @@ These constraints keep the query contract stable while the lower layers continue
 
 ### Current `antlr4` Entry
 
-The primary dialect-mode entry is `GQLParserUtils::parseStatement`, used by `ParserGQLQuery`. The grammar `statement` rule is a superset that includes query, DML, and catalog DDL alternatives, so `Dialect::gql` validates the main parser-only path with one normalized pipeline.
+The primary dialect-mode entry is `GQLParserUtils::parseStatement`, used by `ParserGQLQuery`. It invokes the grammar wrapper `gqlStatement`, which is defined as `statement SEMICOLON* EOF`, and then returns the inner `statement` parse-tree node to the visitor. This keeps complete-input validation in the grammar while preserving the existing visitor contract.
+
+The inner `statement` rule is a superset that includes query, DML, and catalog DDL alternatives, so `Dialect::gql` validates the main parser-only path with one normalized pipeline.
 
 ```cpp
 ASTPtr parseDialectGQL(std::string_view query)
@@ -244,7 +246,7 @@ ASTPtr parseDialectGQL(std::string_view query)
 
 Ordinary ClickHouse `ParserQuery` does not auto-detect GQL. GQL text is not routed through a prefix-sniffing fallback in ClickHouse mode, so inputs such as `MATCH ... RETURN ...`, graph-shaped `SELECT`, focused `USE`, and GQL `CALL` must fail as ClickHouse queries unless the session has selected `Dialect::gql`.
 
-Query, DML, and catalog DDL are covered through `ParserGQLQuery` in explicit `Dialect::gql` mode, where the whole statement is routed to `parseStatement` without competing with normal ClickHouse SQL prefixes.
+Query, DML, and catalog DDL are covered through `ParserGQLQuery` in explicit `Dialect::gql` mode, where the whole input span is routed to `parseStatement` without competing with normal ClickHouse SQL prefixes. The GQL driver does not use ClickHouse's SQL lexer / `tryParseQuery` path, because valid GQL tokens and grammar shapes can be rejected before ANTLR sees them.
 
 ### `Dialect::gql` Integration (Implemented)
 
@@ -252,16 +254,17 @@ Query, DML, and catalog DDL are covered through `ParserGQLQuery` in explicit `Di
 
 - **Setting**: `allow_experimental_gql_dialect` (default `false`, `EXPERIMENTAL` tier). When the dialect is `gql` but this flag is off, all dispatch points throw `SUPPORT_IS_DISABLED`.
 - **Alias**: `query_language` is a settings-level alias for `dialect` (declared via `DECLARE_WITH_ALIAS` in `Settings.cpp`). Both `SET dialect = 'gql'` and `SET query_language = 'gql'` route to the same `Dialect` enum and the same parser dispatch. `query_language` is not an independent setting; it resolves to `dialect` through the standard `BaseSettings` alias mechanism.
-- **Parser wrapper**: `ParserGQLQuery` (`src/Parsers/graph/ParserGQLQuery.h/cpp`) inherits from `IParserBase`. The entire query text up to the next semicolon is routed through `GQLParserUtils::parseStatement` (the `statement` rule). Before that unconditional GQL parse, it gives `ParserSetQuery` one chance to parse real ClickHouse built-in settings. If every changed/defaulted setting name is a known ClickHouse setting, the statement is passed through as `ASTSetQuery`; otherwise the text stays on the GQL path, so graph assignments such as `SET n.x = 1` are not swallowed by ClickHouse `SET` syntax.
+- **Parser wrapper**: `ParserGQLQuery` (`src/Parsers/graph/ParserGQLQuery.h/cpp`) is a small dialect-specific parser class, not an `IParserBase` implementation. It accepts the caller-provided query text span, trims surrounding ASCII whitespace, and unconditionally routes the complete GQL statement through `GQLParserUtils::parseStatement`. It does not passthrough ClickHouse `SET` statements; session changes such as `SET dialect = 'gql'` are parsed by the normal ClickHouse parser before dispatch enters `Dialect::gql`.
 - **Server dispatch** (`executeQueryImpl`): a `Dialect::gql` branch before the fallback `ParserQuery`.
 - **Client dispatch** (`ClientBase::parseQuery`, `LocalConnection`): matching `Dialect::gql` branches using the same `ParserGQLQuery`.
 
-Under `dialect = gql` (equivalently `query_language = gql`), the top-level entry uses the GQL `statement` rule through `GQLParserUtils::parseStatement`, so query and DML statements share the same normalized GQL AST pipeline. Under `dialect = clickhouse`, ClickHouse `ParserQuery` remains responsible for SQL compatibility and does not produce `GQL*` AST nodes. This keeps language selection explicit and avoids growing prefix sniffing into a permanent mixed-parser architecture. The spelling `query_language` is now a settings-level alias for `dialect`, so parser dispatch has a single source of truth.
+Under `dialect = gql` (equivalently `query_language = gql`), the top-level entry uses `gqlStatement -> statement EOF` through `GQLParserUtils::parseStatement`, so query, DML, and catalog DDL statements share the same normalized GQL AST pipeline. Under `dialect = clickhouse`, ClickHouse `ParserQuery` remains responsible for SQL compatibility and does not produce `GQL*` AST nodes. This keeps language selection explicit and avoids growing prefix sniffing into a permanent mixed-parser architecture. The spelling `query_language` is now a settings-level alias for `dialect`, so parser dispatch has a single source of truth.
 
 Known limitations of the current skeleton:
 
 - Distributed / remote-node queries (`HedgedConnections`, `MultiplexedConnections`) reset foreign dialects to `clickhouse` before forwarding, but do not propagate `gql` to remote shards. Distributed GQL execution is not a usable path until GQL-to-SQL lowering exists.
 - Interpreter / lowering is not yet wired: parsed GQL AST will enter `InterpreterFactory` but will fail with "unsupported" until lowering is implemented.
+- Client multi-statement splitting is not implemented for `Dialect::gql`: the current GQL driver expects the caller-provided span to contain one complete `gqlStatement`. Inputs with multiple statements are rejected by the grammar-level EOF wrapper rather than split by the ClickHouse SQL token driver.
 
 The current parser work therefore focuses on making:
 

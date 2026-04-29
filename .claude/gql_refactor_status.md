@@ -123,16 +123,79 @@ The next implementation slice should start from a concrete parser input that cur
 
 Current parser-only priority is `GQL text -> normalized GQL IAST`. Do not spend this phase on binder, semantic analysis, interpreter, storage, catalog execution, or lowering. Prefer small implementation slices verified through `ParserGQLQuery` / `Dialect::gql` contract tests.
 
+## Open TODO Backlog
+
+This section tracks the concrete places that are still incomplete or intentionally deferred in the current `GQL` parser-to-AST work. Use it as implementation direction for follow-up parser branches.
+
+### Parser-only v1 TODOs
+
+1. Preserve the `ParserGQLQuery` driver contract in docs and tests.
+   - `ParserGQLQuery` is not an `IParserBase` implementation and does not passthrough ClickHouse `SET`; it parses one complete caller-provided GQL span through `gqlStatement -> statement EOF`.
+   - `allow_multi_statements` is currently ignored by the GQL driver because ClickHouse SQL token splitting is intentionally bypassed. If GQL multiquery support becomes necessary, design it explicitly instead of reintroducing ad-hoc semicolon splitting.
+   - Keep tests for trailing semicolons, multi-statement rejection, explicit `Dialect::gql` dispatch, and ClickHouse-mode non-sniffing behavior.
+
+2. Preserve `ORDER BY ... NULLS FIRST/LAST`.
+   - Current grammar parses `nullOrdering`, but `GQLOrderByItem` only stores expression + descending flag.
+   - Add a nullable-ordering field to `GQLOrderByItem`, teach `visitSortSpecification` to populate it, update `formatImpl`, `clone`, and add round-trip tests for `NULLS FIRST` / `NULLS LAST`.
+
+3. Tighten the active `throwUnsupported(...)` map with executable examples.
+   - The remaining guardrails in expression, reference, and query-shape visitors should stay until a concrete input reaches them.
+   - Track each reachable guardrail with grammar rule, minimal input, current behavior, intended AST shape, and a positive or negative test before changing behavior.
+
+4. Finish thin reference-shape cleanup where it affects round-trip structure.
+   - `graphExpression` and `bindingTableExpression` already have thin AST wrappers, but procedure references and some catalog-object references still rely on direct `getText(...)` formatting.
+   - Prefer a shared catalog-object-reference helper for graph, graph type, binding table, and procedure names, including parameter references and delimited identifiers.
+
+5. Keep broadening source/projection coverage without changing query roots.
+   - `SELECT FROM` already supports nested-query and graph-match sources, but more combinations should be covered by tests: multiple graph sources, qualified graph references, nested source query tails, aliases where grammar later permits them, and `HAVING` / paging combinations.
+   - Keep the public root contract: linear queries are `GQLSingleQuery`, set queries are `GQLCombinedQuery`, nested procedure bodies are `GQLSubquery`.
+
+6. Normalize DML / catalog visitor entry points for maintainability.
+   - DML and catalog DDL currently work through higher-level helper functions from the statement entry, while many lower-level grammar contexts do not have dedicated visitor overrides.
+   - Either add explicit overrides for `insertStatement`, `setStatement`, `removeStatement`, `deleteStatement`, and primitive catalog contexts, or document that these contexts are intentionally lowered only through the enclosing statement visitor.
+
+7. Add parser contract tests for dialect routing edge cases.
+   - Existing tests cover many `Dialect::gql` routes; keep extending that matrix when new grammar shapes are enabled.
+   - Useful additions: semicolon handling, multi-statement rejection, `SKIP` normalization, qualified procedure calls, qualified binding-table references, and unsupported full-program commands.
+
+8. Build a small `formatAST -> parse -> formatAST` idempotence corpus.
+   - Cover canonical query, pattern, expression, DML, and catalog DDL inputs.
+   - Each case should assert root kind, key fields, dense non-null `children`, `clone` deep-copy behavior, and normalized round-trip formatting.
+
+9. Keep grammar generation reproducible across macOS and Linux.
+   - Document the expected `ANTLR` tool version, the macOS `brew` path, the Linux jar path, and the generated-file check workflow.
+   - Do not accept generated parser diffs unless they can be reproduced from `src/Parsers/graph/grammar/GQL.g4` and the documented generator path.
+
+### Deferred Standard-Completeness TODOs
+
+1. Decide whether production parsing should eventually accept full `gqlProgram`.
+   - The current production entry is `gqlStatement -> statement EOF`; full `gqlProgram` with session and transaction activity is parsed only by the unused helper path.
+   - If full standard coverage becomes a goal, add AST nodes and tests for `SESSION SET`, `SESSION RESET`, `SESSION CLOSE`, `START TRANSACTION`, `COMMIT`, and `ROLLBACK` before switching entry points.
+
+2. Replace raw graph-type and value-type text with structured AST after parser-only v1.
+   - `GQLCatalogStatement::source_text`, `GQLAssignmentItem::raw_type`, and `GQLBindingVariableDefinition::raw_type` are intentional parser-only placeholders today.
+   - A later phase should introduce graph type, node type, edge type, property type, and value type AST nodes so nested graph type specifications are no longer opaque strings.
+
+3. Define the parser / semantic-analysis boundary for type-validity checks.
+   - The grammar intentionally accepts broad combinations for numeric, datetime, duration, string, list, path, and typed expressions.
+   - Keep parser AST construction syntactic; move invalid type-combination checks to analyzer or a dedicated validation layer unless a syntax-only ambiguity requires parser action.
+
+4. Extend grammar only from a concrete GQL-standard gap.
+   - Do not add speculative grammar alternatives just to increase standard surface area.
+   - When adding a standard feature that is not currently in `GQL.g4`, first add parser tests that show the desired input, AST shape, and normalized formatting.
+
 Suggested order for the next implementation slices:
 
-1. start from concrete GQL input that currently reaches `throwUnsupported(...)`, then add the minimum AST shape and focused contract test for that input;
-2. keep `predicate`, `valueExpressionPrimary`, and value-function guardrails unless a real input proves a missing active grammar branch;
-3. spend the next parser-only effort on query-shape and reference-shape gaps only when the target root can stay within `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
-4. use `clickhouse local --allow_experimental_gql_dialect=1 --dialect=gql -q ...` as a quick smoke check: successful parser-only inputs currently fail later with `UNKNOWN_TYPE_OF_QUERY`, while parser gaps fail earlier with `SYNTAX_ERROR` or `Unsupported GQL ...`.
+1. keep the `ParserGQLQuery` / `GQLParserUtils::parseStatement` entry contract synchronized between code, docs, and focused tests;
+2. add `ORDER BY ... NULLS FIRST/LAST` support, because it is a concrete parsed-but-lost syntax feature;
+3. start each visitor coverage slice from concrete GQL input that currently reaches `throwUnsupported(...)`, then add the minimum AST shape and focused contract test for that input;
+4. keep `predicate`, `valueExpressionPrimary`, and value-function guardrails unless a real input proves a missing active grammar branch;
+5. spend parser-only effort on query-shape and reference-shape gaps only when the target root can stay within `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
+6. use `clickhouse local --allow_experimental_gql_dialect=1 --dialect=gql -q ...` as a quick smoke check: successful parser-only inputs currently fail later with `UNKNOWN_TYPE_OF_QUERY`, while parser gaps fail earlier with `SYNTAX_ERROR` or `Unsupported GQL ...`.
 
 ### 1. Keep the new query contract stable while filling coverage
 
-Keep working in `src/Parsers/graph/GQLParseTreeVisitor.cpp`, but do not widen the set of public query root shapes.
+Keep working in the split visitor implementation under `src/Parsers/graph/visitor/`, but do not widen the set of public query root shapes.
 
 The immediate rule is:
 
@@ -159,9 +222,9 @@ After the main query chain is healthier, cover the remaining pattern-related uns
 - broader optional-match block normalization if lowering wants something richer than the current block wrapper
 - any missing path-search variants that round-trip tests expose
 
-Most of this work should still stay in `GQLParseTreeVisitor`, with small AST additions under `src/Parsers/graph/AST/` only when the current nodes stop being expressive enough.
+Most of this work should still stay in the relevant visitor translation unit, with small AST additions under `src/Parsers/graph/AST/` only when the current nodes stop being expressive enough.
 
-### 3. Continue improving the expression layer
+### 3. Preserve the expression layer contract
 
 Phase 5 + Rounds C/D/E/F covered most value-function and CASE branches. The three remaining `valueExpressionPrimary` gaps are now filled:
 
@@ -175,6 +238,7 @@ Recommended direction:
 
 - keep the generic `GQLExpr::Kind` approach; extend with dedicated nodes only when structure demands it (as done with `GQLCaseExpr`, `DurationBetween`, `TrimString`);
 - postpone a large expression hierarchy until the parser coverage stabilizes.
+- add contract tests before changing expression visitor guardrails, because the current active grammar branches are mostly covered and remaining throws are often defensive.
 
 ### 4. Revisit lowering later
 
@@ -185,12 +249,18 @@ Only after the visitor coverage is broad enough should the refactor move to:
 
 ## Files To Touch Next
 
-- `src/Parsers/graph/GQLParseTreeVisitor.cpp`
-- `src/Parsers/graph/GQLParseTreeVisitor.h`
+- `src/Parsers/graph/ParserGQLQuery.cpp`
+- `src/Parsers/graph/ParserGQLQuery.h`
+- `src/Parsers/graph/GQLParserUtils.cpp`
+- `src/Parsers/graph/GQLParserUtils.h`
+- `src/Parsers/graph/visitor/GQLParseTreeVisitor.h`
+- `src/Parsers/graph/visitor/GQLParseTreeVisitor*.cpp`
 - `src/Parsers/graph/AST/*.h`
 - `src/Parsers/graph/fwd_decl.h`
 - `src/Parsers/graph/GraphAST.h`
 - `src/Parsers/graph/tests/gtest_gql_parser.cpp`
+- `docs/graph/parser.md`
+- `src/Parsers/graph/grammar/README.md`
 
 ## Session Recovery Note
 
