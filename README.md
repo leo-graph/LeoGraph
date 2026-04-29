@@ -1,90 +1,80 @@
-<div align=center>
+# LeoGraph
 
-[![Website](https://img.shields.io/website?up_message=AVAILABLE&down_message=DOWN&url=https%3A%2F%2Fclickhouse.com&style=for-the-badge)](https://clickhouse.com)
-[![Apache 2.0 License](https://img.shields.io/badge/license-Apache%202.0-blueviolet?style=for-the-badge)](https://www.apache.org/licenses/LICENSE-2.0)
+LeoGraph is a ClickHouse fork focused on adding analytical property-graph query
+capabilities to ClickHouse.
 
-<picture align=center>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/ClickHouse/clickhouse-docs/assets/9611008/4ef9c104-2d3f-4646-b186-507358d2fe28">
-    <source media="(prefers-color-scheme: light)" srcset="https://github.com/ClickHouse/clickhouse-docs/assets/9611008/b001dc7b-5a45-4dcd-9275-e03beb7f9177">
-    <img alt="The ClickHouse company logo." src="https://github.com/ClickHouse/clickhouse-docs/assets/9611008/b001dc7b-5a45-4dcd-9275-e03beb7f9177">
-</picture>
+The project goal is to let ClickHouse users query graph-shaped data with
+standard `GQL` while continuing to use ClickHouse's native storage, execution,
+and operational model. LeoGraph is not intended to become a standalone OLTP
+graph database. It is aimed at analytical graph workloads: graph pattern
+matching, multi-hop analysis, graph-shaped projections, and future graph
+algorithms over data that already lives in ClickHouse tables.
 
-<h4>ClickHouse® is an open-source column-oriented database management system that allows generating analytical data reports in real-time.</h4>
+## Current Status
 
-</div>
+The active development focus is the `GQL` parser and normalized graph AST.
 
-## How To Install (Linux, macOS, FreeBSD)
+Implemented or actively maintained:
 
+- `Dialect::gql` routing through `ParserGQLQuery`.
+- `GQLParserUtils::parseStatement` as the production parser entry.
+- ANTLR4-generated parser sources from `src/Parsers/graph/grammar/GQL.g4`.
+- A ClickHouse-native `IAST` graph AST under `src/Parsers/graph/AST`.
+- `GQLParseTreeVisitor` split by query, projection, pattern, expression, DML,
+  DDL, and type translation units.
+- Parser contract tests in `src/Parsers/graph/tests/gtest_gql_parser.cpp`.
+
+Not implemented yet:
+
+- Runtime interpretation and lowering of `GQL*` AST nodes into a ClickHouse
+  `QueryPlan`.
+- Persistent graph catalog execution.
+- Graph-specific execution operators such as expand and multi-hop traversal.
+- Full `OpenGQL` session and transaction command support.
+
+In the current parser-only phase, a syntactically supported `GQL` statement can
+parse successfully and still fail later with `UNKNOWN_TYPE_OF_QUERY`, because no
+graph interpreter is registered yet. Parser gaps fail earlier with `SYNTAX_ERROR`
+or an explicit `Unsupported GQL ...` exception.
+
+## Documentation
+
+Start here:
+
+| Document | Purpose |
+|----------|---------|
+| [Graph overview](docs/graph/index.md) | Project goals, current status, and document map |
+| [Architecture](docs/graph/architecture.md) | Current parser architecture and target execution architecture |
+| [GQL parser design](docs/graph/parser.md) | ANTLR4 integration, AST contract, and parser pipeline |
+| [Interpreter readiness checklist](docs/graph/gql_ast_interpreter_todo.md) | Stable AST surface and first lowering boundary |
+| [Roadmap](docs/graph/roadmap.md) | Current milestones and next development slices |
+| [Graph catalog design](docs/graph/catalog.md) | Target property graph catalog and table mapping design |
+| [Graph operators design](docs/graph/operators.md) | Target expand-based execution model |
+
+## Repository Layout
+
+Important LeoGraph paths:
+
+```text
+docs/graph/                         Project and design documentation
+src/Parsers/graph/                  GQL parser integration
+src/Parsers/graph/AST/              ClickHouse-native GQL AST nodes
+src/Parsers/graph/visitor/          ANTLR parse-tree to AST visitor
+src/Parsers/graph/grammar/GQL.g4    Local OpenGQL grammar copy
+src/Parsers/graph/generated/        Generated ANTLR4 C++ sources
+src/Parsers/graph/tests/            Parser contract tests
+tests/graph/                        Graph query samples and parser fixtures
 ```
-curl https://clickhouse.com/ | sh
-```
 
-## Useful Links
+## Upstream ClickHouse
 
-* [Official website](https://clickhouse.com/) has a quick high-level overview of ClickHouse on the main page.
-* [ClickHouse Cloud](https://clickhouse.cloud) ClickHouse as a service, built by the creators and maintainers.
-* [Tutorial](https://clickhouse.com/docs/getting_started/tutorial/) shows how to set up and query a small ClickHouse cluster.
-* [Documentation](https://clickhouse.com/docs/) provides more in-depth information.
-* [YouTube channel](https://www.youtube.com/c/ClickHouseDB) has a lot of content about ClickHouse in video format.
-* [ClickHouse Theater](https://presentations.clickhouse.com/) contains presentations and videos about ClickHouse.
-* [Slack](https://clickhouse.com/slack) and [Telegram](https://telegram.me/clickhouse_en) allow chatting with ClickHouse users in real-time.
-* [Blog](https://clickhouse.com/blog/) contains various ClickHouse-related articles, as well as announcements and reports about events.
-* [Bluesky](https://bsky.app/profile/clickhouse.com) and [X](https://x.com/ClickHouseDB) for short news.
-* [Code Browser (github.dev)](https://github.dev/ClickHouse/ClickHouse) with syntax highlighting, powered by github.dev.
-* [Contacts](https://clickhouse.com/company/contact) can help to get your questions answered if there are any.
+LeoGraph is based on [ClickHouse](https://clickhouse.com/), an open-source
+column-oriented database management system for real-time analytical workloads.
+The upstream project is licensed under the
+[Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
 
-## Monthly Release & Community Call
+Useful upstream links:
 
-Join us for the [ClickHouse **26.2** Release Call](https://clickhouse.com/company/events/v26-2-community-release-call) on February 26, 2026.
-
-Watch all release presentations and videos at [ClickHouse Theater](https://presentations.clickhouse.com/) and [YouTube Playlist](https://www.youtube.com/playlist?list=PL0Z2YDlm0b3jAlSy1JxyP8zluvXaN3nxU).
-
-## Upcoming Events
-
-Keep an eye out for upcoming meetups and events around the world.
-Somewhere else you want us to be?
-Please feel free to reach out to tyler `<at>` clickhouse `<dot>` com.
-You can also peruse [ClickHouse Events](https://clickhouse.com/company/news-events) for a list of all upcoming trainings, meetups, speaking engagements, etc.
-
-Upcoming meetups
-* [LA Meetup](https://luma.com/wbkqmaqk) - March 6th, 2026
-* [Tokyo Meetup - LibreChat Night](https://www.meetup.com/clickhouse-tokyo-user-group/events/313275265/) - March 9th, 2026
-* [Women+ in open source](https://luma.com/qcqlia4g) - March 9th, 2026 
-* [Sao Paulo Meetup](https://www.meetup.com/clickhouse-brasil-user-group/events/313294062) - March 10th, 2026
-* [San Francisco Meetup](https://luma.com/6rnu6wzs) - March 11th, 2026
-* [SRE Days London Meetup](https://luma.com/sreday-2026-london-q1) - March 12, 2026
-* [Apache Iceberg™ Meetup Pittsburgh](https://luma.com/mqgwk79x) - March 12th, 2026
-* [AI Builders Night San Jose](https://luma.com/xoq2dz0l) - March 16th, 2026
-* [Munich Meetup](https://www.meetup.com/clickhouse-meetup-munich/events/313487152/) - March 19th, 2026
-* [NY Meetup](https://luma.com/c7tprb51) - March 19th, 2026
-* [RSA Iceberg Meetup SF](https://luma.com/rsa-iceberg) - March 24th, 2026 
-* [Milan Meetup](https://www.meetup.com/clickhouse-italy-user-group/events/313586581/) - March 26th, 2026
-* [Seattle Observability Meetup](https://luma.com/vph3jbkm) - March 26th, 2026
-* [San Francisco Observability FireSide Chat](https://luma.com/v5d8u087) - March 31st, 2026
-
-Recent meetups
-* [Bangalore GDG + Deutsche Bank Meetup](https://www.meetup.com/clickhouse-bangalore-user-group/events/313325219/) - February 28th, 2026
-* [Seattle Meetup](https://luma.com/jsctpwoa) - February 26th, 2026
-* [Melbourne Meetup](https://www.meetup.com/clickhouse-melbourne-user-group/events/312871833/) - February 24th, 2026
-* [Toronto Meetup](https://luma.com/8p8unbnw) - February 19th, 2026
-* [AI Night San Francisco](https://luma.com/j2ck1sbz)- February 11th, 2026
-* [ClickHouse London Meetup](https://www.meetup.com/clickhouse-london-user-group/events/312314505/) - February 10th, 2026
-* [ClickHouse Barcelona Meetup](https://www.meetup.com/clickhouse-barcelona-user-group/events/312714616/) - February 5th, 2026
-* [ClickHouse Dinner at FOSDEM](https://luma.com/czvs584m) - January 31st, 2026
-* [Iceberg Meetup Brussels](https://luma.com/yx3lhqu9) - January 30th, 2026
-* [Seoul Meetup](https://www.meetup.com/clickhouse-seoul-user-group/events/312679894/) - January 29th, 2026
-
-
-
-
-## Recent Recordings
-
-* **Recent Meetup Videos**: [Meetup Playlist](https://www.youtube.com/playlist?list=PL0Z2YDlm0b3iNDUzpY1S3L_iV4nARda_U) Whenever possible recordings of the ClickHouse Community Meetups are edited and presented as individual talks. 
-
-## Interested in joining ClickHouse and making it your full-time job?
-
-ClickHouse is a nice DBMS, and it's a good place to work.
-
-Check out our **current openings** here: https://clickhouse.com/company/careers
-
-Email: careers@clickhouse.com!
+- [ClickHouse documentation](https://clickhouse.com/docs/)
+- [ClickHouse source repository](https://github.com/ClickHouse/ClickHouse)
+- [ClickHouse website](https://clickhouse.com/)

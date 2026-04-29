@@ -1,132 +1,90 @@
 ---
-description: 'Graph-on-ClickHouse: an analytical graph query engine built on top of ClickHouse'
-sidebar_label: 'Graph Engine Overview'
+description: 'LeoGraph: analytical graph queries on ClickHouse'
+sidebar_label: 'LeoGraph Overview'
 sidebar_position: 80
 slug: /development/graph
-title: 'Graph-on-ClickHouse'
+title: 'LeoGraph'
 doc_type: 'reference'
 ---
 
-# Graph-on-ClickHouse
+# LeoGraph
 
-Graph-on-ClickHouse is an analytical graph query engine built on top of ClickHouse. It provides graph query and graph analysis capabilities for existing ClickHouse data while preserving ClickHouse's native storage and execution power.
+LeoGraph is an analytical property-graph query layer being built on top of
+ClickHouse. It aims to support standard `GQL` over data stored in ordinary
+ClickHouse tables, while reusing ClickHouse's `MergeTree` storage, vectorized
+execution, distributed query infrastructure, settings, and resource tracking.
+
+The project is currently in a parser-first phase. The main working surface is
+`GQL text -> normalized GQL IAST`. Runtime interpretation, graph catalog
+execution, and graph-specific query-plan operators are still future work.
 
 ## Goals
 
-- **Not a standalone graph store.** Leverage ClickHouse's existing `MergeTree` storage, vectorized execution, and distributed capabilities.
-- **Table mapping.** Map existing ClickHouse tables as vertex tables and edge tables, or create vertex/edge tables via graph DDL (still backed by native ClickHouse tables).
-- **Standard query language.** Support GQL (ISO/IEC 39075), the standardized property graph query language, via an ANTLR4-based parser.
-- **OLAP-oriented.** Designed for analytical workloads (batch graph queries, multi-hop aggregations, graph pattern matching), not for transactional graph operations.
+- Reuse ClickHouse storage instead of introducing a standalone graph store.
+- Represent graph data through table mappings for vertex and edge tables.
+- Parse standard `GQL` with an ANTLR4-based parser derived from the OpenGQL
+  grammar.
+- Build an explicit, ClickHouse-native `GQL*` AST that later interpreter and
+  lowering code can consume without reparsing source text.
+- Target analytical graph workloads such as pattern matching, multi-hop
+  traversal, graph-shaped aggregations, and graph algorithms.
 
 ## Non-Goals
 
-- Replace dedicated graph databases for OLTP graph workloads.
-- Implement a new storage engine from scratch.
-- Support real-time graph mutations at high throughput (single-row inserts/deletes).
+- Replace transactional graph databases for OLTP graph workloads.
+- Add a new storage engine in the current parser phase.
+- Infer graph semantics from formatted source text in later interpreter code.
+- Route graph-looking input through ordinary ClickHouse SQL parsing. Production
+  `GQL` parsing is selected explicitly through `Dialect::gql`.
 
-## Architecture Overview
+## Current Status
 
-The engine is organized into three core modules:
+| Area | Status | Notes |
+|------|--------|-------|
+| `GQL` grammar | Active | Local grammar lives at `src/Parsers/graph/grammar/GQL.g4`. |
+| Parser entry | Implemented | `ParserGQLQuery` calls `GQLParserUtils::parseStatement`. |
+| AST layer | Active | Graph nodes live under `src/Parsers/graph/AST` and inherit from `IAST` or `ASTWithAlias`. |
+| Visitor | Active | `GQLParseTreeVisitor` is split by query, projection, pattern, expression, DML, DDL, and type handling. |
+| Parser tests | Active | Contract tests live in `src/Parsers/graph/tests/gtest_gql_parser.cpp`. |
+| Interpreter / lowering | Not implemented | First boundary is tracked in `gql_ast_interpreter_todo.md`. |
+| Graph catalog execution | Design only | `catalog.md` describes the target table-mapping model. |
+| Graph operators | Design only | `operators.md` describes the target expand-based execution model. |
 
-| Module | Responsibility |
-|--------|---------------|
-| **GQL Parser** | ANTLR4-based GQL parsing, producing a Graph AST that integrates with ClickHouse's query processing pipeline. |
-| **Graph Operators** | Expand-based (BFS) execution model with graph-specific `QueryPlanStep` and `IProcessor` implementations. |
-| **Graph Catalog** | Metadata layer that manages property graph definitions and maps them to underlying ClickHouse tables. |
+## Parser-Only Contract
 
-```
-                         GQL Query Text
-                              |
-                    +---------v----------+
-                    |   GQL Parser       |   ANTLR4 Lexer/Parser
-                    |   -> Graph AST     |   GQL.g4 -> C++ code
-                    +---------+----------+
-                              |
-                    +---------v----------+
-                    |  InterpreterGraph  |   Graph query interpretation
-                    |  Query             |   Pattern -> Expand plan
-                    +---------+----------+
-                              |
-                    +---------v----------+
-                    |  Graph QueryPlan   |   GraphScanStep
-                    |  Steps             |   GraphExpandStep
-                    |                    |   GraphMultiHopStep
-                    +---------+----------+
-                              |
-                    +---------v----------+
-                    |  ClickHouse        |   ReadFromMergeTree
-                    |  Pipeline          |   FilterTransform
-                    |  (reused)          |   ExpressionTransform
-                    +---------+----------+
-                              |
-                    +---------v----------+
-                    |  ClickHouse        |   MergeTree tables
-                    |  Storage           |   (vertex & edge data)
-                    +--------------------+
+The current production parser path is:
+
+```text
+ParserGQLQuery
+  -> GQLParserUtils::parseStatement
+  -> gqlStatement
+  -> statement EOF
+  -> GQLParseTreeVisitor
+  -> GQL* IAST
 ```
 
-## Key Design Decisions
+The stable query root shapes are:
 
-### Expand-Based Execution (not Join-Based)
+- `GQLSingleQuery` for linear query and DML clause sequences.
+- `GQLCombinedQuery` for set queries such as `UNION`, `UNION ALL`, and `EXCEPT`.
+- `GQLSubquery` for nested procedure bodies.
+- `GQLCatalogStatement` for catalog DDL.
 
-Graph pattern matching uses a BFS-style expand model rather than translating patterns directly to SQL joins. This approach:
+Parser work should preserve these root shapes unless a later design explicitly
+changes the interpreter contract.
 
-- Naturally maps to graph traversal semantics (frontier expansion).
-- Handles variable-length paths (`*1..N`) via iterative BFS with visited-set tracking.
-- Allows early termination and path pruning.
-- Aligns with how graph databases execute queries internally.
+## Document Map
 
-Each expand step takes a set of frontier vertex IDs, probes the edge table to find neighbors, and produces the next frontier.
+| Document | Use It For |
+|----------|------------|
+| [GQL parser design](parser.md) | Current parser architecture, AST contract, supported syntax, and dispatch rules. |
+| [Interpreter readiness checklist](gql_ast_interpreter_todo.md) | Stable AST surface and fail-closed rules for future lowering work. |
+| [Architecture](architecture.md) | Current implementation layers and target runtime architecture. |
+| [Roadmap](roadmap.md) | Milestones, current parser work, and next implementation slices. |
+| [Graph catalog design](catalog.md) | Future property graph catalog and table mapping model. |
+| [Graph operators design](operators.md) | Future expand and multi-hop execution design. |
+| [Grammar notes](../../src/Parsers/graph/grammar/README.md) | Local grammar changes and generation workflow. |
 
-### ANTLR4 Parser (not Hand-Written)
-
-ClickHouse already integrates the ANTLR4 C++ runtime for PromQL parsing. We reuse this infrastructure for GQL, which allows:
-
-- Strict compliance with the ISO GQL standard grammar.
-- Easier maintenance as the GQL standard evolves.
-- A proven integration pattern within the ClickHouse codebase.
-
-### Reuse ClickHouse Optimizer
-
-Graph query optimization (predicate pushdown, scan filtering) reuses ClickHouse's existing optimizer infrastructure rather than building a separate graph optimizer. Graph-specific optimizations are limited to:
-
-- Expand order selection (which vertex/edge to expand first).
-- Frontier size estimation for adaptive execution.
-- Visited-set pruning strategies for multi-hop queries.
-
-## Documentation Index
-
-| Document | Description |
-|----------|-------------|
-| [Architecture](architecture.md) | Detailed system architecture and module interactions |
-| [GQL Parser](parser.md) | ANTLR4 integration, AST design, and parser pipeline |
-| [GQL AST / Interpreter Readiness](gql_ast_interpreter_todo.md) | Stable AST surface, known parser gaps, and interpreter self-check checklist |
-| [Graph Operators](operators.md) | Expand execution model, `QueryPlanStep` and `IProcessor` designs |
-| [Graph Catalog](catalog.md) | Property graph definitions, table mapping, and metadata storage |
-| [Roadmap](roadmap.md) | Phased implementation plan with milestones |
-
-## Example
-
-```sql
--- Create a property graph over existing ClickHouse tables
-CREATE PROPERTY GRAPH social_network
-  VERTEX TABLES (
-    users KEY (user_id) LABEL Person PROPERTIES (user_id AS id, name, age)
-  )
-  EDGE TABLES (
-    follows KEY (follow_id)
-      SOURCE KEY (follower_id) REFERENCES users (user_id)
-      DESTINATION KEY (followee_id) REFERENCES users (user_id)
-      LABEL FOLLOWS PROPERTIES (created_at)
-  );
-
--- Query: find friends-of-friends for Alice
-MATCH (a:Person)-[:FOLLOWS]->(b:Person)-[:FOLLOWS]->(c:Person)
-WHERE a.name = 'Alice'
-RETURN DISTINCT c.name, c.age;
-
--- Variable-length path: find all reachable persons within 5 hops
-MATCH (a:Person)-[:FOLLOWS*1..5]->(b:Person)
-WHERE a.name = 'Alice'
-RETURN b.name, b.age;
-```
+Historical parser notes live in [development/parser/README.md](development/parser/README.md).
+They are kept for context only; the parser design document and status roadmap are
+the authoritative development references.
