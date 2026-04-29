@@ -1259,6 +1259,66 @@ TEST(GQLParser, StandalonePagingBuildsStructuredClause) {
   EXPECT_EQ(formatAST(*clauses), "MATCH (a) ORDER BY a DESC OFFSET 1 LIMIT 2 RETURN a");
 }
 
+TEST(GQLParser, ReturnOrderByPreservesNullsFirst) {
+  auto ast = parseGraphOrThrow("MATCH (a) RETURN a ORDER BY a.name NULLS FIRST");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+
+  const auto* page_clause = getPageClause(*clauses, 2);
+  ASSERT_NE(page_clause, nullptr);
+  const auto* order_by = page_clause->order_by->as<GAST::GQLOrderByClause>();
+  ASSERT_NE(order_by, nullptr);
+  ASSERT_EQ(order_by->items.size(), 1);
+
+  const auto* item = order_by->items[0]->as<GAST::GQLOrderByItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_FALSE(item->descending);
+  EXPECT_EQ(item->null_ordering, GAST::GQLOrderByItem::NullOrdering::NullsFirst);
+  EXPECT_EQ(formatAST(*clauses), "MATCH (a) RETURN a ORDER BY a.name NULLS FIRST");
+  assertASTContract(ast);
+}
+
+TEST(GQLParser, SelectOrderByPreservesNullsLastWithDescending) {
+  auto ast = parseGraphOrThrow("SELECT a FROM { MATCH (a) RETURN a } ORDER BY a DESC NULLS LAST");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 2);
+
+  const auto* page_clause = getPageClause(*clauses, 1);
+  ASSERT_NE(page_clause, nullptr);
+  const auto* order_by = page_clause->order_by->as<GAST::GQLOrderByClause>();
+  ASSERT_NE(order_by, nullptr);
+  ASSERT_EQ(order_by->items.size(), 1);
+
+  const auto* item = order_by->items[0]->as<GAST::GQLOrderByItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_TRUE(item->descending);
+  EXPECT_EQ(item->null_ordering, GAST::GQLOrderByItem::NullOrdering::NullsLast);
+  EXPECT_EQ(formatAST(*clauses), "SELECT a FROM { MATCH (a) RETURN a } ORDER BY a DESC NULLS LAST");
+  assertASTContract(ast);
+}
+
+TEST(GQLParser, StandaloneOrderByPreservesNullsLast) {
+  auto ast = parseGraphOrThrow("MATCH (a) ORDER BY a NULLS LAST RETURN a");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 3);
+
+  const auto* page_clause = getPageClause(*clauses, 1);
+  ASSERT_NE(page_clause, nullptr);
+  const auto* order_by = page_clause->order_by->as<GAST::GQLOrderByClause>();
+  ASSERT_NE(order_by, nullptr);
+  ASSERT_EQ(order_by->items.size(), 1);
+
+  const auto* item = order_by->items[0]->as<GAST::GQLOrderByItem>();
+  ASSERT_NE(item, nullptr);
+  EXPECT_FALSE(item->descending);
+  EXPECT_EQ(item->null_ordering, GAST::GQLOrderByItem::NullOrdering::NullsLast);
+  EXPECT_EQ(formatAST(*page_clause), "ORDER BY a NULLS LAST");
+  assertASTContract(ast);
+}
+
 TEST(GQLParser, RightEdgeWithRangeQuantifier) {
   auto ast = parseGraphOrThrow("MATCH (a)-[e:KNOWS]->{2,5}(b) RETURN e");
   const auto* clauses = getClausesQuery(ast);
@@ -6038,6 +6098,10 @@ TEST(GQLParser, RoundTripEdgePattern) {
 
 TEST(GQLParser, RoundTripOrderByLimitOffset) {
   assertNormalizedRoundTrip("MATCH (a) ORDER BY a DESC OFFSET 1 LIMIT 2 RETURN a");
+}
+
+TEST(GQLParser, RoundTripOrderByNullOrdering) {
+  assertNormalizedRoundTrip("MATCH (a) RETURN a ORDER BY a.name DESC NULLS LAST");
 }
 
 TEST(GQLParser, RoundTripArithmeticAndFunctions) {

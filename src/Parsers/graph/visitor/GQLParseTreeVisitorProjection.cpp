@@ -146,7 +146,16 @@ std::any GQLParseTreeVisitor::visitSortSpecification(GQLParser::SortSpecificatio
   const bool descending =
       context->orderingSpecification() && (context->orderingSpecification()->DESC() || context->orderingSpecification()->DESCENDING());
 
-  return Ptr(make_intrusive<GQLOrderByItem>(castAny<Ptr>(visit(context->sortKey()->aggregatingValueExpression())), descending));
+  GQLOrderByItem::NullOrdering null_ordering = GQLOrderByItem::NullOrdering::Unspecified;
+  if (auto *null_ordering_context = context->nullOrdering()) {
+    if (null_ordering_context->FIRST())
+      null_ordering = GQLOrderByItem::NullOrdering::NullsFirst;
+    else if (null_ordering_context->LAST())
+      null_ordering = GQLOrderByItem::NullOrdering::NullsLast;
+  }
+
+  return Ptr(
+      make_intrusive<GQLOrderByItem>(castAny<Ptr>(visit(context->sortKey()->aggregatingValueExpression())), descending, null_ordering));
 }
 
 std::any GQLParseTreeVisitor::visitLimitClause(GQLParser::LimitClauseContext *context) {
