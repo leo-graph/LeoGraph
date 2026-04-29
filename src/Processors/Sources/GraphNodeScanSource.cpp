@@ -17,8 +17,13 @@ Chunk GraphNodeScanSource::generate()
 
     generated = true;
     MutableColumns columns;
-    columns.emplace_back(ColumnUInt64::create(1, 1));
-    return Chunk(std::move(columns), 1);
+    auto column = ColumnUInt64::create();
+    auto & data = column->getData();
+    data.push_back(1);
+    data.push_back(2);
+    data.push_back(3);
+    columns.emplace_back(std::move(column));
+    return Chunk(std::move(columns), 3);
 }
 
 }
