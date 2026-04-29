@@ -1088,10 +1088,10 @@ TEST(GQLParser, NamedCallClauseBuildsStructuredNode) {
   ASSERT_NE(call, nullptr);
   EXPECT_FALSE(call->optional);
 
-  const auto* procedure = getExpr(call->procedure);
+  const auto* procedure = call->procedure->as<GAST::GQLCatalogObjectName>();
   ASSERT_NE(procedure, nullptr);
-  EXPECT_EQ(procedure->kind, GAST::GQLExpr::Kind::Identifier);
-  EXPECT_EQ(procedure->text, "foo");
+  EXPECT_EQ(procedure->name, "foo");
+  EXPECT_TRUE(procedure->parent_parts.empty());
 
   ASSERT_EQ(call->arguments.size(), 2);
   EXPECT_EQ(getExpr(call->arguments[0])->text, "a");
@@ -1109,6 +1109,23 @@ TEST(GQLParser, NamedCallClauseBuildsStructuredNode) {
   EXPECT_EQ(yield_item->kind, GAST::GQLExpr::Kind::Identifier);
   EXPECT_EQ(yield_item->text, "x");
   EXPECT_EQ(formatAST(*call), "CALL foo(a, b) YIELD x AS y");
+}
+
+TEST(GQLParser, NamedCallPreservesQualifiedProcedureReference) {
+  auto ast = parseGraphOrThrow("CALL foo.bar() YIELD x");
+  const auto* clauses = getClausesQuery(ast);
+  ASSERT_NE(clauses, nullptr);
+  ASSERT_EQ(clauses->clauses.size(), 1);
+
+  const auto* call = getCallNamedClause(*clauses, 0);
+  ASSERT_NE(call, nullptr);
+  const auto* procedure = call->procedure->as<GAST::GQLCatalogObjectName>();
+  ASSERT_NE(procedure, nullptr);
+  EXPECT_EQ(procedure->name, "bar");
+  ASSERT_EQ(procedure->parent_parts.size(), 1);
+  EXPECT_EQ(procedure->parent_parts[0], "foo");
+  EXPECT_EQ(formatAST(*call), "CALL foo.bar() YIELD x");
+  assertASTContract(ast);
 }
 
 TEST(GQLParser, InlineOptionalCallKeepsInlineProcedureShape) {

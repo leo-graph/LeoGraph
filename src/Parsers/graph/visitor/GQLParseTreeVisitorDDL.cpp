@@ -12,18 +12,6 @@ Ptr makeSchemaReferenceFromCatalogName(GQLParser::CatalogSchemaParentAndNameCont
   return Ptr(reference);
 }
 
-Ptr makeCatalogObjectName(GQLParser::CatalogGraphParentAndNameContext *context) {
-  auto result = make_intrusive<GQLCatalogObjectName>(getText(context->graphName()));
-  populateParentReference(*result, context->catalogObjectParentReference());
-  return Ptr(result);
-}
-
-Ptr makeCatalogObjectName(GQLParser::CatalogGraphTypeParentAndNameContext *context) {
-  auto result = make_intrusive<GQLCatalogObjectName>(getText(context->graphTypeName()));
-  populateParentReference(*result, context->catalogObjectParentReference());
-  return Ptr(result);
-}
-
 Ptr makeGraphTypeRef(GQLParser::GraphTypeReferenceContext *context) {
   if (auto *name = context->catalogGraphTypeParentAndName()) return makeCatalogObjectName(name);
   if (auto *param = context->referenceParameterSpecification()) return GQLExpr::literal(getText(param));

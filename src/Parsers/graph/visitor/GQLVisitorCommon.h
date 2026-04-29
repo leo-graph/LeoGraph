@@ -208,6 +208,36 @@ inline void populateParentReference(GQLCatalogObjectName &obj, GQLParser::Catalo
   for (auto *obj_name : parent_ref->objectName()) obj.parent_parts.push_back(getText(obj_name));
 }
 
+inline Ptr makeCatalogObjectName(String name, GQLParser::CatalogObjectParentReferenceContext *parent_ref) {
+  auto obj_name = make_intrusive<GQLCatalogObjectName>(std::move(name));
+  populateParentReference(*obj_name, parent_ref);
+  return Ptr(obj_name);
+}
+
+inline Ptr makeCatalogObjectName(GQLParser::CatalogGraphParentAndNameContext *context) {
+  return makeCatalogObjectName(getText(context->graphName()), context->catalogObjectParentReference());
+}
+
+inline Ptr makeCatalogObjectName(GQLParser::CatalogGraphTypeParentAndNameContext *context) {
+  return makeCatalogObjectName(getText(context->graphTypeName()), context->catalogObjectParentReference());
+}
+
+inline Ptr makeCatalogObjectName(GQLParser::CatalogProcedureParentAndNameContext *context) {
+  return makeCatalogObjectName(getText(context->procedureName()), context->catalogObjectParentReference());
+}
+
+inline Ptr makeCatalogObjectName(GQLParser::BindingTableReferenceContext *context) {
+  return makeCatalogObjectName(getText(context->bindingTableName()), context->catalogObjectParentReference());
+}
+
+inline Ptr makeProcedureReference(GQLParser::ProcedureReferenceContext *context) {
+  if (auto *name = context->catalogProcedureParentAndName()) return makeCatalogObjectName(name);
+
+  if (auto *parameter = context->referenceParameterSpecification()) return GQLExpr::literal(getText(parameter));
+
+  throwUnsupported("procedure reference", context);
+}
+
 inline Ptr makeBindingInitializer(GQLBindingInitializer::Kind kind, Ptr value) {
   return Ptr(make_intrusive<GQLBindingInitializer>(kind, std::move(value)));
 }
@@ -221,9 +251,9 @@ inline Ptr makeGraphExpression(GQLParser::GraphExpressionContext *context, GQLPa
 
   if (auto *graph_ref = context->graphReference()) {
     if (graph_ref->catalogObjectParentReference() && graph_ref->graphName()) {
-      auto obj_name = make_intrusive<GQLCatalogObjectName>(getText(graph_ref->graphName()));
-      populateParentReference(*obj_name, graph_ref->catalogObjectParentReference());
-      return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::QualifiedGraphRef, String{}, Ptr(obj_name)));
+      return Ptr(make_intrusive<GQLGraphExpression>(
+          GQLGraphExpression::Kind::QualifiedGraphRef, String{},
+          makeCatalogObjectName(getText(graph_ref->graphName()), graph_ref->catalogObjectParentReference())));
     }
     if (graph_ref->homeGraph())
       return Ptr(make_intrusive<GQLGraphExpression>(GQLGraphExpression::Kind::HomeGraphRef, getText(graph_ref->homeGraph())));
@@ -262,8 +292,13 @@ inline Ptr makeBindingTableExpression(GQLParser::BindingTableExpressionContext *
   }
 
   if (context->bindingTableReference()) {
-    return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::BindingTableReference,
-                                                         getText(context->bindingTableReference())));
+    auto *reference = context->bindingTableReference();
+    if (reference->catalogObjectParentReference() && reference->bindingTableName()) {
+      return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::BindingTableReference, String{},
+                                                           makeCatalogObjectName(reference)));
+    }
+
+    return Ptr(make_intrusive<GQLBindingTableExpression>(GQLBindingTableExpression::Kind::BindingTableReference, getText(reference)));
   }
 
   if (context->objectNameOrBindingVariable()) {
@@ -337,7 +372,7 @@ inline Ptr makeCallClause(GQLParser::CallProcedureStatementContext *statement, G
   if (auto *named = procedure_call->namedProcedureCall()) {
     auto clause = make_intrusive<GQLCallNamedClause>();
     clause->optional = statement->OPTIONAL() != nullptr;
-    clause->procedure = GQLExpr::identifier(getText(named->procedureReference()));
+    clause->procedure = makeProcedureReference(named->procedureReference());
 
     if (auto *argument_list = named->procedureArgumentList()) {
       for (auto *argument : argument_list->procedureArgument())
