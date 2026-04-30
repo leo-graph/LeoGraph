@@ -11,7 +11,7 @@
 #include <Processors/QueryPlan/BuildQueryPipelineSettings.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
-#include <Processors/QueryPlan/GraphNodeScanStep.h>
+#include <Processors/QueryPlan/Graph/NodeScanStep.h>
 #include <Processors/QueryPlan/LimitStep.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
 #include <Processors/QueryPlan/QueryPlan.h>
@@ -85,7 +85,7 @@ void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, Cont
 void lowerMatch(QueryPlan & plan, const GAST::GQLMatchClause & match, ContextPtr context)
 {
     auto node = lowerSingleNodePattern(match);
-    plan.addStep(std::make_unique<GraphNodeScanStep>(node.variable));
+    plan.addStep(std::make_unique<Graph::NodeScanStep>(node.variable));
 
     if (!match.where)
         return;

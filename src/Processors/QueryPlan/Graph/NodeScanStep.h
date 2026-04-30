@@ -2,13 +2,13 @@
 
 #include <Processors/QueryPlan/ISourceStep.h>
 
-namespace DB
+namespace DB::Graph
 {
 
-class GraphNodeScanStep final : public ISourceStep
+class NodeScanStep final : public ISourceStep
 {
 public:
-    explicit GraphNodeScanStep(String node_variable_);
+    explicit NodeScanStep(String node_variable_);
 
     String getName() const override { return "GraphNodeScan"; }
 
