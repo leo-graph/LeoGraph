@@ -2,13 +2,14 @@
 
 #include <charconv>
 
-#include <DataTypes/DataTypesNumber.h>
-#include <Functions/FunctionFactory.h>
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
+#include <Interpreters/GQL/ExpressionLowering.h>
+#include <Interpreters/GQL/PatternLowering.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/BuildQueryPipelineSettings.h>
+#include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
 #include <Processors/QueryPlan/GraphNodeScanStep.h>
 #include <Processors/QueryPlan/LimitStep.h>
@@ -31,13 +32,6 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
-struct MinimalMatchExecution
-{
-    String node_variable;
-    const GAST::GQLWhereClause * where = nullptr;
-    const GAST::GQLPageClause * page = nullptr;
-};
-
 const GAST::GQLSingleQuery & getSingleQuery(const ASTPtr & query_ptr)
 {
     if (const auto * query = query_ptr->as<GAST::GQLSingleQuery>())
@@ -46,189 +40,168 @@ const GAST::GQLSingleQuery & getSingleQuery(const ASTPtr & query_ptr)
     throw Exception(ErrorCodes::LOGICAL_ERROR, "InterpreterGQLQuery expects GQLSingleQuery");
 }
 
-const GAST::GQLExpr * getIdentifierExpression(const ASTPtr & ast)
+GQL::NodeBinding lowerSingleNodePattern(const GAST::GQLMatchClause & match)
 {
-    if (!ast)
-        return nullptr;
-
-    if (const auto * item = ast->as<GAST::GQLAliasedItem>())
-        return getIdentifierExpression(item->expression);
-
-    const auto * expression = ast->as<GAST::GQLExpr>();
-    if (!expression || expression->kind != GAST::GQLExpr::Kind::Identifier)
-        return nullptr;
-
-    return expression;
-}
-
-String extractMinimalNodeVariable(const GAST::GQLMatchClause & match)
-{
-    if (match.optional || match.match_mode != GAST::GraphMatchMode::None || match.keep_clause || match.optional_operand_block || !match.yield_items.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only basic GQL MATCH clauses are supported");
-
+    if (match.optional || match.optional_operand_block)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL MATCH is not supported");
+    if (match.match_mode != GAST::GraphMatchMode::None)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH mode prefix is not supported");
+    if (match.keep_clause)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH KEEP is not supported");
+    if (!match.yield_items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH YIELD is not supported");
     if (match.path_patterns.size() != 1)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only a single GQL MATCH path pattern is supported");
 
     const auto * path = match.path_patterns.front()->as<GAST::GQLPathPattern>();
-    if (!path || path->variable || path->prefix)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only an unqualified GQL MATCH path pattern is supported");
+    if (!path)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern must be GQLPathPattern");
 
-    const auto * term = path->expression ? path->expression->as<GAST::GQLPathTerm>() : nullptr;
-    if (!term || term->factors.size() != 1)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only a single node GQL MATCH pattern is supported");
+    auto binding = GQL::lowerPathPattern(*path);
 
-    const auto * node = term->factors.front()->as<GAST::GQLNodePattern>();
-    if (!node || node->label_expression || node->properties || node->where)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only an unlabeled GQL MATCH node pattern is supported");
+    if (binding.nodes.size() != 1 || !binding.edges.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only single-node GQL MATCH patterns are supported");
 
-    const auto * variable = getIdentifierExpression(node->variable);
-    if (!variable || variable->text.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only named GQL MATCH node patterns are supported");
+    auto & node = binding.nodes.front();
+    if (node.label || node.properties || node.where)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Node label, properties, and per-node WHERE are not yet supported");
+    if (node.variable.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Anonymous GQL MATCH node patterns are not supported");
 
-    return variable->text;
+    return std::move(node);
 }
 
-UInt64 extractUInt64Literal(const ASTPtr & ast, const String & context)
+void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, ContextPtr context)
 {
-    const auto * expression = ast ? ast->as<GAST::GQLExpr>() : nullptr;
-    if (!expression || expression->kind != GAST::GQLExpr::Kind::Literal || expression->text.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer GQL {} literals are supported", context);
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+
+    const auto & filter_node = GQL::lowerExpression(predicate, dag, context);
+    dag.getOutputs().push_back(&filter_node);
+
+    plan.addStep(std::make_unique<FilterStep>(current_header, std::move(dag), filter_node.result_name, true));
+}
+
+void lowerMatch(QueryPlan & plan, const GAST::GQLMatchClause & match, ContextPtr context)
+{
+    auto node = lowerSingleNodePattern(match);
+    plan.addStep(std::make_unique<GraphNodeScanStep>(node.variable));
+
+    if (!match.where)
+        return;
+
+    const auto * where = match.where->as<GAST::GQLWhereClause>();
+    if (!where)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH where node must be GQLWhereClause");
+    if (where->type != GAST::GQLWhereClause::Type::Where)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside GQL MATCH is not supported");
+
+    const auto * predicate = where->expression ? where->expression->as<GAST::GQLExpr>() : nullptr;
+    if (!predicate)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL WHERE predicate must be a GQL expression");
+
+    lowerWherePredicate(plan, *predicate, context);
+}
+
+void lowerReturn(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context)
+{
+    if (ret.distinct)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN DISTINCT is not supported");
+    if (ret.group_by)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN GROUP BY is not supported");
+
+    if (ret.return_all)
+        return;
+
+    if (ret.items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN must project at least one item");
+
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+
+    ActionsDAG::NodeRawConstPtrs new_outputs;
+    new_outputs.reserve(ret.items.size());
+
+    for (const auto & item_ast : ret.items)
+    {
+        const auto * item = item_ast->as<GAST::GQLAliasedItem>();
+        if (!item)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL RETURN item must be GQLAliasedItem");
+
+        const auto * expr = item->expression ? item->expression->as<GAST::GQLExpr>() : nullptr;
+        if (!expr)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN item must wrap a GQL expression");
+
+        const auto & node = GQL::lowerExpression(*expr, dag, context);
+        if (item->alias.empty())
+            new_outputs.push_back(&node);
+        else
+            new_outputs.push_back(&dag.addAlias(node, item->alias));
+    }
+
+    dag.getOutputs() = std::move(new_outputs);
+    plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+}
+
+UInt64 extractUnsignedIntegerLiteral(const GAST::GQLExpr & literal, std::string_view context_name)
+{
+    if (literal.kind != GAST::GQLExpr::Kind::Literal || literal.text.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
 
     UInt64 value = 0;
-    const char * begin = expression->text.data();
-    const char * end = begin + expression->text.size();
+    const char * begin = literal.text.data();
+    const char * end = begin + literal.text.size();
     const auto result = std::from_chars(begin, end, value);
     if (result.ec != std::errc{} || result.ptr != end)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer GQL {} literals are supported", context);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
 
     return value;
 }
 
-void validateMinimalReturn(const GAST::GQLReturnClause & return_clause, const String & node_variable)
+void lowerPage(QueryPlan & plan, const GAST::GQLPageClause & page)
 {
-    if (return_clause.distinct || return_clause.return_all || return_clause.group_by)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only basic GQL RETURN clauses are supported");
+    if (page.order_by)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY is not yet supported");
+    if (page.offset)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OFFSET is not yet supported");
+    if (!page.limit)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL page clause without LIMIT is not supported");
 
-    if (return_clause.items.size() != 1)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only a single GQL RETURN item is supported");
+    const auto * limit_expr = page.limit->as<GAST::GQLExpr>();
+    if (!limit_expr)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LIMIT must be a GQL expression");
 
-    const auto * item = return_clause.items.front()->as<GAST::GQLAliasedItem>();
-    if (!item || !item->alias.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unaliased GQL RETURN items are supported");
-
-    const auto * expression = getIdentifierExpression(item->expression);
-    if (!expression || expression->text != node_variable)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only returning the matched GQL node variable is supported");
+    const UInt64 limit = extractUnsignedIntegerLiteral(*limit_expr, "LIMIT");
+    plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), limit, 0));
 }
 
-String mapComparisonFunction(const String & op)
+void lowerClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, size_t & match_count)
 {
-    if (op == "=")
-        return "equals";
-    if (op == "<>" || op == "!=")
-        return "notEquals";
-    if (op == ">")
-        return "greater";
-    if (op == ">=")
-        return "greaterOrEquals";
-    if (op == "<")
-        return "less";
-    if (op == "<=")
-        return "lessOrEquals";
+    if (!clause_ast)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL clause node is null");
 
-    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only basic comparison GQL MATCH filters are supported");
-}
-
-ActionsDAG buildNodeIdFilterDAG(
-    const SharedHeader & input_header, const GAST::GQLWhereClause & where_clause, const String & node_variable, ContextPtr context)
-{
-    if (where_clause.type != GAST::GQLWhereClause::Type::Where)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL WHERE filters are supported");
-
-    const auto * predicate = where_clause.expression ? where_clause.expression->as<GAST::GQLExpr>() : nullptr;
-    if (!predicate || predicate->kind != GAST::GQLExpr::Kind::BinaryOp || predicate->children.size() != 2)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only binary GQL MATCH filters on the node id are supported");
-
-    const auto * left = getIdentifierExpression(predicate->children[0]);
-    if (!left || left->text != node_variable)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL MATCH filters on the matched node variable are supported");
-
-    const UInt64 right_value = extractUInt64Literal(predicate->children[1], "MATCH filter");
-    const String function_name = mapComparisonFunction(predicate->text);
-
-    ActionsDAG actions(input_header->getColumnsWithTypeAndName());
-    const auto & left_node = actions.findInOutputs(node_variable);
-
-    auto uint64_type = std::make_shared<DataTypeUInt64>();
-    const auto & right_node = actions.addColumn(
-        {uint64_type->createColumnConst(1, Field(right_value)), uint64_type, "__gql_filter_literal"});
-
-    auto function = FunctionFactory::instance().get(function_name, context);
-    const auto & filter_node = actions.addFunction(function, {&left_node, &right_node}, "__gql_filter");
-    actions.getOutputs().push_back(&filter_node);
-
-    return actions;
-}
-
-MinimalMatchExecution analyzeMinimalMatchExecution(const GAST::GQLSingleQuery & query)
-{
-    if (query.clauses.size() != 2 && query.clauses.size() != 3)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL MATCH followed by RETURN and optional LIMIT is supported");
-
-    const auto * match = query.clauses[0]->as<GAST::GQLMatchClause>();
-    if (!match)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL queries starting with MATCH are supported");
-
-    MinimalMatchExecution execution;
-    execution.node_variable = extractMinimalNodeVariable(*match);
-
-    if (match->where)
+    if (const auto * match = clause_ast->as<GAST::GQLMatchClause>())
     {
-        execution.where = match->where->as<GAST::GQLWhereClause>();
-        if (!execution.where)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH where node must be GQLWhereClause");
+        if (match_count > 0)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Multiple MATCH clauses are not supported");
+        ++match_count;
+        lowerMatch(plan, *match, context);
+        return;
     }
 
-    const auto * return_clause = query.clauses[1]->as<GAST::GQLReturnClause>();
-    if (!return_clause)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL MATCH followed by RETURN is supported");
-
-    validateMinimalReturn(*return_clause, execution.node_variable);
-
-    if (query.clauses.size() == 3)
+    if (const auto * ret = clause_ast->as<GAST::GQLReturnClause>())
     {
-        execution.page = query.clauses[2]->as<GAST::GQLPageClause>();
-        if (!execution.page)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL LIMIT is supported after RETURN");
-
-        if (execution.page->order_by || execution.page->offset || !execution.page->limit)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL LIMIT without ORDER BY or OFFSET is supported");
+        lowerReturn(plan, *ret, context);
+        return;
     }
 
-    return execution;
-}
-
-void executeMatch(QueryPlan & query_plan, const MinimalMatchExecution & execution)
-{
-    query_plan.addStep(std::make_unique<GraphNodeScanStep>(execution.node_variable));
-}
-
-void executeWhere(QueryPlan & query_plan, const MinimalMatchExecution & execution, ContextPtr context)
-{
-    if (!execution.where)
+    if (const auto * page = clause_ast->as<GAST::GQLPageClause>())
+    {
+        lowerPage(plan, *page);
         return;
+    }
 
-    auto filter_actions = buildNodeIdFilterDAG(query_plan.getCurrentHeader(), *execution.where, execution.node_variable, context);
-    query_plan.addStep(std::make_unique<FilterStep>(query_plan.getCurrentHeader(), std::move(filter_actions), "__gql_filter", true));
-}
-
-void executePage(QueryPlan & query_plan, const MinimalMatchExecution & execution)
-{
-    if (!execution.page)
-        return;
-
-    const UInt64 limit = extractUInt64Literal(execution.page->limit, "LIMIT");
-    query_plan.addStep(std::make_unique<LimitStep>(query_plan.getCurrentHeader(), limit, 0));
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL clause: {}", clause_ast->getID(' '));
 }
 
 }
@@ -255,11 +228,17 @@ BlockIO InterpreterGQLQuery::execute()
 void InterpreterGQLQuery::buildQueryPlan(QueryPlan & query_plan)
 {
     const auto & query = getSingleQuery(query_ptr);
-    const auto execution = analyzeMinimalMatchExecution(query);
 
-    executeMatch(query_plan, execution);
-    executeWhere(query_plan, execution, getContext());
-    executePage(query_plan, execution);
+    if (query.clauses.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL query must contain at least one clause");
+
+    if (!query.clauses.front()->as<GAST::GQLMatchClause>())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL queries starting with MATCH are supported");
+
+    size_t match_count = 0;
+    for (const auto & clause : query.clauses)
+        lowerClause(query_plan, clause, getContext(), match_count);
+
     query_plan.addInterpreterContext(getContext());
 }
 
