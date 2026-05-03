@@ -11,6 +11,7 @@
 #  include <Interpreters/InterpreterGQLQuery.h>
 #  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
+#  include <Processors/QueryPlan/DistinctStep.h>
 #  include <Processors/QueryPlan/ExpressionStep.h>
 #  include <Processors/QueryPlan/FilterStep.h>
 #  include <Processors/QueryPlan/Graph/MatchStep.h>
@@ -220,6 +221,32 @@ TEST(GQLInterpreter, SelectFromSubqueryReusesWhereProjectionAndPageLowering)
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Limit", "Sorting", "Expression", "Filter", "Expression", "ReadFromPreparedSource"}));
+}
+
+TEST(GQLInterpreter, ReturnDistinctUsesReusableDistinctLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN DISTINCT 1 AS one");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * distinct = dynamic_cast<const DistinctStep *>(root->step.get());
+    ASSERT_NE(distinct, nullptr);
+    EXPECT_EQ(distinct->getColumnNames(), (Names{"one"}));
+}
+
+TEST(GQLInterpreter, SelectDistinctAllFromSubqueryUsesReusableDistinctLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT DISTINCT * FROM { RETURN 1 AS a }");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * distinct = dynamic_cast<const DistinctStep *>(root->step.get());
+    ASSERT_NE(distinct, nullptr);
+    EXPECT_EQ(distinct->getColumnNames(), (Names{"a"}));
 }
 
 TEST(GQLInterpreter, LetWithoutMatchStartsReusableScalarPipeline)

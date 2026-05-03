@@ -5,20 +5,30 @@
 #include <unordered_set>
 
 #include <Core/SortDescription.h>
+#include <Core/Settings.h>
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
+#include <Processors/QueryPlan/DistinctStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
 #include <Processors/QueryPlan/LimitStep.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/SortingStep.h>
+#include <QueryPipeline/SizeLimits.h>
 #include <Common/Exception.h>
 
 namespace DB
 {
+
+namespace Setting
+{
+extern const SettingsOverflowMode distinct_overflow_mode;
+extern const SettingsUInt64 max_bytes_in_distinct;
+extern const SettingsUInt64 max_rows_in_distinct;
+}
 
 namespace ErrorCodes
 {
@@ -116,6 +126,29 @@ void lowerOrderByClause(QueryPlan & plan, const GAST::GQLOrderByClause & order_b
         SortingStep::Settings(context->getSettingsRef())));
 }
 
+Names getHeaderColumnNames(const Block & header)
+{
+    Names names;
+    names.reserve(header.columns());
+    for (size_t i = 0; i < header.columns(); ++i)
+        names.push_back(header.getByPosition(i).name);
+
+    return names;
+}
+
+void lowerDistinct(QueryPlan & plan, ContextPtr context)
+{
+    const auto current_header = plan.getCurrentHeader();
+    const auto columns = getHeaderColumnNames(*current_header);
+    const auto & settings = context->getSettingsRef();
+    SizeLimits limits(
+        settings[Setting::max_rows_in_distinct],
+        settings[Setting::max_bytes_in_distinct],
+        settings[Setting::distinct_overflow_mode]);
+
+    plan.addStep(std::make_unique<DistinctStep>(current_header, limits, 0, columns, false));
+}
+
 }
 
 void lowerWhereClause(
@@ -137,15 +170,19 @@ void lowerWhereClause(
 
 void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context, PlanScope & scope)
 {
-    if (ret.distinct)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN DISTINCT is not supported");
     if (ret.group_by)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN GROUP BY is not supported");
 
     if (ret.return_all)
+    {
+        if (ret.distinct)
+            lowerDistinct(plan, context);
         return;
+    }
 
     lowerProjectionItems(plan, ret.items, context, "RETURN", scope);
+    if (ret.distinct)
+        lowerDistinct(plan, context);
 }
 
 void lowerSelectClause(
@@ -155,8 +192,6 @@ void lowerSelectClause(
     PlanScope & scope,
     bool source_was_lowered)
 {
-    if (select.distinct)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT DISTINCT is not supported");
     if (select.group_by)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT GROUP BY is not supported");
     if (select.having)
@@ -181,10 +216,15 @@ void lowerSelectClause(
         if (!source_was_lowered)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * is not supported without a source");
 
+        if (select.distinct)
+            lowerDistinct(plan, context);
+
         return;
     }
 
     lowerProjectionItems(plan, select.items, context, "SELECT", scope);
+    if (select.distinct)
+        lowerDistinct(plan, context);
 }
 
 void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr context, std::string_view context_name, PlanScope & scope)
