@@ -54,7 +54,7 @@ void lowerProjectionItems(
 
 void lowerLetClause(QueryPlan & plan, const OPENGQL::AST::GQLLetClause & let, ContextPtr context, PlanScope & scope);
 
-void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page, ContextPtr context);
+void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page, ContextPtr context, PlanScope & scope);
 
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope);
 

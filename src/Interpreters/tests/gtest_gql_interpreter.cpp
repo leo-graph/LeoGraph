@@ -304,6 +304,21 @@ TEST(GQLInterpreter, ReturnOrderByUsesReusablePageLowering)
     EXPECT_EQ(description[0].nulls_direction, -1);
 }
 
+TEST(GQLInterpreter, ReturnOrderByExpressionUsesHiddenSortColumn)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS a ORDER BY a + 1 LIMIT 5");
+
+    EXPECT_EQ(
+        linearStepNames(plan),
+        (std::vector<String>{"Limit", "Expression", "Sorting", "Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+}
+
 TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("RETURN ABS(-1) AS v");

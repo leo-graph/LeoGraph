@@ -82,13 +82,22 @@ int getNullsDirection(const GAST::GQLOrderByItem & item, int direction)
 String getOrderByColumnName(const GAST::GQLOrderByItem & item, const Block & header)
 {
     const auto * expr = item.expression ? item.expression->as<GAST::GQLExpr>() : nullptr;
-    if (!expr || expr->kind != GAST::GQLExpr::Kind::Identifier)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY currently supports only projected column identifiers");
-
-    if (!header.has(expr->text))
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY column '{}' is not available in current plan header", expr->text);
+    if (!expr || expr->kind != GAST::GQLExpr::Kind::Identifier || !header.has(expr->text))
+        return {};
 
     return expr->text;
+}
+
+String makeHiddenSortColumnName(const Block & header, const std::unordered_set<String> & used_names, size_t index)
+{
+    String name = fmt::format("__gql_sort_{}", index);
+    while (header.has(name) || used_names.find(name) != used_names.end())
+    {
+        ++index;
+        name = fmt::format("__gql_sort_{}", index);
+    }
+
+    return name;
 }
 
 UInt64 getSortLimit(const GAST::GQLPageClause & page, UInt64 limit, UInt64 offset)
@@ -101,31 +110,6 @@ UInt64 getSortLimit(const GAST::GQLPageClause & page, UInt64 limit, UInt64 offse
     return limit + offset;
 }
 
-void lowerOrderByClause(QueryPlan & plan, const GAST::GQLOrderByClause & order_by, UInt64 sort_limit, ContextPtr context)
-{
-    if (order_by.items.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY must contain at least one sort item");
-
-    auto current_header = plan.getCurrentHeader();
-    SortDescription description;
-    description.reserve(order_by.items.size());
-    for (const auto & item_ast : order_by.items)
-    {
-        const auto * item = item_ast ? item_ast->as<GAST::GQLOrderByItem>() : nullptr;
-        if (!item)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY item must be GQLOrderByItem");
-
-        const int direction = item->descending ? -1 : 1;
-        description.emplace_back(getOrderByColumnName(*item, *current_header), direction, getNullsDirection(*item, direction));
-    }
-
-    plan.addStep(std::make_unique<SortingStep>(
-        current_header,
-        std::move(description),
-        sort_limit,
-        SortingStep::Settings(context->getSettingsRef())));
-}
-
 Names getHeaderColumnNames(const Block & header)
 {
     Names names;
@@ -134,6 +118,99 @@ Names getHeaderColumnNames(const Block & header)
         names.push_back(header.getByPosition(i).name);
 
     return names;
+}
+
+void materializeOrderByExpressions(
+    QueryPlan & plan,
+    const GAST::GQLOrderByClause & order_by,
+    ContextPtr context,
+    const PlanScope & scope,
+    SortDescription & description,
+    Names & original_columns,
+    bool & has_hidden_columns)
+{
+    if (order_by.items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY must contain at least one sort item");
+
+    auto current_header = plan.getCurrentHeader();
+    original_columns = getHeaderColumnNames(*current_header);
+
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    auto outputs = dag.getOutputs();
+    std::unordered_set<String> hidden_sort_names;
+
+    description.reserve(order_by.items.size());
+    for (const auto & item_ast : order_by.items)
+    {
+        const auto * item = item_ast ? item_ast->as<GAST::GQLOrderByItem>() : nullptr;
+        if (!item)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY item must be GQLOrderByItem");
+
+        const int direction = item->descending ? -1 : 1;
+        String column_name = getOrderByColumnName(*item, *current_header);
+        if (column_name.empty())
+        {
+            if (!item->expression)
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY item must wrap an expression");
+
+            const auto & node = lowerExpression(*item->expression, dag, context, scope);
+            column_name = makeHiddenSortColumnName(*current_header, hidden_sort_names, description.size());
+            hidden_sort_names.insert(column_name);
+            outputs.push_back(&dag.addAlias(node, column_name));
+            has_hidden_columns = true;
+        }
+
+        description.emplace_back(std::move(column_name), direction, getNullsDirection(*item, direction));
+    }
+
+    if (has_hidden_columns)
+    {
+        dag.getOutputs() = std::move(outputs);
+        plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    }
+}
+
+void pruneHiddenSortColumns(QueryPlan & plan, const Names & original_columns, PlanScope & scope)
+{
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+
+    ActionsDAG::NodeRawConstPtrs outputs;
+    outputs.reserve(original_columns.size());
+    for (const auto & column : original_columns)
+    {
+        const auto * node = dag.tryFindInOutputs(column);
+        if (!node)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL ORDER BY hidden-column pruning lost column '{}'", column);
+
+        outputs.push_back(node);
+    }
+
+    dag.getOutputs() = std::move(outputs);
+    plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
+}
+
+void lowerOrderByClause(
+    QueryPlan & plan,
+    const GAST::GQLOrderByClause & order_by,
+    UInt64 sort_limit,
+    ContextPtr context,
+    PlanScope & scope)
+{
+    SortDescription description;
+    Names original_columns;
+    bool has_hidden_columns = false;
+    materializeOrderByExpressions(plan, order_by, context, scope, description, original_columns, has_hidden_columns);
+
+    plan.addStep(std::make_unique<SortingStep>(
+        plan.getCurrentHeader(),
+        std::move(description),
+        sort_limit,
+        SortingStep::Settings(context->getSettingsRef())));
+
+    if (has_hidden_columns)
+        pruneHiddenSortColumns(plan, original_columns, scope);
 }
 
 void lowerDistinct(QueryPlan & plan, ContextPtr context)
@@ -296,7 +373,7 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
 
-void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, ContextPtr context)
+void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, ContextPtr context, PlanScope & scope)
 {
     UInt64 offset = 0;
     if (page.offset)
@@ -329,7 +406,7 @@ void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, Context
         if (!order_by)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY node must be GQLOrderByClause");
 
-        lowerOrderByClause(plan, *order_by, getSortLimit(page, limit, offset), context);
+        lowerOrderByClause(plan, *order_by, getSortLimit(page, limit, offset), context, scope);
     }
 
     if (page.offset || page.limit)
@@ -349,7 +426,7 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
 
     if (const auto * page = clause_ast->as<GAST::GQLPageClause>())
     {
-        lowerPageClause(plan, *page, context);
+        lowerPageClause(plan, *page, context, scope);
         return;
     }
 
