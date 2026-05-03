@@ -5,6 +5,7 @@
 
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/MatchPlanToSpec.h>
+#include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/PatternLowering.h>
 #include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/QueryPlan.h>
@@ -37,7 +38,8 @@ void validateExecutableMatch(const Graph::MatchSpec & match)
 void lowerMatchClauseSequence(
     QueryPlan & plan,
     const std::vector<const OPENGQL::AST::GQLMatchClause *> & matches,
-    ContextPtr context)
+    ContextPtr context,
+    PlanScope & scope)
 {
     std::vector<MatchPlan> match_plans;
     match_plans.reserve(matches.size());
@@ -52,6 +54,7 @@ void lowerMatchClauseSequence(
     auto match_spec = makeMatchSpec(match_plans);
     validateExecutableMatch(match_spec);
     plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 
     for (const auto & match_plan : match_plans)
     {

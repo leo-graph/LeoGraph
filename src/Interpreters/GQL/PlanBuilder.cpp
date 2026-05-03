@@ -46,7 +46,7 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
 
         if (!pending_matches.empty())
         {
-            lowerMatchClauseSequence(plan, pending_matches, context);
+            lowerMatchClauseSequence(plan, pending_matches, context, scope);
             pending_matches.clear();
             source_ready = true;
         }
@@ -54,11 +54,11 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
         if (!source_ready)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL clause before a source clause is not supported: {}", clause->getID(' '));
 
-        lowerPipelineClause(plan, clause, context);
+        lowerPipelineClause(plan, clause, context, scope);
     }
 
     if (!pending_matches.empty())
-        lowerMatchClauseSequence(plan, pending_matches, context);
+        lowerMatchClauseSequence(plan, pending_matches, context, scope);
 }
 
 }

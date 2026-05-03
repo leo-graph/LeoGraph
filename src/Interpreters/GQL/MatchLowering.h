@@ -13,9 +13,12 @@ class QueryPlan;
 namespace DB::GQL
 {
 
+class PlanScope;
+
 void lowerMatchClauseSequence(
     QueryPlan & plan,
     const std::vector<const OPENGQL::AST::GQLMatchClause *> & matches,
-    ContextPtr context);
+    ContextPtr context,
+    PlanScope & scope);
 
 }

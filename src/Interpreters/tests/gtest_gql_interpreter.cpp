@@ -63,6 +63,19 @@ QueryPlan buildPlanWithPlanBuilder(const std::string & query)
     return plan;
 }
 
+std::vector<GQL::PlanBinding> buildScopeBindingsWithPlanBuilder(const std::string & query)
+{
+    const auto ast = parseGQL(query);
+    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
+    if (!single_query)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "test query must parse to GQLSingleQuery");
+
+    QueryPlan plan;
+    GQL::PlanBuilder builder(getInterpreterContext());
+    builder.buildSingleQuery(plan, *single_query);
+    return builder.getScope().getBindings();
+}
+
 std::vector<String> linearStepNames(const QueryPlan & plan)
 {
     std::vector<String> names;
@@ -113,6 +126,29 @@ TEST(GQLInterpreter, PlanBuilderLowersSingleQueryWithoutInterpreter)
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Limit", "Expression", "Filter", "GraphMatch"}));
+}
+
+TEST(GQLInterpreter, PlanBuilderScopeTracksMatchSourceBindings)
+{
+    const auto bindings = buildScopeBindingsWithPlanBuilder("MATCH (a)-[r]->(b) RETURN *");
+
+    ASSERT_EQ(bindings.size(), 3u);
+    EXPECT_EQ(bindings[0].name, "a");
+    EXPECT_EQ(bindings[1].name, "r");
+    EXPECT_EQ(bindings[2].name, "b");
+    EXPECT_EQ(bindings[0].kind, GQL::BindingKind::Source);
+    EXPECT_EQ(bindings[1].kind, GQL::BindingKind::Source);
+    EXPECT_EQ(bindings[2].kind, GQL::BindingKind::Source);
+}
+
+TEST(GQLInterpreter, PlanBuilderScopeTracksProjectionBindings)
+{
+    const auto bindings = buildScopeBindingsWithPlanBuilder("MATCH (n) RETURN n AS node_id");
+
+    ASSERT_EQ(bindings.size(), 1u);
+    EXPECT_EQ(bindings[0].name, "node_id");
+    EXPECT_EQ(bindings[0].kind, GQL::BindingKind::Projection);
+    ASSERT_NE(bindings[0].type, nullptr);
 }
 
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)

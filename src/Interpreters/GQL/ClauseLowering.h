@@ -20,6 +20,8 @@ class GQLWhereClause;
 namespace DB::GQL
 {
 
+class PlanScope;
+
 /// Lowers reusable GQL clauses that transform an existing query pipeline.
 void lowerWhereClause(
     QueryPlan & plan,
@@ -30,16 +32,18 @@ void lowerWhereClause(
 void lowerReturnClause(
     QueryPlan & plan,
     const OPENGQL::AST::GQLReturnClause & ret,
-    ContextPtr context);
+    ContextPtr context,
+    PlanScope & scope);
 
 void lowerProjectionItems(
     QueryPlan & plan,
     const ASTs & items,
     ContextPtr context,
-    std::string_view context_name);
+    std::string_view context_name,
+    PlanScope & scope);
 
 void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page);
 
-void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context);
+void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope);
 
 }

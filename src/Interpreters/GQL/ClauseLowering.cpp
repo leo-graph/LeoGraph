@@ -4,6 +4,7 @@
 
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
+#include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
@@ -67,7 +68,7 @@ void lowerWhereClause(QueryPlan & plan, const GAST::GQLWhereClause & where, Cont
     lowerWherePredicate(plan, *predicate, context);
 }
 
-void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context)
+void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context, PlanScope & scope)
 {
     if (ret.distinct)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN DISTINCT is not supported");
@@ -77,10 +78,10 @@ void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, Cont
     if (ret.return_all)
         return;
 
-    lowerProjectionItems(plan, ret.items, context, "RETURN");
+    lowerProjectionItems(plan, ret.items, context, "RETURN", scope);
 }
 
-void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr context, std::string_view context_name)
+void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr context, std::string_view context_name, PlanScope & scope)
 {
     if (items.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must project at least one item", context_name);
@@ -110,6 +111,7 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
 
     dag.getOutputs() = std::move(new_outputs);
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
 
 void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page)
@@ -129,14 +131,14 @@ void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page)
     plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), limit, 0));
 }
 
-void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context)
+void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope)
 {
     if (!clause_ast)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL clause node is null");
 
     if (const auto * ret = clause_ast->as<GAST::GQLReturnClause>())
     {
-        lowerReturnClause(plan, *ret, context);
+        lowerReturnClause(plan, *ret, context, scope);
         return;
     }
 
