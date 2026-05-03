@@ -151,6 +151,51 @@ TEST(GQLPatternLowering, MatchOutgoingEdgeLowersEdgeBinding)
     EXPECT_EQ(binding.edges.front().where, nullptr);
 }
 
+TEST(GQLPatternLowering, MatchCompoundEdgeDirectionsLowerToSpec)
+{
+    {
+        auto ast = parseGQLOrThrow("MATCH (a)<-[r]->(b) RETURN r");
+        const auto binding = lowerOnlyPathPattern(ast);
+        ASSERT_EQ(binding.edges.size(), 1u);
+        EXPECT_EQ(binding.edges.front().direction, GQL::EdgeBinding::Direction::IncomingOrOutgoing);
+
+        const auto * match = getMatchClause(ast);
+        ASSERT_NE(match, nullptr);
+        const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+        ASSERT_EQ(spec.paths.size(), 1u);
+        ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+        EXPECT_EQ(spec.paths.front().edges.front().direction, Graph::MatchEdgeDirection::IncomingOrOutgoing);
+    }
+
+    {
+        auto ast = parseGQLOrThrow("MATCH (a)<~[r]~(b) RETURN r");
+        const auto binding = lowerOnlyPathPattern(ast);
+        ASSERT_EQ(binding.edges.size(), 1u);
+        EXPECT_EQ(binding.edges.front().direction, GQL::EdgeBinding::Direction::IncomingOrUndirected);
+
+        const auto * match = getMatchClause(ast);
+        ASSERT_NE(match, nullptr);
+        const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+        ASSERT_EQ(spec.paths.size(), 1u);
+        ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+        EXPECT_EQ(spec.paths.front().edges.front().direction, Graph::MatchEdgeDirection::IncomingOrUndirected);
+    }
+
+    {
+        auto ast = parseGQLOrThrow("MATCH (a)~[r]~>(b) RETURN r");
+        const auto binding = lowerOnlyPathPattern(ast);
+        ASSERT_EQ(binding.edges.size(), 1u);
+        EXPECT_EQ(binding.edges.front().direction, GQL::EdgeBinding::Direction::UndirectedOrOutgoing);
+
+        const auto * match = getMatchClause(ast);
+        ASSERT_NE(match, nullptr);
+        const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+        ASSERT_EQ(spec.paths.size(), 1u);
+        ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+        EXPECT_EQ(spec.paths.front().edges.front().direction, Graph::MatchEdgeDirection::UndirectedOrOutgoing);
+    }
+}
+
 TEST(GQLPatternLowering, MatchClauseLoweringPreservesPatternAndWhere)
 {
     auto ast = parseGQLOrThrow("MATCH (a)-[r:KNOWS]->(b) WHERE a IS NOT NULL RETURN r");

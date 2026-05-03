@@ -103,12 +103,14 @@ EdgeBinding::Direction lowerEdgeDirection(OPENGQL::AST::EdgeDirection direction)
             return EdgeBinding::Direction::Incoming;
         case OPENGQL::AST::EdgeDirection::Undirected:
             return EdgeBinding::Direction::Undirected;
+        case OPENGQL::AST::EdgeDirection::LeftOrRight:
+            return EdgeBinding::Direction::IncomingOrOutgoing;
+        case OPENGQL::AST::EdgeDirection::LeftOrUndirected:
+            return EdgeBinding::Direction::IncomingOrUndirected;
+        case OPENGQL::AST::EdgeDirection::UndirectedOrRight:
+            return EdgeBinding::Direction::UndirectedOrOutgoing;
         case OPENGQL::AST::EdgeDirection::Any:
             return EdgeBinding::Direction::Any;
-        case OPENGQL::AST::EdgeDirection::LeftOrRight:
-        case OPENGQL::AST::EdgeDirection::LeftOrUndirected:
-        case OPENGQL::AST::EdgeDirection::UndirectedOrRight:
-            throwUnsupportedPathPattern(fmt::format("edge direction {} is not representable by EdgeBinding::Direction", edgeDirectionToString(direction)));
     }
 
     throwUnsupportedPathPattern(fmt::format("edge direction {} is not supported", edgeDirectionToString(direction)));

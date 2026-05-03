@@ -57,3 +57,4 @@
 - In `GQL` interpreter lowering, test parsed expressions rather than only hand-built `GQLExpr` nodes; parser emits `TRUE` / `NULL` as `GQLExpr::SpecialValue`, so a lowering test using `GQLExpr::literal("TRUE")` can miss real execution failures.
 - On this macOS build, `unit_tests_dbms` can abort before gtest starts in `gtest_readbuffer_s3.cpp` global initialization via `std::filesystem::current_path` / `jemalloc`; use `lldb --batch -k "thread backtrace all"` to distinguish that environment issue from `GQL` test failures.
 - `GQL` `MatchSpec` should preserve label/property/predicate AST constraints, not just `has_*` booleans, otherwise the first real graph storage implementation cannot faithfully execute parsed pattern semantics.
+- Keep compound `GQL` edge directions such as `LeftOrRight`, `LeftOrUndirected`, and `UndirectedOrRight` in interpreter match specs instead of rejecting them during lowering; they are storage constraints, not parser/lowering errors.

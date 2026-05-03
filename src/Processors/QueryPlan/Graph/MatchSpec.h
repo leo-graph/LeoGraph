@@ -13,6 +13,9 @@ enum class MatchEdgeDirection : UInt8
     Outgoing,
     Incoming,
     Undirected,
+    IncomingOrOutgoing,
+    IncomingOrUndirected,
+    UndirectedOrOutgoing,
     Any,
 };
 

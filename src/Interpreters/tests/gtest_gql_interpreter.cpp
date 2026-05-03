@@ -168,6 +168,18 @@ TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
     EXPECT_EQ(path.nodes[1].variable, "b");
 }
 
+TEST(GQLInterpreter, CompoundEdgeDirectionLowersToGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH (a)<-[r]->(b) RETURN a, r, b");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+    ASSERT_EQ(match.paths.front().edges.size(), 1u);
+    EXPECT_EQ(match.paths.front().edges.front().direction, Graph::MatchEdgeDirection::IncomingOrOutgoing);
+}
+
 TEST(GQLInterpreter, MatchPatternConstraintsStayInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (n:Person {name: 'x'}) RETURN n");

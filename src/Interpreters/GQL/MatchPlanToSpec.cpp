@@ -25,6 +25,12 @@ Graph::MatchEdgeDirection makeEdgeDirection(EdgeBinding::Direction direction)
             return Graph::MatchEdgeDirection::Incoming;
         case EdgeBinding::Direction::Undirected:
             return Graph::MatchEdgeDirection::Undirected;
+        case EdgeBinding::Direction::IncomingOrOutgoing:
+            return Graph::MatchEdgeDirection::IncomingOrOutgoing;
+        case EdgeBinding::Direction::IncomingOrUndirected:
+            return Graph::MatchEdgeDirection::IncomingOrUndirected;
+        case EdgeBinding::Direction::UndirectedOrOutgoing:
+            return Graph::MatchEdgeDirection::UndirectedOrOutgoing;
         case EdgeBinding::Direction::Any:
             return Graph::MatchEdgeDirection::Any;
     }

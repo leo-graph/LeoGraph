@@ -22,6 +22,9 @@ struct EdgeBinding
         Outgoing,
         Incoming,
         Undirected,
+        IncomingOrOutgoing,
+        IncomingOrUndirected,
+        UndirectedOrOutgoing,
         Any,
     };
 
