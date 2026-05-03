@@ -173,6 +173,20 @@ TEST(GQLInterpreter, UnsupportedClauseThrowsNotImplemented)
     }
 }
 
+TEST(GQLInterpreter, PipelineClauseBeforeSourceThrowsNotImplemented)
+{
+    try
+    {
+        (void)buildPlan("RETURN 1");
+        FAIL() << "Expected RETURN before a source clause to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("source clause"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, OptionalMatchOperandBlockStillRequiresExecutionSemantics)
 {
     try

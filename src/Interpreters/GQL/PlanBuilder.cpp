@@ -31,17 +31,14 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
     if (query.clauses.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL query must contain at least one clause");
 
-    if (!query.clauses.front()->as<GAST::GQLMatchClause>())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL queries starting with MATCH are supported");
-
     std::vector<const GAST::GQLMatchClause *> pending_matches;
-    bool match_sequence_closed = false;
+    bool source_ready = false;
     for (const auto & clause : query.clauses)
     {
         if (const auto * match = clause->as<GAST::GQLMatchClause>())
         {
-            if (match_sequence_closed)
-                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "MATCH clauses after non-MATCH clauses are not supported");
+            if (source_ready)
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "MATCH clauses after pipeline clauses are not supported");
 
             pending_matches.push_back(match);
             continue;
@@ -51,8 +48,11 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
         {
             lowerMatchClauseSequence(plan, pending_matches, context);
             pending_matches.clear();
-            match_sequence_closed = true;
+            source_ready = true;
         }
+
+        if (!source_ready)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL clause before a source clause is not supported: {}", clause->getID(' '));
 
         lowerPipelineClause(plan, clause, context);
     }
