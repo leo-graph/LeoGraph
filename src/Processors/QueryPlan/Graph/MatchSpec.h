@@ -28,6 +28,13 @@ enum class MatchMode : UInt8
     DifferentEdgeBindings,
 };
 
+enum class MatchPathAlternationKind : UInt8
+{
+    None,
+    Union,
+    MultisetAlternation,
+};
+
 struct MatchNodeSpec
 {
     String variable;
@@ -50,6 +57,8 @@ struct MatchPathSpec
 {
     String variable;
     ASTPtr prefix;
+    MatchPathAlternationKind alternation_kind = MatchPathAlternationKind::None;
+    std::vector<MatchPathSpec> alternatives;
     std::vector<MatchNodeSpec> nodes;
     std::vector<MatchEdgeSpec> edges;
 };

@@ -58,19 +58,35 @@ void addAvailableVariable(std::vector<String> & names, const String & variable)
     names.push_back(variable);
 }
 
+void addPathVariableColumns(Block & header, std::vector<String> & names, const MatchPathSpec & path);
+
+void collectPathVariables(const MatchPathSpec & path, std::vector<String> & result)
+{
+    for (const auto & alternative : path.alternatives)
+        collectPathVariables(alternative, result);
+
+    for (size_t i = 0; i < path.nodes.size(); ++i)
+    {
+        addAvailableVariable(result, path.nodes[i].variable);
+        if (i < path.edges.size())
+            addAvailableVariable(result, path.edges[i].variable);
+    }
+}
+
+void addPathVariableColumns(Block & header, std::vector<String> & names, const MatchPathSpec & path)
+{
+    std::vector<String> variables;
+    collectPathVariables(path, variables);
+    for (const auto & variable : variables)
+        addVariableColumn(header, names, variable);
+}
+
 template <typename MatchLike>
 std::vector<String> collectAvailableVariables(const MatchLike & match_spec)
 {
     std::vector<String> result;
     for (const auto & path : match_spec.paths)
-    {
-        for (size_t i = 0; i < path.nodes.size(); ++i)
-        {
-            addAvailableVariable(result, path.nodes[i].variable);
-            if (i < path.edges.size())
-                addAvailableVariable(result, path.edges[i].variable);
-        }
-    }
+        collectPathVariables(path, result);
 
     return result;
 }
@@ -97,6 +113,28 @@ MatchEdgeSpec cloneEdgeSpec(const MatchEdgeSpec & edge)
     };
 }
 
+MatchPathSpec clonePathSpec(const MatchPathSpec & path)
+{
+    MatchPathSpec result_path;
+    result_path.variable = path.variable;
+    result_path.prefix = cloneOrNull(path.prefix);
+    result_path.alternation_kind = path.alternation_kind;
+
+    result_path.alternatives.reserve(path.alternatives.size());
+    for (const auto & alternative : path.alternatives)
+        result_path.alternatives.push_back(clonePathSpec(alternative));
+
+    result_path.nodes.reserve(path.nodes.size());
+    for (const auto & node : path.nodes)
+        result_path.nodes.push_back(cloneNodeSpec(node));
+
+    result_path.edges.reserve(path.edges.size());
+    for (const auto & edge : path.edges)
+        result_path.edges.push_back(cloneEdgeSpec(edge));
+
+    return result_path;
+}
+
 MatchClauseSpec cloneMatchClauseSpec(const MatchClauseSpec & match_spec)
 {
     MatchClauseSpec result;
@@ -114,20 +152,7 @@ MatchClauseSpec cloneMatchClauseSpec(const MatchClauseSpec & match_spec)
 
     result.paths.reserve(match_spec.paths.size());
     for (const auto & path : match_spec.paths)
-    {
-        MatchPathSpec result_path;
-        result_path.variable = path.variable;
-        result_path.prefix = cloneOrNull(path.prefix);
-        result_path.nodes.reserve(path.nodes.size());
-        for (const auto & node : path.nodes)
-            result_path.nodes.push_back(cloneNodeSpec(node));
-
-        result_path.edges.reserve(path.edges.size());
-        for (const auto & edge : path.edges)
-            result_path.edges.push_back(cloneEdgeSpec(edge));
-
-        result.paths.push_back(std::move(result_path));
-    }
+        result.paths.push_back(clonePathSpec(path));
 
     return result;
 }
@@ -158,14 +183,7 @@ void addHeaderColumnsForClause(Block & header, std::vector<String> & names, cons
     }
 
     for (const auto & path : clause.paths)
-    {
-        for (size_t i = 0; i < path.nodes.size(); ++i)
-        {
-            addVariableColumn(header, names, path.nodes[i].variable);
-            if (i < path.edges.size())
-                addVariableColumn(header, names, path.edges[i].variable);
-        }
-    }
+        addPathVariableColumns(header, names, path);
 }
 
 }
@@ -203,14 +221,7 @@ SharedHeader MatchStep::makeHeader(const MatchSpec & match_spec)
     }
 
     for (const auto & path : match_spec.paths)
-    {
-        for (size_t i = 0; i < path.nodes.size(); ++i)
-        {
-            addVariableColumn(header, names, path.nodes[i].variable);
-            if (i < path.edges.size())
-                addVariableColumn(header, names, path.edges[i].variable);
-        }
-    }
+        addPathVariableColumns(header, names, path);
 
     return std::make_shared<const Block>(std::move(header));
 }

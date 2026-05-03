@@ -4,7 +4,6 @@
 
 #  include <gtest/gtest.h>
 
-#  include <Common/Exception.h>
 #  include <Interpreters/GQL/MatchPlanToSpec.h>
 #  include <Interpreters/GQL/PatternLowering.h>
 #  include <Parsers/graph/GQLParserUtils.h>
@@ -17,11 +16,6 @@
 using namespace DB;
 
 namespace GAST = DB::OPENGQL::AST;
-
-namespace DB::ErrorCodes
-{
-extern const int NOT_IMPLEMENTED;
-}
 
 namespace
 {
@@ -74,24 +68,6 @@ void expectNameLabel(const GAST::GQLLabelExpression * label, const String & text
     ASSERT_NE(label, nullptr);
     EXPECT_EQ(label->kind, GAST::GQLLabelExpression::Kind::Name);
     EXPECT_EQ(label->text, text);
-}
-
-void expectUnsupportedPathPattern(std::string_view query, std::string_view expected_message)
-{
-    auto ast = parseGQLOrThrow(query);
-    const auto * path = getOnlyPathPattern(ast);
-    ASSERT_NE(path, nullptr);
-
-    try
-    {
-        (void)GQL::lowerPathPattern(*path);
-        FAIL() << "Expected unsupported GQL path pattern to throw";
-    }
-    catch (const Exception & e)
-    {
-        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
-        EXPECT_NE(String(e.message()).find(String(expected_message.data(), expected_message.size())), String::npos);
-    }
 }
 
 }
@@ -440,9 +416,42 @@ TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
     EXPECT_NE(node.predicate, nullptr);
 }
 
-TEST(GQLPatternLowering, UnsupportedPathShapesThrowNotImplemented)
+TEST(GQLPatternLowering, MatchPathAlternationLowersToSpec)
 {
-    expectUnsupportedPathPattern("MATCH (a)-[r]->(b) | (c)-[s]->(d) RETURN a", "multiple GQLPathTerms");
+    auto ast = parseGQLOrThrow("MATCH (a)-[r]->(b) | (c)-[s]->(d) RETURN a");
+
+    const auto binding = lowerOnlyPathPattern(ast);
+
+    EXPECT_EQ(binding.alternation_kind, GQL::PathBinding::AlternationKind::Union);
+    ASSERT_EQ(binding.alternatives.size(), 2u);
+    EXPECT_TRUE(binding.nodes.empty());
+    EXPECT_TRUE(binding.edges.empty());
+
+    ASSERT_EQ(binding.alternatives[0].nodes.size(), 2u);
+    ASSERT_EQ(binding.alternatives[0].edges.size(), 1u);
+    EXPECT_EQ(binding.alternatives[0].nodes[0].variable, "a");
+    EXPECT_EQ(binding.alternatives[0].edges[0].variable, "r");
+    EXPECT_EQ(binding.alternatives[0].nodes[1].variable, "b");
+
+    ASSERT_EQ(binding.alternatives[1].nodes.size(), 2u);
+    ASSERT_EQ(binding.alternatives[1].edges.size(), 1u);
+    EXPECT_EQ(binding.alternatives[1].nodes[0].variable, "c");
+    EXPECT_EQ(binding.alternatives[1].edges[0].variable, "s");
+    EXPECT_EQ(binding.alternatives[1].nodes[1].variable, "d");
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+
+    ASSERT_EQ(spec.paths.size(), 1u);
+    EXPECT_EQ(spec.paths.front().alternation_kind, Graph::MatchPathAlternationKind::Union);
+    ASSERT_EQ(spec.paths.front().alternatives.size(), 2u);
+    ASSERT_EQ(spec.paths.front().alternatives[0].nodes.size(), 2u);
+    ASSERT_EQ(spec.paths.front().alternatives[0].edges.size(), 1u);
+    ASSERT_EQ(spec.paths.front().alternatives[1].nodes.size(), 2u);
+    ASSERT_EQ(spec.paths.front().alternatives[1].edges.size(), 1u);
+    EXPECT_EQ(spec.paths.front().alternatives[0].edges.front().variable, "r");
+    EXPECT_EQ(spec.paths.front().alternatives[1].edges.front().variable, "s");
 }
 
 #endif

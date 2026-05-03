@@ -185,6 +185,43 @@ TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
     EXPECT_EQ(path.nodes[1].variable, "b");
 }
 
+TEST(GQLInterpreter, PathAlternationLowersToGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH (a)-[r]->(b) | (c)-[s]->(d) RETURN a, r, b, c, s, d");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+
+    const auto & path = match.paths.front();
+    EXPECT_EQ(path.alternation_kind, Graph::MatchPathAlternationKind::Union);
+    ASSERT_EQ(path.alternatives.size(), 2u);
+    ASSERT_EQ(path.alternatives[0].nodes.size(), 2u);
+    ASSERT_EQ(path.alternatives[0].edges.size(), 1u);
+    ASSERT_EQ(path.alternatives[1].nodes.size(), 2u);
+    ASSERT_EQ(path.alternatives[1].edges.size(), 1u);
+
+    const auto & header = *match_step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 6u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+    EXPECT_EQ(header.getByPosition(1).name, "r");
+    EXPECT_EQ(header.getByPosition(2).name, "b");
+    EXPECT_EQ(header.getByPosition(3).name, "c");
+    EXPECT_EQ(header.getByPosition(4).name, "s");
+    EXPECT_EQ(header.getByPosition(5).name, "d");
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    const auto & cloned_path = cloned_match_step->getMatchSpec().paths.front();
+    ASSERT_EQ(cloned_path.alternatives.size(), 2u);
+    EXPECT_EQ(cloned_path.alternatives[0].edges.front().variable, "r");
+    EXPECT_EQ(cloned_path.alternatives[1].edges.front().variable, "s");
+}
+
 TEST(GQLInterpreter, EdgeQuantifierStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (a)-[r]->{2,5}(b) RETURN a, r, b");

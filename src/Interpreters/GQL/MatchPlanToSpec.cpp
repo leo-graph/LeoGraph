@@ -61,6 +61,21 @@ Graph::MatchMode makeMatchMode(OPENGQL::AST::GraphMatchMode match_mode)
     return Graph::MatchMode::None;
 }
 
+Graph::MatchPathAlternationKind makeAlternationKind(PathBinding::AlternationKind kind)
+{
+    switch (kind)
+    {
+        case PathBinding::AlternationKind::None:
+            return Graph::MatchPathAlternationKind::None;
+        case PathBinding::AlternationKind::Union:
+            return Graph::MatchPathAlternationKind::Union;
+        case PathBinding::AlternationKind::MultisetAlternation:
+            return Graph::MatchPathAlternationKind::MultisetAlternation;
+    }
+
+    return Graph::MatchPathAlternationKind::None;
+}
+
 Graph::MatchNodeSpec makeNodeSpec(const NodeBinding & node)
 {
     return Graph::MatchNodeSpec{
@@ -88,6 +103,11 @@ Graph::MatchPathSpec makePathSpec(const PathBinding & path)
     Graph::MatchPathSpec result;
     result.variable = path.variable;
     result.prefix = cloneOrNull(path.prefix);
+    result.alternation_kind = makeAlternationKind(path.alternation_kind);
+    result.alternatives.reserve(path.alternatives.size());
+    for (const auto & alternative : path.alternatives)
+        result.alternatives.push_back(makePathSpec(alternative));
+
     result.nodes.reserve(path.nodes.size());
     for (const auto & node : path.nodes)
         result.nodes.push_back(makeNodeSpec(node));

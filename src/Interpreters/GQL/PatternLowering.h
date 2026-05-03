@@ -38,8 +38,17 @@ struct EdgeBinding
 
 struct PathBinding
 {
+    enum class AlternationKind : UInt8
+    {
+        None,
+        Union,
+        MultisetAlternation,
+    };
+
     String variable;
     const IAST * prefix = nullptr;
+    AlternationKind alternation_kind = AlternationKind::None;
+    std::vector<PathBinding> alternatives;
     std::vector<NodeBinding> nodes;
     std::vector<EdgeBinding> edges;
 };

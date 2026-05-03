@@ -159,25 +159,8 @@ const IAST * getPathPrefix(const OPENGQL::AST::Ptr & prefix)
     throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected GQL path prefix child type: {}", astID(*prefix));
 }
 
-const GQLPathTerm & getOnlyPathTerm(const GQLPathPattern & path)
+PathBinding lowerPathTerm(const GQLPathTerm & term)
 {
-    if (!path.expression)
-        throwUnsupportedPathPattern("missing path term");
-
-    if (const auto * term = path.expression->as<GQLPathTerm>())
-        return *term;
-
-    if (path.expression->as<GQLPathPatternAlternation>())
-        throwUnsupportedPathPattern("multiple GQLPathTerms in path alternation");
-
-    throwUnsupportedPathPattern(fmt::format("path expression {} is not a GQLPathTerm", astID(*path.expression)));
-}
-
-}
-
-PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
-{
-    const auto & term = getOnlyPathTerm(path);
     if (term.factors.empty())
         throwUnsupportedPathPattern("empty path term");
 
@@ -185,8 +168,6 @@ PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
         throwUnsupportedPathPattern("path term must contain an odd number of alternating node and edge factors");
 
     PathBinding result;
-    result.variable = identifierVariable(path.variable);
-    result.prefix = getPathPrefix(path.prefix);
     for (size_t i = 0; i < term.factors.size(); ++i)
     {
         const auto & factor = term.factors[i];
@@ -218,6 +199,57 @@ PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
             result.nodes.size(),
             result.edges.size());
 
+    return result;
+}
+
+PathBinding::AlternationKind lowerAlternationKind(GQLPathPatternAlternation::Kind kind)
+{
+    switch (kind)
+    {
+        case GQLPathPatternAlternation::Kind::Union:
+            return PathBinding::AlternationKind::Union;
+        case GQLPathPatternAlternation::Kind::MultisetAlternation:
+            return PathBinding::AlternationKind::MultisetAlternation;
+    }
+
+    return PathBinding::AlternationKind::None;
+}
+
+PathBinding lowerPathExpression(const OPENGQL::AST::Ptr & expression)
+{
+    if (!expression)
+        throwUnsupportedPathPattern("missing path expression");
+
+    if (const auto * term = expression->as<GQLPathTerm>())
+        return lowerPathTerm(*term);
+
+    if (const auto * alternation = expression->as<GQLPathPatternAlternation>())
+    {
+        PathBinding result;
+        result.alternation_kind = lowerAlternationKind(alternation->kind);
+        result.alternatives.reserve(alternation->operands.size());
+        for (const auto & operand : alternation->operands)
+        {
+            const auto * term = operand ? operand->as<GQLPathTerm>() : nullptr;
+            if (!term)
+                throwUnsupportedPathPattern("path alternation operand must be a GQLPathTerm");
+
+            result.alternatives.push_back(lowerPathTerm(*term));
+        }
+
+        return result;
+    }
+
+    throwUnsupportedPathPattern(fmt::format("path expression {} is not supported", astID(*expression)));
+}
+
+}
+
+PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
+{
+    PathBinding result = lowerPathExpression(path.expression);
+    result.variable = identifierVariable(path.variable);
+    result.prefix = getPathPrefix(path.prefix);
     return result;
 }
 
