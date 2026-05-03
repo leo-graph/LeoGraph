@@ -3,8 +3,6 @@
 #include <Interpreters/Context_fwd.h>
 #include <Parsers/graph/fwd_decl.h>
 
-#include <vector>
-
 namespace DB
 {
 class QueryPlan;
@@ -21,8 +19,6 @@ public:
     void buildSingleQuery(QueryPlan & plan, const OPENGQL::AST::GQLSingleQuery & query);
 
 private:
-    void lowerMatchSequence(QueryPlan & plan, const std::vector<const OPENGQL::AST::GQLMatchClause *> & matches) const;
-
     ContextPtr context;
 };
 
