@@ -20,14 +20,15 @@ namespace GQL
 {
 namespace GAST = DB::OPENGQL::AST;
 
-PlanBuilder::PlanBuilder(ContextPtr context_, Graph::MatchSourceFactoryPtr match_source_factory_)
+PlanBuilder::PlanBuilder(ContextPtr context_, PlanEnvironment environment_)
     : context(std::move(context_))
+    , environment(std::move(environment_))
 {
-    scope.setMatchSourceFactory(std::move(match_source_factory_));
 }
 
-PlanBuilder::PlanBuilder(ContextPtr context_, PlanScope scope_)
+PlanBuilder::PlanBuilder(ContextPtr context_, PlanScope scope_, PlanEnvironment environment_)
     : context(std::move(context_))
+    , environment(std::move(environment_))
     , scope(std::move(scope_))
 {
 }
@@ -60,13 +61,13 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
 
         if (source_buffer.hasPending())
         {
-            source_buffer.flush(plan, context, scope);
+            source_buffer.flush(plan, context, environment, scope);
             source_ready = true;
         }
 
         if (!source_ready)
         {
-            if (tryLowerStandaloneSourceClause(plan, clause, context, scope))
+            if (tryLowerStandaloneSourceClause(plan, clause, context, environment, scope))
             {
                 source_ready = true;
                 continue;
@@ -79,7 +80,7 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
     }
 
     if (source_buffer.hasPending())
-        source_buffer.flush(plan, context, scope);
+        source_buffer.flush(plan, context, environment, scope);
 }
 
 }

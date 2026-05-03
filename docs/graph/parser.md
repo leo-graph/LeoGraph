@@ -11,9 +11,10 @@ doc_type: 'reference'
 
 This document describes how the GQL (Graph Query Language, ISO/IEC 39075) parser is integrated into ClickHouse using ANTLR4.
 
-The current implementation is parser-only. It builds normalized ClickHouse
-`IAST` nodes for supported `GQL` syntax, but it does not execute graph queries
-yet.
+This document focuses on the parser. The parser builds normalized ClickHouse
+`IAST` nodes for supported `GQL` syntax; the interpreter layer now has an
+initial lowering path for supported query roots, while graph storage and catalog
+execution remain separate follow-up work.
 
 ## ANTLR4 Integration
 
@@ -102,7 +103,7 @@ The current implementation supports the parser-facing slice that is already stab
 ### Deferred Features
 
 - `SESSION` / `START TRANSACTION` (session management)
-- binder, interpreter, storage, catalog execution, and query-plan lowering
+- binder, storage, catalog execution, and complete query-plan lowering
 - semantic validation for type compatibility and catalog references; the parser only builds syntactic `GQLTypeExpression` / `GQLGraphTypeSpecification` nodes
 - GQL text in ordinary ClickHouse sessions; production GQL parsing requires explicit `dialect = gql` / `query_language = gql`
 
@@ -252,7 +253,7 @@ Under `dialect = gql` (equivalently `query_language = gql`), the top-level entry
 Known limitations of the current skeleton:
 
 - Distributed / remote-node queries (`HedgedConnections`, `MultiplexedConnections`) reset foreign dialects to `clickhouse` before forwarding, but do not propagate `gql` to remote shards. Distributed GQL execution is not a usable path until GQL-to-SQL lowering exists.
-- Interpreter / lowering is not yet wired: parsed GQL AST will enter `InterpreterFactory` but will fail with "unsupported" until lowering is implemented.
+- Interpreter / lowering is only partially wired: `GQLSingleQuery` and `GQLCombinedQuery` enter `InterpreterGQLQuery`, but unsupported clause, expression, catalog, storage, and distributed shapes still fail closed with explicit unsupported exceptions.
 - Client multi-statement splitting is not implemented for `Dialect::gql`: the current GQL driver expects the caller-provided span to contain one complete `gqlStatement`. Inputs with multiple statements are rejected by the grammar-level EOF wrapper rather than split by the ClickHouse SQL token driver.
 
 The current parser work therefore focuses on making:

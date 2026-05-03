@@ -4,6 +4,7 @@
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/MatchLowering.h>
 #include <Interpreters/GQL/PlanBuilder.h>
+#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/Chunk.h>
@@ -103,6 +104,7 @@ void lowerSubquerySource(
     QueryPlan & plan,
     const GAST::GQLSubquery & subquery,
     ContextPtr context,
+    const PlanEnvironment & environment,
     PlanScope & scope,
     std::string_view context_name)
 {
@@ -125,12 +127,12 @@ void lowerSubquerySource(
         lowerSubqueryBindings(*binding_block, child_scope, context_name);
     }
 
-    PlanBuilder nested_builder(context, std::move(child_scope));
+    PlanBuilder nested_builder(context, std::move(child_scope), environment);
     nested_builder.buildSingleQuery(plan, *single_query);
     scope = nested_builder.getScope();
 }
 
-void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context, PlanScope & scope)
+void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context, const PlanEnvironment & environment, PlanScope & scope)
 {
     if (!source)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "SELECT source is null");
@@ -138,13 +140,13 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
     if (const auto * match = source->as<GAST::GQLMatchClause>())
     {
         std::vector<const GAST::GQLMatchClause *> matches{match};
-        lowerMatchClauseSequence(plan, matches, context, scope);
+        lowerMatchClauseSequence(plan, matches, context, environment, scope);
         return;
     }
 
     if (const auto * subquery = source->as<GAST::GQLSubquery>())
     {
-        lowerSubquerySource(plan, *subquery, context, scope, "SELECT FROM subquery");
+        lowerSubquerySource(plan, *subquery, context, environment, scope, "SELECT FROM subquery");
         return;
     }
 
@@ -156,14 +158,14 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
             PlanScope source_scope = scope;
             source_scope.setActiveGraph(source_item->graph_reference->clone());
 
-            lowerSelectSource(plan, source_item->source, context, source_scope);
+            lowerSelectSource(plan, source_item->source, context, environment, source_scope);
 
             scope = std::move(source_scope);
             scope.setActiveGraph(std::move(previous_graph));
             return;
         }
 
-        lowerSelectSource(plan, source_item->source, context, scope);
+        lowerSelectSource(plan, source_item->source, context, environment, scope);
         return;
     }
 
@@ -172,14 +174,19 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
         if (source_list->items.size() != 1)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists are not supported");
 
-        lowerSelectSource(plan, source_list->items.front(), context, scope);
+        lowerSelectSource(plan, source_list->items.front(), context, environment, scope);
         return;
     }
 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported SELECT source: {}", source->getID(' '));
 }
 
-void lowerInlineCallSource(QueryPlan & plan, const GAST::GQLCallInlineClause & call, ContextPtr context, PlanScope & scope)
+void lowerInlineCallSource(
+    QueryPlan & plan,
+    const GAST::GQLCallInlineClause & call,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
 {
     if (call.optional)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL inline CALL is not supported");
@@ -190,7 +197,7 @@ void lowerInlineCallSource(QueryPlan & plan, const GAST::GQLCallInlineClause & c
     if (!subquery)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL must contain a subquery");
 
-    lowerSubquerySource(plan, *subquery, context, scope, "inline CALL subquery");
+    lowerSubquerySource(plan, *subquery, context, environment, scope, "inline CALL subquery");
 }
 
 }
@@ -219,16 +226,21 @@ bool SourceClauseBuffer::hasPending() const
     return !match_clauses.empty();
 }
 
-void SourceClauseBuffer::flush(QueryPlan & plan, ContextPtr context, PlanScope & scope)
+void SourceClauseBuffer::flush(QueryPlan & plan, ContextPtr context, const PlanEnvironment & environment, PlanScope & scope)
 {
     if (match_clauses.empty())
         return;
 
-    lowerMatchClauseSequence(plan, match_clauses, context, scope);
+    lowerMatchClauseSequence(plan, match_clauses, context, environment, scope);
     match_clauses.clear();
 }
 
-bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
+bool tryLowerStandaloneSourceClause(
+    QueryPlan & plan,
+    const ASTPtr & clause,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
 {
     if (const auto * ret = clause->as<GAST::GQLReturnClause>())
     {
@@ -241,7 +253,7 @@ bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, Con
     {
         if (select->source)
         {
-            lowerSelectSource(plan, select->source, context, scope);
+            lowerSelectSource(plan, select->source, context, environment, scope);
             lowerSelectClause(plan, *select, context, scope, true);
         }
         else
@@ -269,7 +281,7 @@ bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, Con
 
     if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
     {
-        lowerInlineCallSource(plan, *inline_call, context, scope);
+        lowerInlineCallSource(plan, *inline_call, context, environment, scope);
         return true;
     }
 

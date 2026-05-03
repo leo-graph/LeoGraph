@@ -76,13 +76,14 @@ The currently supported minimal path is:
 ### Interpreter / lowering layer
 
 - Production interpreter dispatch currently maps `GQLSingleQuery` and `GQLCombinedQuery` to `InterpreterGQLQuery`.
-- `InterpreterGQLQuery` and `GQL::PlanBuilder` both accept an optional `Graph::MatchSourceFactory`, giving catalog / storage resolution a single entry-point hook for graph scans.
+- `InterpreterGQLQuery` and `GQL::PlanBuilder` both accept `GQL::PlanEnvironment`, giving catalog / storage resolution a single planner-wide dependency hook for graph scans and future non-scope services.
 - `InterpreterGQLQuery` delegates single-query lowering to `GQL::PlanBuilder`; clause-specific work should stay in reusable helpers under `src/Interpreters/GQL/`, not in one monolithic interpreter method.
 - `PlanBuilder` separates source clauses from pipeline clauses. `MATCH` is a source boundary lowered through `SourceLowering` / `MatchLowering`; `WHERE`, `RETURN`, `SELECT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, `DISTINCT`, and aggregation are reusable pipeline/source helpers in `ClauseLowering` and `AggregationLowering`.
-- `PlanScope` tracks current bindings, active graph scope, and the current `Graph::MatchSourceFactory`. It now also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
+- `PlanScope` tracks only lexical state: current bindings and active graph scope. It also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
+- `PlanEnvironment` carries planner-wide services such as `Graph::MatchSourceFactory`; nested `PlanBuilder` instances inherit the same environment without mixing storage dependencies into lexical scope.
 - `USE graph`, graph-qualified `SELECT FROM`, nested subqueries, and inline `CALL { ... }` share graph-scope propagation through `PlanScope`.
 - Consecutive `MATCH` clauses are lowered as one `GraphMatch` source with preserved per-clause specs. `MatchSpec` intentionally preserves graph reference, path constraints, label / property / predicate AST, `KEEP`, yield items, optional blocks, match mode, and path alternatives for future graph storage planning.
-- `Graph::MatchStep` carries a `MatchSourceFactory` supplied through `InterpreterGQLQuery` / `PlanBuilder` / `PlanScope`, so real graph storage can plug in a reader without changing query-clause lowering. The default factory still emits no rows until storage is wired.
+- `Graph::MatchStep` carries a `MatchSourceFactory` supplied through `InterpreterGQLQuery` / `PlanBuilder` / `PlanEnvironment`, so real graph storage can plug in a reader without changing query-clause lowering. The default factory still emits no rows until storage is wired.
 
 ### Current `throwUnsupported` coverage map
 
@@ -217,7 +218,7 @@ Suggested order for the next implementation slices:
 3. start each visitor coverage slice from concrete GQL input that currently reaches `throwUnsupported(...)`, then add the minimum AST shape and focused contract test for that input;
 4. keep `predicate`, `valueExpressionPrimary`, and value-function guardrails unless a real input proves a missing active grammar branch;
 5. spend parser-only effort on query-shape and reference-shape gaps only when the target root can stay within `GQLSingleQuery`, `GQLCombinedQuery`, or `GQLSubquery`;
-6. use `clickhouse local --allow_experimental_gql_dialect=1 --dialect=gql -q ...` as a quick smoke check: successful parser-only inputs currently fail later with `UNKNOWN_TYPE_OF_QUERY`, while parser gaps fail earlier with `SYNTAX_ERROR` or `Unsupported GQL ...`.
+6. use `clickhouse local --allow_experimental_gql_dialect=1 --dialect=gql -q ...` as a quick smoke check: supported `GQLSingleQuery` / `GQLCombinedQuery` inputs now enter `InterpreterGQLQuery`, while parser gaps fail earlier with `SYNTAX_ERROR` or `Unsupported GQL ...`, and unsupported runtime shapes fail closed with `NOT_IMPLEMENTED`.
 
 ### 1. Keep the new query contract stable while filling coverage
 

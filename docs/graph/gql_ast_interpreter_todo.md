@@ -67,6 +67,7 @@ Before adding lowering for a new `GQL` feature, check:
 7. If the AST contains `GQLTypeExpression` or `GQLGraphTypeSpecification`, is the current layer only using syntactic type shape rather than assuming semantic validation?
 8. If the AST contains `GQLGraphExpression`, `GQLBindingTableExpression`, or `GQLCatalogObjectName`, is name binding/catalog lookup handled in a dedicated analyzer/lowering step?
 9. If a node is unsupported, does the interpreter throw a clear `unsupported` exception instead of silently dropping it?
+10. If lowering needs planner-wide services such as graph source factories, are they passed through `GQL::PlanEnvironment` rather than stored in `GQL::PlanScope`?
 
 ## Recommended Interpreter MVP Boundary
 

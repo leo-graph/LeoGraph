@@ -185,5 +185,7 @@ are stable:
 | Future integration tests | `tests/integration` | Multi-node catalog and execution behavior once graph runtime exists. |
 
 For parser-only smoke checks, use `clickhouse local` with
-`--allow_experimental_gql_dialect=1 --dialect=gql`. A supported parser input may
-still fail later with `UNKNOWN_TYPE_OF_QUERY` until the interpreter exists.
+`--allow_experimental_gql_dialect=1 --dialect=gql`. Supported
+`GQLSingleQuery` / `GQLCombinedQuery` inputs now enter `InterpreterGQLQuery`;
+unsupported runtime shapes should fail closed with explicit unsupported
+exceptions.

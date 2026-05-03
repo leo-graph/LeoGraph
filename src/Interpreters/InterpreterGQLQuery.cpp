@@ -128,15 +128,15 @@ bool needsDistinctStep(CombinedLoweringMode mode)
         || mode == CombinedLoweringMode::IntersectDistinct;
 }
 
-void buildGQLRootPlan(QueryPlan & query_plan, const IAST & query, ContextPtr context, Graph::MatchSourceFactoryPtr match_source_factory);
+void buildGQLRootPlan(QueryPlan & query_plan, const IAST & query, ContextPtr context, const GQL::PlanEnvironment & environment);
 
-QueryPlanPtr buildChildPlan(const ASTPtr & query, ContextPtr context, Graph::MatchSourceFactoryPtr match_source_factory)
+QueryPlanPtr buildChildPlan(const ASTPtr & query, ContextPtr context, const GQL::PlanEnvironment & environment)
 {
     if (!query)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined child query is null");
 
     auto plan = std::make_unique<QueryPlan>();
-    buildGQLRootPlan(*plan, *query, context, std::move(match_source_factory));
+    buildGQLRootPlan(*plan, *query, context, environment);
     return plan;
 }
 
@@ -170,16 +170,16 @@ void buildSingleQueryPlan(
     QueryPlan & query_plan,
     const GAST::GQLSingleQuery & query,
     ContextPtr context,
-    Graph::MatchSourceFactoryPtr match_source_factory)
+    const GQL::PlanEnvironment & environment)
 {
-    GQL::PlanBuilder(context, std::move(match_source_factory)).buildSingleQuery(query_plan, query);
+    GQL::PlanBuilder(context, environment).buildSingleQuery(query_plan, query);
 }
 
 void buildCombinedQueryPlan(
     QueryPlan & query_plan,
     const GAST::GQLCombinedQuery & query,
     ContextPtr context,
-    Graph::MatchSourceFactoryPtr match_source_factory)
+    const GQL::PlanEnvironment & environment)
 {
     const auto mode = getCombinedLoweringMode(query);
     const size_t num_plans = query.queries.size();
@@ -187,7 +187,7 @@ void buildCombinedQueryPlan(
     plans.reserve(num_plans);
 
     for (const auto & child : query.queries)
-        plans.push_back(buildChildPlan(child, context, match_source_factory));
+        plans.push_back(buildChildPlan(child, context, environment));
 
     const auto result_header = plans.front()->getCurrentHeader();
     const Names result_columns = getHeaderColumnNames(*result_header);
@@ -216,17 +216,17 @@ void buildCombinedQueryPlan(
         addDistinctStep(query_plan, result_columns, context);
 }
 
-void buildGQLRootPlan(QueryPlan & query_plan, const IAST & query, ContextPtr context, Graph::MatchSourceFactoryPtr match_source_factory)
+void buildGQLRootPlan(QueryPlan & query_plan, const IAST & query, ContextPtr context, const GQL::PlanEnvironment & environment)
 {
     if (const auto * single_query = query.as<GAST::GQLSingleQuery>())
     {
-        buildSingleQueryPlan(query_plan, *single_query, context, std::move(match_source_factory));
+        buildSingleQueryPlan(query_plan, *single_query, context, environment);
         return;
     }
 
     if (const auto * combined_query = query.as<GAST::GQLCombinedQuery>())
     {
-        buildCombinedQueryPlan(query_plan, *combined_query, context, std::move(match_source_factory));
+        buildCombinedQueryPlan(query_plan, *combined_query, context, environment);
         return;
     }
 
@@ -235,10 +235,10 @@ void buildGQLRootPlan(QueryPlan & query_plan, const IAST & query, ContextPtr con
 
 }
 
-InterpreterGQLQuery::InterpreterGQLQuery(ASTPtr query_ptr_, ContextPtr context_, Graph::MatchSourceFactoryPtr match_source_factory_)
+InterpreterGQLQuery::InterpreterGQLQuery(ASTPtr query_ptr_, ContextPtr context_, GQL::PlanEnvironment environment_)
     : WithContext(context_)
     , query_ptr(std::move(query_ptr_))
-    , match_source_factory(std::move(match_source_factory_))
+    , environment(std::move(environment_))
 {
 }
 
@@ -260,7 +260,7 @@ void InterpreterGQLQuery::buildQueryPlan(QueryPlan & query_plan)
     if (!query_ptr)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "InterpreterGQLQuery query is null");
 
-    buildGQLRootPlan(query_plan, *query_ptr, getContext(), match_source_factory);
+    buildGQLRootPlan(query_plan, *query_ptr, getContext(), environment);
     query_plan.addInterpreterContext(getContext());
 }
 

@@ -5,6 +5,7 @@
 
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/MatchPlanToSpec.h>
+#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/PatternLowering.h>
 #include <Parsers/IAST.h>
@@ -40,6 +41,7 @@ void lowerMatchClauseSequence(
     QueryPlan & plan,
     const std::vector<const OPENGQL::AST::GQLMatchClause *> & matches,
     ContextPtr context,
+    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     std::vector<MatchPlan> match_plans;
@@ -57,7 +59,7 @@ void lowerMatchClauseSequence(
         match_spec.graph_reference = scope.getActiveGraph()->clone();
 
     validateExecutableMatch(match_spec);
-    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec), scope.getMatchSourceFactory()));
+    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec), environment.match_source_factory));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 
     for (const auto & match_plan : match_plans)

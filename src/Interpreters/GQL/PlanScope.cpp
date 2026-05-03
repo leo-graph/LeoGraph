@@ -93,18 +93,11 @@ void PlanScope::setActiveGraph(ASTPtr graph_reference_)
     active_graph = std::move(graph_reference_);
 }
 
-void PlanScope::setMatchSourceFactory(Graph::MatchSourceFactoryPtr match_source_factory_)
-{
-    match_source_factory = std::move(match_source_factory_);
-}
-
 PlanScope PlanScope::makeChildGraphScope() const
 {
     PlanScope result;
     if (active_graph)
         result.setActiveGraph(active_graph->clone());
-
-    result.setMatchSourceFactory(match_source_factory);
 
     return result;
 }
