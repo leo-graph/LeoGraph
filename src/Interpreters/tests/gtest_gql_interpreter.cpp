@@ -183,6 +183,19 @@ TEST(GQLInterpreter, SelectWithoutMatchUsesReusableProjectionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "one");
 }
 
+TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one OFFSET 1 LIMIT 5");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Limit", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * limit = dynamic_cast<const LimitStep *>(root->step.get());
+    ASSERT_NE(limit, nullptr);
+    EXPECT_EQ(limit->getLimit(), 5u);
+}
+
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
 {
     const auto plan = buildPlan("MATCH (n) WHERE n = 1 RETURN n LIMIT 5");

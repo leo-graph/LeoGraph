@@ -1,6 +1,7 @@
 #include <Interpreters/GQL/ClauseLowering.h>
 
 #include <charconv>
+#include <limits>
 
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
@@ -141,17 +142,32 @@ void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page)
 {
     if (page.order_by)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY is not yet supported");
+
+    size_t offset = 0;
     if (page.offset)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OFFSET is not yet supported");
-    if (!page.limit)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL page clause without LIMIT is not supported");
+    {
+        const auto * offset_expr = page.offset->as<GAST::GQLExpr>();
+        if (!offset_expr)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OFFSET must be a GQL expression");
 
-    const auto * limit_expr = page.limit->as<GAST::GQLExpr>();
-    if (!limit_expr)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LIMIT must be a GQL expression");
+        offset = static_cast<size_t>(extractUnsignedIntegerLiteral(*offset_expr, "OFFSET"));
+    }
 
-    const UInt64 limit = extractUnsignedIntegerLiteral(*limit_expr, "LIMIT");
-    plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), limit, 0));
+    size_t limit = std::numeric_limits<size_t>::max();
+    if (page.limit)
+    {
+        const auto * limit_expr = page.limit->as<GAST::GQLExpr>();
+        if (!limit_expr)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LIMIT must be a GQL expression");
+
+        limit = static_cast<size_t>(extractUnsignedIntegerLiteral(*limit_expr, "LIMIT"));
+    }
+    else if (!page.offset)
+    {
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL page clause without OFFSET or LIMIT is not supported");
+    }
+
+    plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), limit, offset));
 }
 
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope)
