@@ -15,7 +15,7 @@ namespace DB::GQL
 class PlanBuilder final
 {
 public:
-    explicit PlanBuilder(ContextPtr context_);
+    explicit PlanBuilder(ContextPtr context_, Graph::MatchSourceFactoryPtr match_source_factory_ = {});
     PlanBuilder(ContextPtr context_, PlanScope scope_);
 
     void buildSingleQuery(QueryPlan & plan, const OPENGQL::AST::GQLSingleQuery & query);

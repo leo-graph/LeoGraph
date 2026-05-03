@@ -155,6 +155,34 @@ TEST(GQLInterpreter, MatchStepCarriesReusableSourceFactory)
     EXPECT_EQ(cloned_match_step->getSourceFactory(), factory);
 }
 
+TEST(GQLInterpreter, PlanBuilderConstructorSeedsMatchSourceFactory)
+{
+    auto factory = std::make_shared<TestMatchSourceFactory>();
+    const auto ast = parseGQL("MATCH (n) RETURN n");
+    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(single_query, nullptr);
+
+    QueryPlan plan;
+    GQL::PlanBuilder(getInterpreterContext(), factory).buildSingleQuery(plan, *single_query);
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    EXPECT_EQ(match_step->getSourceFactory(), factory);
+}
+
+TEST(GQLInterpreter, InterpreterConstructorSeedsMatchSourceFactory)
+{
+    auto factory = std::make_shared<TestMatchSourceFactory>();
+    InterpreterGQLQuery interpreter(parseGQL("MATCH (n) RETURN n"), getInterpreterContext(), factory);
+
+    QueryPlan plan;
+    interpreter.buildQueryPlan(plan);
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    EXPECT_EQ(match_step->getSourceFactory(), factory);
+}
+
 TEST(GQLInterpreter, PlanScopeMatchSourceFactoryFlowsIntoMatchStep)
 {
     auto factory = std::make_shared<TestMatchSourceFactory>();

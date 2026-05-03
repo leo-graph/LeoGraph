@@ -20,9 +20,10 @@ namespace GQL
 {
 namespace GAST = DB::OPENGQL::AST;
 
-PlanBuilder::PlanBuilder(ContextPtr context_)
+PlanBuilder::PlanBuilder(ContextPtr context_, Graph::MatchSourceFactoryPtr match_source_factory_)
     : context(std::move(context_))
 {
+    scope.setMatchSourceFactory(std::move(match_source_factory_));
 }
 
 PlanBuilder::PlanBuilder(ContextPtr context_, PlanScope scope_)
