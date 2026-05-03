@@ -15,6 +15,7 @@ namespace DB::OPENGQL::AST
 class GQLPageClause;
 class GQLReturnClause;
 class GQLSelectClause;
+class GQLLetClause;
 class GQLWhereClause;
 }
 
@@ -50,6 +51,8 @@ void lowerProjectionItems(
     ContextPtr context,
     std::string_view context_name,
     PlanScope & scope);
+
+void lowerLetClause(QueryPlan & plan, const OPENGQL::AST::GQLLetClause & let, ContextPtr context, PlanScope & scope);
 
 void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page, ContextPtr context);
 

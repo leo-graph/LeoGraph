@@ -222,6 +222,29 @@ TEST(GQLInterpreter, SelectFromSubqueryReusesWhereProjectionAndPageLowering)
         (std::vector<String>{"Limit", "Sorting", "Expression", "Filter", "Expression", "ReadFromPreparedSource"}));
 }
 
+TEST(GQLInterpreter, LetWithoutMatchStartsReusableScalarPipeline)
+{
+    const auto plan = buildPlanWithPlanBuilder("LET x = 1 RETURN x");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
+}
+
+TEST(GQLInterpreter, LetAfterMatchReusesPipelineTransform)
+{
+    const auto plan = buildPlanWithPlanBuilder("MATCH (n) LET x = n RETURN x");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
+}
+
 TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one OFFSET 1 LIMIT 5");

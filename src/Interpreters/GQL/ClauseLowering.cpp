@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <limits>
+#include <unordered_set>
 
 #include <Core/SortDescription.h>
 #include <Interpreters/ActionsDAG.h>
@@ -218,6 +219,43 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
 
+void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr context, PlanScope & scope)
+{
+    if (let.items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "LET must contain at least one assignment");
+
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG::NodeRawConstPtrs outputs = dag.getOutputs();
+    std::unordered_set<String> assigned_names;
+
+    for (const auto & item_ast : let.items)
+    {
+        const auto * item = item_ast ? item_ast->as<GAST::GQLAssignmentItem>() : nullptr;
+        if (!item)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL LET item must be GQLAssignmentItem");
+        if (item->name.empty())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LET assignment name must be non-empty");
+        if (item->type)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Typed GQL LET assignments are not supported");
+        if (item->value_keyword)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "LET VALUE assignments are not supported");
+        if (!item->value)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LET assignment '{}' must have a value", item->name);
+        if (scope.hasBinding(item->name))
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LET assignment '{}' conflicts with an existing binding", item->name);
+        if (!assigned_names.insert(item->name).second)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Duplicate GQL LET assignment '{}'", item->name);
+
+        const auto & value = lowerExpression(*item->value, dag, context, scope);
+        outputs.push_back(&dag.addAlias(value, item->name));
+    }
+
+    dag.getOutputs() = std::move(outputs);
+    plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
+}
+
 void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, ContextPtr context)
 {
     UInt64 offset = 0;
@@ -278,6 +316,12 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
     if (const auto * where = clause_ast->as<GAST::GQLWhereClause>())
     {
         lowerWhereClause(plan, *where, context, "GQL FILTER", scope);
+        return;
+    }
+
+    if (const auto * let = clause_ast->as<GAST::GQLLetClause>())
+    {
+        lowerLetClause(plan, *let, context, scope);
         return;
     }
 
