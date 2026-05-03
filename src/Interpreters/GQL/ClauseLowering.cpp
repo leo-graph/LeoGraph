@@ -47,7 +47,7 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
-void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, ContextPtr context, const PlanScope & scope)
+void lowerWherePredicate(QueryPlan & plan, const IAST & predicate, ContextPtr context, const PlanScope & scope)
 {
     auto current_header = plan.getCurrentHeader();
     ActionsDAG dag(current_header->getColumnsWithTypeAndName());
@@ -274,11 +274,10 @@ void lowerWhereClause(
     if (where.type != GAST::GQLWhereClause::Type::Where)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside {} is not supported", context_name);
 
-    const auto * predicate = where.expression ? where.expression->as<GAST::GQLExpr>() : nullptr;
-    if (!predicate)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} predicate must be a GQL expression", context_name);
+    if (!where.expression)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} predicate must be non-null", context_name);
 
-    lowerWherePredicate(plan, *predicate, context, scope);
+    lowerWherePredicate(plan, *where.expression, context, scope);
 }
 
 void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context, PlanScope & scope)
