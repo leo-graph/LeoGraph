@@ -54,7 +54,7 @@ struct MatchPathSpec
     std::vector<MatchEdgeSpec> edges;
 };
 
-struct MatchSpec
+struct MatchClauseSpec
 {
     bool optional = false;
     bool has_match_mode = false;
@@ -67,6 +67,11 @@ struct MatchSpec
     ASTs yield_items;
     std::vector<String> yield_variables;
     std::vector<MatchPathSpec> paths;
+};
+
+struct MatchSpec : public MatchClauseSpec
+{
+    std::vector<MatchClauseSpec> clauses;
 };
 
 }

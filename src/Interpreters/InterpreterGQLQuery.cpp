@@ -2,6 +2,8 @@
 
 #include <charconv>
 
+#include <vector>
+
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
@@ -72,15 +74,27 @@ void lowerWhereClause(QueryPlan & plan, const GAST::GQLWhereClause & where, Cont
     lowerWherePredicate(plan, *predicate, context);
 }
 
-void lowerMatch(QueryPlan & plan, const GAST::GQLMatchClause & match, ContextPtr context)
+void lowerMatchSequence(QueryPlan & plan, const std::vector<const GAST::GQLMatchClause *> & matches, ContextPtr context)
 {
-    const auto match_plan = GQL::lowerMatchClause(match);
-    auto match_spec = GQL::makeMatchSpec(match_plan);
+    std::vector<GQL::MatchPlan> match_plans;
+    match_plans.reserve(matches.size());
+    for (const auto * match : matches)
+    {
+        if (!match)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH clause node is null");
+
+        match_plans.push_back(GQL::lowerMatchClause(*match));
+    }
+
+    auto match_spec = GQL::makeMatchSpec(match_plans);
     validateExecutableMatch(match_spec);
     plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
 
-    if (match_plan.where)
-        lowerWhereClause(plan, *match_plan.where, context, "GQL MATCH");
+    for (const auto & match_plan : match_plans)
+    {
+        if (match_plan.where)
+            lowerWhereClause(plan, *match_plan.where, context, "GQL MATCH");
+    }
 }
 
 void lowerReturn(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context)
@@ -155,19 +169,10 @@ void lowerPage(QueryPlan & plan, const GAST::GQLPageClause & page)
     plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), limit, 0));
 }
 
-void lowerClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, size_t & match_count)
+void lowerNonMatchClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context)
 {
     if (!clause_ast)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL clause node is null");
-
-    if (const auto * match = clause_ast->as<GAST::GQLMatchClause>())
-    {
-        if (match_count > 0)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Multiple MATCH clauses are not supported");
-        ++match_count;
-        lowerMatch(plan, *match, context);
-        return;
-    }
 
     if (const auto * ret = clause_ast->as<GAST::GQLReturnClause>())
     {
@@ -221,9 +226,31 @@ void InterpreterGQLQuery::buildQueryPlan(QueryPlan & query_plan)
     if (!query.clauses.front()->as<GAST::GQLMatchClause>())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL queries starting with MATCH are supported");
 
-    size_t match_count = 0;
+    std::vector<const GAST::GQLMatchClause *> pending_matches;
+    bool match_sequence_closed = false;
     for (const auto & clause : query.clauses)
-        lowerClause(query_plan, clause, getContext(), match_count);
+    {
+        if (const auto * match = clause->as<GAST::GQLMatchClause>())
+        {
+            if (match_sequence_closed)
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "MATCH clauses after non-MATCH clauses are not supported");
+
+            pending_matches.push_back(match);
+            continue;
+        }
+
+        if (!pending_matches.empty())
+        {
+            lowerMatchSequence(query_plan, pending_matches, getContext());
+            pending_matches.clear();
+            match_sequence_closed = true;
+        }
+
+        lowerNonMatchClause(query_plan, clause, getContext());
+    }
+
+    if (!pending_matches.empty())
+        lowerMatchSequence(query_plan, pending_matches, getContext());
 
     query_plan.addInterpreterContext(getContext());
 }

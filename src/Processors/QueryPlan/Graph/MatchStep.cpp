@@ -58,7 +58,8 @@ void addAvailableVariable(std::vector<String> & names, const String & variable)
     names.push_back(variable);
 }
 
-std::vector<String> collectAvailableVariables(const MatchSpec & match_spec)
+template <typename MatchLike>
+std::vector<String> collectAvailableVariables(const MatchLike & match_spec)
 {
     std::vector<String> result;
     for (const auto & path : match_spec.paths)
@@ -96,9 +97,9 @@ MatchEdgeSpec cloneEdgeSpec(const MatchEdgeSpec & edge)
     };
 }
 
-MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
+MatchClauseSpec cloneMatchClauseSpec(const MatchClauseSpec & match_spec)
 {
-    MatchSpec result;
+    MatchClauseSpec result;
     result.optional = match_spec.optional;
     result.has_match_mode = match_spec.has_match_mode;
     result.match_mode = match_spec.match_mode;
@@ -130,6 +131,42 @@ MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
     return result;
 }
 
+MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
+{
+    MatchSpec result;
+    static_cast<MatchClauseSpec &>(result) = cloneMatchClauseSpec(match_spec);
+    result.clauses.reserve(match_spec.clauses.size());
+    for (const auto & clause : match_spec.clauses)
+        result.clauses.push_back(cloneMatchClauseSpec(clause));
+
+    return result;
+}
+
+void addHeaderColumnsForClause(Block & header, std::vector<String> & names, const MatchClauseSpec & clause)
+{
+    if (!clause.yield_variables.empty())
+    {
+        const auto available_names = collectAvailableVariables(clause);
+        for (const auto & variable : clause.yield_variables)
+        {
+            if (std::find(available_names.begin(), available_names.end(), variable) != available_names.end())
+                addVariableColumn(header, names, variable);
+        }
+
+        return;
+    }
+
+    for (const auto & path : clause.paths)
+    {
+        for (size_t i = 0; i < path.nodes.size(); ++i)
+        {
+            addVariableColumn(header, names, path.nodes[i].variable);
+            if (i < path.edges.size())
+                addVariableColumn(header, names, path.edges[i].variable);
+        }
+    }
+}
+
 }
 
 MatchStep::MatchStep(MatchSpec match_spec_)
@@ -143,6 +180,14 @@ SharedHeader MatchStep::makeHeader(const MatchSpec & match_spec)
 {
     Block header;
     std::vector<String> names;
+
+    if (!match_spec.clauses.empty())
+    {
+        for (const auto & clause : match_spec.clauses)
+            addHeaderColumnsForClause(header, names, clause);
+
+        return std::make_shared<const Block>(std::move(header));
+    }
 
     if (!match_spec.yield_variables.empty())
     {

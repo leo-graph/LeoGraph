@@ -106,11 +106,9 @@ String yieldVariable(const OPENGQL::AST::GQLExpr & item)
     return item.text;
 }
 
-}
-
-Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
+Graph::MatchClauseSpec makeMatchClauseSpec(const MatchPlan & match)
 {
-    Graph::MatchSpec result;
+    Graph::MatchClauseSpec result;
     result.optional = match.optional;
     result.has_match_mode = match.match_mode != OPENGQL::AST::GraphMatchMode::None;
     result.match_mode = makeMatchMode(match.match_mode);
@@ -136,6 +134,50 @@ Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
     result.paths.reserve(match.paths.size());
     for (const auto & path : match.paths)
         result.paths.push_back(makePathSpec(path));
+
+    return result;
+}
+
+void mergeMatchClauseSpec(Graph::MatchSpec & result, const Graph::MatchClauseSpec & clause)
+{
+    result.optional = result.optional || clause.optional;
+    result.has_match_mode = result.has_match_mode || clause.has_match_mode;
+    if (result.match_mode == Graph::MatchMode::None)
+        result.match_mode = clause.match_mode;
+    result.has_keep_clause = result.has_keep_clause || clause.has_keep_clause;
+    result.has_optional_operand_block = result.has_optional_operand_block || clause.has_optional_operand_block;
+    result.has_yield_items = result.has_yield_items || clause.has_yield_items;
+    if (!result.keep_clause && clause.keep_clause)
+        result.keep_clause = clause.keep_clause->clone();
+    if (!result.where_clause && clause.where_clause)
+        result.where_clause = clause.where_clause->clone();
+
+    for (const auto & yield_item : clause.yield_items)
+    {
+        if (yield_item)
+            result.yield_items.push_back(yield_item->clone());
+    }
+    result.yield_variables.insert(result.yield_variables.end(), clause.yield_variables.begin(), clause.yield_variables.end());
+    result.paths.insert(result.paths.end(), clause.paths.begin(), clause.paths.end());
+}
+
+}
+
+Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
+{
+    return makeMatchSpec(std::vector<MatchPlan>{match});
+}
+
+Graph::MatchSpec makeMatchSpec(const std::vector<MatchPlan> & matches)
+{
+    Graph::MatchSpec result;
+    result.clauses.reserve(matches.size());
+    for (const auto & match : matches)
+    {
+        auto clause = makeMatchClauseSpec(match);
+        mergeMatchClauseSpec(result, clause);
+        result.clauses.push_back(std::move(clause));
+    }
 
     return result;
 }

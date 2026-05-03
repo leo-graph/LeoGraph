@@ -304,6 +304,24 @@ TEST(GQLInterpreter, MatchYieldRestrictsGraphMatchHeader)
     EXPECT_NE(cloned_match_step->getMatchSpec().yield_items.front().get(), match.yield_items.front().get());
 }
 
+TEST(GQLInterpreter, ConsecutiveMatchClausesShareGraphMatchStep)
+{
+    const auto plan = buildPlan("MATCH (a) MATCH (b) RETURN a, b");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.clauses.size(), 2u);
+    ASSERT_EQ(match.paths.size(), 2u);
+
+    const auto & header = *match_step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 2u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+    EXPECT_EQ(header.getByPosition(1).name, "b");
+}
+
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");

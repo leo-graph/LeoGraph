@@ -374,6 +374,30 @@ TEST(GQLPatternLowering, MatchYieldItemsLowerToSpec)
     EXPECT_EQ(yield_expr->text, "r");
 }
 
+TEST(GQLPatternLowering, MatchSequenceLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH (a) MATCH (b) RETURN a, b");
+    const auto * query = getSingleQuery(ast);
+    ASSERT_NE(query, nullptr);
+
+    std::vector<GQL::MatchPlan> match_plans;
+    for (const auto & clause : query->clauses)
+    {
+        if (const auto * match = clause->as<GAST::GQLMatchClause>())
+            match_plans.push_back(GQL::lowerMatchClause(*match));
+    }
+
+    ASSERT_EQ(match_plans.size(), 2u);
+    const auto spec = GQL::makeMatchSpec(match_plans);
+
+    ASSERT_EQ(spec.clauses.size(), 2u);
+    ASSERT_EQ(spec.paths.size(), 2u);
+    ASSERT_EQ(spec.clauses[0].paths.size(), 1u);
+    ASSERT_EQ(spec.clauses[1].paths.size(), 1u);
+    EXPECT_EQ(spec.clauses[0].paths.front().nodes.front().variable, "a");
+    EXPECT_EQ(spec.clauses[1].paths.front().nodes.front().variable, "b");
+}
+
 TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
 {
     auto ast = parseGQLOrThrow("MATCH (n:Person {name: 'x'} WHERE n IS NOT NULL) RETURN n");
