@@ -325,6 +325,13 @@ bool tryLowerStandaloneSourceClause(
         return true;
     }
 
+    if (clause->as<GAST::GQLFinishClause>())
+    {
+        addEmptySingleRowSource(plan, scope);
+        lowerPipelineClause(plan, clause, context, scope);
+        return true;
+    }
+
     if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
     {
         lowerInlineCallSource(plan, *inline_call, context, environment, scope);

@@ -736,6 +736,30 @@ TEST(GQLInterpreter, ForOrdinalityUsesAlignedArrayJoinTransform)
     EXPECT_EQ(header.getByPosition(1).name, "ord");
 }
 
+TEST(GQLInterpreter, MatchFinishUsesReusableTerminalProjection)
+{
+    const auto plan = buildPlanWithPlanBuilder("MATCH (n) FINISH");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    EXPECT_EQ(header.columns(), 0u);
+}
+
+TEST(GQLInterpreter, UseFinishStartsReusableScalarPipeline)
+{
+    const auto plan = buildPlanWithPlanBuilder("USE g FINISH");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    EXPECT_EQ(header.columns(), 0u);
+}
+
 TEST(GQLInterpreter, ReturnGroupByUsesReusableAggregationLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 1, 2] RETURN x, COUNT(*) AS c GROUP BY x");

@@ -93,6 +93,8 @@ Initial supported expression set should include:
 
 Do not include DML, catalog DDL, graph type DDL, or complex procedure calls in the first interpreter slice unless the lowering contract for graph storage/catalog is already designed.
 
+`FINISH` is lowered as a terminal zero-column projection. It can close an existing source pipeline such as `MATCH ... FINISH`, or start from the reusable empty single-row source for source-free forms such as `USE graph FINISH`.
+
 ## Parser Follow-Up Order
 
 Parser work can continue in parallel with interpreter work in this order:

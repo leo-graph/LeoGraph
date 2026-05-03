@@ -576,6 +576,16 @@ void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, Context
         plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), static_cast<size_t>(limit), static_cast<size_t>(offset)));
 }
 
+void lowerFinishClause(QueryPlan & plan, const GAST::GQLFinishClause &, PlanScope & scope)
+{
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    dag.getOutputs().clear();
+
+    plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
+}
+
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope)
 {
     if (!clause_ast)
@@ -608,6 +618,12 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
     if (const auto * for_clause = clause_ast->as<GAST::GQLForClause>())
     {
         lowerForClause(plan, *for_clause, context, scope);
+        return;
+    }
+
+    if (const auto * finish = clause_ast->as<GAST::GQLFinishClause>())
+    {
+        lowerFinishClause(plan, *finish, scope);
         return;
     }
 

@@ -17,6 +17,7 @@ class GQLReturnClause;
 class GQLSelectClause;
 class GQLLetClause;
 class GQLForClause;
+class GQLFinishClause;
 class GQLWhereClause;
 }
 
@@ -58,6 +59,8 @@ void lowerLetClause(QueryPlan & plan, const OPENGQL::AST::GQLLetClause & let, Co
 void lowerForClause(QueryPlan & plan, const OPENGQL::AST::GQLForClause & for_clause, ContextPtr context, PlanScope & scope);
 
 void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page, ContextPtr context, PlanScope & scope);
+
+void lowerFinishClause(QueryPlan & plan, const OPENGQL::AST::GQLFinishClause & finish, PlanScope & scope);
 
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope);
 
