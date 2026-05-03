@@ -18,6 +18,7 @@
 #  include <Processors/QueryPlan/LimitStep.h>
 #  include <Processors/QueryPlan/QueryPlan.h>
 #  include <Processors/QueryPlan/SortingStep.h>
+#  include <Processors/Sources/Graph/MatchSource.h>
 
 #  include <vector>
 

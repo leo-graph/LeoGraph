@@ -2,10 +2,14 @@
 
 #include <Processors/QueryPlan/Graph/MatchSpec.h>
 #include <Processors/QueryPlan/ISourceStep.h>
-#include <Processors/Sources/Graph/MatchSource.h>
+
+#include <memory>
 
 namespace DB::Graph
 {
+
+class IMatchSourceFactory;
+using MatchSourceFactoryPtr = std::shared_ptr<const IMatchSourceFactory>;
 
 class MatchStep final : public ISourceStep
 {

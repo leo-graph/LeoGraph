@@ -2,14 +2,20 @@
 
 #include <Core/NamesAndTypes.h>
 #include <Parsers/IAST_fwd.h>
-#include <Processors/Sources/Graph/MatchSource.h>
 #include <base/types.h>
 
+#include <memory>
 #include <vector>
 
 namespace DB
 {
 class Block;
+}
+
+namespace DB::Graph
+{
+class IMatchSourceFactory;
+using MatchSourceFactoryPtr = std::shared_ptr<const IMatchSourceFactory>;
 }
 
 namespace DB::GQL
