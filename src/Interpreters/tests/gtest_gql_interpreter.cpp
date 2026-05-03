@@ -7,6 +7,7 @@
 #  include <Common/Exception.h>
 #  include <Common/tests/gtest_global_context.h>
 #  include <Common/tests/gtest_global_register.h>
+#  include <Interpreters/GQL/PlanBuilder.h>
 #  include <Interpreters/InterpreterGQLQuery.h>
 #  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
@@ -47,6 +48,18 @@ QueryPlan buildPlan(const std::string & query)
     InterpreterGQLQuery interpreter(parseGQL(query), getInterpreterContext());
     QueryPlan plan;
     interpreter.buildQueryPlan(plan);
+    return plan;
+}
+
+QueryPlan buildPlanWithPlanBuilder(const std::string & query)
+{
+    const auto ast = parseGQL(query);
+    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
+    if (!single_query)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "test query must parse to GQLSingleQuery");
+
+    QueryPlan plan;
+    GQL::PlanBuilder(getInterpreterContext()).buildSingleQuery(plan, *single_query);
     return plan;
 }
 
@@ -91,6 +104,15 @@ TEST(GQLInterpreter, BareMatchReturnLowersToScanThenProjection)
     ASSERT_EQ(match.paths.front().nodes.size(), 1u);
     EXPECT_EQ(match.paths.front().nodes.front().variable, "n");
     EXPECT_TRUE(match.paths.front().edges.empty());
+}
+
+TEST(GQLInterpreter, PlanBuilderLowersSingleQueryWithoutInterpreter)
+{
+    const auto plan = buildPlanWithPlanBuilder("MATCH (n) WHERE TRUE RETURN n LIMIT 1");
+
+    EXPECT_EQ(
+        linearStepNames(plan),
+        (std::vector<String>{"Limit", "Expression", "Filter", "GraphMatch"}));
 }
 
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
