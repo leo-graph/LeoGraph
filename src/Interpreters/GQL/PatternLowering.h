@@ -33,6 +33,7 @@ struct EdgeBinding
     const OPENGQL::AST::GQLLabelExpression * label = nullptr;
     const OPENGQL::AST::GQLPropertyMap * properties = nullptr;
     const OPENGQL::AST::GQLExpr * where = nullptr;
+    const OPENGQL::AST::GQLQuantifier * quantifier = nullptr;
 };
 
 struct PathBinding

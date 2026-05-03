@@ -149,6 +149,7 @@ TEST(GQLPatternLowering, MatchOutgoingEdgeLowersEdgeBinding)
     expectNameLabel(binding.edges.front().label, "KNOWS");
     EXPECT_EQ(binding.edges.front().properties, nullptr);
     EXPECT_EQ(binding.edges.front().where, nullptr);
+    EXPECT_EQ(binding.edges.front().quantifier, nullptr);
 }
 
 TEST(GQLPatternLowering, MatchPathVariableLowersToSpec)
@@ -169,6 +170,32 @@ TEST(GQLPatternLowering, MatchPathVariableLowersToSpec)
     EXPECT_EQ(spec.paths.front().variable, "p");
     ASSERT_EQ(spec.paths.front().nodes.size(), 2u);
     ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+}
+
+TEST(GQLPatternLowering, MatchEdgeQuantifierLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH (a)-[r]->{2,5}(b) RETURN r");
+
+    const auto binding = lowerOnlyPathPattern(ast);
+
+    ASSERT_EQ(binding.edges.size(), 1u);
+    ASSERT_NE(binding.edges.front().quantifier, nullptr);
+    EXPECT_EQ(binding.edges.front().quantifier->kind, GAST::GQLQuantifier::Kind::Range);
+    EXPECT_EQ(binding.edges.front().quantifier->lower, "2");
+    EXPECT_EQ(binding.edges.front().quantifier->upper, "5");
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+
+    ASSERT_EQ(spec.paths.size(), 1u);
+    ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+    ASSERT_NE(spec.paths.front().edges.front().quantifier, nullptr);
+    const auto * quantifier = spec.paths.front().edges.front().quantifier->as<GAST::GQLQuantifier>();
+    ASSERT_NE(quantifier, nullptr);
+    EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Range);
+    EXPECT_EQ(quantifier->lower, "2");
+    EXPECT_EQ(quantifier->upper, "5");
 }
 
 TEST(GQLPatternLowering, MatchCompoundEdgeDirectionsLowerToSpec)

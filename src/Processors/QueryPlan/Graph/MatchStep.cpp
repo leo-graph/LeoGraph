@@ -52,6 +52,7 @@ MatchEdgeSpec cloneEdgeSpec(const MatchEdgeSpec & edge)
         .label_expression = cloneOrNull(edge.label_expression),
         .properties = cloneOrNull(edge.properties),
         .predicate = cloneOrNull(edge.predicate),
+        .quantifier = cloneOrNull(edge.quantifier),
     };
 }
 

@@ -4,6 +4,7 @@
 #include <Parsers/graph/AST/GQLExpr.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
+#include <Parsers/graph/AST/GQLQuantifier.h>
 
 namespace DB::GQL
 {
@@ -56,6 +57,7 @@ Graph::MatchEdgeSpec makeEdgeSpec(const EdgeBinding & edge)
         .label_expression = cloneOrNull(edge.label),
         .properties = cloneOrNull(edge.properties),
         .predicate = cloneOrNull(edge.where),
+        .quantifier = cloneOrNull(edge.quantifier),
     };
 }
 

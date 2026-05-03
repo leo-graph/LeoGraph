@@ -34,6 +34,7 @@ struct MatchEdgeSpec
     ASTPtr label_expression;
     ASTPtr properties;
     ASTPtr predicate;
+    ASTPtr quantifier;
 };
 
 struct MatchPathSpec

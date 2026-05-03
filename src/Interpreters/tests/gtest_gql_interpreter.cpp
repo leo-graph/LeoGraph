@@ -8,6 +8,7 @@
 #  include <Common/tests/gtest_global_context.h>
 #  include <Common/tests/gtest_global_register.h>
 #  include <Interpreters/InterpreterGQLQuery.h>
+#  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
 #  include <Processors/QueryPlan/ExpressionStep.h>
 #  include <Processors/QueryPlan/FilterStep.h>
@@ -18,6 +19,8 @@
 #  include <vector>
 
 using namespace DB;
+
+namespace GAST = DB::OPENGQL::AST;
 
 namespace DB::ErrorCodes
 {
@@ -166,6 +169,31 @@ TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
     EXPECT_EQ(path.edges[0].variable, "r");
     EXPECT_EQ(path.edges[0].direction, Graph::MatchEdgeDirection::Outgoing);
     EXPECT_EQ(path.nodes[1].variable, "b");
+}
+
+TEST(GQLInterpreter, EdgeQuantifierStaysInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH (a)-[r]->{2,5}(b) RETURN a, r, b");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+    ASSERT_EQ(match.paths.front().edges.size(), 1u);
+
+    const auto & edge = match.paths.front().edges.front();
+    ASSERT_NE(edge.quantifier, nullptr);
+    const auto * quantifier = edge.quantifier->as<GAST::GQLQuantifier>();
+    ASSERT_NE(quantifier, nullptr);
+    EXPECT_EQ(quantifier->kind, GAST::GQLQuantifier::Kind::Range);
+    EXPECT_EQ(quantifier->lower, "2");
+    EXPECT_EQ(quantifier->upper, "5");
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    const auto & cloned_edge = cloned_match_step->getMatchSpec().paths.front().edges.front();
+    EXPECT_NE(cloned_edge.quantifier.get(), edge.quantifier.get());
 }
 
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)

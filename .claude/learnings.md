@@ -59,3 +59,4 @@
 - `GQL` `MatchSpec` should preserve label/property/predicate AST constraints, not just `has_*` booleans, otherwise the first real graph storage implementation cannot faithfully execute parsed pattern semantics.
 - Keep compound `GQL` edge directions such as `LeftOrRight`, `LeftOrUndirected`, and `UndirectedOrRight` in interpreter match specs instead of rejecting them during lowering; they are storage constraints, not parser/lowering errors.
 - Preserve `GQL` path variables in `MatchPathSpec`, but do not expose them as `UInt64` columns before a real path value type exists.
+- Preserve `GQL` edge quantifiers in `MatchEdgeSpec` as cloned AST constraints; do not reject variable-length path syntax during lowering before graph storage expansion semantics exist.

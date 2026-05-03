@@ -10,6 +10,7 @@
 #include <Parsers/graph/AST/GQLPathPatternAlternation.h>
 #include <Parsers/graph/AST/GQLPathTerm.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
+#include <Parsers/graph/AST/GQLQuantifier.h>
 #include <Parsers/graph/AST/GQLWhereClause.h>
 
 namespace DB::ErrorCodes
@@ -32,6 +33,7 @@ using GQLPathPattern = OPENGQL::AST::GQLPathPattern;
 using GQLPathPatternAlternation = OPENGQL::AST::GQLPathPatternAlternation;
 using GQLPathTerm = OPENGQL::AST::GQLPathTerm;
 using GQLPropertyMap = OPENGQL::AST::GQLPropertyMap;
+using GQLQuantifier = OPENGQL::AST::GQLQuantifier;
 using GQLWhereClause = OPENGQL::AST::GQLWhereClause;
 
 [[noreturn]] void throwUnsupportedPathPattern(const String & reason)
@@ -128,15 +130,13 @@ NodeBinding lowerNodePattern(const GQLNodePattern & node)
 
 EdgeBinding lowerEdgePattern(const GQLEdgePattern & edge)
 {
-    if (edge.quantifier)
-        throwUnsupportedPathPattern("edge quantifier");
-
     EdgeBinding binding;
     binding.variable = identifierVariable(edge.variable);
     binding.direction = lowerEdgeDirection(edge.direction);
     binding.label = getOptionalChild<GQLLabelExpression>(edge.label_expression, "edge label");
     binding.properties = getOptionalChild<GQLPropertyMap>(edge.properties, "edge properties");
     binding.where = getOptionalChild<GQLExpr>(edge.where, "edge where");
+    binding.quantifier = getOptionalChild<GQLQuantifier>(edge.quantifier, "edge quantifier");
     return binding;
 }
 
