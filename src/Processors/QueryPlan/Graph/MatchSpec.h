@@ -38,6 +38,7 @@ struct MatchEdgeSpec
 
 struct MatchPathSpec
 {
+    String variable;
     std::vector<MatchNodeSpec> nodes;
     std::vector<MatchEdgeSpec> edges;
 };

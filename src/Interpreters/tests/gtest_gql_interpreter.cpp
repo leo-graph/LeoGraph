@@ -168,6 +168,17 @@ TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
     EXPECT_EQ(path.nodes[1].variable, "b");
 }
 
+TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+    EXPECT_EQ(match.paths.front().variable, "p");
+}
+
 TEST(GQLInterpreter, CompoundEdgeDirectionLowersToGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (a)<-[r]->(b) RETURN a, r, b");

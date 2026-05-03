@@ -158,9 +158,6 @@ const GQLPathTerm & getOnlyPathTerm(const GQLPathPattern & path)
 
 PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
 {
-    if (path.variable)
-        throwUnsupportedPathPattern("path variable");
-
     if (path.prefix)
         throwUnsupportedPathPattern("path prefix");
 
@@ -172,6 +169,7 @@ PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
         throwUnsupportedPathPattern("path term must contain an odd number of alternating node and edge factors");
 
     PathBinding result;
+    result.variable = identifierVariable(path.variable);
     for (size_t i = 0; i < term.factors.size(); ++i)
     {
         const auto & factor = term.factors[i];

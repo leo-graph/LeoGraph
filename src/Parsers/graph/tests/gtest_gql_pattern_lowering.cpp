@@ -151,6 +151,26 @@ TEST(GQLPatternLowering, MatchOutgoingEdgeLowersEdgeBinding)
     EXPECT_EQ(binding.edges.front().where, nullptr);
 }
 
+TEST(GQLPatternLowering, MatchPathVariableLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH p = (a)-[r]->(b) RETURN a");
+
+    const auto binding = lowerOnlyPathPattern(ast);
+
+    EXPECT_EQ(binding.variable, "p");
+    ASSERT_EQ(binding.nodes.size(), 2u);
+    ASSERT_EQ(binding.edges.size(), 1u);
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+
+    ASSERT_EQ(spec.paths.size(), 1u);
+    EXPECT_EQ(spec.paths.front().variable, "p");
+    ASSERT_EQ(spec.paths.front().nodes.size(), 2u);
+    ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+}
+
 TEST(GQLPatternLowering, MatchCompoundEdgeDirectionsLowerToSpec)
 {
     {
@@ -251,7 +271,6 @@ TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
 
 TEST(GQLPatternLowering, UnsupportedPathShapesThrowNotImplemented)
 {
-    expectUnsupportedPathPattern("MATCH p = (a)-[r]->(b) RETURN p", "path variable");
     expectUnsupportedPathPattern("MATCH (a)-[r]->(b) | (c)-[s]->(d) RETURN a", "multiple GQLPathTerms");
     /// `path prefix` rejection (e.g. ANY SHORTEST) cannot be exercised through `parseGQLQuery`
     /// yet: the dialect parser does not produce a `GQLPathSearchPrefix` for those inputs.

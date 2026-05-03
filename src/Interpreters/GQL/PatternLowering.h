@@ -37,6 +37,7 @@ struct EdgeBinding
 
 struct PathBinding
 {
+    String variable;
     std::vector<NodeBinding> nodes;
     std::vector<EdgeBinding> edges;
 };

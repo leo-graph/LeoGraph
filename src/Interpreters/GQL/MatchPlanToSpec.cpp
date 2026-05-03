@@ -62,6 +62,7 @@ Graph::MatchEdgeSpec makeEdgeSpec(const EdgeBinding & edge)
 Graph::MatchPathSpec makePathSpec(const PathBinding & path)
 {
     Graph::MatchPathSpec result;
+    result.variable = path.variable;
     result.nodes.reserve(path.nodes.size());
     for (const auto & node : path.nodes)
         result.nodes.push_back(makeNodeSpec(node));
