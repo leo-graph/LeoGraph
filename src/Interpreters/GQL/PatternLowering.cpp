@@ -3,6 +3,7 @@
 #include <Common/Exception.h>
 #include <Parsers/graph/AST/GQLEdgePattern.h>
 #include <Parsers/graph/AST/GQLExpr.h>
+#include <Parsers/graph/AST/GQLKeepClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLMatchClause.h>
 #include <Parsers/graph/AST/GQLNodePattern.h>
@@ -28,6 +29,7 @@ namespace
 
 using GQLEdgePattern = OPENGQL::AST::GQLEdgePattern;
 using GQLExpr = OPENGQL::AST::GQLExpr;
+using GQLKeepClause = OPENGQL::AST::GQLKeepClause;
 using GQLLabelExpression = OPENGQL::AST::GQLLabelExpression;
 using GQLMatchClause = OPENGQL::AST::GQLMatchClause;
 using GQLNodePattern = OPENGQL::AST::GQLNodePattern;
@@ -222,6 +224,7 @@ MatchPlan lowerMatchClause(const OPENGQL::AST::GQLMatchClause & match)
     MatchPlan result;
     result.optional = match.optional;
     result.match_mode = match.match_mode;
+    result.keep_clause = getOptionalChild<GQLKeepClause>(match.keep_clause, "match keep");
     result.has_keep_clause = match.keep_clause != nullptr;
     result.has_optional_operand_block = match.optional_operand_block != nullptr;
 

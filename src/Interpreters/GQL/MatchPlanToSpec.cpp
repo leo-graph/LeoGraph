@@ -2,6 +2,7 @@
 
 #include <Parsers/IAST.h>
 #include <Parsers/graph/AST/GQLExpr.h>
+#include <Parsers/graph/AST/GQLKeepClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
@@ -87,6 +88,7 @@ Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
     result.has_keep_clause = match.has_keep_clause;
     result.has_optional_operand_block = match.has_optional_operand_block;
     result.has_yield_items = !match.yield_items.empty();
+    result.keep_clause = cloneOrNull(match.keep_clause);
 
     result.paths.reserve(match.paths.size());
     for (const auto & path : match.paths)

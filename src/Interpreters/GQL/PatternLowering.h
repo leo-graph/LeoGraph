@@ -48,6 +48,7 @@ struct MatchPlan
 {
     bool optional = false;
     OPENGQL::AST::GraphMatchMode match_mode = OPENGQL::AST::GraphMatchMode::None;
+    const OPENGQL::AST::GQLKeepClause * keep_clause = nullptr;
     bool has_keep_clause = false;
     bool has_optional_operand_block = false;
     std::vector<PathBinding> paths;

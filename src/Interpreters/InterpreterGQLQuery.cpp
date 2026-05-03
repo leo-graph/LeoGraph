@@ -47,8 +47,6 @@ void validateExecutableMatch(const Graph::MatchSpec & match)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL MATCH is not supported");
     if (match.has_match_mode)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH mode prefix is not supported");
-    if (match.has_keep_clause)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH KEEP is not supported");
     if (match.has_yield_items)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH YIELD is not supported");
     if (match.paths.empty())

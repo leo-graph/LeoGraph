@@ -221,6 +221,30 @@ TEST(GQLPatternLowering, MatchPathPrefixLowersToSpec)
     EXPECT_EQ(spec_prefix->search_kind, GAST::PathSearchKind::AnyShortest);
 }
 
+TEST(GQLPatternLowering, MatchKeepClauseLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH (a)-[r]->(b) KEEP ANY 2 PATHS RETURN a");
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto lowered = GQL::lowerMatchClause(*match);
+
+    ASSERT_TRUE(lowered.has_keep_clause);
+    ASSERT_NE(lowered.keep_clause, nullptr);
+    const auto spec = GQL::makeMatchSpec(lowered);
+
+    ASSERT_TRUE(spec.has_keep_clause);
+    ASSERT_NE(spec.keep_clause, nullptr);
+    EXPECT_NE(spec.keep_clause.get(), lowered.keep_clause);
+    const auto * keep = spec.keep_clause->as<GAST::GQLKeepClause>();
+    ASSERT_NE(keep, nullptr);
+    ASSERT_NE(keep->path_prefix, nullptr);
+    const auto * prefix = keep->path_prefix->as<GAST::GQLPathSearchPrefix>();
+    ASSERT_NE(prefix, nullptr);
+    EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+    EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+}
+
 TEST(GQLPatternLowering, MatchCompoundEdgeDirectionsLowerToSpec)
 {
     {

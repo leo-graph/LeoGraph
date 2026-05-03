@@ -61,3 +61,4 @@
 - Preserve `GQL` path variables in `MatchPathSpec`, but do not expose them as `UInt64` columns before a real path value type exists.
 - Preserve `GQL` edge quantifiers in `MatchEdgeSpec` as cloned AST constraints; do not reject variable-length path syntax during lowering before graph storage expansion semantics exist.
 - Preserve `GQL` path prefixes in `MatchPathSpec` as cloned AST constraints; path-search or path-mode semantics should be handled by graph storage/planning, not rejected in generic lowering.
+- Preserve `GQL` `KEEP` clauses in `MatchSpec` as cloned AST constraints and let the empty graph source pass them through; real path-selection behavior belongs in later graph planning/storage code.

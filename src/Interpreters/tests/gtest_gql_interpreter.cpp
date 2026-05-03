@@ -218,6 +218,30 @@ TEST(GQLInterpreter, PathPrefixStaysInGraphMatchSpec)
     EXPECT_NE(cloned_path.prefix.get(), path.prefix.get());
 }
 
+TEST(GQLInterpreter, KeepClauseStaysInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH (a)-[r]->(b) KEEP ANY 2 PATHS RETURN a");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_TRUE(match.has_keep_clause);
+    ASSERT_NE(match.keep_clause, nullptr);
+
+    const auto * keep = match.keep_clause->as<GAST::GQLKeepClause>();
+    ASSERT_NE(keep, nullptr);
+    ASSERT_NE(keep->path_prefix, nullptr);
+    const auto * prefix = keep->path_prefix->as<GAST::GQLPathSearchPrefix>();
+    ASSERT_NE(prefix, nullptr);
+    EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::Any);
+    EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    EXPECT_NE(cloned_match_step->getMatchSpec().keep_clause.get(), match.keep_clause.get());
+}
+
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");
