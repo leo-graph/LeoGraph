@@ -4,6 +4,11 @@
 #include <Interpreters/Context.h>
 #include <Parsers/graph/AST/GQLExpr.h>
 
+namespace DB::OPENGQL::AST
+{
+class GQLTypeExpression;
+}
+
 namespace DB::GQL
 {
 
@@ -27,6 +32,13 @@ const ActionsDAG::Node & lowerExpression(
 
 const ActionsDAG::Node & lowerExpression(
     const OPENGQL::AST::GQLExpr & expr,
+    ActionsDAG & dag,
+    ContextPtr context,
+    const PlanScope & scope);
+
+const ActionsDAG::Node & lowerExpressionAsType(
+    const IAST & expr,
+    const OPENGQL::AST::GQLTypeExpression & type,
     ActionsDAG & dag,
     ContextPtr context,
     const PlanScope & scope);

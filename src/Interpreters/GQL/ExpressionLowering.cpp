@@ -395,6 +395,16 @@ String getDataTypeName(const OPENGQL::AST::GQLTypeExpression & type)
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL CAST target type: {}", type.name);
 }
 
+const ActionsDAG::Node & castNodeToGQLType(
+    const ActionsDAG::Node & operand,
+    const OPENGQL::AST::GQLTypeExpression & type,
+    ActionsDAG & dag,
+    ContextPtr context)
+{
+    const auto cast_type = DataTypeFactory::instance().get(getDataTypeName(type));
+    return dag.addCast(operand, cast_type, {}, context);
+}
+
 const ActionsDAG::Node & lowerCast(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     const auto & operand = lowerExpressionImpl(getChildExpression(expr, 0), dag, context, scope);
@@ -406,8 +416,7 @@ const ActionsDAG::Node & lowerCast(const GQLExpr & expr, ActionsDAG & dag, Conte
     if (!type)
         throwUnsupportedShape(expr, fmt::format("target type child is {}", expr.children[1]->getID(' ')));
 
-    const auto cast_type = DataTypeFactory::instance().get(getDataTypeName(*type));
-    return dag.addCast(operand, cast_type, {}, context);
+    return castNodeToGQLType(operand, *type, dag, context);
 }
 
 const ActionsDAG::Node & lowerCaseExpr(const OPENGQL::AST::GQLCaseExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
@@ -558,6 +567,16 @@ const ActionsDAG::Node & lowerExpression(const IAST & expr, ActionsDAG & dag, Co
 const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope & scope)
 {
     return lowerExpressionImpl(expr, dag, context, &scope);
+}
+
+const ActionsDAG::Node & lowerExpressionAsType(
+    const IAST & expr,
+    const OPENGQL::AST::GQLTypeExpression & type,
+    ActionsDAG & dag,
+    ContextPtr context,
+    const PlanScope & scope)
+{
+    return castNodeToGQLType(lowerExpressionASTImpl(expr, dag, context, &scope), type, dag, context);
 }
 
 }

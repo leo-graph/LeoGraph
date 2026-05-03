@@ -354,10 +354,6 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
             throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL LET item must be GQLAssignmentItem");
         if (item->name.empty())
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LET assignment name must be non-empty");
-        if (item->type)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Typed GQL LET assignments are not supported");
-        if (item->value_keyword)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "LET VALUE assignments are not supported");
         if (!item->value)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LET assignment '{}' must have a value", item->name);
         if (scope.hasBinding(item->name))
@@ -365,8 +361,21 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
         if (!assigned_names.insert(item->name).second)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Duplicate GQL LET assignment '{}'", item->name);
 
-        const auto & value = lowerExpression(*item->value, dag, context, local_scope);
-        const auto & alias = dag.addAlias(value, item->name);
+        const ActionsDAG::Node * value = nullptr;
+        if (item->type)
+        {
+            const auto * type = item->type->as<GAST::GQLTypeExpression>();
+            if (!type)
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LET assignment type must be GQLTypeExpression");
+
+            value = &lowerExpressionAsType(*item->value, *type, dag, context, local_scope);
+        }
+        else
+        {
+            value = &lowerExpression(*item->value, dag, context, local_scope);
+        }
+
+        const auto & alias = dag.addAlias(*value, item->name);
         outputs.push_back(&alias);
         local_scope.addOrReplaceBinding(item->name, alias.result_type, BindingKind::Projection);
     }
