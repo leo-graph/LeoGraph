@@ -305,12 +305,12 @@ void lowerWhereClause(
     std::string_view context_name,
     const PlanScope & scope)
 {
-    if (where.type != GAST::GQLWhereClause::Type::Where)
+    switch (where.type)
     {
-        if (where.type == GAST::GQLWhereClause::Type::Having)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside {} is not supported", context_name);
-        if (where.type != GAST::GQLWhereClause::Type::Filter)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported predicate clause inside {}", context_name);
+        case GAST::GQLWhereClause::Type::Where:
+        case GAST::GQLWhereClause::Type::Filter:
+        case GAST::GQLWhereClause::Type::Having:
+            break;
     }
 
     if (!where.expression)

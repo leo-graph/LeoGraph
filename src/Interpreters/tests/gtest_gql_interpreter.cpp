@@ -18,6 +18,7 @@
 #  include <Parsers/ASTLiteral.h>
 #  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
+#  include <Processors/QueryPlan/AggregatingStep.h>
 #  include <Processors/QueryPlan/DistinctStep.h>
 #  include <Processors/QueryPlan/ExpressionStep.h>
 #  include <Processors/QueryPlan/FilterStep.h>
@@ -727,6 +728,21 @@ TEST(GQLInterpreter, ReturnGroupByUsesReusableAggregationLowering)
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Expression", "Aggregating", "Expression", "Expression", "ReadFromPreparedSource"}));
+}
+
+TEST(GQLInterpreter, SelectHavingUsesReusablePredicateLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT SUM(x) AS s FROM { FOR x IN [1, 2] RETURN x } HAVING s > 1");
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    ASSERT_NE(dynamic_cast<const ExpressionStep *>(root->step.get()), nullptr);
+    ASSERT_EQ(root->children.size(), 1u);
+
+    const auto * filter = dynamic_cast<const FilterStep *>(root->children.front()->step.get());
+    ASSERT_NE(filter, nullptr);
+    ASSERT_EQ(root->children.front()->children.size(), 1u);
+    EXPECT_NE(dynamic_cast<const AggregatingStep *>(root->children.front()->children.front()->step.get()), nullptr);
 }
 
 TEST(GQLInterpreter, NativeClickHouseAggregateFunctionUsesReusableAggregationDetection)
