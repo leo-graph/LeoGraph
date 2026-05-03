@@ -215,6 +215,22 @@ TEST(GQLInterpreter, SelectFromSubqueryUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
+TEST(GQLInterpreter, InlineCallUsesReusableSourceLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("CALL { RETURN 1 AS a } RETURN a");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+}
+
 TEST(GQLInterpreter, SelectAllFromSubqueryKeepsSourceHeader)
 {
     const auto plan = buildPlanWithPlanBuilder("SELECT * FROM { RETURN 1 AS a }");

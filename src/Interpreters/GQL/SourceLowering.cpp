@@ -36,18 +36,23 @@ void addEmptySingleRowSource(QueryPlan & plan, PlanScope & scope)
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 }
 
-void lowerSubquerySource(QueryPlan & plan, const GAST::GQLSubquery & subquery, ContextPtr context, PlanScope & scope)
+void lowerSubquerySource(
+    QueryPlan & plan,
+    const GAST::GQLSubquery & subquery,
+    ContextPtr context,
+    PlanScope & scope,
+    std::string_view context_name)
 {
     if (subquery.at_schema)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM subquery AT schema is not supported");
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} AT schema is not supported", context_name);
     if (subquery.bindings)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM subquery bindings are not supported");
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} bindings are not supported", context_name);
     if (!subquery.next_statements.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM subquery NEXT statements are not supported");
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} NEXT statements are not supported", context_name);
 
     const auto * single_query = subquery.query ? subquery.query->as<GAST::GQLSingleQuery>() : nullptr;
     if (!single_query)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM subquery must contain a single query");
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a single query", context_name);
 
     PlanBuilder nested_builder(context);
     nested_builder.buildSingleQuery(plan, *single_query);
@@ -61,7 +66,7 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
 
     if (const auto * subquery = source->as<GAST::GQLSubquery>())
     {
-        lowerSubquerySource(plan, *subquery, context, scope);
+        lowerSubquerySource(plan, *subquery, context, scope, "SELECT FROM subquery");
         return;
     }
 
@@ -78,6 +83,20 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists are not supported");
 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported SELECT source: {}", source->getID(' '));
+}
+
+void lowerInlineCallSource(QueryPlan & plan, const GAST::GQLCallInlineClause & call, ContextPtr context, PlanScope & scope)
+{
+    if (call.optional)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL inline CALL is not supported");
+    if (call.variable_scope)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope is not supported");
+
+    const auto * subquery = call.subquery ? call.subquery->as<GAST::GQLSubquery>() : nullptr;
+    if (!subquery)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL must contain a subquery");
+
+    lowerSubquerySource(plan, *subquery, context, scope, "inline CALL subquery");
 }
 
 }
@@ -143,6 +162,12 @@ bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, Con
     {
         addEmptySingleRowSource(plan, scope);
         lowerPipelineClause(plan, clause, context, scope);
+        return true;
+    }
+
+    if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
+    {
+        lowerInlineCallSource(plan, *inline_call, context, scope);
         return true;
     }
 
