@@ -11,6 +11,7 @@
 #include <Functions/FunctionFactory.h>
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
+#include <Interpreters/GQL/AggregationLowering.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
@@ -282,17 +283,28 @@ void lowerWhereClause(
 
 void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context, PlanScope & scope)
 {
-    if (ret.group_by)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN GROUP BY is not supported");
-
     if (ret.return_all)
     {
+        if (ret.group_by)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN * with GROUP BY is not supported");
         if (ret.distinct)
             lowerDistinct(plan, context);
         return;
     }
 
-    lowerProjectionItems(plan, ret.items, context, "RETURN", scope);
+    if (ret.group_by || hasAggregateProjectionItems(ret.items))
+    {
+        const auto * group_by = ret.group_by ? ret.group_by->as<GAST::GQLGroupByClause>() : nullptr;
+        if (ret.group_by && !group_by)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN GROUP BY node must be GQLGroupByClause");
+
+        lowerAggregatingProjectionItems(plan, ret.items, group_by, nullptr, context, "RETURN", scope);
+    }
+    else
+    {
+        lowerProjectionItems(plan, ret.items, context, "RETURN", scope);
+    }
+
     if (ret.distinct)
         lowerDistinct(plan, context);
 }
@@ -304,10 +316,6 @@ void lowerSelectClause(
     PlanScope & scope,
     bool source_was_lowered)
 {
-    if (select.group_by)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT GROUP BY is not supported");
-    if (select.having)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT HAVING is not supported");
     if (select.source && !source_was_lowered)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source must be lowered before SELECT projection");
 
@@ -325,6 +333,10 @@ void lowerSelectClause(
 
     if (select.select_all)
     {
+        if (select.group_by)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * with GROUP BY is not supported");
+        if (select.having)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * with HAVING is not supported");
         if (!source_was_lowered)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * is not supported without a source");
 
@@ -334,7 +346,25 @@ void lowerSelectClause(
         return;
     }
 
-    lowerProjectionItems(plan, select.items, context, "SELECT", scope);
+    if (select.group_by || hasAggregateProjectionItems(select.items))
+    {
+        const auto * group_by = select.group_by ? select.group_by->as<GAST::GQLGroupByClause>() : nullptr;
+        const auto * having = select.having ? select.having->as<GAST::GQLWhereClause>() : nullptr;
+        if (select.group_by && !group_by)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT GROUP BY node must be GQLGroupByClause");
+        if (select.having && !having)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT HAVING node must be GQLWhereClause");
+
+        lowerAggregatingProjectionItems(plan, select.items, group_by, having, context, "SELECT", scope);
+    }
+    else
+    {
+        if (select.having)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT HAVING without aggregation is not supported");
+
+        lowerProjectionItems(plan, select.items, context, "SELECT", scope);
+    }
+
     if (select.distinct)
         lowerDistinct(plan, context);
 }

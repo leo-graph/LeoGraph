@@ -378,6 +378,15 @@ TEST(GQLInterpreter, ForOrdinalityUsesAlignedArrayJoinTransform)
     EXPECT_EQ(header.getByPosition(1).name, "ord");
 }
 
+TEST(GQLInterpreter, ReturnGroupByUsesReusableAggregationLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 1, 2] RETURN x, COUNT(*) AS c GROUP BY x");
+
+    EXPECT_EQ(
+        linearStepNames(plan),
+        (std::vector<String>{"Expression", "Aggregating", "Expression", "Expression", "ReadFromPreparedSource"}));
+}
+
 TEST(GQLInterpreter, LetAfterMatchReusesPipelineTransform)
 {
     const auto plan = buildPlanWithPlanBuilder("MATCH (n) LET x = n RETURN x");
