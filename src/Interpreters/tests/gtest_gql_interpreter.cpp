@@ -135,6 +135,20 @@ TEST(GQLInterpreter, UnionDistinctBuildsUnionThenDistinctPlan)
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Union"}));
 }
 
+TEST(GQLInterpreter, ExceptDistinctBuildsIntersectOrExceptPlan)
+{
+    const auto plan = buildPlan("RETURN 1 AS v EXCEPT RETURN 2 AS v");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "IntersectOrExcept"}));
+}
+
+TEST(GQLInterpreter, IntersectDistinctBuildsIntersectOrExceptPlan)
+{
+    const auto plan = buildPlan("RETURN 1 AS v INTERSECT RETURN 1 AS v");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "IntersectOrExcept"}));
+}
+
 TEST(GQLInterpreter, PlanBuilderLowersSingleQueryWithoutInterpreter)
 {
     const auto plan = buildPlanWithPlanBuilder("MATCH (n) WHERE TRUE RETURN n LIMIT 1");

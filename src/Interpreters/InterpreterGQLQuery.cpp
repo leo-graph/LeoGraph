@@ -10,6 +10,7 @@
 #include <Processors/QueryPlan/BuildQueryPipelineSettings.h>
 #include <Processors/QueryPlan/DistinctStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
+#include <Processors/QueryPlan/IntersectOrExceptStep.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/UnionStep.h>
@@ -46,6 +47,10 @@ enum class CombinedLoweringMode : UInt8
 {
     UnionAll,
     UnionDistinct,
+    ExceptAll,
+    ExceptDistinct,
+    IntersectAll,
+    IntersectDistinct,
 };
 
 Names getHeaderColumnNames(const Block & header)
@@ -73,11 +78,19 @@ CombinedLoweringMode getCombinedLoweringMode(const GAST::GQLCombinedQuery & quer
             current_mode = CombinedLoweringMode::UnionAll;
         else if (operation == GAST::CombinedQueryOperator::UnionDistinct)
             current_mode = CombinedLoweringMode::UnionDistinct;
+        else if (operation == GAST::CombinedQueryOperator::ExceptAll)
+            current_mode = CombinedLoweringMode::ExceptAll;
+        else if (operation == GAST::CombinedQueryOperator::ExceptDistinct)
+            current_mode = CombinedLoweringMode::ExceptDistinct;
+        else if (operation == GAST::CombinedQueryOperator::IntersectAll)
+            current_mode = CombinedLoweringMode::IntersectAll;
+        else if (operation == GAST::CombinedQueryOperator::IntersectDistinct)
+            current_mode = CombinedLoweringMode::IntersectDistinct;
         else
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only GQL UNION and UNION ALL are supported");
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OTHERWISE combined queries are not supported");
 
         if (mode && *mode != current_mode)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Mixing GQL UNION and UNION ALL is not supported");
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Mixing GQL combined query operators is not supported");
 
         mode = current_mode;
     }
@@ -86,6 +99,33 @@ CombinedLoweringMode getCombinedLoweringMode(const GAST::GQLCombinedQuery & quer
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined query has no operator");
 
     return *mode;
+}
+
+ASTSelectIntersectExceptQuery::Operator getIntersectOrExceptOperator(CombinedLoweringMode mode)
+{
+    switch (mode)
+    {
+        case CombinedLoweringMode::ExceptAll:
+            return ASTSelectIntersectExceptQuery::Operator::EXCEPT_ALL;
+        case CombinedLoweringMode::ExceptDistinct:
+            return ASTSelectIntersectExceptQuery::Operator::EXCEPT_DISTINCT;
+        case CombinedLoweringMode::IntersectAll:
+            return ASTSelectIntersectExceptQuery::Operator::INTERSECT_ALL;
+        case CombinedLoweringMode::IntersectDistinct:
+            return ASTSelectIntersectExceptQuery::Operator::INTERSECT_DISTINCT;
+        case CombinedLoweringMode::UnionAll:
+        case CombinedLoweringMode::UnionDistinct:
+            break;
+    }
+
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined query mode is not INTERSECT or EXCEPT");
+}
+
+bool needsDistinctStep(CombinedLoweringMode mode)
+{
+    return mode == CombinedLoweringMode::UnionDistinct
+        || mode == CombinedLoweringMode::ExceptDistinct
+        || mode == CombinedLoweringMode::IntersectDistinct;
 }
 
 void buildGQLRootPlan(QueryPlan & query_plan, const IAST & query, ContextPtr context);
@@ -153,9 +193,18 @@ void buildCombinedQueryPlan(QueryPlan & query_plan, const GAST::GQLCombinedQuery
     }
 
     const auto & settings = context->getSettingsRef();
-    query_plan.unitePlans(std::make_unique<UnionStep>(std::move(headers), settings[Setting::max_threads]), std::move(plans));
+    if (mode == CombinedLoweringMode::UnionAll || mode == CombinedLoweringMode::UnionDistinct)
+    {
+        query_plan.unitePlans(std::make_unique<UnionStep>(std::move(headers), settings[Setting::max_threads]), std::move(plans));
+    }
+    else
+    {
+        query_plan.unitePlans(
+            std::make_unique<IntersectOrExceptStep>(std::move(headers), getIntersectOrExceptOperator(mode), settings[Setting::max_threads]),
+            std::move(plans));
+    }
 
-    if (mode == CombinedLoweringMode::UnionDistinct)
+    if (needsDistinctStep(mode))
         addDistinctStep(query_plan, result_columns, context);
 }
 
