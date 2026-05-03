@@ -306,7 +306,12 @@ void lowerWhereClause(
     const PlanScope & scope)
 {
     if (where.type != GAST::GQLWhereClause::Type::Where)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside {} is not supported", context_name);
+    {
+        if (where.type == GAST::GQLWhereClause::Type::Having)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside {} is not supported", context_name);
+        if (where.type != GAST::GQLWhereClause::Type::Filter)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported predicate clause inside {}", context_name);
+    }
 
     if (!where.expression)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} predicate must be non-null", context_name);

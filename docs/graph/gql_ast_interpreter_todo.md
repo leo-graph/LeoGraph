@@ -31,6 +31,7 @@ Interpreter MVP can reasonably start from this subset:
 
 - Query roots: `GQLSingleQuery`, `GQLCombinedQuery`, `GQLSubquery`.
 - Core query clauses: `GQLMatchClause`, `GQLWhereClause`, `GQLReturnClause`, `GQLSelectClause`, `GQLPageClause`, `GQLUseClause`, `GQLFinishClause`.
+- Filter predicates are represented as `GQLWhereClause::Type::Filter`, while match / select predicates use `Type::Where` and aggregate predicates use `Type::Having`; lowering should reuse the same predicate path but should not collapse these clause kinds in AST.
 - Projection item model: `GQLAliasedItem`, with aliases owned by the item wrapper instead of expression nodes.
 - Pattern AST: `GQLGraphPatternBlock`, `GQLPathPattern`, `GQLPathTerm`, `GQLNodePattern`, `GQLEdgePattern`, `GQLLabelExpression`, `GQLPropertyMap`, `GQLPropertyItem`, `GQLKeepClause`, `GQLPathSearchPrefix`, simplified path nodes.
 - Expression AST: current `GQLExpr` / `GQLCaseExpr` surface, including property access, arithmetic / boolean operators, `CASE`, `CAST`, list / record constructors, aggregate set quantifier, dynamic parameters, temporal / duration literals, `VALUE { ... }`, `LET ... IN ... END`, and `PATH[...]`.
