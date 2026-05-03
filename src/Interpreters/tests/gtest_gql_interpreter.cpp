@@ -196,6 +196,22 @@ TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
     EXPECT_EQ(limit->getLimit(), 5u);
 }
 
+TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN ABS(-1) AS v");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "v");
+}
+
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
 {
     const auto plan = buildPlan("MATCH (n) WHERE n = 1 RETURN n LIMIT 5");

@@ -267,6 +267,44 @@ const char * getBinaryFunctionName(const String & op)
     return nullptr;
 }
 
+const char * getScalarFunctionName(const String & name)
+{
+    if (name == "ABS")
+        return "abs";
+    if (name == "FLOOR")
+        return "floor";
+    if (name == "CEIL" || name == "CEILING")
+        return "ceil";
+    if (name == "SQRT")
+        return "sqrt";
+    if (name == "EXP")
+        return "exp";
+    if (name == "LN")
+        return "log";
+    if (name == "LOG10")
+        return "log10";
+    if (name == "SIN")
+        return "sin";
+    if (name == "COS")
+        return "cos";
+    if (name == "TAN")
+        return "tan";
+    if (name == "ASIN")
+        return "asin";
+    if (name == "ACOS")
+        return "acos";
+    if (name == "ATAN")
+        return "atan";
+    if (name == "UPPER")
+        return "upper";
+    if (name == "LOWER")
+        return "lower";
+    if (name == "CHAR_LENGTH" || name == "CHARACTER_LENGTH" || name == "BYTE_LENGTH" || name == "OCTET_LENGTH")
+        return "length";
+
+    return nullptr;
+}
+
 bool isNullSpecialValue(const GQLExpr & expr)
 {
     return expr.kind == GQLExpr::Kind::SpecialValue && normalizedOperator(expr.text) == "NULL";
@@ -301,6 +339,25 @@ const ActionsDAG::Node & lowerBinaryOp(const GQLExpr & expr, ActionsDAG & dag, C
     return addFunction(dag, context, function_name, {&left, &right});
 }
 
+const ActionsDAG::Node & lowerFunctionCall(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    if (expr.bare_keyword)
+        throwUnsupportedShape(expr, fmt::format("bare keyword function '{}' is not supported", expr.text));
+    if (expr.set_quantifier != GQLExpr::SetQuantifier::None)
+        throwUnsupportedShape(expr, fmt::format("set quantifier function '{}' is not supported", expr.text));
+
+    const auto * function_name = getScalarFunctionName(normalizedOperator(expr.text));
+    if (!function_name)
+        throwUnsupportedShape(expr, fmt::format("function '{}' is not supported", expr.text));
+
+    ActionsDAG::NodeRawConstPtrs arguments;
+    arguments.reserve(expr.children.size());
+    for (size_t i = 0; i < expr.children.size(); ++i)
+        arguments.push_back(&lowerExpressionImpl(getChildExpression(expr, i), dag, context, scope));
+
+    return addFunction(dag, context, function_name, std::move(arguments));
+}
+
 const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     switch (expr.kind)
@@ -326,6 +383,7 @@ const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & 
         case GQLExpr::Kind::SpecialValue:
             return lowerSpecialValue(expr, dag);
         case GQLExpr::Kind::FunctionCall:
+            return lowerFunctionCall(expr, dag, context, scope);
         case GQLExpr::Kind::Cast:
         case GQLExpr::Kind::DurationBetween:
         case GQLExpr::Kind::TrimString:
