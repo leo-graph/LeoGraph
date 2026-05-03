@@ -13,6 +13,7 @@
 #include <QueryPipeline/Pipe.h>
 
 #include <memory>
+#include <vector>
 
 namespace DB::ErrorCodes
 {
@@ -26,6 +27,11 @@ namespace
 {
 
 namespace GAST = DB::OPENGQL::AST;
+
+ASTPtr cloneOrNull(const ASTPtr & ast)
+{
+    return ast ? ast->clone() : nullptr;
+}
 
 void addEmptySingleRowSource(QueryPlan & plan, PlanScope & scope)
 {
@@ -64,6 +70,13 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
     if (!source)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "SELECT source is null");
 
+    if (const auto * match = source->as<GAST::GQLMatchClause>())
+    {
+        std::vector<const GAST::GQLMatchClause *> matches{match};
+        lowerMatchClauseSequence(plan, matches, context, scope);
+        return;
+    }
+
     if (const auto * subquery = source->as<GAST::GQLSubquery>())
     {
         lowerSubquerySource(plan, *subquery, context, scope, "SELECT FROM subquery");
@@ -73,14 +86,30 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
     if (const auto * source_item = source->as<GAST::GQLSelectSourceItem>())
     {
         if (source_item->graph_reference)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Graph-qualified SELECT source is not supported");
+        {
+            auto previous_graph = cloneOrNull(scope.getActiveGraph());
+            PlanScope source_scope = scope;
+            source_scope.setActiveGraph(source_item->graph_reference->clone());
+
+            lowerSelectSource(plan, source_item->source, context, source_scope);
+
+            scope = std::move(source_scope);
+            scope.setActiveGraph(std::move(previous_graph));
+            return;
+        }
 
         lowerSelectSource(plan, source_item->source, context, scope);
         return;
     }
 
-    if (source->as<GAST::GQLSelectSourceList>())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists are not supported");
+    if (const auto * source_list = source->as<GAST::GQLSelectSourceList>())
+    {
+        if (source_list->items.size() != 1)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists are not supported");
+
+        lowerSelectSource(plan, source_list->items.front(), context, scope);
+        return;
+    }
 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported SELECT source: {}", source->getID(' '));
 }

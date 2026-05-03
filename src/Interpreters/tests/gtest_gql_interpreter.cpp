@@ -221,6 +221,38 @@ TEST(GQLInterpreter, UseClauseFlowsIntoGraphMatchSpec)
     EXPECT_NE(cloned_match_step->getMatchSpec().graph_reference.get(), graph_reference.get());
 }
 
+TEST(GQLInterpreter, SelectGraphMatchSourceFlowsIntoGraphMatchSpec)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT n FROM g MATCH (n)");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & graph_reference = match_step->getMatchSpec().graph_reference;
+    ASSERT_TRUE(graph_reference);
+
+    const auto * graph = graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "g");
+}
+
+TEST(GQLInterpreter, SelectGraphMatchSourceDoesNotLeakUseScopeGraph)
+{
+    const auto scope = buildScopeWithPlanBuilder("USE outer_graph SELECT n FROM inner_graph MATCH (n)");
+
+    const auto & active_graph = scope.getActiveGraph();
+    ASSERT_TRUE(active_graph);
+
+    const auto * graph = active_graph->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "outer_graph");
+
+    ASSERT_EQ(scope.getBindings().size(), 1u);
+    EXPECT_EQ(scope.getBindings().front().name, "n");
+}
+
 TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one");
