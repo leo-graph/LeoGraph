@@ -69,3 +69,4 @@
 - Preserve `GQL` optional match operand blocks in `MatchSpec`, but keep execution rejected until outer-match/null-extension semantics are implemented.
 - Preserve `GQL` path alternation recursively in `MatchPathSpec`; `MatchStep` header collection must walk alternatives so projection can see variables from every branch.
 - Keep reusable `GQL` clause lowering outside `InterpreterGQLQuery`; `MATCH` should provide a source boundary, while `WHERE`, `RETURN`, `LIMIT`, and later transform clauses should share pipeline-lowering helpers.
+- If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

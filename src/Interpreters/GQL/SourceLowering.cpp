@@ -101,6 +101,14 @@ void lowerInlineCallSource(QueryPlan & plan, const GAST::GQLCallInlineClause & c
 
 }
 
+void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope)
+{
+    if (!use.graph_reference)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL USE must contain a graph reference");
+
+    scope.setActiveGraph(use.graph_reference->clone());
+}
+
 bool SourceClauseBuffer::tryAppend(const ASTPtr & clause)
 {
     if (const auto * match = clause->as<OPENGQL::AST::GQLMatchClause>())

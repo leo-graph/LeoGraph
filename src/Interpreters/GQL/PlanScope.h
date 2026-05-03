@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/NamesAndTypes.h>
+#include <Parsers/IAST_fwd.h>
 #include <base/types.h>
 
 #include <vector>
@@ -31,13 +32,16 @@ class PlanScope final
 public:
     void replaceWithHeader(const Block & header, BindingKind kind);
     void addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind);
+    void setActiveGraph(ASTPtr graph_reference_);
 
     bool hasBinding(const String & name) const;
     const PlanBinding * tryGetBinding(const String & name) const;
     const std::vector<PlanBinding> & getBindings() const { return bindings; }
+    const ASTPtr & getActiveGraph() const { return active_graph; }
 
 private:
     std::vector<PlanBinding> bindings;
+    ASTPtr active_graph;
 };
 
 }

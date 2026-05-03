@@ -65,7 +65,7 @@ QueryPlan buildPlanWithPlanBuilder(const std::string & query)
     return plan;
 }
 
-std::vector<GQL::PlanBinding> buildScopeBindingsWithPlanBuilder(const std::string & query)
+GQL::PlanScope buildScopeWithPlanBuilder(const std::string & query)
 {
     const auto ast = parseGQL(query);
     const auto * single_query = ast->as<GAST::GQLSingleQuery>();
@@ -75,7 +75,12 @@ std::vector<GQL::PlanBinding> buildScopeBindingsWithPlanBuilder(const std::strin
     QueryPlan plan;
     GQL::PlanBuilder builder(getInterpreterContext());
     builder.buildSingleQuery(plan, *single_query);
-    return builder.getScope().getBindings();
+    return builder.getScope();
+}
+
+std::vector<GQL::PlanBinding> buildScopeBindingsWithPlanBuilder(const std::string & query)
+{
+    return buildScopeWithPlanBuilder(query).getBindings();
 }
 
 std::vector<String> linearStepNames(const QueryPlan & plan)
@@ -179,6 +184,41 @@ TEST(GQLInterpreter, PlanBuilderScopeTracksProjectionBindings)
     EXPECT_EQ(bindings[0].name, "node_id");
     EXPECT_EQ(bindings[0].kind, GQL::BindingKind::Projection);
     ASSERT_NE(bindings[0].type, nullptr);
+}
+
+TEST(GQLInterpreter, UseClauseSetsReusablePlanScopeGraph)
+{
+    const auto scope = buildScopeWithPlanBuilder("USE g RETURN 1 AS x");
+
+    const auto & active_graph = scope.getActiveGraph();
+    ASSERT_TRUE(active_graph);
+
+    const auto * graph = active_graph->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "g");
+
+    ASSERT_EQ(scope.getBindings().size(), 1u);
+    EXPECT_EQ(scope.getBindings().front().name, "x");
+}
+
+TEST(GQLInterpreter, UseClauseFlowsIntoGraphMatchSpec)
+{
+    const auto plan = buildPlanWithPlanBuilder("USE g MATCH (n) RETURN n");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & graph_reference = match_step->getMatchSpec().graph_reference;
+    ASSERT_TRUE(graph_reference);
+
+    const auto * graph = graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "g");
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    EXPECT_NE(cloned_match_step->getMatchSpec().graph_reference.get(), graph_reference.get());
 }
 
 TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionLowering)

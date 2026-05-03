@@ -161,6 +161,7 @@ MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
 {
     MatchSpec result;
     static_cast<MatchClauseSpec &>(result) = cloneMatchClauseSpec(match_spec);
+    result.graph_reference = cloneOrNull(match_spec.graph_reference);
     result.clauses.reserve(match_spec.clauses.size());
     for (const auto & clause : match_spec.clauses)
         result.clauses.push_back(cloneMatchClauseSpec(clause));

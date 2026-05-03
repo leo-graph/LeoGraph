@@ -16,6 +16,8 @@ namespace DB::GQL
 
 class PlanScope;
 
+void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope);
+
 class SourceClauseBuffer final
 {
 public:

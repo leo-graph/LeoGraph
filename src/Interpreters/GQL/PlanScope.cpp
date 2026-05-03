@@ -62,4 +62,9 @@ void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind k
     });
 }
 
+void PlanScope::setActiveGraph(ASTPtr graph_reference_)
+{
+    active_graph = std::move(graph_reference_);
+}
+
 }

@@ -34,6 +34,15 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
     bool source_ready = false;
     for (const auto & clause : query.clauses)
     {
+        if (const auto * use = clause->as<GAST::GQLUseClause>())
+        {
+            if (source_ready || source_buffer.hasPending())
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL USE after a source clause is not supported");
+
+            lowerUseClause(*use, scope);
+            continue;
+        }
+
         if (source_buffer.tryAppend(clause))
         {
             if (source_ready)

@@ -81,6 +81,7 @@ struct MatchClauseSpec
 
 struct MatchSpec : public MatchClauseSpec
 {
+    ASTPtr graph_reference;
     std::vector<MatchClauseSpec> clauses;
 };
 

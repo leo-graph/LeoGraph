@@ -7,6 +7,7 @@
 #include <Interpreters/GQL/MatchPlanToSpec.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/PatternLowering.h>
+#include <Parsers/IAST.h>
 #include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Common/Exception.h>
@@ -52,6 +53,9 @@ void lowerMatchClauseSequence(
     }
 
     auto match_spec = makeMatchSpec(match_plans);
+    if (scope.getActiveGraph())
+        match_spec.graph_reference = scope.getActiveGraph()->clone();
+
     validateExecutableMatch(match_spec);
     plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
