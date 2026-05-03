@@ -209,6 +209,20 @@ TEST(GQLInterpreter, UnsupportedClauseThrowsNotImplemented)
     }
 }
 
+TEST(GQLInterpreter, UnknownProjectionIdentifierUsesPlanScope)
+{
+    try
+    {
+        (void)buildPlan("MATCH (n) RETURN missing");
+        FAIL() << "Expected unknown projection identifier to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("current plan scope"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, PipelineClauseBeforeSourceThrowsNotImplemented)
 {
     try

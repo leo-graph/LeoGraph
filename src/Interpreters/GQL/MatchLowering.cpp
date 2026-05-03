@@ -59,7 +59,7 @@ void lowerMatchClauseSequence(
     for (const auto & match_plan : match_plans)
     {
         if (match_plan.where)
-            lowerWhereClause(plan, *match_plan.where, context, "GQL MATCH");
+            lowerWhereClause(plan, *match_plan.where, context, "GQL MATCH", scope);
     }
 }
 

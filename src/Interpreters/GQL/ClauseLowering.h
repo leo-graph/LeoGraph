@@ -27,7 +27,8 @@ void lowerWhereClause(
     QueryPlan & plan,
     const OPENGQL::AST::GQLWhereClause & where,
     ContextPtr context,
-    std::string_view context_name);
+    std::string_view context_name,
+    const PlanScope & scope);
 
 void lowerReturnClause(
     QueryPlan & plan,

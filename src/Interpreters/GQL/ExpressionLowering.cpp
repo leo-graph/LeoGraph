@@ -8,6 +8,7 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionFactory.h>
+#include <Interpreters/GQL/PlanScope.h>
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>
 
@@ -87,6 +88,8 @@ String kindToString(GQLExpr::Kind kind)
         kindToString(expr.kind),
         reason);
 }
+
+const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope);
 
 String normalizedOperator(String op)
 {
@@ -204,9 +207,9 @@ const ActionsDAG::Node & addFunction(
     return dag.addFunction(function, std::move(children), {});
 }
 
-const ActionsDAG::Node & lowerProperty(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
+const ActionsDAG::Node & lowerProperty(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
-    const auto & base = lowerExpression(getChildExpression(expr, 0), dag, context);
+    const auto & base = lowerExpressionImpl(getChildExpression(expr, 0), dag, context, scope);
     const auto & property = addConstant(dag, std::make_shared<DataTypeString>(), expr.text, expr.text);
 
     /// A future refactor might prefer `getSubcolumn` for struct types.
@@ -224,13 +227,13 @@ const char * getUnaryFunctionName(const String & op)
     return nullptr;
 }
 
-const ActionsDAG::Node & lowerUnaryOp(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
+const ActionsDAG::Node & lowerUnaryOp(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     const auto * function_name = getUnaryFunctionName(normalizedOperator(expr.text));
     if (!function_name)
         throwUnsupportedShape(expr, fmt::format("operator '{}' is not supported", expr.text));
 
-    const auto & operand = lowerExpression(getChildExpression(expr, 0), dag, context);
+    const auto & operand = lowerExpressionImpl(getChildExpression(expr, 0), dag, context, scope);
     return addFunction(dag, context, function_name, {&operand});
 }
 
@@ -269,7 +272,7 @@ bool isNullSpecialValue(const GQLExpr & expr)
     return expr.kind == GQLExpr::Kind::SpecialValue && normalizedOperator(expr.text) == "NULL";
 }
 
-const ActionsDAG::Node & lowerIsPredicate(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, bool negative)
+const ActionsDAG::Node & lowerIsPredicate(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, bool negative, const PlanScope * scope)
 {
     const auto & left_expr = getChildExpression(expr, 0);
     const auto & right_expr = getChildExpression(expr, 1);
@@ -277,35 +280,36 @@ const ActionsDAG::Node & lowerIsPredicate(const GQLExpr & expr, ActionsDAG & dag
     if (!isNullSpecialValue(right_expr))
         throwUnsupportedShape(expr, fmt::format("operator '{}' only supports NULL right operand", expr.text));
 
-    const auto & left = lowerExpression(left_expr, dag, context);
+    const auto & left = lowerExpressionImpl(left_expr, dag, context, scope);
     return addFunction(dag, context, negative ? "isNotNull" : "isNull", {&left});
 }
 
-const ActionsDAG::Node & lowerBinaryOp(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
+const ActionsDAG::Node & lowerBinaryOp(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     const String op = normalizedOperator(expr.text);
     if (op == "IS")
-        return lowerIsPredicate(expr, dag, context, false);
+        return lowerIsPredicate(expr, dag, context, false, scope);
     if (op == "IS NOT")
-        return lowerIsPredicate(expr, dag, context, true);
+        return lowerIsPredicate(expr, dag, context, true, scope);
 
     const auto * function_name = getBinaryFunctionName(op);
     if (!function_name)
         throwUnsupportedShape(expr, fmt::format("operator '{}' is not supported", expr.text));
 
-    const auto & left = lowerExpression(getChildExpression(expr, 0), dag, context);
-    const auto & right = lowerExpression(getChildExpression(expr, 1), dag, context);
+    const auto & left = lowerExpressionImpl(getChildExpression(expr, 0), dag, context, scope);
+    const auto & right = lowerExpressionImpl(getChildExpression(expr, 1), dag, context, scope);
     return addFunction(dag, context, function_name, {&left, &right});
 }
 
-}
-
-const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
+const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     switch (expr.kind)
     {
         case GQLExpr::Kind::Identifier:
         {
+            if (scope && !scope->hasBinding(expr.text))
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in current plan scope", expr.text);
+
             if (const auto * node = dag.tryFindInOutputs(expr.text))
                 return *node;
 
@@ -314,11 +318,11 @@ const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag,
         case GQLExpr::Kind::Literal:
             return lowerLiteral(expr, dag);
         case GQLExpr::Kind::Property:
-            return lowerProperty(expr, dag, context);
+            return lowerProperty(expr, dag, context, scope);
         case GQLExpr::Kind::UnaryOp:
-            return lowerUnaryOp(expr, dag, context);
+            return lowerUnaryOp(expr, dag, context, scope);
         case GQLExpr::Kind::BinaryOp:
-            return lowerBinaryOp(expr, dag, context);
+            return lowerBinaryOp(expr, dag, context, scope);
         case GQLExpr::Kind::SpecialValue:
             return lowerSpecialValue(expr, dag);
         case GQLExpr::Kind::FunctionCall:
@@ -339,6 +343,18 @@ const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag,
     }
 
     throwUnsupportedKind(expr);
+}
+
+}
+
+const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
+{
+    return lowerExpressionImpl(expr, dag, context, nullptr);
+}
+
+const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope & scope)
+{
+    return lowerExpressionImpl(expr, dag, context, &scope);
 }
 
 }

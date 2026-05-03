@@ -28,12 +28,12 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
-void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, ContextPtr context)
+void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, ContextPtr context, const PlanScope & scope)
 {
     auto current_header = plan.getCurrentHeader();
     ActionsDAG dag(current_header->getColumnsWithTypeAndName());
 
-    const auto & filter_node = lowerExpression(predicate, dag, context);
+    const auto & filter_node = lowerExpression(predicate, dag, context, scope);
     dag.getOutputs().push_back(&filter_node);
 
     plan.addStep(std::make_unique<FilterStep>(current_header, std::move(dag), filter_node.result_name, true));
@@ -56,7 +56,12 @@ UInt64 extractUnsignedIntegerLiteral(const GAST::GQLExpr & literal, std::string_
 
 }
 
-void lowerWhereClause(QueryPlan & plan, const GAST::GQLWhereClause & where, ContextPtr context, std::string_view context_name)
+void lowerWhereClause(
+    QueryPlan & plan,
+    const GAST::GQLWhereClause & where,
+    ContextPtr context,
+    std::string_view context_name,
+    const PlanScope & scope)
 {
     if (where.type != GAST::GQLWhereClause::Type::Where)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside {} is not supported", context_name);
@@ -65,7 +70,7 @@ void lowerWhereClause(QueryPlan & plan, const GAST::GQLWhereClause & where, Cont
     if (!predicate)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} predicate must be a GQL expression", context_name);
 
-    lowerWherePredicate(plan, *predicate, context);
+    lowerWherePredicate(plan, *predicate, context, scope);
 }
 
 void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context, PlanScope & scope)
@@ -102,7 +107,7 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
         if (!expr)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL {} item must wrap a GQL expression", context_name);
 
-        const auto & node = lowerExpression(*expr, dag, context);
+        const auto & node = lowerExpression(*expr, dag, context, scope);
         if (item->alias.empty())
             new_outputs.push_back(&node);
         else
@@ -150,7 +155,7 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
 
     if (const auto * where = clause_ast->as<GAST::GQLWhereClause>())
     {
-        lowerWhereClause(plan, *where, context, "GQL FILTER");
+        lowerWhereClause(plan, *where, context, "GQL FILTER", scope);
         return;
     }
 
