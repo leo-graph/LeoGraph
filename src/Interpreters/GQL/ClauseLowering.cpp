@@ -77,24 +77,29 @@ void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, Cont
     if (ret.return_all)
         return;
 
-    if (ret.items.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "RETURN must project at least one item");
+    lowerProjectionItems(plan, ret.items, context, "RETURN");
+}
+
+void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr context, std::string_view context_name)
+{
+    if (items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must project at least one item", context_name);
 
     auto current_header = plan.getCurrentHeader();
     ActionsDAG dag(current_header->getColumnsWithTypeAndName());
 
     ActionsDAG::NodeRawConstPtrs new_outputs;
-    new_outputs.reserve(ret.items.size());
+    new_outputs.reserve(items.size());
 
-    for (const auto & item_ast : ret.items)
+    for (const auto & item_ast : items)
     {
         const auto * item = item_ast->as<GAST::GQLAliasedItem>();
         if (!item)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL RETURN item must be GQLAliasedItem");
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL {} item must be GQLAliasedItem", context_name);
 
         const auto * expr = item->expression ? item->expression->as<GAST::GQLExpr>() : nullptr;
         if (!expr)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN item must wrap a GQL expression");
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL {} item must wrap a GQL expression", context_name);
 
         const auto & node = lowerExpression(*expr, dag, context);
         if (item->alias.empty())

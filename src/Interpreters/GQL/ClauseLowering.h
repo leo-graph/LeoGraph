@@ -32,6 +32,12 @@ void lowerReturnClause(
     const OPENGQL::AST::GQLReturnClause & ret,
     ContextPtr context);
 
+void lowerProjectionItems(
+    QueryPlan & plan,
+    const ASTs & items,
+    ContextPtr context,
+    std::string_view context_name);
+
 void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page);
 
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context);
