@@ -40,6 +40,8 @@ MatchSource::MatchSource(SharedHeader header_, MatchSpec match_spec_, std::uniqu
     , match_spec(std::move(match_spec_))
     , reader(std::move(reader_))
 {
+    if (!reader)
+        reader = std::make_unique<EmptyMatchSourceReader>();
 }
 
 Chunk MatchSource::generate()

@@ -174,6 +174,13 @@ TEST(GQLInterpreter, MatchStepCarriesReusableSourceFactory)
     EXPECT_EQ(cloned_match_step->getSourceFactory(), factory);
 }
 
+TEST(GQLInterpreter, MatchSourceAcceptsNullReaderAsEmptySource)
+{
+    auto source = std::make_shared<Graph::MatchSource>(std::make_shared<const Block>(), Graph::MatchSpec{}, nullptr);
+
+    EXPECT_EQ(source->getName(), "GraphMatchSource");
+}
+
 TEST(GQLInterpreter, PlanBuilderConstructorSeedsMatchSourceFactory)
 {
     auto factory = std::make_shared<TestMatchSourceFactory>();
