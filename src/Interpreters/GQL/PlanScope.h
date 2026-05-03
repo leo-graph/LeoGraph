@@ -30,14 +30,13 @@ class PlanScope final
 {
 public:
     void replaceWithHeader(const Block & header, BindingKind kind);
+    void addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind);
 
     bool hasBinding(const String & name) const;
     const PlanBinding * tryGetBinding(const String & name) const;
     const std::vector<PlanBinding> & getBindings() const { return bindings; }
 
 private:
-    void setBinding(String name, DataTypePtr type, BindingKind kind);
-
     std::vector<PlanBinding> bindings;
 };
 

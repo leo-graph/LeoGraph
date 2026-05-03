@@ -16,7 +16,7 @@ void PlanScope::replaceWithHeader(const Block & header, BindingKind kind)
     for (size_t i = 0; i < header.columns(); ++i)
     {
         const auto & column = header.getByPosition(i);
-        setBinding(column.name, column.type, kind);
+        addOrReplaceBinding(column.name, column.type, kind);
     }
 }
 
@@ -38,7 +38,7 @@ const PlanBinding * PlanScope::tryGetBinding(const String & name) const
     return &*it;
 }
 
-void PlanScope::setBinding(String name, DataTypePtr type, BindingKind kind)
+void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind)
 {
     if (name.empty())
         return;

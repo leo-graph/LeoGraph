@@ -343,7 +343,8 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
 
     auto current_header = plan.getCurrentHeader();
     ActionsDAG dag(current_header->getColumnsWithTypeAndName());
-    ActionsDAG::NodeRawConstPtrs outputs = dag.getOutputs();
+    auto & outputs = dag.getOutputs();
+    PlanScope local_scope = scope;
     std::unordered_set<String> assigned_names;
 
     for (const auto & item_ast : let.items)
@@ -364,11 +365,12 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
         if (!assigned_names.insert(item->name).second)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Duplicate GQL LET assignment '{}'", item->name);
 
-        const auto & value = lowerExpression(*item->value, dag, context, scope);
-        outputs.push_back(&dag.addAlias(value, item->name));
+        const auto & value = lowerExpression(*item->value, dag, context, local_scope);
+        const auto & alias = dag.addAlias(value, item->name);
+        outputs.push_back(&alias);
+        local_scope.addOrReplaceBinding(item->name, alias.result_type, BindingKind::Projection);
     }
 
-    dag.getOutputs() = std::move(outputs);
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
