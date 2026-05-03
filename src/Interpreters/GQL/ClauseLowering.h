@@ -41,7 +41,8 @@ void lowerSelectClause(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSelectClause & select,
     ContextPtr context,
-    PlanScope & scope);
+    PlanScope & scope,
+    bool source_was_lowered = false);
 
 void lowerProjectionItems(
     QueryPlan & plan,

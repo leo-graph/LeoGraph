@@ -147,20 +147,41 @@ void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, Cont
     lowerProjectionItems(plan, ret.items, context, "RETURN", scope);
 }
 
-void lowerSelectClause(QueryPlan & plan, const GAST::GQLSelectClause & select, ContextPtr context, PlanScope & scope)
+void lowerSelectClause(
+    QueryPlan & plan,
+    const GAST::GQLSelectClause & select,
+    ContextPtr context,
+    PlanScope & scope,
+    bool source_was_lowered)
 {
     if (select.distinct)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT DISTINCT is not supported");
-    if (select.select_all)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * is not supported without a source");
-    if (select.source)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lowering is not supported");
-    if (select.where)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT WHERE is not supported without source lowering");
     if (select.group_by)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT GROUP BY is not supported");
     if (select.having)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT HAVING is not supported");
+    if (select.source && !source_was_lowered)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source must be lowered before SELECT projection");
+
+    if (select.where)
+    {
+        if (!source_was_lowered)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT WHERE is not supported without source lowering");
+
+        const auto * where = select.where->as<GAST::GQLWhereClause>();
+        if (!where)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT WHERE node must be GQLWhereClause");
+
+        lowerWhereClause(plan, *where, context, "SELECT", scope);
+    }
+
+    if (select.select_all)
+    {
+        if (!source_was_lowered)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * is not supported without a source");
+
+        return;
+    }
 
     lowerProjectionItems(plan, select.items, context, "SELECT", scope);
 }

@@ -184,6 +184,44 @@ TEST(GQLInterpreter, SelectWithoutMatchUsesReusableProjectionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "one");
 }
 
+TEST(GQLInterpreter, SelectFromSubqueryUsesReusableSourceLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT a FROM { RETURN 1 AS a }");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+}
+
+TEST(GQLInterpreter, SelectAllFromSubqueryKeepsSourceHeader)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT * FROM { RETURN 1 AS a }");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+}
+
+TEST(GQLInterpreter, SelectFromSubqueryReusesWhereProjectionAndPageLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT a FROM { RETURN 1 AS a } WHERE a = 1 ORDER BY a LIMIT 1");
+
+    EXPECT_EQ(
+        linearStepNames(plan),
+        (std::vector<String>{"Limit", "Sorting", "Expression", "Filter", "Expression", "ReadFromPreparedSource"}));
+}
+
 TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one OFFSET 1 LIMIT 5");
