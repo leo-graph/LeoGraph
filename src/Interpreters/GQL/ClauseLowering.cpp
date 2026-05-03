@@ -14,6 +14,8 @@
 #include <Interpreters/GQL/AggregationLowering.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
 #include <Interpreters/GQL/PlanScope.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTLiteral.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/DistinctStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
@@ -58,19 +60,42 @@ void lowerWherePredicate(QueryPlan & plan, const IAST & predicate, ContextPtr co
     plan.addStep(std::make_unique<FilterStep>(current_header, std::move(dag), filter_node.result_name, true));
 }
 
-UInt64 extractUnsignedIntegerLiteral(const GAST::GQLExpr & literal, std::string_view context_name)
+UInt64 parseUnsignedIntegerText(const String & text, std::string_view context_name)
 {
-    if (literal.kind != GAST::GQLExpr::Kind::Literal || literal.text.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
-
     UInt64 value = 0;
-    const char * begin = literal.text.data();
-    const char * end = begin + literal.text.size();
+    const char * begin = text.data();
+    const char * end = begin + text.size();
     const auto result = std::from_chars(begin, end, value);
     if (result.ec != std::errc{} || result.ptr != end)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
 
     return value;
+}
+
+UInt64 extractUnsignedIntegerLiteral(const IAST & literal, std::string_view context_name)
+{
+    if (const auto * gql_literal = literal.as<GAST::GQLExpr>())
+    {
+        if (gql_literal->kind != GAST::GQLExpr::Kind::Literal || gql_literal->text.empty())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
+
+        return parseUnsignedIntegerText(gql_literal->text, context_name);
+    }
+
+    if (const auto * ast_literal = literal.as<ASTLiteral>())
+    {
+        if (ast_literal->value.getType() == Field::Types::UInt64)
+            return ast_literal->value.safeGet<UInt64>();
+
+        if (ast_literal->value.getType() == Field::Types::Int64)
+        {
+            const auto value = ast_literal->value.safeGet<Int64>();
+            if (value >= 0)
+                return static_cast<UInt64>(value);
+        }
+    }
+
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
 }
 
 const ActionsDAG::Node & addUInt64Constant(ActionsDAG & dag, UInt64 value, String name)
@@ -117,11 +142,20 @@ int getNullsDirection(const GAST::GQLOrderByItem & item, int direction)
 
 String getOrderByColumnName(const GAST::GQLOrderByItem & item, const Block & header)
 {
-    const auto * expr = item.expression ? item.expression->as<GAST::GQLExpr>() : nullptr;
-    if (!expr || expr->kind != GAST::GQLExpr::Kind::Identifier || !header.has(expr->text))
-        return {};
+    if (const auto * expr = item.expression ? item.expression->as<GAST::GQLExpr>() : nullptr)
+    {
+        if (expr->kind == GAST::GQLExpr::Kind::Identifier && header.has(expr->text))
+            return expr->text;
+    }
 
-    return expr->text;
+    if (const auto * identifier = item.expression ? item.expression->as<ASTIdentifier>() : nullptr)
+    {
+        const auto name = identifier->name();
+        if (header.has(name))
+            return name;
+    }
+
+    return {};
 }
 
 String makeHiddenSortColumnName(const Block & header, const std::unordered_set<String> & used_names, size_t index)
@@ -513,23 +547,11 @@ void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, Context
 {
     UInt64 offset = 0;
     if (page.offset)
-    {
-        const auto * offset_expr = page.offset->as<GAST::GQLExpr>();
-        if (!offset_expr)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OFFSET must be a GQL expression");
-
-        offset = extractUnsignedIntegerLiteral(*offset_expr, "OFFSET");
-    }
+        offset = extractUnsignedIntegerLiteral(*page.offset, "OFFSET");
 
     UInt64 limit = std::numeric_limits<UInt64>::max();
     if (page.limit)
-    {
-        const auto * limit_expr = page.limit->as<GAST::GQLExpr>();
-        if (!limit_expr)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LIMIT must be a GQL expression");
-
-        limit = extractUnsignedIntegerLiteral(*limit_expr, "LIMIT");
-    }
+        limit = extractUnsignedIntegerLiteral(*page.limit, "LIMIT");
 
     if (!page.order_by && !page.offset && !page.limit)
     {

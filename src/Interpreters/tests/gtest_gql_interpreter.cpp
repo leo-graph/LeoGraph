@@ -8,6 +8,7 @@
 #  include <Common/tests/gtest_global_context.h>
 #  include <Common/tests/gtest_global_register.h>
 #  include <DataTypes/DataTypesNumber.h>
+#  include <Interpreters/GQL/ClauseLowering.h>
 #  include <Interpreters/GQL/ExpressionLowering.h>
 #  include <Interpreters/GQL/PlanBuilder.h>
 #  include <Interpreters/InterpreterGQLQuery.h>
@@ -845,6 +846,30 @@ TEST(GQLInterpreter, ListConstructorUsesGenericExpressionLowering)
     ASSERT_EQ(header.columns(), 1u);
     EXPECT_EQ(header.getByPosition(0).name, "xs");
     EXPECT_EQ(header.getByPosition(0).type->getName(), "Array(UInt64)");
+}
+
+TEST(GQLInterpreter, NativeClickHousePagingExpressionsUseReusableLowering)
+{
+    const auto ast = parseGQL("RETURN 1 AS a");
+    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
+    ASSERT_NE(single_query, nullptr);
+
+    QueryPlan plan;
+    GQL::PlanBuilder builder(getInterpreterContext());
+    builder.buildSingleQuery(plan, *single_query);
+    auto scope = builder.getScope();
+
+    auto order_by_item = make_intrusive<GAST::GQLOrderByItem>(make_intrusive<ASTIdentifier>("a"), false);
+    auto order_by = make_intrusive<GAST::GQLOrderByClause>(ASTs{order_by_item});
+    auto page = make_intrusive<GAST::GQLPageClause>();
+    page->order_by = order_by;
+    page->limit = make_intrusive<ASTLiteral>(Field(UInt64(1)));
+    page->children.push_back(page->order_by);
+    page->children.push_back(page->limit);
+
+    GQL::lowerPageClause(plan, *page, getInterpreterContext(), scope);
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Limit", "Sorting", "Expression", "ReadFromPreparedSource"}));
 }
 
 TEST(GQLInterpreter, NativeClickHouseLiteralUsesReusableExpressionLowering)
