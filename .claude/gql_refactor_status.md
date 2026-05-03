@@ -81,7 +81,7 @@ The currently supported minimal path is:
 - `PlanScope` tracks current bindings and active graph scope. It now also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
 - `USE graph`, graph-qualified `SELECT FROM`, nested subqueries, and inline `CALL { ... }` share graph-scope propagation through `PlanScope`.
 - Consecutive `MATCH` clauses are lowered as one `GraphMatch` source with preserved per-clause specs. `MatchSpec` intentionally preserves graph reference, path constraints, label / property / predicate AST, `KEEP`, yield items, optional blocks, match mode, and path alternatives for future graph storage planning.
-- `Graph::MatchSource` is still a storage-facing placeholder and currently emits no rows. The next storage slice should replace this with a real graph scan contract instead of adding more dummy data.
+- `Graph::MatchStep` carries a `MatchSourceFactory` so real graph storage can plug in a reader without changing `PlanBuilder` or `MatchLowering`. The default factory still emits no rows until storage is wired.
 
 ### Current `throwUnsupported` coverage map
 
@@ -138,7 +138,7 @@ Current priority is `GQL AST -> reusable interpreter lowering -> QueryPlan` for 
 
 Interpreter framework gaps to keep visible:
 
-1. `Graph::MatchSource` has no real graph storage contract yet.
+1. `Graph::MatchSource` has a factory / reader contract but no real graph storage implementation yet.
 2. `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution.
 3. Non-empty inline `CALL` variable scope imports, subquery `AT schema`, binding-table / graph binding definitions, and `NEXT` statements are still explicit `NOT_IMPLEMENTED` paths. Empty inline `CALL () { ... }` scopes are accepted as no-import calls.
 4. `SELECT FROM` source lists with more than one source are still unsupported; implement a real source-composition model before enabling them.

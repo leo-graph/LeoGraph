@@ -33,6 +33,21 @@ extern const int NOT_IMPLEMENTED;
 namespace
 {
 
+class TestMatchSourceReader final : public Graph::IMatchSourceReader
+{
+public:
+    Chunk generate() override { return {}; }
+};
+
+class TestMatchSourceFactory final : public Graph::IMatchSourceFactory
+{
+public:
+    std::unique_ptr<Graph::IMatchSourceReader> createReader(SharedHeader, const Graph::MatchSpec &) const override
+    {
+        return std::make_unique<TestMatchSourceReader>();
+    }
+};
+
 ContextPtr getInterpreterContext()
 {
     tryRegisterFunctions();
@@ -124,6 +139,19 @@ TEST(GQLInterpreter, BareMatchReturnLowersToScanThenProjection)
     ASSERT_EQ(match.paths.front().nodes.size(), 1u);
     EXPECT_EQ(match.paths.front().nodes.front().variable, "n");
     EXPECT_TRUE(match.paths.front().edges.empty());
+}
+
+TEST(GQLInterpreter, MatchStepCarriesReusableSourceFactory)
+{
+    auto factory = std::make_shared<TestMatchSourceFactory>();
+    Graph::MatchStep step(Graph::MatchSpec{}, factory);
+
+    EXPECT_EQ(step.getSourceFactory(), factory);
+
+    const auto cloned_step = step.clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    EXPECT_EQ(cloned_match_step->getSourceFactory(), factory);
 }
 
 TEST(GQLInterpreter, UnionAllBuildsRootUnionPlan)

@@ -189,11 +189,14 @@ void addHeaderColumnsForClause(Block & header, std::vector<String> & names, cons
 
 }
 
-MatchStep::MatchStep(MatchSpec match_spec_)
+MatchStep::MatchStep(MatchSpec match_spec_, MatchSourceFactoryPtr source_factory_)
     : ISourceStep(makeHeader(match_spec_))
     , match_spec(std::move(match_spec_))
+    , source_factory(std::move(source_factory_))
 {
     setStepDescription("GQL MATCH");
+    if (!source_factory)
+        source_factory = getEmptyMatchSourceFactory();
 }
 
 SharedHeader MatchStep::makeHeader(const MatchSpec & match_spec)
@@ -229,12 +232,12 @@ SharedHeader MatchStep::makeHeader(const MatchSpec & match_spec)
 
 QueryPlanStepPtr MatchStep::clone() const
 {
-    return std::make_unique<MatchStep>(cloneMatchSpec(match_spec));
+    return std::make_unique<MatchStep>(cloneMatchSpec(match_spec), source_factory);
 }
 
 void MatchStep::initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &)
 {
-    pipeline.init(Pipe(std::make_shared<MatchSource>(getOutputHeader(), match_spec)));
+    pipeline.init(Pipe(std::make_shared<MatchSource>(getOutputHeader(), match_spec, source_factory->createReader(getOutputHeader(), match_spec))));
 }
 
 }
