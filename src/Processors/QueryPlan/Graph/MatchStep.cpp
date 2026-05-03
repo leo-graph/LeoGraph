@@ -70,6 +70,7 @@ MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
     {
         MatchPathSpec result_path;
         result_path.variable = path.variable;
+        result_path.prefix = cloneOrNull(path.prefix);
         result_path.nodes.reserve(path.nodes.size());
         for (const auto & node : path.nodes)
             result_path.nodes.push_back(cloneNodeSpec(node));

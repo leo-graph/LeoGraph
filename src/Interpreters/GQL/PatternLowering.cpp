@@ -6,8 +6,10 @@
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLMatchClause.h>
 #include <Parsers/graph/AST/GQLNodePattern.h>
+#include <Parsers/graph/AST/GQLPathModePrefix.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
 #include <Parsers/graph/AST/GQLPathPatternAlternation.h>
+#include <Parsers/graph/AST/GQLPathSearchPrefix.h>
 #include <Parsers/graph/AST/GQLPathTerm.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
@@ -29,8 +31,10 @@ using GQLExpr = OPENGQL::AST::GQLExpr;
 using GQLLabelExpression = OPENGQL::AST::GQLLabelExpression;
 using GQLMatchClause = OPENGQL::AST::GQLMatchClause;
 using GQLNodePattern = OPENGQL::AST::GQLNodePattern;
+using GQLPathModePrefix = OPENGQL::AST::GQLPathModePrefix;
 using GQLPathPattern = OPENGQL::AST::GQLPathPattern;
 using GQLPathPatternAlternation = OPENGQL::AST::GQLPathPatternAlternation;
+using GQLPathSearchPrefix = OPENGQL::AST::GQLPathSearchPrefix;
 using GQLPathTerm = OPENGQL::AST::GQLPathTerm;
 using GQLPropertyMap = OPENGQL::AST::GQLPropertyMap;
 using GQLQuantifier = OPENGQL::AST::GQLQuantifier;
@@ -140,6 +144,17 @@ EdgeBinding lowerEdgePattern(const GQLEdgePattern & edge)
     return binding;
 }
 
+const IAST * getPathPrefix(const OPENGQL::AST::Ptr & prefix)
+{
+    if (!prefix)
+        return nullptr;
+
+    if (prefix->as<GQLPathModePrefix>() || prefix->as<GQLPathSearchPrefix>())
+        return prefix.get();
+
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected GQL path prefix child type: {}", astID(*prefix));
+}
+
 const GQLPathTerm & getOnlyPathTerm(const GQLPathPattern & path)
 {
     if (!path.expression)
@@ -158,9 +173,6 @@ const GQLPathTerm & getOnlyPathTerm(const GQLPathPattern & path)
 
 PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
 {
-    if (path.prefix)
-        throwUnsupportedPathPattern("path prefix");
-
     const auto & term = getOnlyPathTerm(path);
     if (term.factors.empty())
         throwUnsupportedPathPattern("empty path term");
@@ -170,6 +182,7 @@ PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
 
     PathBinding result;
     result.variable = identifierVariable(path.variable);
+    result.prefix = getPathPrefix(path.prefix);
     for (size_t i = 0; i < term.factors.size(); ++i)
     {
         const auto & factor = term.factors[i];

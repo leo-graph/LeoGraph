@@ -39,6 +39,7 @@ struct EdgeBinding
 struct PathBinding
 {
     String variable;
+    const IAST * prefix = nullptr;
     std::vector<NodeBinding> nodes;
     std::vector<EdgeBinding> edges;
 };

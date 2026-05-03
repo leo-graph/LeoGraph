@@ -40,6 +40,7 @@ struct MatchEdgeSpec
 struct MatchPathSpec
 {
     String variable;
+    ASTPtr prefix;
     std::vector<MatchNodeSpec> nodes;
     std::vector<MatchEdgeSpec> edges;
 };

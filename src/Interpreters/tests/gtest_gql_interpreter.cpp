@@ -196,6 +196,28 @@ TEST(GQLInterpreter, EdgeQuantifierStaysInGraphMatchSpec)
     EXPECT_NE(cloned_edge.quantifier.get(), edge.quantifier.get());
 }
 
+TEST(GQLInterpreter, PathPrefixStaysInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH ANY SHORTEST (a)-[r]->(b) RETURN a, b");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+
+    const auto & path = match.paths.front();
+    ASSERT_NE(path.prefix, nullptr);
+    const auto * prefix = path.prefix->as<GAST::GQLPathSearchPrefix>();
+    ASSERT_NE(prefix, nullptr);
+    EXPECT_EQ(prefix->search_kind, GAST::PathSearchKind::AnyShortest);
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    const auto & cloned_path = cloned_match_step->getMatchSpec().paths.front();
+    EXPECT_NE(cloned_path.prefix.get(), path.prefix.get());
+}
+
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");

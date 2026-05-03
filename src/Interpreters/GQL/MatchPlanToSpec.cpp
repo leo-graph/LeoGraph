@@ -65,6 +65,7 @@ Graph::MatchPathSpec makePathSpec(const PathBinding & path)
 {
     Graph::MatchPathSpec result;
     result.variable = path.variable;
+    result.prefix = cloneOrNull(path.prefix);
     result.nodes.reserve(path.nodes.size());
     for (const auto & node : path.nodes)
         result.nodes.push_back(makeNodeSpec(node));

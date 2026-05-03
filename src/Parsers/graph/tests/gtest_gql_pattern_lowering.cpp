@@ -198,6 +198,29 @@ TEST(GQLPatternLowering, MatchEdgeQuantifierLowersToSpec)
     EXPECT_EQ(quantifier->upper, "5");
 }
 
+TEST(GQLPatternLowering, MatchPathPrefixLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH ANY SHORTEST (a)-[r]->(b) RETURN a");
+
+    const auto binding = lowerOnlyPathPattern(ast);
+
+    ASSERT_NE(binding.prefix, nullptr);
+    const auto * lowered_prefix = binding.prefix->as<GAST::GQLPathSearchPrefix>();
+    ASSERT_NE(lowered_prefix, nullptr);
+    EXPECT_EQ(lowered_prefix->search_kind, GAST::PathSearchKind::AnyShortest);
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+
+    ASSERT_EQ(spec.paths.size(), 1u);
+    ASSERT_NE(spec.paths.front().prefix, nullptr);
+    EXPECT_NE(spec.paths.front().prefix.get(), binding.prefix);
+    const auto * spec_prefix = spec.paths.front().prefix->as<GAST::GQLPathSearchPrefix>();
+    ASSERT_NE(spec_prefix, nullptr);
+    EXPECT_EQ(spec_prefix->search_kind, GAST::PathSearchKind::AnyShortest);
+}
+
 TEST(GQLPatternLowering, MatchCompoundEdgeDirectionsLowerToSpec)
 {
     {
@@ -299,9 +322,6 @@ TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
 TEST(GQLPatternLowering, UnsupportedPathShapesThrowNotImplemented)
 {
     expectUnsupportedPathPattern("MATCH (a)-[r]->(b) | (c)-[s]->(d) RETURN a", "multiple GQLPathTerms");
-    /// `path prefix` rejection (e.g. ANY SHORTEST) cannot be exercised through `parseGQLQuery`
-    /// yet: the dialect parser does not produce a `GQLPathSearchPrefix` for those inputs.
-    /// Re-enable this fixture once the parser covers the path-prefix grammar branch.
 }
 
 #endif

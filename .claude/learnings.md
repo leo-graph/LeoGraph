@@ -60,3 +60,4 @@
 - Keep compound `GQL` edge directions such as `LeftOrRight`, `LeftOrUndirected`, and `UndirectedOrRight` in interpreter match specs instead of rejecting them during lowering; they are storage constraints, not parser/lowering errors.
 - Preserve `GQL` path variables in `MatchPathSpec`, but do not expose them as `UInt64` columns before a real path value type exists.
 - Preserve `GQL` edge quantifiers in `MatchEdgeSpec` as cloned AST constraints; do not reject variable-length path syntax during lowering before graph storage expansion semantics exist.
+- Preserve `GQL` path prefixes in `MatchPathSpec` as cloned AST constraints; path-search or path-mode semantics should be handled by graph storage/planning, not rejected in generic lowering.
