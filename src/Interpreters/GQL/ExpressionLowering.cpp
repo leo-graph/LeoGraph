@@ -6,11 +6,13 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionFactory.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>
+#include <Parsers/graph/AST/GQLTypeExpression.h>
 
 #include <Poco/String.h>
 
@@ -358,6 +360,53 @@ const ActionsDAG::Node & lowerFunctionCall(const GQLExpr & expr, ActionsDAG & da
     return addFunction(dag, context, function_name, std::move(arguments));
 }
 
+String getDataTypeName(const OPENGQL::AST::GQLTypeExpression & type)
+{
+    if (type.kind != OPENGQL::AST::GQLTypeExpression::Kind::Name)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only scalar named GQL types are supported for CAST");
+    if (type.not_null)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL CAST target NOT NULL is not supported");
+    if (type.prefix != OPENGQL::AST::GQLTypeExpression::Prefix::None)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL CAST target type prefix is not supported");
+
+    const String name = normalizedOperator(type.name);
+    if (name == "STRING")
+        return "String";
+    if (name == "BOOL" || name == "BOOLEAN")
+        return "Bool";
+    if (name == "INT" || name == "INTEGER" || name == "BIG INTEGER")
+        return "Int64";
+    if (name == "SMALL INTEGER")
+        return "Int32";
+    if (name == "INT8" || name == "INT16" || name == "INT32" || name == "INT64")
+        return "Int" + name.substr(3);
+    if (name == "UINT8" || name == "UINT16" || name == "UINT32" || name == "UINT64")
+        return "UInt" + name.substr(4);
+    if (name == "FLOAT" || name == "REAL")
+        return "Float32";
+    if (name == "FLOAT32")
+        return "Float32";
+    if (name == "FLOAT64" || name == "DOUBLE" || name == "DOUBLE PRECISION")
+        return "Float64";
+
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL CAST target type: {}", type.name);
+}
+
+const ActionsDAG::Node & lowerCast(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    const auto & operand = lowerExpressionImpl(getChildExpression(expr, 0), dag, context, scope);
+
+    if (expr.children.size() < 2 || !expr.children[1])
+        throwUnsupportedShape(expr, "missing target type");
+
+    const auto * type = expr.children[1]->as<OPENGQL::AST::GQLTypeExpression>();
+    if (!type)
+        throwUnsupportedShape(expr, fmt::format("target type child is {}", expr.children[1]->getID(' ')));
+
+    const auto cast_type = DataTypeFactory::instance().get(getDataTypeName(*type));
+    return dag.addCast(operand, cast_type, {}, context);
+}
+
 const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     switch (expr.kind)
@@ -385,6 +434,7 @@ const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & 
         case GQLExpr::Kind::FunctionCall:
             return lowerFunctionCall(expr, dag, context, scope);
         case GQLExpr::Kind::Cast:
+            return lowerCast(expr, dag, context, scope);
         case GQLExpr::Kind::DurationBetween:
         case GQLExpr::Kind::TrimString:
         case GQLExpr::Kind::ExprList:

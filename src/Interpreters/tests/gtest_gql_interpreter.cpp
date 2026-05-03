@@ -212,6 +212,23 @@ TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "v");
 }
 
+TEST(GQLInterpreter, CastUsesReusableExpressionLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN CAST(1 AS INT32) AS v");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "v");
+    EXPECT_EQ(header.getByPosition(0).type->getName(), "Int32");
+}
+
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
 {
     const auto plan = buildPlan("MATCH (n) WHERE n = 1 RETURN n LIMIT 5");
