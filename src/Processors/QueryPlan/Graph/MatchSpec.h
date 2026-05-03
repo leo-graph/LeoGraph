@@ -64,6 +64,8 @@ struct MatchSpec
     bool has_yield_items = false;
     ASTPtr keep_clause;
     ASTPtr where_clause;
+    ASTs yield_items;
+    std::vector<String> yield_variables;
     std::vector<MatchPathSpec> paths;
 };
 

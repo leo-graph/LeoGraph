@@ -355,6 +355,25 @@ TEST(GQLPatternLowering, MatchModeLowersToSpec)
     EXPECT_EQ(spec.match_mode, Graph::MatchMode::DifferentEdges);
 }
 
+TEST(GQLPatternLowering, MatchYieldItemsLowerToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH (a)-[r]->(b) YIELD r RETURN r");
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+
+    EXPECT_TRUE(spec.has_yield_items);
+    ASSERT_EQ(spec.yield_items.size(), 1u);
+    ASSERT_EQ(spec.yield_variables.size(), 1u);
+    EXPECT_EQ(spec.yield_variables.front(), "r");
+
+    const auto * yield_expr = spec.yield_items.front()->as<GAST::GQLExpr>();
+    ASSERT_NE(yield_expr, nullptr);
+    EXPECT_EQ(yield_expr->kind, GAST::GQLExpr::Kind::Identifier);
+    EXPECT_EQ(yield_expr->text, "r");
+}
+
 TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
 {
     auto ast = parseGQLOrThrow("MATCH (n:Person {name: 'x'} WHERE n IS NOT NULL) RETURN n");

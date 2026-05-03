@@ -280,6 +280,30 @@ TEST(GQLInterpreter, MatchModeStaysInGraphMatchSpec)
     EXPECT_EQ(cloned_match_step->getMatchSpec().match_mode, Graph::MatchMode::DifferentEdges);
 }
 
+TEST(GQLInterpreter, MatchYieldRestrictsGraphMatchHeader)
+{
+    const auto plan = buildPlan("MATCH (a)-[r]->(b) YIELD r RETURN r");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_TRUE(match.has_yield_items);
+    ASSERT_EQ(match.yield_variables.size(), 1u);
+    EXPECT_EQ(match.yield_variables.front(), "r");
+
+    const auto & header = *match_step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "r");
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    ASSERT_EQ(cloned_match_step->getMatchSpec().yield_items.size(), 1u);
+    EXPECT_NE(cloned_match_step->getMatchSpec().yield_items.front().get(), match.yield_items.front().get());
+}
+
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");

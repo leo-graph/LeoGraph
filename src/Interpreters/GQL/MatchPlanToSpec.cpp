@@ -98,6 +98,14 @@ Graph::MatchPathSpec makePathSpec(const PathBinding & path)
     return result;
 }
 
+String yieldVariable(const OPENGQL::AST::GQLExpr & item)
+{
+    if (item.kind != OPENGQL::AST::GQLExpr::Kind::Identifier)
+        return {};
+
+    return item.text;
+}
+
 }
 
 Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
@@ -111,6 +119,19 @@ Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
     result.has_yield_items = !match.yield_items.empty();
     result.keep_clause = cloneOrNull(match.keep_clause);
     result.where_clause = cloneOrNull(match.where);
+
+    result.yield_items.reserve(match.yield_items.size());
+    result.yield_variables.reserve(match.yield_items.size());
+    for (const auto * item : match.yield_items)
+    {
+        if (!item)
+            continue;
+
+        result.yield_items.push_back(item->clone());
+        const auto variable = yieldVariable(*item);
+        if (!variable.empty())
+            result.yield_variables.push_back(variable);
+    }
 
     result.paths.reserve(match.paths.size());
     for (const auto & path : match.paths)

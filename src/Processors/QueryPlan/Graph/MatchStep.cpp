@@ -34,6 +34,46 @@ ASTPtr cloneOrNull(const ASTPtr & ast)
     return ast ? ast->clone() : nullptr;
 }
 
+ASTs cloneASTs(const ASTs & asts)
+{
+    ASTs result;
+    result.reserve(asts.size());
+    for (const auto & ast : asts)
+    {
+        if (ast)
+            result.push_back(ast->clone());
+    }
+
+    return result;
+}
+
+void addAvailableVariable(std::vector<String> & names, const String & variable)
+{
+    if (variable.empty())
+        return;
+
+    if (std::find(names.begin(), names.end(), variable) != names.end())
+        return;
+
+    names.push_back(variable);
+}
+
+std::vector<String> collectAvailableVariables(const MatchSpec & match_spec)
+{
+    std::vector<String> result;
+    for (const auto & path : match_spec.paths)
+    {
+        for (size_t i = 0; i < path.nodes.size(); ++i)
+        {
+            addAvailableVariable(result, path.nodes[i].variable);
+            if (i < path.edges.size())
+                addAvailableVariable(result, path.edges[i].variable);
+        }
+    }
+
+    return result;
+}
+
 MatchNodeSpec cloneNodeSpec(const MatchNodeSpec & node)
 {
     return MatchNodeSpec{
@@ -67,6 +107,8 @@ MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
     result.has_yield_items = match_spec.has_yield_items;
     result.keep_clause = cloneOrNull(match_spec.keep_clause);
     result.where_clause = cloneOrNull(match_spec.where_clause);
+    result.yield_items = cloneASTs(match_spec.yield_items);
+    result.yield_variables = match_spec.yield_variables;
 
     result.paths.reserve(match_spec.paths.size());
     for (const auto & path : match_spec.paths)
@@ -101,6 +143,18 @@ SharedHeader MatchStep::makeHeader(const MatchSpec & match_spec)
 {
     Block header;
     std::vector<String> names;
+
+    if (!match_spec.yield_variables.empty())
+    {
+        const auto available_names = collectAvailableVariables(match_spec);
+        for (const auto & variable : match_spec.yield_variables)
+        {
+            if (std::find(available_names.begin(), available_names.end(), variable) != available_names.end())
+                addVariableColumn(header, names, variable);
+        }
+
+        return std::make_shared<const Block>(std::move(header));
+    }
 
     for (const auto & path : match_spec.paths)
     {
