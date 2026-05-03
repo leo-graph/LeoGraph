@@ -86,6 +86,24 @@ void lowerReturnClause(QueryPlan & plan, const GAST::GQLReturnClause & ret, Cont
     lowerProjectionItems(plan, ret.items, context, "RETURN", scope);
 }
 
+void lowerSelectClause(QueryPlan & plan, const GAST::GQLSelectClause & select, ContextPtr context, PlanScope & scope)
+{
+    if (select.distinct)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT DISTINCT is not supported");
+    if (select.select_all)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT * is not supported without a source");
+    if (select.source)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lowering is not supported");
+    if (select.where)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT WHERE is not supported without source lowering");
+    if (select.group_by)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT GROUP BY is not supported");
+    if (select.having)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT HAVING is not supported");
+
+    lowerProjectionItems(plan, select.items, context, "SELECT", scope);
+}
+
 void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr context, std::string_view context_name, PlanScope & scope)
 {
     if (items.empty())

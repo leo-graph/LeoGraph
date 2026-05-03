@@ -14,6 +14,7 @@ namespace DB::OPENGQL::AST
 {
 class GQLPageClause;
 class GQLReturnClause;
+class GQLSelectClause;
 class GQLWhereClause;
 }
 
@@ -33,6 +34,12 @@ void lowerWhereClause(
 void lowerReturnClause(
     QueryPlan & plan,
     const OPENGQL::AST::GQLReturnClause & ret,
+    ContextPtr context,
+    PlanScope & scope);
+
+void lowerSelectClause(
+    QueryPlan & plan,
+    const OPENGQL::AST::GQLSelectClause & select,
     ContextPtr context,
     PlanScope & scope);
 

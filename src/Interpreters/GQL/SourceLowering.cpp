@@ -63,6 +63,13 @@ bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, Con
         return true;
     }
 
+    if (const auto * select = clause->as<OPENGQL::AST::GQLSelectClause>())
+    {
+        addEmptySingleRowSource(plan, scope);
+        lowerSelectClause(plan, *select, context, scope);
+        return true;
+    }
+
     return false;
 }
 
