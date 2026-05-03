@@ -180,7 +180,28 @@ TEST(GQLPatternLowering, MatchClauseLoweringPreservesPatternAndWhere)
     EXPECT_EQ(spec.paths.front().nodes[1].variable, "b");
     EXPECT_EQ(spec.paths.front().edges.front().variable, "r");
     EXPECT_EQ(spec.paths.front().edges.front().direction, Graph::MatchEdgeDirection::Outgoing);
-    EXPECT_TRUE(spec.paths.front().edges.front().has_label_expression);
+    EXPECT_NE(spec.paths.front().edges.front().label_expression, nullptr);
+    EXPECT_EQ(spec.paths.front().edges.front().properties, nullptr);
+    EXPECT_EQ(spec.paths.front().edges.front().predicate, nullptr);
+}
+
+TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
+{
+    auto ast = parseGQLOrThrow("MATCH (n:Person {name: 'x'} WHERE n IS NOT NULL) RETURN n");
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+
+    const auto lowered = GQL::lowerMatchClause(*match);
+    const auto spec = GQL::makeMatchSpec(lowered);
+
+    ASSERT_EQ(spec.paths.size(), 1u);
+    ASSERT_EQ(spec.paths.front().nodes.size(), 1u);
+
+    const auto & node = spec.paths.front().nodes.front();
+    EXPECT_EQ(node.variable, "n");
+    EXPECT_NE(node.label_expression, nullptr);
+    EXPECT_NE(node.properties, nullptr);
+    EXPECT_NE(node.predicate, nullptr);
 }
 
 TEST(GQLPatternLowering, UnsupportedPathShapesThrowNotImplemented)

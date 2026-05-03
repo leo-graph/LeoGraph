@@ -148,17 +148,47 @@ TEST(GQLInterpreter, UnsupportedClauseThrowsNotImplemented)
     }
 }
 
-TEST(GQLInterpreter, EdgePatternIsRejectedUntilStorageLands)
+TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
 {
-    try
-    {
-        (void)buildPlan("MATCH (a)-[r]->(b) RETURN a");
-        FAIL() << "Expected edge MATCH pattern to be rejected";
-    }
-    catch (const Exception & e)
-    {
-        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
-    }
+    const auto plan = buildPlan("MATCH (a)-[r]->(b) RETURN a, r, b");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+
+    const auto & path = match.paths.front();
+    ASSERT_EQ(path.nodes.size(), 2u);
+    ASSERT_EQ(path.edges.size(), 1u);
+    EXPECT_EQ(path.nodes[0].variable, "a");
+    EXPECT_EQ(path.edges[0].variable, "r");
+    EXPECT_EQ(path.edges[0].direction, Graph::MatchEdgeDirection::Outgoing);
+    EXPECT_EQ(path.nodes[1].variable, "b");
+}
+
+TEST(GQLInterpreter, MatchPatternConstraintsStayInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH (n:Person {name: 'x'}) RETURN n");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+    ASSERT_EQ(match.paths.front().nodes.size(), 1u);
+
+    const auto & node = match.paths.front().nodes.front();
+    EXPECT_EQ(node.variable, "n");
+    EXPECT_NE(node.label_expression, nullptr);
+    EXPECT_NE(node.properties, nullptr);
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    const auto & cloned_node = cloned_match_step->getMatchSpec().paths.front().nodes.front();
+    EXPECT_NE(cloned_node.label_expression.get(), node.label_expression.get());
+    EXPECT_NE(cloned_node.properties.get(), node.properties.get());
 }
 
 #endif

@@ -41,7 +41,7 @@ const GAST::GQLSingleQuery & getSingleQuery(const ASTPtr & query_ptr)
     throw Exception(ErrorCodes::LOGICAL_ERROR, "InterpreterGQLQuery expects GQLSingleQuery");
 }
 
-void validateSingleNodeExecutableMatch(const Graph::MatchSpec & match)
+void validateExecutableMatch(const Graph::MatchSpec & match)
 {
     if (match.optional || match.has_optional_operand_block)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL MATCH is not supported");
@@ -51,18 +51,8 @@ void validateSingleNodeExecutableMatch(const Graph::MatchSpec & match)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH KEEP is not supported");
     if (match.has_yield_items)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH YIELD is not supported");
-    if (match.paths.size() != 1)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only a single GQL MATCH path pattern is supported");
-
-    const auto & path = match.paths.front();
-    if (path.nodes.size() != 1 || !path.edges.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only single-node GQL MATCH patterns are supported");
-
-    const auto & node = path.nodes.front();
-    if (node.has_label_expression || node.has_properties || node.has_predicate)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Node label, properties, and per-node WHERE are not yet supported");
-    if (node.variable.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Anonymous GQL MATCH node patterns are not supported");
+    if (match.paths.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH must contain at least one path pattern");
 }
 
 void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, ContextPtr context)
@@ -92,7 +82,7 @@ void lowerMatch(QueryPlan & plan, const GAST::GQLMatchClause & match, ContextPtr
 {
     const auto match_plan = GQL::lowerMatchClause(match);
     auto match_spec = GQL::makeMatchSpec(match_plan);
-    validateSingleNodeExecutableMatch(match_spec);
+    validateExecutableMatch(match_spec);
     plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
 
     if (match_plan.where)

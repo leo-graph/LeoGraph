@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Parsers/IAST_fwd.h>
 #include <base/types.h>
 
 #include <vector>
@@ -18,18 +19,18 @@ enum class MatchEdgeDirection : UInt8
 struct MatchNodeSpec
 {
     String variable;
-    bool has_label_expression = false;
-    bool has_properties = false;
-    bool has_predicate = false;
+    ASTPtr label_expression;
+    ASTPtr properties;
+    ASTPtr predicate;
 };
 
 struct MatchEdgeSpec
 {
     String variable;
     MatchEdgeDirection direction = MatchEdgeDirection::Any;
-    bool has_label_expression = false;
-    bool has_properties = false;
-    bool has_predicate = false;
+    ASTPtr label_expression;
+    ASTPtr properties;
+    ASTPtr predicate;
 };
 
 struct MatchPathSpec

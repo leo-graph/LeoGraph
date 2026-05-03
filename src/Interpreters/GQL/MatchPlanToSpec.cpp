@@ -1,9 +1,19 @@
 #include <Interpreters/GQL/MatchPlanToSpec.h>
 
+#include <Parsers/IAST.h>
+#include <Parsers/graph/AST/GQLExpr.h>
+#include <Parsers/graph/AST/GQLLabelExpression.h>
+#include <Parsers/graph/AST/GQLPropertyMap.h>
+
 namespace DB::GQL
 {
 namespace
 {
+
+ASTPtr cloneOrNull(const IAST * ast)
+{
+    return ast ? ast->clone() : nullptr;
+}
 
 Graph::MatchEdgeDirection makeEdgeDirection(EdgeBinding::Direction direction)
 {
@@ -26,9 +36,9 @@ Graph::MatchNodeSpec makeNodeSpec(const NodeBinding & node)
 {
     return Graph::MatchNodeSpec{
         .variable = node.variable,
-        .has_label_expression = node.label != nullptr,
-        .has_properties = node.properties != nullptr,
-        .has_predicate = node.where != nullptr,
+        .label_expression = cloneOrNull(node.label),
+        .properties = cloneOrNull(node.properties),
+        .predicate = cloneOrNull(node.where),
     };
 }
 
@@ -37,9 +47,9 @@ Graph::MatchEdgeSpec makeEdgeSpec(const EdgeBinding & edge)
     return Graph::MatchEdgeSpec{
         .variable = edge.variable,
         .direction = makeEdgeDirection(edge.direction),
-        .has_label_expression = edge.label != nullptr,
-        .has_properties = edge.properties != nullptr,
-        .has_predicate = edge.where != nullptr,
+        .label_expression = cloneOrNull(edge.label),
+        .properties = cloneOrNull(edge.properties),
+        .predicate = cloneOrNull(edge.where),
     };
 }
 
