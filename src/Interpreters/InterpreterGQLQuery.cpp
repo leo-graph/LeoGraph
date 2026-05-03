@@ -5,13 +5,14 @@
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
+#include <Interpreters/GQL/MatchPlanToSpec.h>
 #include <Interpreters/GQL/PatternLowering.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/BuildQueryPipelineSettings.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/FilterStep.h>
-#include <Processors/QueryPlan/Graph/NodeScanStep.h>
+#include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/LimitStep.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
 #include <Processors/QueryPlan/QueryPlan.h>
@@ -40,35 +41,28 @@ const GAST::GQLSingleQuery & getSingleQuery(const ASTPtr & query_ptr)
     throw Exception(ErrorCodes::LOGICAL_ERROR, "InterpreterGQLQuery expects GQLSingleQuery");
 }
 
-GQL::NodeBinding lowerSingleNodePattern(const GAST::GQLMatchClause & match)
+void validateSingleNodeExecutableMatch(const Graph::MatchSpec & match)
 {
-    if (match.optional || match.optional_operand_block)
+    if (match.optional || match.has_optional_operand_block)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL MATCH is not supported");
-    if (match.match_mode != GAST::GraphMatchMode::None)
+    if (match.has_match_mode)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH mode prefix is not supported");
-    if (match.keep_clause)
+    if (match.has_keep_clause)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH KEEP is not supported");
-    if (!match.yield_items.empty())
+    if (match.has_yield_items)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH YIELD is not supported");
-    if (match.path_patterns.size() != 1)
+    if (match.paths.size() != 1)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only a single GQL MATCH path pattern is supported");
 
-    const auto * path = match.path_patterns.front()->as<GAST::GQLPathPattern>();
-    if (!path)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern must be GQLPathPattern");
-
-    auto binding = GQL::lowerPathPattern(*path);
-
-    if (binding.nodes.size() != 1 || !binding.edges.empty())
+    const auto & path = match.paths.front();
+    if (path.nodes.size() != 1 || !path.edges.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only single-node GQL MATCH patterns are supported");
 
-    auto & node = binding.nodes.front();
-    if (node.label || node.properties || node.where)
+    const auto & node = path.nodes.front();
+    if (node.has_label_expression || node.has_properties || node.has_predicate)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Node label, properties, and per-node WHERE are not yet supported");
     if (node.variable.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Anonymous GQL MATCH node patterns are not supported");
-
-    return std::move(node);
 }
 
 void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, ContextPtr context)
@@ -82,25 +76,27 @@ void lowerWherePredicate(QueryPlan & plan, const GAST::GQLExpr & predicate, Cont
     plan.addStep(std::make_unique<FilterStep>(current_header, std::move(dag), filter_node.result_name, true));
 }
 
-void lowerMatch(QueryPlan & plan, const GAST::GQLMatchClause & match, ContextPtr context)
+void lowerWhereClause(QueryPlan & plan, const GAST::GQLWhereClause & where, ContextPtr context, std::string_view context_name)
 {
-    auto node = lowerSingleNodePattern(match);
-    plan.addStep(std::make_unique<Graph::NodeScanStep>(node.variable));
+    if (where.type != GAST::GQLWhereClause::Type::Where)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside {} is not supported", context_name);
 
-    if (!match.where)
-        return;
-
-    const auto * where = match.where->as<GAST::GQLWhereClause>();
-    if (!where)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH where node must be GQLWhereClause");
-    if (where->type != GAST::GQLWhereClause::Type::Where)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "HAVING inside GQL MATCH is not supported");
-
-    const auto * predicate = where->expression ? where->expression->as<GAST::GQLExpr>() : nullptr;
+    const auto * predicate = where.expression ? where.expression->as<GAST::GQLExpr>() : nullptr;
     if (!predicate)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL WHERE predicate must be a GQL expression");
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} predicate must be a GQL expression", context_name);
 
     lowerWherePredicate(plan, *predicate, context);
+}
+
+void lowerMatch(QueryPlan & plan, const GAST::GQLMatchClause & match, ContextPtr context)
+{
+    const auto match_plan = GQL::lowerMatchClause(match);
+    auto match_spec = GQL::makeMatchSpec(match_plan);
+    validateSingleNodeExecutableMatch(match_spec);
+    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
+
+    if (match_plan.where)
+        lowerWhereClause(plan, *match_plan.where, context, "GQL MATCH");
 }
 
 void lowerReturn(QueryPlan & plan, const GAST::GQLReturnClause & ret, ContextPtr context)
@@ -198,6 +194,12 @@ void lowerClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context
     if (const auto * page = clause_ast->as<GAST::GQLPageClause>())
     {
         lowerPage(plan, *page);
+        return;
+    }
+
+    if (const auto * where = clause_ast->as<GAST::GQLWhereClause>())
+    {
+        lowerWhereClause(plan, *where, context, "GQL FILTER");
         return;
     }
 

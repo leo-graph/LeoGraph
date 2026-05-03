@@ -4,11 +4,13 @@
 #include <Parsers/graph/AST/GQLEdgePattern.h>
 #include <Parsers/graph/AST/GQLExpr.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
+#include <Parsers/graph/AST/GQLMatchClause.h>
 #include <Parsers/graph/AST/GQLNodePattern.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
 #include <Parsers/graph/AST/GQLPathPatternAlternation.h>
 #include <Parsers/graph/AST/GQLPathTerm.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
+#include <Parsers/graph/AST/GQLWhereClause.h>
 
 namespace DB::ErrorCodes
 {
@@ -24,11 +26,13 @@ namespace
 using GQLEdgePattern = OPENGQL::AST::GQLEdgePattern;
 using GQLExpr = OPENGQL::AST::GQLExpr;
 using GQLLabelExpression = OPENGQL::AST::GQLLabelExpression;
+using GQLMatchClause = OPENGQL::AST::GQLMatchClause;
 using GQLNodePattern = OPENGQL::AST::GQLNodePattern;
 using GQLPathPattern = OPENGQL::AST::GQLPathPattern;
 using GQLPathPatternAlternation = OPENGQL::AST::GQLPathPatternAlternation;
 using GQLPathTerm = OPENGQL::AST::GQLPathTerm;
 using GQLPropertyMap = OPENGQL::AST::GQLPropertyMap;
+using GQLWhereClause = OPENGQL::AST::GQLWhereClause;
 
 [[noreturn]] void throwUnsupportedPathPattern(const String & reason)
 {
@@ -196,6 +200,50 @@ PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path)
             "Invalid lowered GQL path binding: {} nodes and {} edges",
             result.nodes.size(),
             result.edges.size());
+
+    return result;
+}
+
+MatchPlan lowerMatchClause(const OPENGQL::AST::GQLMatchClause & match)
+{
+    MatchPlan result;
+    result.optional = match.optional;
+    result.match_mode = match.match_mode;
+    result.has_keep_clause = match.keep_clause != nullptr;
+    result.has_optional_operand_block = match.optional_operand_block != nullptr;
+
+    result.paths.reserve(match.path_patterns.size());
+    for (const auto & path_ast : match.path_patterns)
+    {
+        if (!path_ast)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern is null");
+
+        const auto * path = path_ast->as<GQLPathPattern>();
+        if (!path)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern must be GQLPathPattern, got {}", astID(*path_ast));
+
+        result.paths.push_back(lowerPathPattern(*path));
+    }
+
+    result.yield_items.reserve(match.yield_items.size());
+    for (const auto & item_ast : match.yield_items)
+    {
+        if (!item_ast)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH yield item is null");
+
+        const auto * item = item_ast->as<GQLExpr>();
+        if (!item)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH yield item must be GQLExpr, got {}", astID(*item_ast));
+
+        result.yield_items.push_back(item);
+    }
+
+    if (match.where)
+    {
+        result.where = match.where->as<GQLWhereClause>();
+        if (!result.where)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH where node must be GQLWhereClause, got {}", astID(*match.where));
+    }
 
     return result;
 }

@@ -11,7 +11,7 @@
 #  include <Parsers/graph/ParserGQLQuery.h>
 #  include <Processors/QueryPlan/ExpressionStep.h>
 #  include <Processors/QueryPlan/FilterStep.h>
-#  include <Processors/QueryPlan/Graph/NodeScanStep.h>
+#  include <Processors/QueryPlan/Graph/MatchStep.h>
 #  include <Processors/QueryPlan/LimitStep.h>
 #  include <Processors/QueryPlan/QueryPlan.h>
 
@@ -61,13 +61,33 @@ std::vector<String> linearStepNames(const QueryPlan & plan)
     return names;
 }
 
+const Graph::MatchStep * leafMatchStep(const QueryPlan & plan)
+{
+    const auto * node = plan.getRootNode();
+    while (node && node->children.size() == 1)
+        node = node->children.front();
+
+    if (!node)
+        return nullptr;
+
+    return dynamic_cast<const Graph::MatchStep *>(node->step.get());
+}
+
 }
 
 TEST(GQLInterpreter, BareMatchReturnLowersToScanThenProjection)
 {
     const auto plan = buildPlan("MATCH (n) RETURN n");
 
-    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphNodeScan"}));
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.paths.size(), 1u);
+    ASSERT_EQ(match.paths.front().nodes.size(), 1u);
+    EXPECT_EQ(match.paths.front().nodes.front().variable, "n");
+    EXPECT_TRUE(match.paths.front().edges.empty());
 }
 
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
@@ -76,7 +96,28 @@ TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
 
     EXPECT_EQ(
         linearStepNames(plan),
-        (std::vector<String>{"Limit", "Expression", "Filter", "GraphNodeScan"}));
+        (std::vector<String>{"Limit", "Expression", "Filter", "GraphMatch"}));
+}
+
+TEST(GQLInterpreter, MatchFilterClauseLowersToStandaloneFilter)
+{
+    const auto plan = buildPlan("MATCH (n) FILTER n = 1 RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
+}
+
+TEST(GQLInterpreter, ParsedSpecialValuePredicateLowersToFilter)
+{
+    const auto plan = buildPlan("MATCH (n) WHERE TRUE RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
+}
+
+TEST(GQLInterpreter, IsNullPredicateLowersToFilter)
+{
+    const auto plan = buildPlan("MATCH (n) WHERE n IS NULL RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
 }
 
 TEST(GQLInterpreter, ReturnAliasIsPreservedInProjection)

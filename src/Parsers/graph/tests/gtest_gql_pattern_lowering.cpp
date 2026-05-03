@@ -5,10 +5,12 @@
 #  include <gtest/gtest.h>
 
 #  include <Common/Exception.h>
+#  include <Interpreters/GQL/MatchPlanToSpec.h>
 #  include <Interpreters/GQL/PatternLowering.h>
 #  include <Parsers/graph/GQLParserUtils.h>
 #  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
+#  include <Processors/QueryPlan/Graph/MatchSpec.h>
 
 #  include <string_view>
 
@@ -147,6 +149,38 @@ TEST(GQLPatternLowering, MatchOutgoingEdgeLowersEdgeBinding)
     expectNameLabel(binding.edges.front().label, "KNOWS");
     EXPECT_EQ(binding.edges.front().properties, nullptr);
     EXPECT_EQ(binding.edges.front().where, nullptr);
+}
+
+TEST(GQLPatternLowering, MatchClauseLoweringPreservesPatternAndWhere)
+{
+    auto ast = parseGQLOrThrow("MATCH (a)-[r:KNOWS]->(b) WHERE a IS NOT NULL RETURN r");
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+
+    const auto lowered = GQL::lowerMatchClause(*match);
+
+    EXPECT_FALSE(lowered.optional);
+    EXPECT_EQ(lowered.paths.size(), 1u);
+    ASSERT_EQ(lowered.paths.front().nodes.size(), 2u);
+    ASSERT_EQ(lowered.paths.front().edges.size(), 1u);
+    EXPECT_EQ(lowered.paths.front().nodes[0].variable, "a");
+    EXPECT_EQ(lowered.paths.front().nodes[1].variable, "b");
+    EXPECT_EQ(lowered.paths.front().edges.front().variable, "r");
+    EXPECT_NE(lowered.paths.front().edges.front().label, nullptr);
+    EXPECT_NE(lowered.where, nullptr);
+
+    const auto spec = GQL::makeMatchSpec(lowered);
+
+    EXPECT_FALSE(spec.optional);
+    EXPECT_FALSE(spec.has_match_mode);
+    ASSERT_EQ(spec.paths.size(), 1u);
+    ASSERT_EQ(spec.paths.front().nodes.size(), 2u);
+    ASSERT_EQ(spec.paths.front().edges.size(), 1u);
+    EXPECT_EQ(spec.paths.front().nodes[0].variable, "a");
+    EXPECT_EQ(spec.paths.front().nodes[1].variable, "b");
+    EXPECT_EQ(spec.paths.front().edges.front().variable, "r");
+    EXPECT_EQ(spec.paths.front().edges.front().direction, Graph::MatchEdgeDirection::Outgoing);
+    EXPECT_TRUE(spec.paths.front().edges.front().has_label_expression);
 }
 
 TEST(GQLPatternLowering, UnsupportedPathShapesThrowNotImplemented)

@@ -156,6 +156,43 @@ TEST(GQLExpressionLowering, LiteralsLowerToTypedConstantColumns)
     EXPECT_EQ(getConstantField(null_node), Field(Null()));
 }
 
+TEST(GQLExpressionLowering, SpecialValuesLowerToTypedConstantColumns)
+{
+    auto dag = makeDagWithInputs({});
+
+    const auto & true_node = lower(GAST::GQLExpr::specialValue("TRUE"), dag);
+    expectTypeName(true_node, "UInt8");
+    EXPECT_EQ(getConstantField(true_node), Field(UInt64(1)));
+
+    const auto & false_node = lower(GAST::GQLExpr::specialValue("FALSE"), dag);
+    expectTypeName(false_node, "UInt8");
+    EXPECT_EQ(getConstantField(false_node), Field(UInt64(0)));
+
+    const auto & null_node = lower(GAST::GQLExpr::specialValue("NULL"), dag);
+    expectTypeName(null_node, "Nullable(Nothing)");
+    EXPECT_EQ(getConstantField(null_node), Field(Null()));
+
+    const auto & unknown_node = lower(GAST::GQLExpr::specialValue("UNKNOWN"), dag);
+    expectTypeName(unknown_node, "Nullable(UInt8)");
+    EXPECT_EQ(getConstantField(unknown_node), Field(Null()));
+}
+
+TEST(GQLExpressionLowering, IsNullPredicateLowersToFunction)
+{
+    auto dag = makeDagWithInputs({{"n", std::make_shared<DataTypeUInt64>()}});
+
+    const auto expression = GAST::GQLExpr::binaryOp(
+        "IS",
+        GAST::GQLExpr::identifier("n"),
+        GAST::GQLExpr::specialValue("NULL"));
+
+    const auto & node = lower(expression, dag);
+
+    expectFunctionName(node, "isNull");
+    expectTypeName(node, "UInt8");
+    ASSERT_EQ(node.children.size(), 1u);
+}
+
 TEST(GQLExpressionLowering, UnsupportedKindThrowsNotImplemented)
 {
     auto dag = makeDagWithInputs({});

@@ -167,6 +167,33 @@ const ActionsDAG::Node & lowerLiteral(const GQLExpr & expr, ActionsDAG & dag)
     }
 }
 
+const ActionsDAG::Node & lowerSpecialValue(const GQLExpr & expr, ActionsDAG & dag)
+{
+    const String text = normalizedOperator(expr.text);
+
+    if (text == "TRUE")
+        return addConstant(dag, std::make_shared<DataTypeUInt8>(), UInt64(1), expr.text);
+
+    if (text == "FALSE")
+        return addConstant(dag, std::make_shared<DataTypeUInt8>(), UInt64(0), expr.text);
+
+    if (text == "NULL")
+        return addConstant(
+            dag,
+            std::make_shared<DataTypeNullable>(std::make_shared<DataTypeNothing>()),
+            Null(),
+            expr.text);
+
+    if (text == "UNKNOWN")
+        return addConstant(
+            dag,
+            std::make_shared<DataTypeNullable>(std::make_shared<DataTypeUInt8>()),
+            Null(),
+            expr.text);
+
+    throwUnsupportedShape(expr, fmt::format("special value '{}' is not supported", expr.text));
+}
+
 const ActionsDAG::Node & addFunction(
     ActionsDAG & dag,
     ContextPtr context,
@@ -237,9 +264,32 @@ const char * getBinaryFunctionName(const String & op)
     return nullptr;
 }
 
+bool isNullSpecialValue(const GQLExpr & expr)
+{
+    return expr.kind == GQLExpr::Kind::SpecialValue && normalizedOperator(expr.text) == "NULL";
+}
+
+const ActionsDAG::Node & lowerIsPredicate(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, bool negative)
+{
+    const auto & left_expr = getChildExpression(expr, 0);
+    const auto & right_expr = getChildExpression(expr, 1);
+
+    if (!isNullSpecialValue(right_expr))
+        throwUnsupportedShape(expr, fmt::format("operator '{}' only supports NULL right operand", expr.text));
+
+    const auto & left = lowerExpression(left_expr, dag, context);
+    return addFunction(dag, context, negative ? "isNotNull" : "isNull", {&left});
+}
+
 const ActionsDAG::Node & lowerBinaryOp(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
 {
-    const auto * function_name = getBinaryFunctionName(normalizedOperator(expr.text));
+    const String op = normalizedOperator(expr.text);
+    if (op == "IS")
+        return lowerIsPredicate(expr, dag, context, false);
+    if (op == "IS NOT")
+        return lowerIsPredicate(expr, dag, context, true);
+
+    const auto * function_name = getBinaryFunctionName(op);
     if (!function_name)
         throwUnsupportedShape(expr, fmt::format("operator '{}' is not supported", expr.text));
 
@@ -269,6 +319,8 @@ const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag,
             return lowerUnaryOp(expr, dag, context);
         case GQLExpr::Kind::BinaryOp:
             return lowerBinaryOp(expr, dag, context);
+        case GQLExpr::Kind::SpecialValue:
+            return lowerSpecialValue(expr, dag);
         case GQLExpr::Kind::FunctionCall:
         case GQLExpr::Kind::Cast:
         case GQLExpr::Kind::DurationBetween:
@@ -278,7 +330,6 @@ const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag,
         case GQLExpr::Kind::LetExpr:
         case GQLExpr::Kind::PathConstructor:
         case GQLExpr::Kind::DynamicParameter:
-        case GQLExpr::Kind::SpecialValue:
         case GQLExpr::Kind::TemporalLiteral:
         case GQLExpr::Kind::DurationLiteral:
         case GQLExpr::Kind::VariableExpression:

@@ -38,6 +38,18 @@ struct PathBinding
     std::vector<EdgeBinding> edges;
 };
 
+struct MatchPlan
+{
+    bool optional = false;
+    OPENGQL::AST::GraphMatchMode match_mode = OPENGQL::AST::GraphMatchMode::None;
+    bool has_keep_clause = false;
+    bool has_optional_operand_block = false;
+    std::vector<PathBinding> paths;
+    std::vector<const OPENGQL::AST::GQLExpr *> yield_items;
+    const OPENGQL::AST::GQLWhereClause * where = nullptr;
+};
+
 PathBinding lowerPathPattern(const OPENGQL::AST::GQLPathPattern & path_pattern);
+MatchPlan lowerMatchClause(const OPENGQL::AST::GQLMatchClause & match);
 
 }
