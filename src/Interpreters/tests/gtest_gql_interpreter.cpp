@@ -121,6 +121,20 @@ TEST(GQLInterpreter, BareMatchReturnLowersToScanThenProjection)
     EXPECT_TRUE(match.paths.front().edges.empty());
 }
 
+TEST(GQLInterpreter, UnionAllBuildsRootUnionPlan)
+{
+    const auto plan = buildPlan("RETURN 1 AS v UNION ALL RETURN 2 AS v");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Union"}));
+}
+
+TEST(GQLInterpreter, UnionDistinctBuildsUnionThenDistinctPlan)
+{
+    const auto plan = buildPlan("RETURN 1 AS v UNION RETURN 1 AS v");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Union"}));
+}
+
 TEST(GQLInterpreter, PlanBuilderLowersSingleQueryWithoutInterpreter)
 {
     const auto plan = buildPlanWithPlanBuilder("MATCH (n) WHERE TRUE RETURN n LIMIT 1");

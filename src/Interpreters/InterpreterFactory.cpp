@@ -39,6 +39,7 @@
 #include <Parsers/ASTUseQuery.h>
 #include <Parsers/ASTWatchQuery.h>
 #include <Parsers/TablePropertiesQueriesASTs.h>
+#include <Parsers/graph/AST/GQLCombinedQuery.h>
 #include <Parsers/graph/AST/GQLSingleQuery.h>
 
 #include <Parsers/Access/ASTCheckGrantQuery.h>
@@ -135,7 +136,7 @@ InterpreterFactory::InterpreterPtr InterpreterFactory::get(ASTPtr& query, Contex
       interpreter_name = "InterpreterSelectWithUnionQuery";
   } else if (query->as<ASTSelectIntersectExceptQuery>()) {
     interpreter_name = "InterpreterSelectIntersectExceptQuery";
-  } else if (query->as<OPENGQL::AST::GQLSingleQuery>()) {
+  } else if (query->as<OPENGQL::AST::GQLSingleQuery>() || query->as<OPENGQL::AST::GQLCombinedQuery>()) {
     interpreter_name = "InterpreterGQLQuery";
   } else if (query->as<ASTInsertQuery>()) {
     ProfileEvents::increment(ProfileEvents::InsertQuery);
