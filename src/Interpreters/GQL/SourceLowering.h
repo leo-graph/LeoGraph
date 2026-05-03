@@ -27,4 +27,6 @@ private:
     std::vector<const OPENGQL::AST::GQLMatchClause *> match_clauses;
 };
 
+bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope);
+
 }

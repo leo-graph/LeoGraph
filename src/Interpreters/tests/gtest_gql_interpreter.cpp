@@ -151,6 +151,22 @@ TEST(GQLInterpreter, PlanBuilderScopeTracksProjectionBindings)
     ASSERT_NE(bindings[0].type, nullptr);
 }
 
+TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "one");
+}
+
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
 {
     const auto plan = buildPlan("MATCH (n) WHERE n = 1 RETURN n LIMIT 5");
@@ -227,8 +243,8 @@ TEST(GQLInterpreter, PipelineClauseBeforeSourceThrowsNotImplemented)
 {
     try
     {
-        (void)buildPlan("RETURN 1");
-        FAIL() << "Expected RETURN before a source clause to be rejected";
+        (void)buildPlan("FILTER TRUE RETURN 1");
+        FAIL() << "Expected FILTER before a source clause to be rejected";
     }
     catch (const Exception & e)
     {

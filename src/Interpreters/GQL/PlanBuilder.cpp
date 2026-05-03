@@ -49,7 +49,15 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
         }
 
         if (!source_ready)
+        {
+            if (tryLowerStandaloneSourceClause(plan, clause, context, scope))
+            {
+                source_ready = true;
+                continue;
+            }
+
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL clause before a source clause is not supported: {}", clause->getID(' '));
+        }
 
         lowerPipelineClause(plan, clause, context, scope);
     }
