@@ -25,6 +25,12 @@ PlanBuilder::PlanBuilder(ContextPtr context_)
 {
 }
 
+PlanBuilder::PlanBuilder(ContextPtr context_, PlanScope scope_)
+    : context(std::move(context_))
+    , scope(std::move(scope_))
+{
+}
+
 void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery & query)
 {
     if (query.clauses.empty())

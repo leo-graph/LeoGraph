@@ -1,6 +1,7 @@
 #include <Interpreters/GQL/PlanScope.h>
 
 #include <Core/Block.h>
+#include <Parsers/IAST.h>
 
 #include <algorithm>
 #include <utility>
@@ -65,6 +66,15 @@ void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind k
 void PlanScope::setActiveGraph(ASTPtr graph_reference_)
 {
     active_graph = std::move(graph_reference_);
+}
+
+PlanScope PlanScope::makeChildGraphScope() const
+{
+    PlanScope result;
+    if (active_graph)
+        result.setActiveGraph(active_graph->clone());
+
+    return result;
 }
 
 }

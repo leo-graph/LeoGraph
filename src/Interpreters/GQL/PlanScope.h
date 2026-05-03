@@ -33,6 +33,7 @@ public:
     void replaceWithHeader(const Block & header, BindingKind kind);
     void addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind);
     void setActiveGraph(ASTPtr graph_reference_);
+    PlanScope makeChildGraphScope() const;
 
     bool hasBinding(const String & name) const;
     const PlanBinding * tryGetBinding(const String & name) const;

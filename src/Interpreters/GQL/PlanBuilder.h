@@ -16,6 +16,7 @@ class PlanBuilder final
 {
 public:
     explicit PlanBuilder(ContextPtr context_);
+    PlanBuilder(ContextPtr context_, PlanScope scope_);
 
     void buildSingleQuery(QueryPlan & plan, const OPENGQL::AST::GQLSingleQuery & query);
     const PlanScope & getScope() const { return scope; }

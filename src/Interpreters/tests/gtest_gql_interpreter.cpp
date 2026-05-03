@@ -253,6 +253,40 @@ TEST(GQLInterpreter, SelectGraphMatchSourceDoesNotLeakUseScopeGraph)
     EXPECT_EQ(scope.getBindings().front().name, "n");
 }
 
+TEST(GQLInterpreter, SelectGraphSubquerySourceFlowsIntoNestedMatchSpec)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT n FROM g { MATCH (n) RETURN n }");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & graph_reference = match_step->getMatchSpec().graph_reference;
+    ASSERT_TRUE(graph_reference);
+
+    const auto * graph = graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "g");
+}
+
+TEST(GQLInterpreter, UseClauseFlowsIntoInlineCallSubqueryMatchSpec)
+{
+    const auto plan = buildPlanWithPlanBuilder("USE g CALL { MATCH (n) RETURN n } RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & graph_reference = match_step->getMatchSpec().graph_reference;
+    ASSERT_TRUE(graph_reference);
+
+    const auto * graph = graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "g");
+}
+
 TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one");

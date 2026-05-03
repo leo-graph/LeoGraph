@@ -60,7 +60,7 @@ void lowerSubquerySource(
     if (!single_query)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a single query", context_name);
 
-    PlanBuilder nested_builder(context);
+    PlanBuilder nested_builder(context, scope.makeChildGraphScope());
     nested_builder.buildSingleQuery(plan, *single_query);
     scope = nested_builder.getScope();
 }
