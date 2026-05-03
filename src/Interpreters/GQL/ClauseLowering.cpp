@@ -122,11 +122,10 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
         if (!item)
             throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL {} item must be GQLAliasedItem", context_name);
 
-        const auto * expr = item->expression ? item->expression->as<GAST::GQLExpr>() : nullptr;
-        if (!expr)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL {} item must wrap a GQL expression", context_name);
+        if (!item->expression)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL {} item must wrap an expression", context_name);
 
-        const auto & node = lowerExpression(*expr, dag, context, scope);
+        const auto & node = lowerExpression(*item->expression, dag, context, scope);
         if (item->alias.empty())
             new_outputs.push_back(&node);
         else

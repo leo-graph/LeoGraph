@@ -12,6 +12,7 @@
 #include <Interpreters/GQL/PlanScope.h>
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>
+#include <Parsers/graph/AST/GQLCaseExpr.h>
 #include <Parsers/graph/AST/GQLTypeExpression.h>
 
 #include <Poco/String.h>
@@ -92,6 +93,7 @@ String kindToString(GQLExpr::Kind kind)
 }
 
 const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope);
+const ActionsDAG::Node & lowerExpressionASTImpl(const IAST & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope);
 
 String normalizedOperator(String op)
 {
@@ -407,6 +409,55 @@ const ActionsDAG::Node & lowerCast(const GQLExpr & expr, ActionsDAG & dag, Conte
     return dag.addCast(operand, cast_type, {}, context);
 }
 
+const ActionsDAG::Node & lowerCaseExpr(const OPENGQL::AST::GQLCaseExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    if (expr.when_operands.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL CASE without WHEN operands is not supported");
+    if (expr.when_operands.size() != expr.then_results.size())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL CASE must have the same number of WHEN and THEN expressions");
+
+    ActionsDAG::NodeRawConstPtrs arguments;
+    arguments.reserve(expr.when_operands.size() * 2 + 1);
+
+    const ActionsDAG::Node * operand = nullptr;
+    if (expr.form == OPENGQL::AST::GQLCaseExpr::Form::Simple)
+    {
+        if (!expr.operand)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL simple CASE without operand is not supported");
+
+        operand = &lowerExpressionASTImpl(*expr.operand, dag, context, scope);
+    }
+
+    for (size_t i = 0; i < expr.when_operands.size(); ++i)
+    {
+        if (!expr.when_operands[i] || !expr.then_results[i])
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL CASE WHEN and THEN expressions must be non-null");
+
+        if (expr.form == OPENGQL::AST::GQLCaseExpr::Form::Simple)
+        {
+            const auto & when = lowerExpressionASTImpl(*expr.when_operands[i], dag, context, scope);
+            arguments.push_back(&addFunction(dag, context, "equals", {operand, &when}));
+        }
+        else
+        {
+            arguments.push_back(&lowerExpressionASTImpl(*expr.when_operands[i], dag, context, scope));
+        }
+
+        arguments.push_back(&lowerExpressionASTImpl(*expr.then_results[i], dag, context, scope));
+    }
+
+    if (expr.else_result)
+        arguments.push_back(&lowerExpressionASTImpl(*expr.else_result, dag, context, scope));
+    else
+        arguments.push_back(&addConstant(
+            dag,
+            std::make_shared<DataTypeNullable>(std::make_shared<DataTypeNothing>()),
+            Null(),
+            "NULL"));
+
+    return addFunction(dag, context, "multiIf", std::move(arguments));
+}
+
 const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     switch (expr.kind)
@@ -453,11 +504,32 @@ const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & 
     throwUnsupportedKind(expr);
 }
 
+const ActionsDAG::Node & lowerExpressionASTImpl(const IAST & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    if (const auto * gql_expr = expr.as<GQLExpr>())
+        return lowerExpressionImpl(*gql_expr, dag, context, scope);
+
+    if (const auto * case_expr = expr.as<OPENGQL::AST::GQLCaseExpr>())
+        return lowerCaseExpr(*case_expr, dag, context, scope);
+
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL expression AST: {}", expr.getID(' '));
+}
+
+}
+
+const ActionsDAG::Node & lowerExpression(const IAST & expr, ActionsDAG & dag, ContextPtr context)
+{
+    return lowerExpressionASTImpl(expr, dag, context, nullptr);
 }
 
 const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context)
 {
     return lowerExpressionImpl(expr, dag, context, nullptr);
+}
+
+const ActionsDAG::Node & lowerExpression(const IAST & expr, ActionsDAG & dag, ContextPtr context, const PlanScope & scope)
+{
+    return lowerExpressionASTImpl(expr, dag, context, &scope);
 }
 
 const ActionsDAG::Node & lowerExpression(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope & scope)

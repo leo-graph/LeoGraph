@@ -10,9 +10,20 @@ namespace DB::GQL
 class PlanScope;
 
 const ActionsDAG::Node & lowerExpression(
+    const IAST & expr,
+    ActionsDAG & dag,
+    ContextPtr context);
+
+const ActionsDAG::Node & lowerExpression(
     const OPENGQL::AST::GQLExpr & expr,
     ActionsDAG & dag,
     ContextPtr context);
+
+const ActionsDAG::Node & lowerExpression(
+    const IAST & expr,
+    ActionsDAG & dag,
+    ContextPtr context,
+    const PlanScope & scope);
 
 const ActionsDAG::Node & lowerExpression(
     const OPENGQL::AST::GQLExpr & expr,
