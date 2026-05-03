@@ -1045,13 +1045,13 @@ TEST(GQLInterpreter, UnsupportedClauseThrowsNotImplemented)
 {
     try
     {
-        (void)buildPlan("MATCH (n) RETURN DISTINCT n");
-        FAIL() << "Expected RETURN DISTINCT to be rejected";
+        (void)buildPlan("MATCH (n) SET n.x = 1 RETURN n");
+        FAIL() << "Expected GQL DML clause to be rejected";
     }
     catch (const Exception & e)
     {
         EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
-        EXPECT_NE(String(e.message()).find("DISTINCT"), String::npos);
+        EXPECT_NE(String(e.message()).find("GQLSetClause"), String::npos);
     }
 }
 
