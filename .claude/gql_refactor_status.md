@@ -2,14 +2,15 @@
 
 ## Stable Anchor
 
-- Branch: `parser/dev-gql-expression-completion`
+- Branch: `parser/dev-gql-match-interpreter`
 - Last stable checkpoint: see recent `[parser] ...` commits on the current branch.
 - Checkpoint summary:
   - `GQLParserUtils` owns the `antlr4` entry, `SLL -> LL` fallback, and error listeners.
   - `GQLParseTreeVisitor` builds a minimal `IAST`-based `GQL*` graph AST.
   - Graph AST nodes live under `src/Parsers/graph/AST/`.
   - `ParserGQLQuery` is the main parser-only entry for `Dialect::gql`; it routes full statements through `GQLParserUtils::parseStatement`.
-  - Ordinary ClickHouse `ParserQuery` no longer routes graph-shaped prefixes into GQL; production GQL parsing requires explicit `Dialect::gql`.
+- Ordinary ClickHouse `ParserQuery` no longer routes graph-shaped prefixes into GQL; production GQL parsing requires explicit `Dialect::gql`.
+- Interpreter work is now active on the same branch. The current objective is a reusable `GQL` lowering framework, not a `MATCH`-only prototype.
 
 ## Current Shape
 
@@ -72,6 +73,16 @@ The currently supported minimal path is:
 - Plain literal tokens may stay as parser leaves when no catalog, graph-reference, expression, or type structure is lost.
 - New or changed AST nodes must keep `children` dense and non-null, deep-copy owned children in `clone`, and round-trip through normalized `formatAST`.
 
+### Interpreter / lowering layer
+
+- Production interpreter dispatch currently maps `GQLSingleQuery` and `GQLCombinedQuery` to `InterpreterGQLQuery`.
+- `InterpreterGQLQuery` delegates single-query lowering to `GQL::PlanBuilder`; clause-specific work should stay in reusable helpers under `src/Interpreters/GQL/`, not in one monolithic interpreter method.
+- `PlanBuilder` separates source clauses from pipeline clauses. `MATCH` is a source boundary lowered through `SourceLowering` / `MatchLowering`; `WHERE`, `RETURN`, `SELECT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, `DISTINCT`, and aggregation are reusable pipeline/source helpers in `ClauseLowering` and `AggregationLowering`.
+- `PlanScope` tracks current bindings and active graph scope. It now also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
+- `USE graph`, graph-qualified `SELECT FROM`, nested subqueries, and inline `CALL { ... }` share graph-scope propagation through `PlanScope`.
+- Consecutive `MATCH` clauses are lowered as one `GraphMatch` source with preserved per-clause specs. `MatchSpec` intentionally preserves graph reference, path constraints, label / property / predicate AST, `KEEP`, yield items, optional blocks, match mode, and path alternatives for future graph storage planning.
+- `Graph::MatchSource` is still a storage-facing placeholder and currently emits no rows. The next storage slice should replace this with a real graph scan contract instead of adding more dummy data.
+
 ### Current `throwUnsupported` coverage map
 
 Track remaining `throwUnsupported` sites by parser-only impact, not by stale line numbers:
@@ -123,7 +134,17 @@ The next implementation slice should start from a concrete parser input that cur
 
 ## Recommended Next Steps
 
-Current parser-only priority is `GQL text -> normalized GQL IAST`. Do not spend this phase on binder, semantic analysis, interpreter, storage, catalog execution, or lowering. Prefer small implementation slices verified through `ParserGQLQuery` / `Dialect::gql` contract tests.
+Current priority is `GQL AST -> reusable interpreter lowering -> QueryPlan` for a framework that later clauses can share. Parser-only changes should continue only when they unblock interpreter lowering or preserve the parser contract. Do not build new `MATCH`-only shortcuts; prefer small reusable slices in `PlanScope`, `SourceLowering`, `ClauseLowering`, `ExpressionLowering`, and `MatchLowering`.
+
+Interpreter framework gaps to keep visible:
+
+1. `Graph::MatchSource` has no real graph storage contract yet.
+2. `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution.
+3. Inline `CALL` variable scope, subquery `AT schema`, binding-table / graph binding definitions, and `NEXT` statements are still explicit `NOT_IMPLEMENTED` paths.
+4. `SELECT FROM` source lists with more than one source are still unsupported; implement a real source-composition model before enabling them.
+5. Expression lowering still covers only the common scalar subset; temporal / duration / value-query / path-constructor / graph-expression execution lowering remains deferred.
+6. `GQLCatalogStatement` has parser AST coverage but no interpreter / catalog execution.
+7. Full `ninja` verification is currently blocked by local build-directory regenerate issues under `build/contrib`; use direct TU compilation from `build/compile_commands.json` only as source-level isolation until the build directory is repaired.
 
 ## Open TODO Backlog
 
