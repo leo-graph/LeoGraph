@@ -4,8 +4,11 @@
 #include <limits>
 #include <unordered_set>
 
+#include <Core/Field.h>
 #include <Core/SortDescription.h>
 #include <Core/Settings.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <Functions/FunctionFactory.h>
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
@@ -67,6 +70,38 @@ UInt64 extractUnsignedIntegerLiteral(const GAST::GQLExpr & literal, std::string_
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
 
     return value;
+}
+
+const ActionsDAG::Node & addUInt64Constant(ActionsDAG & dag, UInt64 value, String name)
+{
+    ColumnWithTypeAndName column;
+    column.type = std::make_shared<DataTypeUInt64>();
+    column.name = std::move(name);
+    column.column = column.type->createColumnConst(1, value);
+    return dag.addColumn(std::move(column));
+}
+
+const ActionsDAG::Node & addFunction(
+    ActionsDAG & dag,
+    ContextPtr context,
+    const String & function_name,
+    ActionsDAG::NodeRawConstPtrs arguments)
+{
+    auto function = FunctionFactory::instance().get(function_name, context);
+    return dag.addFunction(function, std::move(arguments), {});
+}
+
+String makeUniqueInternalName(const Block & header, const String & prefix)
+{
+    String name = prefix;
+    size_t suffix = 0;
+    while (header.has(name))
+    {
+        ++suffix;
+        name = fmt::format("{}_{}", prefix, suffix);
+    }
+
+    return name;
 }
 
 int getNullsDirection(const GAST::GQLOrderByItem & item, int direction)
@@ -392,16 +427,54 @@ void lowerForClause(QueryPlan & plan, const GAST::GQLForClause & for_clause, Con
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR source must be non-null");
     if (scope.hasBinding(for_clause.alias))
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR alias '{}' conflicts with an existing binding", for_clause.alias);
-    if (for_clause.with_ordinality || for_clause.with_offset || !for_clause.ordinality_or_offset_alias.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR WITH OFFSET/ORDINALITY is not supported");
+    if ((for_clause.with_ordinality || for_clause.with_offset) && for_clause.ordinality_or_offset_alias.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR WITH OFFSET/ORDINALITY alias must be non-empty");
+    if (!for_clause.ordinality_or_offset_alias.empty())
+    {
+        if (!for_clause.with_ordinality && !for_clause.with_offset)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR ordinality/offset alias requires WITH OFFSET or WITH ORDINALITY");
+        if (for_clause.ordinality_or_offset_alias == for_clause.alias)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR ordinality/offset alias must differ from element alias");
+        if (scope.hasBinding(for_clause.ordinality_or_offset_alias))
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED,
+                "GQL FOR ordinality/offset alias '{}' conflicts with an existing binding",
+                for_clause.ordinality_or_offset_alias);
+    }
 
     auto current_header = plan.getCurrentHeader();
     ActionsDAG dag(current_header->getColumnsWithTypeAndName());
     auto & outputs = dag.getOutputs();
 
     const auto & source = lowerExpression(*for_clause.source, dag, context, scope);
-    const auto & alias = dag.addArrayJoin(source, for_clause.alias);
-    outputs.push_back(&alias);
+
+    if (for_clause.with_ordinality || for_clause.with_offset)
+    {
+        const auto & ordinality_array = addFunction(dag, context, "arrayEnumerate", {&source});
+        const auto & zipped = addFunction(dag, context, "arrayZip", {&source, &ordinality_array});
+        const auto & pair = dag.addArrayJoin(zipped, makeUniqueInternalName(*current_header, "__gql_for_pair"));
+        const auto & first_index = addUInt64Constant(dag, 1, "__gql_for_first_index");
+        const auto & second_index = addUInt64Constant(dag, 2, "__gql_for_second_index");
+        const auto & element = addFunction(dag, context, "tupleElement", {&pair, &first_index});
+        const auto & ordinality = addFunction(dag, context, "tupleElement", {&pair, &second_index});
+        const auto & element_alias = dag.addAlias(element, for_clause.alias);
+        outputs.push_back(&element_alias);
+
+        const ActionsDAG::Node * position = &ordinality;
+        if (for_clause.with_offset)
+        {
+            const auto & one = addUInt64Constant(dag, 1, "__gql_for_offset_base");
+            position = &addFunction(dag, context, "minus", {&ordinality, &one});
+        }
+
+        const auto & position_alias = dag.addAlias(*position, for_clause.ordinality_or_offset_alias);
+        outputs.push_back(&position_alias);
+    }
+    else
+    {
+        const auto & alias = dag.addArrayJoin(source, for_clause.alias);
+        outputs.push_back(&alias);
+    }
 
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);

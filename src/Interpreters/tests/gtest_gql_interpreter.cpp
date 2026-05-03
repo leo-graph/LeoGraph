@@ -328,6 +328,40 @@ TEST(GQLInterpreter, ForWithoutMatchUsesReusableArrayJoinTransform)
     EXPECT_EQ(header.getByPosition(0).name, "x");
 }
 
+TEST(GQLInterpreter, ForOffsetUsesAlignedArrayJoinTransform)
+{
+    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 2] WITH OFFSET i RETURN x, i");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 2u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
+    EXPECT_EQ(header.getByPosition(1).name, "i");
+}
+
+TEST(GQLInterpreter, ForOrdinalityUsesAlignedArrayJoinTransform)
+{
+    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 2] WITH ORDINALITY ord RETURN x, ord");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 2u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
+    EXPECT_EQ(header.getByPosition(1).name, "ord");
+}
+
 TEST(GQLInterpreter, LetAfterMatchReusesPipelineTransform)
 {
     const auto plan = buildPlanWithPlanBuilder("MATCH (n) LET x = n RETURN x");
