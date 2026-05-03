@@ -13,6 +13,7 @@
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>
 #include <Parsers/graph/AST/GQLCaseExpr.h>
+#include <Parsers/graph/AST/GQLListConstructor.h>
 #include <Parsers/graph/AST/GQLTypeExpression.h>
 
 #include <Poco/String.h>
@@ -458,6 +459,25 @@ const ActionsDAG::Node & lowerCaseExpr(const OPENGQL::AST::GQLCaseExpr & expr, A
     return addFunction(dag, context, "multiIf", std::move(arguments));
 }
 
+const ActionsDAG::Node & lowerListConstructor(
+    const OPENGQL::AST::GQLListConstructor & list,
+    ActionsDAG & dag,
+    ContextPtr context,
+    const PlanScope * scope)
+{
+    ActionsDAG::NodeRawConstPtrs arguments;
+    arguments.reserve(list.items.size());
+    for (const auto & item : list.items)
+    {
+        if (!item)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL list constructor item must be non-null");
+
+        arguments.push_back(&lowerExpressionASTImpl(*item, dag, context, scope));
+    }
+
+    return addFunction(dag, context, "array", std::move(arguments));
+}
+
 const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     switch (expr.kind)
@@ -511,6 +531,9 @@ const ActionsDAG::Node & lowerExpressionASTImpl(const IAST & expr, ActionsDAG & 
 
     if (const auto * case_expr = expr.as<OPENGQL::AST::GQLCaseExpr>())
         return lowerCaseExpr(*case_expr, dag, context, scope);
+
+    if (const auto * list = expr.as<OPENGQL::AST::GQLListConstructor>())
+        return lowerListConstructor(*list, dag, context, scope);
 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL expression AST: {}", expr.getID(' '));
 }

@@ -245,6 +245,23 @@ TEST(GQLInterpreter, CaseUsesGenericExpressionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "v");
 }
 
+TEST(GQLInterpreter, ListConstructorUsesGenericExpressionLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN [1, 2] AS xs");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "xs");
+    EXPECT_EQ(header.getByPosition(0).type->getName(), "Array(UInt64)");
+}
+
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
 {
     const auto plan = buildPlan("MATCH (n) WHERE n = 1 RETURN n LIMIT 5");
