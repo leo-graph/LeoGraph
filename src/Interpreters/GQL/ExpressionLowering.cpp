@@ -8,10 +8,15 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <DataTypes/FieldToDataType.h>
 #include <Functions/FunctionFactory.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>
+#include <Parsers/ASTExpressionList.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTLiteral.h>
 #include <Parsers/graph/AST/GQLCaseExpr.h>
 #include <Parsers/graph/AST/GQLListConstructor.h>
 #include <Parsers/graph/AST/GQLTypeExpression.h>
@@ -210,6 +215,24 @@ const ActionsDAG::Node & addFunction(
 {
     auto function = FunctionFactory::instance().get(function_name, context);
     return dag.addFunction(function, std::move(children), {});
+}
+
+const ActionsDAG::Node & lowerIdentifierName(const String & name, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    const auto * binding = scope ? scope->tryGetBinding(name) : nullptr;
+    if (scope && !binding)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in current plan scope", name);
+
+    if (const auto * node = dag.tryFindInOutputs(name))
+        return *node;
+
+    if (binding && binding->expression)
+    {
+        const auto & value = lowerExpressionASTImpl(*binding->expression, dag, context, scope);
+        return dag.addAlias(value, name);
+    }
+
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in ActionsDAG outputs", name);
 }
 
 const ActionsDAG::Node & lowerProperty(const GQLExpr & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
@@ -492,22 +515,7 @@ const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & 
     switch (expr.kind)
     {
         case GQLExpr::Kind::Identifier:
-        {
-            const auto * binding = scope ? scope->tryGetBinding(expr.text) : nullptr;
-            if (scope && !binding)
-                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in current plan scope", expr.text);
-
-            if (const auto * node = dag.tryFindInOutputs(expr.text))
-                return *node;
-
-            if (binding && binding->expression)
-            {
-                const auto & value = lowerExpressionASTImpl(*binding->expression, dag, context, scope);
-                return dag.addAlias(value, expr.text);
-            }
-
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in ActionsDAG outputs", expr.text);
-        }
+            return lowerIdentifierName(expr.text, dag, context, scope);
         case GQLExpr::Kind::Literal:
             return lowerLiteral(expr, dag);
         case GQLExpr::Kind::Property:
@@ -540,10 +548,75 @@ const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & 
     throwUnsupportedKind(expr);
 }
 
+const ActionsDAG::Node & lowerASTLiteral(const ASTLiteral & literal, ActionsDAG & dag)
+{
+    const auto name = literal.getColumnName();
+    return addConstant(dag, applyVisitor(FieldToDataType(), literal.value), literal.value, name);
+}
+
+const ActionsDAG::Node & lowerASTFunction(const ASTFunction & function, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    if (function.parameters)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Parametric ClickHouse function AST is not supported in GQL expression lowering");
+    if (function.isWindowFunction())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Window function AST is not supported in GQL expression lowering");
+    if (function.isLambdaFunction())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Lambda function AST is not supported in GQL expression lowering");
+
+    ActionsDAG::NodeRawConstPtrs arguments;
+    if (function.arguments)
+    {
+        const auto * expression_list = function.arguments->as<ASTExpressionList>();
+        if (!expression_list)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "ClickHouse function AST arguments must be ASTExpressionList");
+
+        arguments.reserve(expression_list->children.size());
+        for (const auto & argument : expression_list->children)
+        {
+            if (!argument)
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "ClickHouse function AST argument must be non-null");
+
+            arguments.push_back(&lowerExpressionASTImpl(*argument, dag, context, scope));
+        }
+    }
+
+    return addFunction(dag, context, function.name, std::move(arguments));
+}
+
+const ActionsDAG::Node & lowerASTExpressionList(const ASTExpressionList & expression_list, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
+{
+    if (expression_list.children.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Empty ClickHouse expression list AST is not supported in GQL expression lowering");
+
+    ActionsDAG::NodeRawConstPtrs arguments;
+    arguments.reserve(expression_list.children.size());
+    for (const auto & item : expression_list.children)
+    {
+        if (!item)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "ClickHouse expression list AST item must be non-null");
+
+        arguments.push_back(&lowerExpressionASTImpl(*item, dag, context, scope));
+    }
+
+    return addFunction(dag, context, "tuple", std::move(arguments));
+}
+
 const ActionsDAG::Node & lowerExpressionASTImpl(const IAST & expr, ActionsDAG & dag, ContextPtr context, const PlanScope * scope)
 {
     if (const auto * gql_expr = expr.as<GQLExpr>())
         return lowerExpressionImpl(*gql_expr, dag, context, scope);
+
+    if (const auto * identifier = expr.as<ASTIdentifier>())
+        return lowerIdentifierName(identifier->name(), dag, context, scope);
+
+    if (const auto * literal = expr.as<ASTLiteral>())
+        return lowerASTLiteral(*literal, dag);
+
+    if (const auto * function = expr.as<ASTFunction>())
+        return lowerASTFunction(*function, dag, context, scope);
+
+    if (const auto * expression_list = expr.as<ASTExpressionList>())
+        return lowerASTExpressionList(*expression_list, dag, context, scope);
 
     if (const auto * case_expr = expr.as<OPENGQL::AST::GQLCaseExpr>())
         return lowerCaseExpr(*case_expr, dag, context, scope);

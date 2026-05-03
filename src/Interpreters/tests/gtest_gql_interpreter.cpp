@@ -7,8 +7,13 @@
 #  include <Common/Exception.h>
 #  include <Common/tests/gtest_global_context.h>
 #  include <Common/tests/gtest_global_register.h>
+#  include <DataTypes/DataTypesNumber.h>
+#  include <Interpreters/GQL/ExpressionLowering.h>
 #  include <Interpreters/GQL/PlanBuilder.h>
 #  include <Interpreters/InterpreterGQLQuery.h>
+#  include <Parsers/ASTFunction.h>
+#  include <Parsers/ASTIdentifier.h>
+#  include <Parsers/ASTLiteral.h>
 #  include <Parsers/graph/GraphAST.h>
 #  include <Parsers/graph/ParserGQLQuery.h>
 #  include <Processors/QueryPlan/DistinctStep.h>
@@ -840,6 +845,45 @@ TEST(GQLInterpreter, ListConstructorUsesGenericExpressionLowering)
     ASSERT_EQ(header.columns(), 1u);
     EXPECT_EQ(header.getByPosition(0).name, "xs");
     EXPECT_EQ(header.getByPosition(0).type->getName(), "Array(UInt64)");
+}
+
+TEST(GQLInterpreter, NativeClickHouseLiteralUsesReusableExpressionLowering)
+{
+    ActionsDAG dag;
+    const auto literal = make_intrusive<ASTLiteral>(Field(UInt64(7)));
+
+    const auto & node = GQL::lowerExpression(*literal, dag, getInterpreterContext());
+
+    EXPECT_EQ(node.result_type->getName(), "UInt64");
+    ASSERT_TRUE(node.column);
+}
+
+TEST(GQLInterpreter, NativeClickHouseIdentifierUsesReusableExpressionLowering)
+{
+    NamesAndTypesList inputs;
+    inputs.emplace_back("x", std::make_shared<DataTypeUInt64>());
+    ActionsDAG dag(inputs);
+    const auto identifier = make_intrusive<ASTIdentifier>("x");
+
+    const auto & node = GQL::lowerExpression(*identifier, dag, getInterpreterContext());
+
+    EXPECT_EQ(node.result_name, "x");
+    EXPECT_EQ(node.result_type->getName(), "UInt64");
+}
+
+TEST(GQLInterpreter, NativeClickHouseFunctionUsesReusableExpressionLowering)
+{
+    NamesAndTypesList inputs;
+    inputs.emplace_back("x", std::make_shared<DataTypeUInt64>());
+    ActionsDAG dag(inputs);
+    auto function = makeASTFunction(
+        "plus",
+        make_intrusive<ASTIdentifier>("x"),
+        make_intrusive<ASTLiteral>(Field(UInt64(1))));
+
+    const auto & node = GQL::lowerExpression(*function, dag, getInterpreterContext());
+
+    EXPECT_EQ(node.result_type->getName(), "UInt64");
 }
 
 TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
