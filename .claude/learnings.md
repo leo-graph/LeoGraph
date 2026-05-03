@@ -68,3 +68,4 @@
 - Model consecutive `GQL` `MATCH` clauses as one `GraphMatch` source with a `MatchClauseSpec` sequence, not as multiple source steps; this keeps per-clause constraints while preserving a single pipeline source boundary.
 - Preserve `GQL` optional match operand blocks in `MatchSpec`, but keep execution rejected until outer-match/null-extension semantics are implemented.
 - Preserve `GQL` path alternation recursively in `MatchPathSpec`; `MatchStep` header collection must walk alternatives so projection can see variables from every branch.
+- Keep reusable `GQL` clause lowering outside `InterpreterGQLQuery`; `MATCH` should provide a source boundary, while `WHERE`, `RETURN`, `LIMIT`, and later transform clauses should share pipeline-lowering helpers.
