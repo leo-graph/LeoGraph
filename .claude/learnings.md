@@ -63,3 +63,4 @@
 - Preserve `GQL` path prefixes in `MatchPathSpec` as cloned AST constraints; path-search or path-mode semantics should be handled by graph storage/planning, not rejected in generic lowering.
 - Preserve `GQL` `KEEP` clauses in `MatchSpec` as cloned AST constraints and let the empty graph source pass them through; real path-selection behavior belongs in later graph planning/storage code.
 - Preserve top-level `GQL` `MATCH ... WHERE ...` in `MatchSpec` in addition to lowering it as a `FilterStep`, so future graph storage can inspect or push down the same predicate.
+- Preserve concrete `GQL` `MATCH` mode variants in `Graph::MatchMode`; a boolean `has_match_mode` loses whether the user requested repeatable elements, repeatable bindings, different edges, or different edge bindings.

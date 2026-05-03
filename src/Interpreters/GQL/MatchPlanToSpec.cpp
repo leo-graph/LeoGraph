@@ -41,6 +41,25 @@ Graph::MatchEdgeDirection makeEdgeDirection(EdgeBinding::Direction direction)
     return Graph::MatchEdgeDirection::Any;
 }
 
+Graph::MatchMode makeMatchMode(OPENGQL::AST::GraphMatchMode match_mode)
+{
+    switch (match_mode)
+    {
+        case OPENGQL::AST::GraphMatchMode::None:
+            return Graph::MatchMode::None;
+        case OPENGQL::AST::GraphMatchMode::RepeatableElements:
+            return Graph::MatchMode::RepeatableElements;
+        case OPENGQL::AST::GraphMatchMode::RepeatableElementBindings:
+            return Graph::MatchMode::RepeatableElementBindings;
+        case OPENGQL::AST::GraphMatchMode::DifferentEdges:
+            return Graph::MatchMode::DifferentEdges;
+        case OPENGQL::AST::GraphMatchMode::DifferentEdgeBindings:
+            return Graph::MatchMode::DifferentEdgeBindings;
+    }
+
+    return Graph::MatchMode::None;
+}
+
 Graph::MatchNodeSpec makeNodeSpec(const NodeBinding & node)
 {
     return Graph::MatchNodeSpec{
@@ -86,6 +105,7 @@ Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
     Graph::MatchSpec result;
     result.optional = match.optional;
     result.has_match_mode = match.match_mode != OPENGQL::AST::GraphMatchMode::None;
+    result.match_mode = makeMatchMode(match.match_mode);
     result.has_keep_clause = match.has_keep_clause;
     result.has_optional_operand_block = match.has_optional_operand_block;
     result.has_yield_items = !match.yield_items.empty();

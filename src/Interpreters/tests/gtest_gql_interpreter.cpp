@@ -264,6 +264,22 @@ TEST(GQLInterpreter, MatchWhereClauseStaysInGraphMatchSpec)
     EXPECT_NE(cloned_match_step->getMatchSpec().where_clause.get(), match.where_clause.get());
 }
 
+TEST(GQLInterpreter, MatchModeStaysInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH DIFFERENT EDGES (a)-[r]->(b) RETURN a");
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    EXPECT_TRUE(match.has_match_mode);
+    EXPECT_EQ(match.match_mode, Graph::MatchMode::DifferentEdges);
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    EXPECT_EQ(cloned_match_step->getMatchSpec().match_mode, Graph::MatchMode::DifferentEdges);
+}
+
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");

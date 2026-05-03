@@ -330,6 +330,7 @@ TEST(GQLPatternLowering, MatchClauseLoweringPreservesPatternAndWhere)
 
     EXPECT_FALSE(spec.optional);
     EXPECT_FALSE(spec.has_match_mode);
+    EXPECT_EQ(spec.match_mode, Graph::MatchMode::None);
     ASSERT_EQ(spec.paths.size(), 1u);
     ASSERT_EQ(spec.paths.front().nodes.size(), 2u);
     ASSERT_EQ(spec.paths.front().edges.size(), 1u);
@@ -340,6 +341,18 @@ TEST(GQLPatternLowering, MatchClauseLoweringPreservesPatternAndWhere)
     EXPECT_NE(spec.paths.front().edges.front().label_expression, nullptr);
     EXPECT_EQ(spec.paths.front().edges.front().properties, nullptr);
     EXPECT_EQ(spec.paths.front().edges.front().predicate, nullptr);
+}
+
+TEST(GQLPatternLowering, MatchModeLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH DIFFERENT EDGES (a)-[r]->(b) RETURN a");
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto spec = GQL::makeMatchSpec(GQL::lowerMatchClause(*match));
+
+    EXPECT_TRUE(spec.has_match_mode);
+    EXPECT_EQ(spec.match_mode, Graph::MatchMode::DifferentEdges);
 }
 
 TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)

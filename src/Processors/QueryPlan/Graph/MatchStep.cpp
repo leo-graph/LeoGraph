@@ -61,6 +61,7 @@ MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
     MatchSpec result;
     result.optional = match_spec.optional;
     result.has_match_mode = match_spec.has_match_mode;
+    result.match_mode = match_spec.match_mode;
     result.has_keep_clause = match_spec.has_keep_clause;
     result.has_optional_operand_block = match_spec.has_optional_operand_block;
     result.has_yield_items = match_spec.has_yield_items;

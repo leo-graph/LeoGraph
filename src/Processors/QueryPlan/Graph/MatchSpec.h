@@ -19,6 +19,15 @@ enum class MatchEdgeDirection : UInt8
     Any,
 };
 
+enum class MatchMode : UInt8
+{
+    None,
+    RepeatableElements,
+    RepeatableElementBindings,
+    DifferentEdges,
+    DifferentEdgeBindings,
+};
+
 struct MatchNodeSpec
 {
     String variable;
@@ -49,6 +58,7 @@ struct MatchSpec
 {
     bool optional = false;
     bool has_match_mode = false;
+    MatchMode match_mode = MatchMode::None;
     bool has_keep_clause = false;
     bool has_optional_operand_block = false;
     bool has_yield_items = false;
