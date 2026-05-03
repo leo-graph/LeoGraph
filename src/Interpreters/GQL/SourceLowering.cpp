@@ -86,6 +86,19 @@ void lowerSubqueryBindings(const GAST::GQLBindingVariableDefinitionBlock & block
     }
 }
 
+void validateInlineCallVariableScope(const GAST::GQLCallInlineClause & call)
+{
+    if (!call.variable_scope)
+        return;
+
+    const auto * variable_scope = call.variable_scope->as<GAST::GQLCallVariableScopeClause>();
+    if (!variable_scope)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope must be GQLCallVariableScopeClause");
+
+    if (!variable_scope->variables.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope imports are not supported");
+}
+
 void lowerSubquerySource(
     QueryPlan & plan,
     const GAST::GQLSubquery & subquery,
@@ -170,8 +183,8 @@ void lowerInlineCallSource(QueryPlan & plan, const GAST::GQLCallInlineClause & c
 {
     if (call.optional)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL inline CALL is not supported");
-    if (call.variable_scope)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope is not supported");
+
+    validateInlineCallVariableScope(call);
 
     const auto * subquery = call.subquery ? call.subquery->as<GAST::GQLSubquery>() : nullptr;
     if (!subquery)

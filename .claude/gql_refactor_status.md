@@ -140,7 +140,7 @@ Interpreter framework gaps to keep visible:
 
 1. `Graph::MatchSource` has no real graph storage contract yet.
 2. `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution.
-3. Inline `CALL` variable scope, subquery `AT schema`, binding-table / graph binding definitions, and `NEXT` statements are still explicit `NOT_IMPLEMENTED` paths.
+3. Non-empty inline `CALL` variable scope imports, subquery `AT schema`, binding-table / graph binding definitions, and `NEXT` statements are still explicit `NOT_IMPLEMENTED` paths. Empty inline `CALL () { ... }` scopes are accepted as no-import calls.
 4. `SELECT FROM` source lists with more than one source are still unsupported; implement a real source-composition model before enabling them.
 5. Expression lowering still covers only the common scalar subset; temporal / duration / value-query / path-constructor / graph-expression execution lowering remains deferred.
 6. `GQLCatalogStatement` has parser AST coverage but no interpreter / catalog execution.

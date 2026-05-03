@@ -351,6 +351,33 @@ TEST(GQLInterpreter, InlineCallUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
+TEST(GQLInterpreter, InlineCallEmptyVariableScopeUsesReusableSourceLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("CALL () { RETURN 1 AS a } RETURN a");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "a");
+}
+
+TEST(GQLInterpreter, InlineCallNamedVariableScopeStillRequiresCorrelationSemantics)
+{
+    try
+    {
+        (void)buildPlanWithPlanBuilder("CALL (a) { RETURN a } RETURN a");
+        FAIL() << "Expected inline CALL variable imports to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("variable scope imports"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)
 {
     const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x = 1 RETURN x } RETURN x");
