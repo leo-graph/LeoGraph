@@ -57,7 +57,7 @@ void lowerMatchClauseSequence(
         match_spec.graph_reference = scope.getActiveGraph()->clone();
 
     validateExecutableMatch(match_spec);
-    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
+    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec), scope.getMatchSourceFactory()));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 
     for (const auto & match_plan : match_plans)

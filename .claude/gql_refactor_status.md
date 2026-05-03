@@ -78,10 +78,10 @@ The currently supported minimal path is:
 - Production interpreter dispatch currently maps `GQLSingleQuery` and `GQLCombinedQuery` to `InterpreterGQLQuery`.
 - `InterpreterGQLQuery` delegates single-query lowering to `GQL::PlanBuilder`; clause-specific work should stay in reusable helpers under `src/Interpreters/GQL/`, not in one monolithic interpreter method.
 - `PlanBuilder` separates source clauses from pipeline clauses. `MATCH` is a source boundary lowered through `SourceLowering` / `MatchLowering`; `WHERE`, `RETURN`, `SELECT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, `DISTINCT`, and aggregation are reusable pipeline/source helpers in `ClauseLowering` and `AggregationLowering`.
-- `PlanScope` tracks current bindings and active graph scope. It now also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
+- `PlanScope` tracks current bindings, active graph scope, and the current `Graph::MatchSourceFactory`. It now also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
 - `USE graph`, graph-qualified `SELECT FROM`, nested subqueries, and inline `CALL { ... }` share graph-scope propagation through `PlanScope`.
 - Consecutive `MATCH` clauses are lowered as one `GraphMatch` source with preserved per-clause specs. `MatchSpec` intentionally preserves graph reference, path constraints, label / property / predicate AST, `KEEP`, yield items, optional blocks, match mode, and path alternatives for future graph storage planning.
-- `Graph::MatchStep` carries a `MatchSourceFactory` so real graph storage can plug in a reader without changing `PlanBuilder` or `MatchLowering`. The default factory still emits no rows until storage is wired.
+- `Graph::MatchStep` carries a `MatchSourceFactory` supplied by `PlanScope`, so real graph storage can plug in a reader without changing `PlanBuilder` or query-clause lowering. The default factory still emits no rows until storage is wired.
 
 ### Current `throwUnsupported` coverage map
 
