@@ -8,6 +8,7 @@
 #  include <Common/tests/gtest_global_context.h>
 #  include <Common/tests/gtest_global_register.h>
 #  include <DataTypes/DataTypesNumber.h>
+#  include <Interpreters/GQL/AggregationLowering.h>
 #  include <Interpreters/GQL/ClauseLowering.h>
 #  include <Interpreters/GQL/ExpressionLowering.h>
 #  include <Interpreters/GQL/PlanBuilder.h>
@@ -726,6 +727,36 @@ TEST(GQLInterpreter, ReturnGroupByUsesReusableAggregationLowering)
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Expression", "Aggregating", "Expression", "Expression", "ReadFromPreparedSource"}));
+}
+
+TEST(GQLInterpreter, NativeClickHouseAggregateFunctionUsesReusableAggregationDetection)
+{
+    ASTs items;
+    items.push_back(make_intrusive<GAST::GQLAliasedItem>(
+        makeASTFunction("sum", make_intrusive<ASTIdentifier>("x")),
+        "s"));
+
+    EXPECT_TRUE(GQL::hasAggregateProjectionItems(items));
+}
+
+TEST(GQLInterpreter, NativeClickHouseGroupByIdentifierUsesReusableAggregationDetection)
+{
+    auto group_by = make_intrusive<GAST::GQLGroupByClause>();
+    group_by->items.push_back(make_intrusive<ASTIdentifier>("x"));
+    group_by->children.push_back(group_by->items.back());
+
+    const auto keys = GQL::AggregationLoweringDetail::extractGroupByKeys(group_by.get());
+
+    EXPECT_EQ(keys, Names{"x"});
+}
+
+TEST(GQLInterpreter, NativeClickHouseNonCountAggregateRequiresArguments)
+{
+    auto aggregate = makeASTFunction("sum");
+
+    EXPECT_THROW(
+        GQL::AggregationLoweringDetail::getAggregateFunctionInfo(*aggregate),
+        DB::Exception);
 }
 
 TEST(GQLInterpreter, LetAfterMatchReusesPipelineTransform)

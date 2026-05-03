@@ -9,6 +9,9 @@
 #include <Interpreters/GQL/ExpressionLowering.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/HashTablesStatistics.h>
+#include <Parsers/ASTExpressionList.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Parsers/NullsAction.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/AggregatingStep.h>
@@ -18,6 +21,7 @@
 
 #include <Poco/String.h>
 
+#include <optional>
 #include <string_view>
 
 namespace DB
@@ -68,6 +72,15 @@ namespace AggregationLoweringDetail
 
 namespace GAST = DB::OPENGQL::AST;
 
+struct AggregateFunctionInfo
+{
+    String name;
+    std::vector<const IAST *> arguments;
+    bool count_star = false;
+    bool bare_keyword = false;
+    bool distinct = false;
+};
+
 inline String normalizedName(String name)
 {
     trim(name);
@@ -104,19 +117,89 @@ inline const char * getAggregateFunctionName(const String & name)
     return nullptr;
 }
 
-inline const GAST::GQLExpr * getAggregateFunction(const IAST & ast)
+inline bool isGQLCountStar(const GAST::GQLExpr & aggregate)
 {
-    const auto * expr = ast.as<GAST::GQLExpr>();
-    if (!expr || expr->kind != GAST::GQLExpr::Kind::FunctionCall || !isAggregateFunctionName(expr->text))
-        return nullptr;
+    if (normalizedName(aggregate.text) != "COUNT" || aggregate.children.size() != 1)
+        return false;
 
-    return expr;
+    const auto * argument = aggregate.children.front() ? aggregate.children.front()->as<GAST::GQLExpr>() : nullptr;
+    return argument && argument->kind == GAST::GQLExpr::Kind::Literal && argument->text == "*";
+}
+
+inline std::optional<AggregateFunctionInfo> getAggregateFunctionInfo(const IAST & ast)
+{
+    if (const auto * expr = ast.as<GAST::GQLExpr>())
+    {
+        if (expr->kind != GAST::GQLExpr::Kind::FunctionCall || !isAggregateFunctionName(expr->text))
+            return std::nullopt;
+
+        AggregateFunctionInfo result;
+        result.name = expr->text;
+        result.count_star = isGQLCountStar(*expr);
+        result.bare_keyword = expr->bare_keyword;
+        result.distinct = expr->set_quantifier == GAST::GQLExpr::SetQuantifier::Distinct;
+
+        if (!result.count_star)
+        {
+            result.arguments.reserve(expr->children.size());
+            for (const auto & argument : expr->children)
+            {
+                if (!argument)
+                    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' has a null argument", expr->text);
+
+                result.arguments.push_back(argument.get());
+            }
+        }
+
+        return result;
+    }
+
+    if (const auto * function = ast.as<ASTFunction>())
+    {
+        if (!isAggregateFunctionName(function->name))
+            return std::nullopt;
+
+        if (function->parameters)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Parametric aggregate function '{}' is not supported", function->name);
+        if (function->isWindowFunction())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Window aggregate function '{}' is not supported", function->name);
+        if (function->isLambdaFunction())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Lambda aggregate function '{}' is not supported", function->name);
+
+        AggregateFunctionInfo result;
+        result.name = function->name;
+
+        const auto * expression_list = function->arguments ? function->arguments->as<ASTExpressionList>() : nullptr;
+        if (function->arguments && !expression_list)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' arguments must be ASTExpressionList", function->name);
+
+        const bool has_no_arguments = !expression_list || expression_list->children.empty();
+        result.count_star = normalizedName(function->name) == "COUNT" && has_no_arguments;
+        if (has_no_arguments && !result.count_star)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' must have at least one argument", function->name);
+
+        if (!result.count_star)
+        {
+            result.arguments.reserve(expression_list->children.size());
+            for (const auto & argument : expression_list->children)
+            {
+                if (!argument)
+                    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' has a null argument", function->name);
+
+                result.arguments.push_back(argument.get());
+            }
+        }
+
+        return result;
+    }
+
+    return std::nullopt;
 }
 
 inline bool isAggregateProjectionItem(const ASTPtr & item_ast)
 {
     const auto * item = item_ast ? item_ast->as<GAST::GQLAliasedItem>() : nullptr;
-    return item && item->expression && getAggregateFunction(*item->expression) != nullptr;
+    return item && item->expression && getAggregateFunctionInfo(*item->expression).has_value();
 }
 
 inline String getOutputName(const GAST::GQLAliasedItem & item, size_t index, std::string_view context_name)
@@ -142,23 +225,25 @@ inline Names extractGroupByKeys(const GAST::GQLGroupByClause * group_by)
     keys.reserve(group_by->items.size());
     for (const auto & item_ast : group_by->items)
     {
-        const auto * item = item_ast ? item_ast->as<GAST::GQLExpr>() : nullptr;
-        if (!item || item->kind != GAST::GQLExpr::Kind::Identifier || item->text.empty())
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only binding-variable identifiers are supported in GQL GROUP BY");
+        if (const auto * item = item_ast ? item_ast->as<GAST::GQLExpr>() : nullptr)
+        {
+            if (item->kind != GAST::GQLExpr::Kind::Identifier || item->text.empty())
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only binding-variable identifiers are supported in GQL GROUP BY");
 
-        keys.push_back(item->text);
+            keys.push_back(item->text);
+            continue;
+        }
+
+        if (const auto * identifier = item_ast ? item_ast->as<ASTIdentifier>() : nullptr)
+        {
+            keys.push_back(identifier->name());
+            continue;
+        }
+
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only binding-variable identifiers are supported in GQL GROUP BY");
     }
 
     return keys;
-}
-
-inline bool isCountStar(const GAST::GQLExpr & aggregate)
-{
-    if (normalizedName(aggregate.text) != "COUNT" || aggregate.children.size() != 1)
-        return false;
-
-    const auto * argument = aggregate.children.front() ? aggregate.children.front()->as<GAST::GQLExpr>() : nullptr;
-    return argument && argument->kind == GAST::GQLExpr::Kind::Literal && argument->text == "*";
 }
 
 inline String makeUniqueDAGOutputName(const ActionsDAG & dag, const String & prefix, size_t index)
@@ -188,7 +273,7 @@ inline const ActionsDAG::Node & materializeAggregateArgument(
 }
 
 inline AggregateDescription makeAggregateDescription(
-    const GAST::GQLExpr & aggregate,
+    const AggregateFunctionInfo & aggregate,
     const String & output_name,
     ActionsDAG & dag,
     ContextPtr context,
@@ -196,28 +281,27 @@ inline AggregateDescription makeAggregateDescription(
     size_t aggregate_index)
 {
     if (aggregate.bare_keyword)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Bare keyword aggregate function '{}' is not supported", aggregate.text);
-    if (aggregate.set_quantifier == GAST::GQLExpr::SetQuantifier::Distinct)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "DISTINCT aggregate function '{}' is not supported", aggregate.text);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Bare keyword aggregate function '{}' is not supported", aggregate.name);
+    if (aggregate.distinct)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "DISTINCT aggregate function '{}' is not supported", aggregate.name);
 
-    const auto * function_name = getAggregateFunctionName(aggregate.text);
+    const auto * function_name = getAggregateFunctionName(aggregate.name);
     if (!function_name)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' is not supported", aggregate.text);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' is not supported", aggregate.name);
+    if (!aggregate.count_star && aggregate.arguments.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' must have at least one argument", aggregate.name);
 
     AggregateDescription description;
     description.column_name = output_name;
 
     DataTypes argument_types;
-    if (!isCountStar(aggregate))
+    if (!aggregate.count_star)
     {
-        description.argument_names.reserve(aggregate.children.size());
-        argument_types.reserve(aggregate.children.size());
-        for (size_t argument_index = 0; argument_index < aggregate.children.size(); ++argument_index)
+        description.argument_names.reserve(aggregate.arguments.size());
+        argument_types.reserve(aggregate.arguments.size());
+        for (size_t argument_index = 0; argument_index < aggregate.arguments.size(); ++argument_index)
         {
-            if (!aggregate.children[argument_index])
-                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Aggregate function '{}' has a null argument", aggregate.text);
-
-            const auto & argument = lowerExpression(*aggregate.children[argument_index], dag, context, scope);
+            const auto & argument = lowerExpression(*aggregate.arguments[argument_index], dag, context, scope);
             const auto & materialized_argument = materializeAggregateArgument(
                 dag,
                 argument,
@@ -337,7 +421,7 @@ inline void lowerAggregatingProjectionItems(
         if (!item->expression)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL {} item must wrap an expression", context_name);
 
-        const auto * aggregate = Detail::getAggregateFunction(*item->expression);
+        auto aggregate = Detail::getAggregateFunctionInfo(*item->expression);
         if (!aggregate)
             continue;
 
@@ -363,7 +447,7 @@ inline void lowerAggregatingProjectionItems(
     for (size_t i = 0; i < items.size(); ++i)
     {
         const auto * item = items[i]->as<OPENGQL::AST::GQLAliasedItem>();
-        const auto * aggregate = Detail::getAggregateFunction(*item->expression);
+        auto aggregate = Detail::getAggregateFunctionInfo(*item->expression);
         if (aggregate)
         {
             const auto * node = projection.tryFindInOutputs(aggregate_output_names[i]);
