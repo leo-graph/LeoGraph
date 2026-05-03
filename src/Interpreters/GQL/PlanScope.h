@@ -25,13 +25,14 @@ struct PlanBinding
     String name;
     DataTypePtr type;
     BindingKind kind = BindingKind::Source;
+    ASTPtr expression;
 };
 
 class PlanScope final
 {
 public:
     void replaceWithHeader(const Block & header, BindingKind kind);
-    void addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind);
+    void addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind, ASTPtr expression = {});
     void setActiveGraph(ASTPtr graph_reference_);
     PlanScope makeChildGraphScope() const;
 

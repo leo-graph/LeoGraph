@@ -11,13 +11,36 @@ namespace DB::GQL
 
 void PlanScope::replaceWithHeader(const Block & header, BindingKind kind)
 {
+    std::vector<PlanBinding> preserved_expression_bindings;
+    if (kind == BindingKind::Source)
+    {
+        for (const auto & binding : bindings)
+        {
+            if (!binding.expression)
+                continue;
+
+            preserved_expression_bindings.push_back(PlanBinding{
+                .name = binding.name,
+                .type = binding.type,
+                .kind = binding.kind,
+                .expression = binding.expression->clone(),
+            });
+        }
+    }
+
     bindings.clear();
-    bindings.reserve(header.columns());
+    bindings.reserve(header.columns() + preserved_expression_bindings.size());
 
     for (size_t i = 0; i < header.columns(); ++i)
     {
         const auto & column = header.getByPosition(i);
         addOrReplaceBinding(column.name, column.type, kind);
+    }
+
+    for (auto & binding : preserved_expression_bindings)
+    {
+        if (!hasBinding(binding.name))
+            bindings.push_back(std::move(binding));
     }
 }
 
@@ -39,7 +62,7 @@ const PlanBinding * PlanScope::tryGetBinding(const String & name) const
     return &*it;
 }
 
-void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind)
+void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind, ASTPtr expression)
 {
     if (name.empty())
         return;
@@ -53,6 +76,7 @@ void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind k
     {
         it->type = std::move(type);
         it->kind = kind;
+        it->expression = std::move(expression);
         return;
     }
 
@@ -60,6 +84,7 @@ void PlanScope::addOrReplaceBinding(String name, DataTypePtr type, BindingKind k
         .name = std::move(name),
         .type = std::move(type),
         .kind = kind,
+        .expression = std::move(expression),
     });
 }
 

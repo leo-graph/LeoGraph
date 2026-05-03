@@ -493,11 +493,18 @@ const ActionsDAG::Node & lowerExpressionImpl(const GQLExpr & expr, ActionsDAG & 
     {
         case GQLExpr::Kind::Identifier:
         {
-            if (scope && !scope->hasBinding(expr.text))
+            const auto * binding = scope ? scope->tryGetBinding(expr.text) : nullptr;
+            if (scope && !binding)
                 throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in current plan scope", expr.text);
 
             if (const auto * node = dag.tryFindInOutputs(expr.text))
                 return *node;
+
+            if (binding && binding->expression)
+            {
+                const auto & value = lowerExpressionASTImpl(*binding->expression, dag, context, scope);
+                return dag.addAlias(value, expr.text);
+            }
 
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL identifier '{}' is not available in ActionsDAG outputs", expr.text);
         }

@@ -351,6 +351,55 @@ TEST(GQLInterpreter, InlineCallUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
+TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)
+{
+    const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x = 1 RETURN x } RETURN x");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
+}
+
+TEST(GQLInterpreter, SubqueryValueBindingSurvivesNestedMatchSourceUntilProjection)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT n, x FROM { VALUE x = 1 MATCH (n) RETURN n, x }");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 2u);
+    EXPECT_EQ(header.getByPosition(0).name, "n");
+    EXPECT_EQ(header.getByPosition(1).name, "x");
+}
+
+TEST(GQLInterpreter, SubqueryValueBindingDoesNotLeakWhenNotReturned)
+{
+    const auto bindings = buildScopeBindingsWithPlanBuilder("CALL { VALUE x = 1 RETURN 1 AS y } RETURN y");
+
+    ASSERT_EQ(bindings.size(), 1u);
+    EXPECT_EQ(bindings.front().name, "y");
+}
+
+TEST(GQLInterpreter, TypedSubqueryValueBindingUsesReusableTypeCastLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x INT32 = 1 RETURN x } RETURN x");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
+    EXPECT_EQ(header.getByPosition(0).type->getName(), "Int32");
+}
+
 TEST(GQLInterpreter, SelectAllFromSubqueryKeepsSourceHeader)
 {
     const auto plan = buildPlanWithPlanBuilder("SELECT * FROM { RETURN 1 AS a }");
