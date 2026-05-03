@@ -125,6 +125,25 @@ const Graph::MatchStep * leafMatchStep(const QueryPlan & plan)
     return dynamic_cast<const Graph::MatchStep *>(node->step.get());
 }
 
+void collectMatchSteps(const QueryPlan::Node * node, std::vector<const Graph::MatchStep *> & steps)
+{
+    if (!node)
+        return;
+
+    if (const auto * match_step = dynamic_cast<const Graph::MatchStep *>(node->step.get()))
+        steps.push_back(match_step);
+
+    for (const auto & child : node->children)
+        collectMatchSteps(child, steps);
+}
+
+std::vector<const Graph::MatchStep *> collectMatchSteps(const QueryPlan & plan)
+{
+    std::vector<const Graph::MatchStep *> steps;
+    collectMatchSteps(plan.getRootNode(), steps);
+    return steps;
+}
+
 }
 
 TEST(GQLInterpreter, BareMatchReturnLowersToScanThenProjection)
@@ -181,6 +200,20 @@ TEST(GQLInterpreter, InterpreterConstructorSeedsMatchSourceFactory)
     const auto * match_step = leafMatchStep(plan);
     ASSERT_NE(match_step, nullptr);
     EXPECT_EQ(match_step->getSourceFactory(), factory);
+}
+
+TEST(GQLInterpreter, InterpreterMatchSourceFactoryFlowsIntoCombinedChildren)
+{
+    auto factory = std::make_shared<TestMatchSourceFactory>();
+    InterpreterGQLQuery interpreter(parseGQL("MATCH (n) RETURN n UNION ALL MATCH (n) RETURN n"), getInterpreterContext(), factory);
+
+    QueryPlan plan;
+    interpreter.buildQueryPlan(plan);
+
+    const auto match_steps = collectMatchSteps(plan);
+    ASSERT_EQ(match_steps.size(), 2u);
+    EXPECT_EQ(match_steps[0]->getSourceFactory(), factory);
+    EXPECT_EQ(match_steps[1]->getSourceFactory(), factory);
 }
 
 TEST(GQLInterpreter, PlanScopeMatchSourceFactoryFlowsIntoMatchStep)
