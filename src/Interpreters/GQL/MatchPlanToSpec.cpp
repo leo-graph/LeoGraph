@@ -6,6 +6,7 @@
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
+#include <Parsers/graph/AST/GQLWhereClause.h>
 
 namespace DB::GQL
 {
@@ -89,6 +90,7 @@ Graph::MatchSpec makeMatchSpec(const MatchPlan & match)
     result.has_optional_operand_block = match.has_optional_operand_block;
     result.has_yield_items = !match.yield_items.empty();
     result.keep_clause = cloneOrNull(match.keep_clause);
+    result.where_clause = cloneOrNull(match.where);
 
     result.paths.reserve(match.paths.size());
     for (const auto & path : match.paths)

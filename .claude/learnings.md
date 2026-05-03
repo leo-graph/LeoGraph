@@ -62,3 +62,4 @@
 - Preserve `GQL` edge quantifiers in `MatchEdgeSpec` as cloned AST constraints; do not reject variable-length path syntax during lowering before graph storage expansion semantics exist.
 - Preserve `GQL` path prefixes in `MatchPathSpec` as cloned AST constraints; path-search or path-mode semantics should be handled by graph storage/planning, not rejected in generic lowering.
 - Preserve `GQL` `KEEP` clauses in `MatchSpec` as cloned AST constraints and let the empty graph source pass them through; real path-selection behavior belongs in later graph planning/storage code.
+- Preserve top-level `GQL` `MATCH ... WHERE ...` in `MatchSpec` in addition to lowering it as a `FilterStep`, so future graph storage can inspect or push down the same predicate.

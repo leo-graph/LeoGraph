@@ -53,6 +53,7 @@ struct MatchSpec
     bool has_optional_operand_block = false;
     bool has_yield_items = false;
     ASTPtr keep_clause;
+    ASTPtr where_clause;
     std::vector<MatchPathSpec> paths;
 };
 

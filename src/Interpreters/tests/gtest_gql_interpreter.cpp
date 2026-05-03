@@ -242,6 +242,28 @@ TEST(GQLInterpreter, KeepClauseStaysInGraphMatchSpec)
     EXPECT_NE(cloned_match_step->getMatchSpec().keep_clause.get(), match.keep_clause.get());
 }
 
+TEST(GQLInterpreter, MatchWhereClauseStaysInGraphMatchSpec)
+{
+    const auto plan = buildPlan("MATCH (a)-[r]->(b) WHERE a IS NOT NULL RETURN a");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_NE(match.where_clause, nullptr);
+
+    const auto * where = match.where_clause->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+    EXPECT_EQ(where->type, GAST::GQLWhereClause::Type::Where);
+    ASSERT_NE(where->expression, nullptr);
+
+    const auto cloned_step = match_step->clone();
+    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
+    ASSERT_NE(cloned_match_step, nullptr);
+    EXPECT_NE(cloned_match_step->getMatchSpec().where_clause.get(), match.where_clause.get());
+}
+
 TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH p = (a)-[r]->(b) RETURN a, r, b");

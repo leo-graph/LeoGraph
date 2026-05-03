@@ -245,6 +245,24 @@ TEST(GQLPatternLowering, MatchKeepClauseLowersToSpec)
     EXPECT_EQ(prefix->count_kind, GAST::CountKind::Paths);
 }
 
+TEST(GQLPatternLowering, MatchWhereClauseLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("MATCH (a)-[r]->(b) WHERE a IS NOT NULL RETURN a");
+
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+    const auto lowered = GQL::lowerMatchClause(*match);
+    ASSERT_NE(lowered.where, nullptr);
+
+    const auto spec = GQL::makeMatchSpec(lowered);
+    ASSERT_NE(spec.where_clause, nullptr);
+    EXPECT_NE(spec.where_clause.get(), lowered.where);
+    const auto * where = spec.where_clause->as<GAST::GQLWhereClause>();
+    ASSERT_NE(where, nullptr);
+    EXPECT_EQ(where->type, GAST::GQLWhereClause::Type::Where);
+    ASSERT_NE(where->expression, nullptr);
+}
+
 TEST(GQLPatternLowering, MatchCompoundEdgeDirectionsLowerToSpec)
 {
     {

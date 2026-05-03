@@ -65,6 +65,7 @@ MatchSpec cloneMatchSpec(const MatchSpec & match_spec)
     result.has_optional_operand_block = match_spec.has_optional_operand_block;
     result.has_yield_items = match_spec.has_yield_items;
     result.keep_clause = cloneOrNull(match_spec.keep_clause);
+    result.where_clause = cloneOrNull(match_spec.where_clause);
 
     result.paths.reserve(match_spec.paths.size());
     for (const auto & path : match_spec.paths)
