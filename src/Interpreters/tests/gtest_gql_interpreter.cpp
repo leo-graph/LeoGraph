@@ -16,6 +16,7 @@
 #  include <Processors/QueryPlan/Graph/MatchStep.h>
 #  include <Processors/QueryPlan/LimitStep.h>
 #  include <Processors/QueryPlan/QueryPlan.h>
+#  include <Processors/QueryPlan/SortingStep.h>
 
 #  include <vector>
 
@@ -194,6 +195,25 @@ TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
     const auto * limit = dynamic_cast<const LimitStep *>(root->step.get());
     ASSERT_NE(limit, nullptr);
     EXPECT_EQ(limit->getLimit(), 5u);
+}
+
+TEST(GQLInterpreter, ReturnOrderByUsesReusablePageLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS a ORDER BY a DESC NULLS LAST LIMIT 5");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Limit", "Sorting", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    ASSERT_EQ(root->children.size(), 1u);
+    const auto * sorting = dynamic_cast<const SortingStep *>(root->children.front()->step.get());
+    ASSERT_NE(sorting, nullptr);
+
+    const auto & description = sorting->getSortDescription();
+    ASSERT_EQ(description.size(), 1u);
+    EXPECT_EQ(description[0].column_name, "a");
+    EXPECT_EQ(description[0].direction, -1);
+    EXPECT_EQ(description[0].nulls_direction, -1);
 }
 
 TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionLowering)

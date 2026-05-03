@@ -3,7 +3,9 @@
 #include <charconv>
 #include <limits>
 
+#include <Core/SortDescription.h>
 #include <Interpreters/ActionsDAG.h>
+#include <Interpreters/Context.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
@@ -11,6 +13,7 @@
 #include <Processors/QueryPlan/FilterStep.h>
 #include <Processors/QueryPlan/LimitStep.h>
 #include <Processors/QueryPlan/QueryPlan.h>
+#include <Processors/QueryPlan/SortingStep.h>
 #include <Common/Exception.h>
 
 namespace DB
@@ -53,6 +56,63 @@ UInt64 extractUnsignedIntegerLiteral(const GAST::GQLExpr & literal, std::string_
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Only unsigned integer literals are supported for GQL {}", context_name);
 
     return value;
+}
+
+int getNullsDirection(const GAST::GQLOrderByItem & item, int direction)
+{
+    if (item.null_ordering == GAST::GQLOrderByItem::NullOrdering::NullsFirst)
+        return -direction;
+    if (item.null_ordering == GAST::GQLOrderByItem::NullOrdering::NullsLast)
+        return direction;
+
+    return 1;
+}
+
+String getOrderByColumnName(const GAST::GQLOrderByItem & item, const Block & header)
+{
+    const auto * expr = item.expression ? item.expression->as<GAST::GQLExpr>() : nullptr;
+    if (!expr || expr->kind != GAST::GQLExpr::Kind::Identifier)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY currently supports only projected column identifiers");
+
+    if (!header.has(expr->text))
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY column '{}' is not available in current plan header", expr->text);
+
+    return expr->text;
+}
+
+UInt64 getSortLimit(const GAST::GQLPageClause & page, UInt64 limit, UInt64 offset)
+{
+    if (!page.limit)
+        return 0;
+    if (limit > std::numeric_limits<UInt64>::max() - offset)
+        return 0;
+
+    return limit + offset;
+}
+
+void lowerOrderByClause(QueryPlan & plan, const GAST::GQLOrderByClause & order_by, UInt64 sort_limit, ContextPtr context)
+{
+    if (order_by.items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY must contain at least one sort item");
+
+    auto current_header = plan.getCurrentHeader();
+    SortDescription description;
+    description.reserve(order_by.items.size());
+    for (const auto & item_ast : order_by.items)
+    {
+        const auto * item = item_ast ? item_ast->as<GAST::GQLOrderByItem>() : nullptr;
+        if (!item)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY item must be GQLOrderByItem");
+
+        const int direction = item->descending ? -1 : 1;
+        description.emplace_back(getOrderByColumnName(*item, *current_header), direction, getNullsDirection(*item, direction));
+    }
+
+    plan.addStep(std::make_unique<SortingStep>(
+        current_header,
+        std::move(description),
+        sort_limit,
+        SortingStep::Settings(context->getSettingsRef())));
 }
 
 }
@@ -137,36 +197,44 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
 
-void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page)
+void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, ContextPtr context)
 {
-    if (page.order_by)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY is not yet supported");
-
-    size_t offset = 0;
+    UInt64 offset = 0;
     if (page.offset)
     {
         const auto * offset_expr = page.offset->as<GAST::GQLExpr>();
         if (!offset_expr)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OFFSET must be a GQL expression");
 
-        offset = static_cast<size_t>(extractUnsignedIntegerLiteral(*offset_expr, "OFFSET"));
+        offset = extractUnsignedIntegerLiteral(*offset_expr, "OFFSET");
     }
 
-    size_t limit = std::numeric_limits<size_t>::max();
+    UInt64 limit = std::numeric_limits<UInt64>::max();
     if (page.limit)
     {
         const auto * limit_expr = page.limit->as<GAST::GQLExpr>();
         if (!limit_expr)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL LIMIT must be a GQL expression");
 
-        limit = static_cast<size_t>(extractUnsignedIntegerLiteral(*limit_expr, "LIMIT"));
+        limit = extractUnsignedIntegerLiteral(*limit_expr, "LIMIT");
     }
-    else if (!page.offset)
+
+    if (!page.order_by && !page.offset && !page.limit)
     {
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL page clause without OFFSET or LIMIT is not supported");
     }
 
-    plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), limit, offset));
+    if (page.order_by)
+    {
+        const auto * order_by = page.order_by->as<GAST::GQLOrderByClause>();
+        if (!order_by)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY node must be GQLOrderByClause");
+
+        lowerOrderByClause(plan, *order_by, getSortLimit(page, limit, offset), context);
+    }
+
+    if (page.offset || page.limit)
+        plan.addStep(std::make_unique<LimitStep>(plan.getCurrentHeader(), static_cast<size_t>(limit), static_cast<size_t>(offset)));
 }
 
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope)
@@ -182,7 +250,7 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
 
     if (const auto * page = clause_ast->as<GAST::GQLPageClause>())
     {
-        lowerPageClause(plan, *page);
+        lowerPageClause(plan, *page, context);
         return;
     }
 

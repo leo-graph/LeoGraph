@@ -50,7 +50,7 @@ void lowerProjectionItems(
     std::string_view context_name,
     PlanScope & scope);
 
-void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page);
+void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page, ContextPtr context);
 
 void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr context, PlanScope & scope);
 
