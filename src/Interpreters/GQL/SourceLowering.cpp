@@ -139,6 +139,13 @@ bool tryLowerStandaloneSourceClause(QueryPlan & plan, const ASTPtr & clause, Con
         return true;
     }
 
+    if (clause->as<GAST::GQLForClause>())
+    {
+        addEmptySingleRowSource(plan, scope);
+        lowerPipelineClause(plan, clause, context, scope);
+        return true;
+    }
+
     return false;
 }
 

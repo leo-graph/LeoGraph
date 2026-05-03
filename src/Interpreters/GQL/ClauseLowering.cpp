@@ -384,6 +384,29 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
 
+void lowerForClause(QueryPlan & plan, const GAST::GQLForClause & for_clause, ContextPtr context, PlanScope & scope)
+{
+    if (for_clause.alias.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR alias must be non-empty");
+    if (!for_clause.source)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR source must be non-null");
+    if (scope.hasBinding(for_clause.alias))
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR alias '{}' conflicts with an existing binding", for_clause.alias);
+    if (for_clause.with_ordinality || for_clause.with_offset || !for_clause.ordinality_or_offset_alias.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL FOR WITH OFFSET/ORDINALITY is not supported");
+
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    auto & outputs = dag.getOutputs();
+
+    const auto & source = lowerExpression(*for_clause.source, dag, context, scope);
+    const auto & alias = dag.addArrayJoin(source, for_clause.alias);
+    outputs.push_back(&alias);
+
+    plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
+}
+
 void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, ContextPtr context, PlanScope & scope)
 {
     UInt64 offset = 0;
@@ -450,6 +473,12 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
     if (const auto * let = clause_ast->as<GAST::GQLLetClause>())
     {
         lowerLetClause(plan, *let, context, scope);
+        return;
+    }
+
+    if (const auto * for_clause = clause_ast->as<GAST::GQLForClause>())
+    {
+        lowerForClause(plan, *for_clause, context, scope);
         return;
     }
 

@@ -298,6 +298,22 @@ TEST(GQLInterpreter, TypedLetValueUsesReusableTypeCastLowering)
     EXPECT_EQ(header.getByPosition(0).type->getName(), "Int64");
 }
 
+TEST(GQLInterpreter, ForWithoutMatchUsesReusableArrayJoinTransform)
+{
+    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 2] RETURN x");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
+}
+
 TEST(GQLInterpreter, LetAfterMatchReusesPipelineTransform)
 {
     const auto plan = buildPlanWithPlanBuilder("MATCH (n) LET x = n RETURN x");

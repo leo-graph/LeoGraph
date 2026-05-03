@@ -16,6 +16,7 @@ class GQLPageClause;
 class GQLReturnClause;
 class GQLSelectClause;
 class GQLLetClause;
+class GQLForClause;
 class GQLWhereClause;
 }
 
@@ -53,6 +54,8 @@ void lowerProjectionItems(
     PlanScope & scope);
 
 void lowerLetClause(QueryPlan & plan, const OPENGQL::AST::GQLLetClause & let, ContextPtr context, PlanScope & scope);
+
+void lowerForClause(QueryPlan & plan, const OPENGQL::AST::GQLForClause & for_clause, ContextPtr context, PlanScope & scope);
 
 void lowerPageClause(QueryPlan & plan, const OPENGQL::AST::GQLPageClause & page, ContextPtr context, PlanScope & scope);
 
