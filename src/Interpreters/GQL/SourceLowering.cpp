@@ -87,17 +87,47 @@ void lowerSubqueryBindings(const GAST::GQLBindingVariableDefinitionBlock & block
     }
 }
 
-void validateInlineCallVariableScope(const GAST::GQLCallInlineClause & call)
+Names extractInlineCallVariableScope(const GAST::GQLCallInlineClause & call)
 {
+    Names imports;
     if (!call.variable_scope)
-        return;
+        return imports;
 
     const auto * variable_scope = call.variable_scope->as<GAST::GQLCallVariableScopeClause>();
     if (!variable_scope)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope must be GQLCallVariableScopeClause");
 
-    if (!variable_scope->variables.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope imports are not supported");
+    std::unordered_set<String> seen;
+    imports.reserve(variable_scope->variables.size());
+    for (const auto & variable_ast : variable_scope->variables)
+    {
+        const auto * variable = variable_ast ? variable_ast->as<GAST::GQLExpr>() : nullptr;
+        if (!variable || variable->kind != GAST::GQLExpr::Kind::Identifier || variable->text.empty())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope must contain binding-variable identifiers");
+        if (!seen.insert(variable->text).second)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Duplicate inline CALL variable scope import '{}'", variable->text);
+
+        imports.push_back(variable->text);
+    }
+
+    return imports;
+}
+
+PlanScope makeInlineCallChildScope(const PlanScope & scope, const Names & imports)
+{
+    auto child_scope = scope.makeChildGraphScope();
+    for (const auto & name : imports)
+    {
+        const auto * binding = scope.tryGetBinding(name);
+        if (!binding)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope binding '{}' is not available", name);
+        if (!binding->expression)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope binding '{}' requires correlation semantics", name);
+
+        child_scope.addOrReplaceBinding(name, binding->type, binding->kind, binding->expression->clone());
+    }
+
+    return child_scope;
 }
 
 void lowerSubquerySource(
@@ -106,6 +136,7 @@ void lowerSubquerySource(
     ContextPtr context,
     const PlanEnvironment & environment,
     PlanScope & scope,
+    PlanScope child_scope,
     std::string_view context_name)
 {
     if (subquery.at_schema)
@@ -117,7 +148,6 @@ void lowerSubquerySource(
     if (!single_query)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a single query", context_name);
 
-    auto child_scope = scope.makeChildGraphScope();
     if (subquery.bindings)
     {
         const auto * binding_block = subquery.bindings->as<GAST::GQLBindingVariableDefinitionBlock>();
@@ -130,6 +160,17 @@ void lowerSubquerySource(
     PlanBuilder nested_builder(context, std::move(child_scope), environment);
     nested_builder.buildSingleQuery(plan, *single_query);
     scope = nested_builder.getScope();
+}
+
+void lowerSubquerySource(
+    QueryPlan & plan,
+    const GAST::GQLSubquery & subquery,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope,
+    std::string_view context_name)
+{
+    lowerSubquerySource(plan, subquery, context, environment, scope, scope.makeChildGraphScope(), context_name);
 }
 
 void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context, const PlanEnvironment & environment, PlanScope & scope)
@@ -191,13 +232,18 @@ void lowerInlineCallSource(
     if (call.optional)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL inline CALL is not supported");
 
-    validateInlineCallVariableScope(call);
-
     const auto * subquery = call.subquery ? call.subquery->as<GAST::GQLSubquery>() : nullptr;
     if (!subquery)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL must contain a subquery");
 
-    lowerSubquerySource(plan, *subquery, context, environment, scope, "inline CALL subquery");
+    lowerSubquerySource(
+        plan,
+        *subquery,
+        context,
+        environment,
+        scope,
+        makeInlineCallChildScope(scope, extractInlineCallVariableScope(call)),
+        "inline CALL subquery");
 }
 
 }

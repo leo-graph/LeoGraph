@@ -511,18 +511,33 @@ TEST(GQLInterpreter, InlineCallEmptyVariableScopeUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
-TEST(GQLInterpreter, InlineCallNamedVariableScopeStillRequiresCorrelationSemantics)
+TEST(GQLInterpreter, InlineCallUnavailableVariableScopeThrows)
 {
     try
     {
         (void)buildPlanWithPlanBuilder("CALL (a) { RETURN a } RETURN a");
-        FAIL() << "Expected inline CALL variable imports to be rejected";
+        FAIL() << "Expected missing inline CALL variable import to be rejected";
     }
     catch (const Exception & e)
     {
         EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
-        EXPECT_NE(String(e.message()).find("variable scope imports"), String::npos);
+        EXPECT_NE(String(e.message()).find("is not available"), String::npos);
     }
+}
+
+TEST(GQLInterpreter, InlineCallImportsExpressionBindingFromOuterScope)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT x FROM { VALUE x = 1 CALL (x) { RETURN x } RETURN x }");
+
+    EXPECT_EQ(
+        linearStepNames(plan),
+        (std::vector<String>{"Expression", "Expression", "Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "x");
 }
 
 TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)

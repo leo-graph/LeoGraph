@@ -38,6 +38,7 @@ Interpreter MVP can reasonably start from this subset:
 - Type AST: `GQLTypeExpression`, `GQLGraphTypeSpecification`, `GQLElementTypeSpecification`.
 - DML clauses: `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`.
 - Procedure clauses: `GQLCallNamedClause`, `GQLCallInlineClause`, `GQLYieldClause`.
+- Inline `CALL` variable scopes can import expression-backed outer bindings; imports from current pipeline columns still require a later correlated apply model.
 - Thin reference wrappers: `GQLSchemaReference`, `GQLCatalogObjectName`, `GQLGraphExpression`, `GQLBindingTableExpression`.
 
 Interpreter code should still dispatch by concrete AST node type and fail closed for unknown node classes.
