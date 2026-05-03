@@ -4,6 +4,7 @@
 #include <Parsers/graph/AST/GQLExpr.h>
 #include <Parsers/graph/AST/GQLKeepClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
+#include <Parsers/graph/AST/GQLMatchStatementBlock.h>
 #include <Parsers/graph/AST/GQLPropertyMap.h>
 #include <Parsers/graph/AST/GQLQuantifier.h>
 #include <Parsers/graph/AST/GQLWhereClause.h>
@@ -116,6 +117,7 @@ Graph::MatchClauseSpec makeMatchClauseSpec(const MatchPlan & match)
     result.has_optional_operand_block = match.has_optional_operand_block;
     result.has_yield_items = !match.yield_items.empty();
     result.keep_clause = cloneOrNull(match.keep_clause);
+    result.optional_operand_block = cloneOrNull(match.optional_operand_block);
     result.where_clause = cloneOrNull(match.where);
 
     result.yield_items.reserve(match.yield_items.size());
@@ -149,6 +151,8 @@ void mergeMatchClauseSpec(Graph::MatchSpec & result, const Graph::MatchClauseSpe
     result.has_yield_items = result.has_yield_items || clause.has_yield_items;
     if (!result.keep_clause && clause.keep_clause)
         result.keep_clause = clause.keep_clause->clone();
+    if (!result.optional_operand_block && clause.optional_operand_block)
+        result.optional_operand_block = clause.optional_operand_block->clone();
     if (!result.where_clause && clause.where_clause)
         result.where_clause = clause.where_clause->clone();
 

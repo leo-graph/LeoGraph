@@ -6,6 +6,7 @@
 #include <Parsers/graph/AST/GQLKeepClause.h>
 #include <Parsers/graph/AST/GQLLabelExpression.h>
 #include <Parsers/graph/AST/GQLMatchClause.h>
+#include <Parsers/graph/AST/GQLMatchStatementBlock.h>
 #include <Parsers/graph/AST/GQLNodePattern.h>
 #include <Parsers/graph/AST/GQLPathModePrefix.h>
 #include <Parsers/graph/AST/GQLPathPattern.h>
@@ -32,6 +33,7 @@ using GQLExpr = OPENGQL::AST::GQLExpr;
 using GQLKeepClause = OPENGQL::AST::GQLKeepClause;
 using GQLLabelExpression = OPENGQL::AST::GQLLabelExpression;
 using GQLMatchClause = OPENGQL::AST::GQLMatchClause;
+using GQLMatchStatementBlock = OPENGQL::AST::GQLMatchStatementBlock;
 using GQLNodePattern = OPENGQL::AST::GQLNodePattern;
 using GQLPathModePrefix = OPENGQL::AST::GQLPathModePrefix;
 using GQLPathPattern = OPENGQL::AST::GQLPathPattern;
@@ -225,6 +227,7 @@ MatchPlan lowerMatchClause(const OPENGQL::AST::GQLMatchClause & match)
     result.optional = match.optional;
     result.match_mode = match.match_mode;
     result.keep_clause = getOptionalChild<GQLKeepClause>(match.keep_clause, "match keep");
+    result.optional_operand_block = getOptionalChild<GQLMatchStatementBlock>(match.optional_operand_block, "optional match operand");
     result.has_keep_clause = match.keep_clause != nullptr;
     result.has_optional_operand_block = match.optional_operand_block != nullptr;
 

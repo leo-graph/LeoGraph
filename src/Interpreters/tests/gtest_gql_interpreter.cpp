@@ -151,6 +151,20 @@ TEST(GQLInterpreter, UnsupportedClauseThrowsNotImplemented)
     }
 }
 
+TEST(GQLInterpreter, OptionalMatchOperandBlockStillRequiresExecutionSemantics)
+{
+    try
+    {
+        (void)buildPlan("OPTIONAL { MATCH (a) } RETURN *");
+        FAIL() << "Expected OPTIONAL MATCH operand block to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("OPTIONAL MATCH"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (a)-[r]->(b) RETURN a, r, b");

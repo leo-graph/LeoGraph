@@ -107,6 +107,7 @@ MatchClauseSpec cloneMatchClauseSpec(const MatchClauseSpec & match_spec)
     result.has_optional_operand_block = match_spec.has_optional_operand_block;
     result.has_yield_items = match_spec.has_yield_items;
     result.keep_clause = cloneOrNull(match_spec.keep_clause);
+    result.optional_operand_block = cloneOrNull(match_spec.optional_operand_block);
     result.where_clause = cloneOrNull(match_spec.where_clause);
     result.yield_items = cloneASTs(match_spec.yield_items);
     result.yield_variables = match_spec.yield_variables;

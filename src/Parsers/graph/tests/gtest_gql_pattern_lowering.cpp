@@ -398,6 +398,29 @@ TEST(GQLPatternLowering, MatchSequenceLowersToSpec)
     EXPECT_EQ(spec.clauses[1].paths.front().nodes.front().variable, "b");
 }
 
+TEST(GQLPatternLowering, OptionalMatchOperandBlockLowersToSpec)
+{
+    auto ast = parseGQLOrThrow("OPTIONAL { MATCH (a) MATCH (a)-[r]->(b) } RETURN *");
+    const auto * match = getMatchClause(ast);
+    ASSERT_NE(match, nullptr);
+
+    const auto lowered = GQL::lowerMatchClause(*match);
+    EXPECT_TRUE(lowered.optional);
+    EXPECT_TRUE(lowered.has_optional_operand_block);
+    ASSERT_NE(lowered.optional_operand_block, nullptr);
+
+    const auto spec = GQL::makeMatchSpec(lowered);
+    EXPECT_TRUE(spec.optional);
+    EXPECT_TRUE(spec.has_optional_operand_block);
+    ASSERT_NE(spec.optional_operand_block, nullptr);
+    EXPECT_NE(spec.optional_operand_block.get(), lowered.optional_operand_block);
+
+    const auto * block = spec.optional_operand_block->as<GAST::GQLMatchStatementBlock>();
+    ASSERT_NE(block, nullptr);
+    EXPECT_FALSE(block->parenthesized);
+    EXPECT_EQ(block->matches.size(), 2u);
+}
+
 TEST(GQLPatternLowering, MatchSpecPreservesNodePatternConstraintAst)
 {
     auto ast = parseGQLOrThrow("MATCH (n:Person {name: 'x'} WHERE n IS NOT NULL) RETURN n");

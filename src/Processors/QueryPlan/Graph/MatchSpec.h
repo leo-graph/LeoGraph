@@ -63,6 +63,7 @@ struct MatchClauseSpec
     bool has_optional_operand_block = false;
     bool has_yield_items = false;
     ASTPtr keep_clause;
+    ASTPtr optional_operand_block;
     ASTPtr where_clause;
     ASTs yield_items;
     std::vector<String> yield_variables;
