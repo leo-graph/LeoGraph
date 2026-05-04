@@ -172,6 +172,12 @@ void lowerPipelineOnlySubquery(
             continue;
         }
 
+        if (isNamedCallClause(clause))
+        {
+            lowerNamedCallClause(plan, clause, context, environment, subquery_scope);
+            continue;
+        }
+
         lowerPipelineClause(plan, clause, context, subquery_scope);
     }
 }

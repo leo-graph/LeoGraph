@@ -14,6 +14,15 @@ namespace DB::GQL
 class PlanScope;
 struct PlanEnvironment;
 
+bool isNamedCallClause(const ASTPtr & clause);
+
+void lowerNamedCallClause(
+    QueryPlan & plan,
+    const ASTPtr & clause,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope);
+
 void lowerInlineCallSource(
     QueryPlan & plan,
     const OPENGQL::AST::GQLCallInlineClause & call,

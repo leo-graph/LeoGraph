@@ -71,9 +71,10 @@ The current executable lowering path is intentionally small but no longer
   exposes reusable source-list entry classification, preserves the same-graph
   graph-match list path, and keeps different graph references / mixed source
   kinds behind explicit composition errors.
-- `CallLowering` owns inline `CALL` variable-scope handling and source /
-  pipeline entry points, while `SubqueryLowering` owns shared subquery
-  validation, binding definitions, and pipeline-only subquery lowering.
+- `CallLowering` owns inline `CALL` variable-scope handling, inline source /
+  pipeline entry points, and the named `CALL` fail-closed boundary, while
+  `SubqueryLowering` owns shared subquery validation, binding definitions, and
+  pipeline-only subquery lowering.
 - `ApplyLowering` is the dedicated boundary for row-correlated source clauses.
   It receives an explicit outer / subquery scope context and currently fails
   closed for nested source clauses that would require apply semantics.
@@ -104,7 +105,7 @@ complete:
 | real graph source | `Graph::MatchSourceFactory` exists, but the default factory emits no rows and no graph catalog / table mapping is connected. | The plan shape is testable, but `MATCH` is not yet backed by storage. |
 | DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` route to dedicated fail-closed lowering boundaries, but still have no runtime execution. | Future mutating and catalog statements now have explicit modules to implement instead of leaking through source / pipeline dispatch. |
 | expression breadth | Common scalar expressions lower through shared helpers, but temporal, duration, value-query, path-constructor, graph-expression, dynamic-parameter, and broader function semantics remain deferred. | Later clauses can reuse the helper layer, but only for the currently supported scalar subset. |
-| named procedures | Inline `CALL` has a first source path; named `CALL` and procedure-reference binding are still not implemented. | Procedure calls need catalog/name resolution and output-schema handling. |
+| named procedures | Inline `CALL` has source and pipeline paths. Named `CALL` is routed through `CallLowering` and fails closed with a dedicated exception, but procedure-reference binding and output-schema handling are not implemented. | Procedure calls need catalog/name resolution and output-schema handling. |
 
 ## Parser AST Gaps To Check During Interpreter Work
 

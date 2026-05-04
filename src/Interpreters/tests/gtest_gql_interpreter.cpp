@@ -1157,6 +1157,34 @@ TEST(GQLInterpreter, UnsupportedCatalogClauseUsesCatalogBoundary)
     }
 }
 
+TEST(GQLInterpreter, UnsupportedNamedCallUsesCallBoundary)
+{
+    try
+    {
+        (void)buildPlan("CALL foo() YIELD x RETURN x");
+        FAIL() << "Expected GQL named CALL clause to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("GQL named CALL execution is not supported"), String::npos);
+    }
+}
+
+TEST(GQLInterpreter, UnsupportedPipelineNamedCallUsesCallBoundary)
+{
+    try
+    {
+        (void)buildPlan("MATCH (n) CALL foo() YIELD x RETURN x");
+        FAIL() << "Expected pipeline GQL named CALL clause to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("GQL named CALL execution is not supported"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, UnknownProjectionIdentifierUsesPlanScope)
 {
     try

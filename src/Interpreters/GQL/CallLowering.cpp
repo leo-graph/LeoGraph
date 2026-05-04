@@ -98,6 +98,19 @@ const GAST::GQLSubquery & getInlineCallSubquery(const GAST::GQLCallInlineClause 
 
 }
 
+bool isNamedCallClause(const ASTPtr & clause)
+{
+    return clause && clause->as<GAST::GQLCallNamedClause>();
+}
+
+void lowerNamedCallClause(QueryPlan &, const ASTPtr & clause, ContextPtr, const PlanEnvironment &, PlanScope &)
+{
+    if (!isNamedCallClause(clause))
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL procedure clause must be GQLCallNamedClause");
+
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL named CALL execution is not supported");
+}
+
 void lowerInlineCallSource(
     QueryPlan & plan,
     const OPENGQL::AST::GQLCallInlineClause & call,
