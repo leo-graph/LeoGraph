@@ -3,6 +3,7 @@
 #include <Core/Block.h>
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/MatchLowering.h>
+#include <Interpreters/GQL/PipelineLowering.h>
 #include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/SourceCompositionLowering.h>
@@ -37,6 +38,17 @@ void addEmptySingleRowSource(QueryPlan & plan, PlanScope & scope)
     auto source = std::make_shared<SourceFromSingleChunk>(header, Chunk(std::move(columns), 1));
     plan.addStep(std::make_unique<ReadFromPreparedSource>(Pipe(std::move(source))));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
+}
+
+void lowerSourceFreePipelineClause(
+    QueryPlan & plan,
+    const ASTPtr & clause,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    addEmptySingleRowSource(plan, scope);
+    lowerPipelinePositionClause(plan, clause, context, environment, scope);
 }
 
 void lowerSubquerySourceWithChildGraphScope(
@@ -179,10 +191,9 @@ bool tryLowerStandaloneSourceClause(
     const PlanEnvironment & environment,
     PlanScope & scope)
 {
-    if (const auto * ret = clause->as<GAST::GQLReturnClause>())
+    if (clause->as<GAST::GQLReturnClause>())
     {
-        addEmptySingleRowSource(plan, scope);
-        lowerReturnClause(plan, *ret, context, scope);
+        lowerSourceFreePipelineClause(plan, clause, context, environment, scope);
         return true;
     }
 
@@ -195,8 +206,7 @@ bool tryLowerStandaloneSourceClause(
         }
         else
         {
-            addEmptySingleRowSource(plan, scope);
-            lowerSelectClause(plan, *select, context, scope);
+            lowerSourceFreePipelineClause(plan, clause, context, environment, scope);
         }
 
         return true;
@@ -204,22 +214,19 @@ bool tryLowerStandaloneSourceClause(
 
     if (clause->as<GAST::GQLLetClause>())
     {
-        addEmptySingleRowSource(plan, scope);
-        lowerPipelineClause(plan, clause, context, scope);
+        lowerSourceFreePipelineClause(plan, clause, context, environment, scope);
         return true;
     }
 
     if (clause->as<GAST::GQLForClause>())
     {
-        addEmptySingleRowSource(plan, scope);
-        lowerPipelineClause(plan, clause, context, scope);
+        lowerSourceFreePipelineClause(plan, clause, context, environment, scope);
         return true;
     }
 
     if (clause->as<GAST::GQLFinishClause>())
     {
-        addEmptySingleRowSource(plan, scope);
-        lowerPipelineClause(plan, clause, context, scope);
+        lowerSourceFreePipelineClause(plan, clause, context, environment, scope);
         return true;
     }
 

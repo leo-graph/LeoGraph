@@ -66,7 +66,8 @@ The current executable lowering path is intentionally small but no longer
 - `SourceLowering` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
   `FOR` / `FINISH`, and `SELECT FROM` single sources. Source subqueries can use
   the same root lowering as top-level queries, including supported combined
-  query roots.
+  query roots. Source-free clauses create an empty single-row source and then
+  reuse the shared post-source `PipelineLowering` dispatch.
 - `SourceCompositionLowering` owns `SELECT FROM` source-list composition. It
   exposes reusable source-list entry classification, preserves the same-graph
   graph-match list path, and keeps different graph references / mixed source
