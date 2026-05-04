@@ -75,4 +75,5 @@
 - Keep `GQL` procedure lowering separate from source lowering: `CallLowering` should own inline / named procedure entry behavior, while `SubqueryLowering` owns shared subquery validation, binding definitions, and pipeline-only subquery lowering.
 - Route row-correlated `GQL` source clauses through `ApplyLowering` even while it only throws `NOT_IMPLEMENTED`; this keeps future apply semantics out of `CallLowering` and `SubqueryLowering`.
 - Pass both outer and subquery `PlanScope` into `ApplyLowering`; row-correlated source lowering needs an explicit scope contract and should not infer correlation state from inline `CALL` internals.
+- Keep `SELECT FROM` source-list classification separate from the same-graph match lowering path; source composition needs source kind and graph reference metadata before choosing cross/apply behavior.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.
