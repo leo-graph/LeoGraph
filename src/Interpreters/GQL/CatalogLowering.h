@@ -13,9 +13,7 @@ namespace DB::GQL
 
 class PlanScope;
 
-bool isCatalogClause(const ASTPtr & clause);
-
-void lowerCatalogClause(
+bool tryLowerCatalogClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,

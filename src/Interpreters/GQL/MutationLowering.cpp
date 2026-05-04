@@ -34,8 +34,6 @@ const char * getDataModifyingClauseName(const IAST & clause)
     return nullptr;
 }
 
-}
-
 bool isDataModifyingClause(const ASTPtr & clause)
 {
     return clause && getDataModifyingClauseName(*clause) != nullptr;
@@ -51,6 +49,17 @@ void lowerDataModifyingClause(QueryPlan &, const ASTPtr & clause, ContextPtr, Pl
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL data-modifying lowering received {}", clause->getID(' '));
 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL {} execution is not supported", name);
+}
+
+}
+
+bool tryLowerDataModifyingClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
+{
+    if (!isDataModifyingClause(clause))
+        return false;
+
+    lowerDataModifyingClause(plan, clause, context, scope);
+    return true;
 }
 
 }

@@ -78,8 +78,8 @@ The current executable lowering path is intentionally small but no longer
 - `ApplyLowering` is the dedicated boundary for row-correlated source clauses.
   It receives an explicit outer / subquery scope context and currently fails
   closed for nested source clauses that would require apply semantics.
-- `MutationLowering` and `CatalogLowering` are dedicated fail-closed boundaries
-  for data-modifying and catalog clauses. They avoid routing `INSERT` / `SET` /
+- `MutationLowering` and `CatalogLowering` own fail-closed dispatch for
+  data-modifying and catalog clauses. They avoid routing `INSERT` / `SET` /
   `REMOVE` / `DELETE` / `CREATE` / `DROP` through generic source or pipeline
   errors before real mutation/catalog execution exists.
 - `ClauseLowering`, `AggregationLowering`, and `ExpressionLowering` provide the

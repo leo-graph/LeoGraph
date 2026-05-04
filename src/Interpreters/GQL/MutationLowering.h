@@ -13,9 +13,7 @@ namespace DB::GQL
 
 class PlanScope;
 
-bool isDataModifyingClause(const ASTPtr & clause);
-
-void lowerDataModifyingClause(
+bool tryLowerDataModifyingClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,

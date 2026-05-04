@@ -70,16 +70,14 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
 
         if (!source_ready)
         {
-            if (isCatalogClause(clause))
+            if (tryLowerCatalogClause(plan, clause, context, scope))
             {
-                lowerCatalogClause(plan, clause, context, scope);
                 source_ready = true;
                 continue;
             }
 
-            if (isDataModifyingClause(clause))
+            if (tryLowerDataModifyingClause(plan, clause, context, scope))
             {
-                lowerDataModifyingClause(plan, clause, context, scope);
                 source_ready = true;
                 continue;
             }

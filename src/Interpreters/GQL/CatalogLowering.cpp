@@ -15,6 +15,8 @@ extern const int NOT_IMPLEMENTED;
 
 namespace GQL
 {
+namespace
+{
 
 bool isCatalogClause(const ASTPtr & clause)
 {
@@ -29,6 +31,17 @@ void lowerCatalogClause(QueryPlan &, const ASTPtr & clause, ContextPtr, PlanScop
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL catalog lowering received {}", clause->getID(' '));
 
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL catalog execution is not supported");
+}
+
+}
+
+bool tryLowerCatalogClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
+{
+    if (!isCatalogClause(clause))
+        return false;
+
+    lowerCatalogClause(plan, clause, context, scope);
+    return true;
 }
 
 }

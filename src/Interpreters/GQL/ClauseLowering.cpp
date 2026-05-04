@@ -605,17 +605,11 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
     if (!clause_ast)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL clause node is null");
 
-    if (isCatalogClause(clause_ast))
-    {
-        lowerCatalogClause(plan, clause_ast, context, scope);
+    if (tryLowerCatalogClause(plan, clause_ast, context, scope))
         return;
-    }
 
-    if (isDataModifyingClause(clause_ast))
-    {
-        lowerDataModifyingClause(plan, clause_ast, context, scope);
+    if (tryLowerDataModifyingClause(plan, clause_ast, context, scope))
         return;
-    }
 
     if (const auto * ret = clause_ast->as<GAST::GQLReturnClause>())
     {
