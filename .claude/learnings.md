@@ -85,4 +85,5 @@
 - Keep `GQL` DML and catalog boundary dispatch outside generic `ClauseLowering`; future mutation/catalog execution needs `PlanEnvironment`, so route it from `PlanBuilder` and pipeline-only `SubqueryLowering`.
 - Use a shared post-source pipeline dispatch layer for `GQL` clauses; `PlanBuilder` and pipeline-only subqueries should not duplicate catalog / DML / pipeline `CALL` / pure clause ordering.
 - Source-free `GQL` queries should create an empty single-row source and then reuse post-source pipeline dispatch, not call individual pipeline helpers directly.
+- Keep linear `GQLSingleQuery` clause-order dispatch in a dedicated layer like `ClauseSequenceLowering`; `PlanBuilder` should own mutable query state, not grow into a clause interpreter.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

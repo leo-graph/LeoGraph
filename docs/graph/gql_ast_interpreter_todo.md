@@ -56,8 +56,10 @@ The current executable lowering path is intentionally small but no longer
 - `InterpreterGQLQuery` delegates `GQLSingleQuery` and `GQLCombinedQuery` root
   dispatch to `RootLowering`, so top-level queries and source subqueries can
   share the same root-plan builder.
-- `GQL::PlanBuilder` owns linear single-query lowering and separates source
-  clauses from pipeline clauses.
+- `GQL::PlanBuilder` owns the mutable single-query lowering state, while
+  `ClauseSequenceLowering` owns linear clause-order dispatch. This mirrors the
+  clause-query interpreter shape used by graph engines such as `kgraph` without
+  registering every clause in ClickHouse's global `InterpreterFactory`.
 - `GQL::PlanEnvironment` carries planner-wide services such as
   `Graph::MatchSourceFactory`; `GQL::PlanScope` only tracks lexical bindings
   and active graph scope. Graph-qualified source lowering uses `PlanScope`
