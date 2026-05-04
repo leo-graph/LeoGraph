@@ -1,5 +1,6 @@
 #include <Interpreters/GQL/SubqueryLowering.h>
 
+#include <Interpreters/GQL/ApplyLowering.h>
 #include <Interpreters/GQL/CallLowering.h>
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/PlanBuilder.h>
@@ -144,7 +145,10 @@ void lowerPipelineOnlySubquery(
         }
 
         if (isSourceIntroducingClause(clause))
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
+        {
+            lowerCorrelatedSourceClause(plan, clause, context, environment, scope, context_name);
+            continue;
+        }
 
         if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
         {
