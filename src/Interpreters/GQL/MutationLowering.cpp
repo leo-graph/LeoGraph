@@ -1,5 +1,6 @@
 #include <Interpreters/GQL/MutationLowering.h>
 
+#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Common/Exception.h>
@@ -53,7 +54,7 @@ void lowerDataModifyingClause(QueryPlan &, const ASTPtr & clause, ContextPtr, Pl
 
 }
 
-bool tryLowerDataModifyingClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
+bool tryLowerDataModifyingClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, const PlanEnvironment &, PlanScope & scope)
 {
     if (!isDataModifyingClause(clause))
         return false;

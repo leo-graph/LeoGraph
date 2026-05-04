@@ -1,5 +1,6 @@
 #include <Interpreters/GQL/CatalogLowering.h>
 
+#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Common/Exception.h>
@@ -35,7 +36,7 @@ void lowerCatalogClause(QueryPlan &, const ASTPtr & clause, ContextPtr, PlanScop
 
 }
 
-bool tryLowerCatalogClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
+bool tryLowerCatalogClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, const PlanEnvironment &, PlanScope & scope)
 {
     if (!isCatalogClause(clause))
         return false;

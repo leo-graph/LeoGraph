@@ -70,13 +70,13 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
 
         if (!source_ready)
         {
-            if (tryLowerCatalogClause(plan, clause, context, scope))
+            if (tryLowerCatalogClause(plan, clause, context, environment, scope))
             {
                 source_ready = true;
                 continue;
             }
 
-            if (tryLowerDataModifyingClause(plan, clause, context, scope))
+            if (tryLowerDataModifyingClause(plan, clause, context, environment, scope))
             {
                 source_ready = true;
                 continue;
@@ -99,6 +99,12 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
 
         if (isSourceIntroducingClause(clause))
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL source clauses after pipeline clauses are not supported");
+
+        if (tryLowerCatalogClause(plan, clause, context, environment, scope))
+            continue;
+
+        if (tryLowerDataModifyingClause(plan, clause, context, environment, scope))
+            continue;
 
         if (tryLowerPipelineCallClause(plan, clause, context, environment, scope))
             continue;

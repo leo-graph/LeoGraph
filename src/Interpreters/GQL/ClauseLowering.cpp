@@ -12,9 +12,7 @@
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/GQL/AggregationLowering.h>
-#include <Interpreters/GQL/CatalogLowering.h>
 #include <Interpreters/GQL/ExpressionLowering.h>
-#include <Interpreters/GQL/MutationLowering.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
@@ -604,12 +602,6 @@ void lowerPipelineClause(QueryPlan & plan, const ASTPtr & clause_ast, ContextPtr
 {
     if (!clause_ast)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL clause node is null");
-
-    if (tryLowerCatalogClause(plan, clause_ast, context, scope))
-        return;
-
-    if (tryLowerDataModifyingClause(plan, clause_ast, context, scope))
-        return;
 
     if (const auto * ret = clause_ast->as<GAST::GQLReturnClause>())
     {

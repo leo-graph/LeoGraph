@@ -2,7 +2,9 @@
 
 #include <Interpreters/GQL/ApplyLowering.h>
 #include <Interpreters/GQL/CallLowering.h>
+#include <Interpreters/GQL/CatalogLowering.h>
 #include <Interpreters/GQL/ClauseLowering.h>
+#include <Interpreters/GQL/MutationLowering.h>
 #include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/RootLowering.h>
@@ -165,6 +167,12 @@ void lowerPipelineOnlySubquery(
                 });
             continue;
         }
+
+        if (tryLowerCatalogClause(plan, clause, context, environment, subquery_scope))
+            continue;
+
+        if (tryLowerDataModifyingClause(plan, clause, context, environment, subquery_scope))
+            continue;
 
         if (tryLowerPipelineCallClause(plan, clause, context, environment, subquery_scope))
             continue;

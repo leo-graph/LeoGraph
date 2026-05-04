@@ -82,4 +82,5 @@
 - In `GQL` clause lowering, build pipeline `ActionsDAG` with `duplicate_const_columns=false` and materialize projection-like outputs; otherwise `SELECT ... FROM { RETURN 1 UNION ALL RETURN 2 }` can reuse the first const header value downstream.
 - Route `GQL` DML and catalog clauses through dedicated fail-closed lowering modules instead of letting them fall into generic source / pipeline dispatch errors.
 - Route named `GQL` `CALL` through `CallLowering` even while it only throws `NOT_IMPLEMENTED`; do not let it fall into generic source or pipeline dispatch errors.
+- Keep `GQL` DML and catalog boundary dispatch outside generic `ClauseLowering`; future mutation/catalog execution needs `PlanEnvironment`, so route it from `PlanBuilder` and pipeline-only `SubqueryLowering`.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.
