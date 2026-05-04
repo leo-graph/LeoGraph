@@ -77,4 +77,5 @@
 - Pass both outer and subquery `PlanScope` into `ApplyLowering`; row-correlated source lowering needs an explicit scope contract and should not infer correlation state from inline `CALL` internals.
 - Keep `SELECT FROM` source-list classification separate from the same-graph match lowering path; source composition needs source kind and graph reference metadata before choosing cross/apply behavior.
 - Expose reusable source-list classification from `SourceCompositionLowering.h`; otherwise future composition/apply code will duplicate `GQLSelectSourceItem` parsing.
+- Keep graph-qualified source scope switching in `PlanScope` helpers; source-local `USE` / graph references should update output bindings without leaking active graph to the outer query scope.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

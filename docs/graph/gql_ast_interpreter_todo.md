@@ -58,7 +58,9 @@ The current executable lowering path is intentionally small but no longer
   clauses from pipeline clauses.
 - `GQL::PlanEnvironment` carries planner-wide services such as
   `Graph::MatchSourceFactory`; `GQL::PlanScope` only tracks lexical bindings
-  and active graph scope.
+  and active graph scope. Graph-qualified source lowering uses `PlanScope`
+  graph-override helpers so source-local graph references do not leak into the
+  outer query scope.
 - `SourceLowering` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
   `FOR` / `FINISH`, and `SELECT FROM` single sources.
 - `SourceCompositionLowering` owns `SELECT FROM` source-list composition. It

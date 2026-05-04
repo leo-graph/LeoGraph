@@ -23,11 +23,6 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
-ASTPtr cloneOrNull(const ASTPtr & ast)
-{
-    return ast ? ast->clone() : nullptr;
-}
-
 bool sameGraphReference(const IAST & lhs_ast, const IAST & rhs_ast)
 {
     const auto * lhs = lhs_ast.as<GAST::GQLGraphExpression>();
@@ -115,14 +110,11 @@ void lowerSameGraphMatchSourceList(
     for (const auto & entry : entries)
         matches.push_back(entry.match);
 
-    auto previous_graph = cloneOrNull(scope.getActiveGraph());
-    PlanScope source_scope = scope;
-    source_scope.setActiveGraph(entries.front().graph_reference->clone());
+    auto source_scope = scope.makeGraphOverrideScope(entries.front().graph_reference);
 
     lowerMatchClauseSequence(plan, matches, context, environment, source_scope);
 
-    scope = std::move(source_scope);
-    scope.setActiveGraph(std::move(previous_graph));
+    scope.adoptBindingsAndKeepGraph(std::move(source_scope));
 }
 
 }

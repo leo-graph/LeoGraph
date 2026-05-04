@@ -102,4 +102,18 @@ PlanScope PlanScope::makeChildGraphScope() const
     return result;
 }
 
+PlanScope PlanScope::makeGraphOverrideScope(const ASTPtr & graph_reference) const
+{
+    auto result = *this;
+    result.setActiveGraph(graph_reference ? graph_reference->clone() : ASTPtr{});
+    return result;
+}
+
+void PlanScope::adoptBindingsAndKeepGraph(PlanScope source_scope)
+{
+    auto previous_graph = std::move(active_graph);
+    *this = std::move(source_scope);
+    active_graph = std::move(previous_graph);
+}
+
 }

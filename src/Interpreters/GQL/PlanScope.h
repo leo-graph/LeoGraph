@@ -35,6 +35,8 @@ public:
     void addOrReplaceBinding(String name, DataTypePtr type, BindingKind kind, ASTPtr expression = {});
     void setActiveGraph(ASTPtr graph_reference_);
     PlanScope makeChildGraphScope() const;
+    PlanScope makeGraphOverrideScope(const ASTPtr & graph_reference) const;
+    void adoptBindingsAndKeepGraph(PlanScope source_scope);
 
     bool hasBinding(const String & name) const;
     const PlanBinding * tryGetBinding(const String & name) const;

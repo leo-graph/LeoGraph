@@ -31,11 +31,6 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
-ASTPtr cloneOrNull(const ASTPtr & ast)
-{
-    return ast ? ast->clone() : nullptr;
-}
-
 void addEmptySingleRowSource(QueryPlan & plan, PlanScope & scope)
 {
     auto header = std::make_shared<const Block>();
@@ -78,14 +73,11 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
     {
         if (source_item->graph_reference)
         {
-            auto previous_graph = cloneOrNull(scope.getActiveGraph());
-            PlanScope source_scope = scope;
-            source_scope.setActiveGraph(source_item->graph_reference->clone());
+            auto source_scope = scope.makeGraphOverrideScope(source_item->graph_reference);
 
             lowerSelectSource(plan, source_item->source, context, environment, source_scope);
 
-            scope = std::move(source_scope);
-            scope.setActiveGraph(std::move(previous_graph));
+            scope.adoptBindingsAndKeepGraph(std::move(source_scope));
             return;
         }
 
