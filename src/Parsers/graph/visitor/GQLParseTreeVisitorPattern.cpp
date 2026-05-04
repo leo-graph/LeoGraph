@@ -707,8 +707,8 @@ std::any GQLParseTreeVisitor::visitOptionalMatchStatement(GQLParser::OptionalMat
 
 std::any GQLParseTreeVisitor::visitFilterStatement(GQLParser::FilterStatementContext *context) {
   if (context->whereClause()) {
-    return Ptr(make_intrusive<GQLWhereClause>(
-        GQLWhereClause::Type::Filter, castAny<Ptr>(visit(context->whereClause()->searchCondition()))));
+    return Ptr(
+        make_intrusive<GQLWhereClause>(GQLWhereClause::Type::Filter, castAny<Ptr>(visit(context->whereClause()->searchCondition()))));
   }
 
   return Ptr(make_intrusive<GQLWhereClause>(GQLWhereClause::Type::Filter, castAny<Ptr>(visit(context->searchCondition()))));

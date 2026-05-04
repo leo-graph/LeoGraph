@@ -37,4 +37,11 @@ bool tryLowerStandaloneSourceClause(
     const PlanEnvironment & environment,
     PlanScope & scope);
 
+void lowerInlineCallPipelineClause(
+    QueryPlan & plan,
+    const OPENGQL::AST::GQLCallInlineClause & call,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope);
+
 }

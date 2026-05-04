@@ -574,6 +574,33 @@ TEST(GQLInterpreter, InlineCallImportsExpressionBindingFromOuterScope)
     EXPECT_EQ(header.getByPosition(0).name, "x");
 }
 
+TEST(GQLInterpreter, InlineCallAfterMatchUsesReusablePipelineLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("MATCH (n) CALL (n) { RETURN n AS m } RETURN m");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "m");
+}
+
+TEST(GQLInterpreter, InlineCallPipelineRejectsNestedSource)
+{
+    try
+    {
+        (void)buildPlanWithPlanBuilder("MATCH (n) CALL (n) { MATCH (m) RETURN m } RETURN m");
+        FAIL() << "Expected pipeline inline CALL with nested source to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("source clause"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)
 {
     const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x = 1 RETURN x } RETURN x");

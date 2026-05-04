@@ -130,6 +130,25 @@ PlanScope makeInlineCallChildScope(const PlanScope & scope, const Names & import
     return child_scope;
 }
 
+PlanScope makeInlineCallPipelineScope(const PlanScope & scope, const Names & imports)
+{
+    auto child_scope = scope.makeChildGraphScope();
+    for (const auto & name : imports)
+    {
+        const auto * binding = scope.tryGetBinding(name);
+        if (!binding)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL variable scope binding '{}' is not available", name);
+
+        child_scope.addOrReplaceBinding(
+            name,
+            binding->type,
+            binding->kind,
+            binding->expression ? binding->expression->clone() : ASTPtr{});
+    }
+
+    return child_scope;
+}
+
 void lowerSubquerySource(
     QueryPlan & plan,
     const GAST::GQLSubquery & subquery,
@@ -161,6 +180,14 @@ void lowerSubquerySource(
     nested_builder.buildSingleQuery(plan, *single_query);
     scope = nested_builder.getScope();
 }
+
+void lowerPipelineOnlySubquery(
+    QueryPlan & plan,
+    const GAST::GQLSubquery & subquery,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope,
+    std::string_view context_name);
 
 bool sameGraphReference(const IAST & lhs_ast, const IAST & rhs_ast)
 {
@@ -313,6 +340,77 @@ void lowerInlineCallSource(
         "inline CALL subquery");
 }
 
+void lowerInlineCallPipelineClauseImpl(
+    QueryPlan & plan,
+    const GAST::GQLCallInlineClause & call,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    if (call.optional)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL inline CALL is not supported");
+
+    const auto * subquery = call.subquery ? call.subquery->as<GAST::GQLSubquery>() : nullptr;
+    if (!subquery)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "inline CALL must contain a subquery");
+
+    auto child_scope = makeInlineCallPipelineScope(scope, extractInlineCallVariableScope(call));
+    lowerPipelineOnlySubquery(plan, *subquery, context, environment, child_scope, "pipeline inline CALL subquery");
+    scope = std::move(child_scope);
+}
+
+void lowerPipelineOnlySubquery(
+    QueryPlan & plan,
+    const GAST::GQLSubquery & subquery,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope,
+    std::string_view context_name)
+{
+    if (subquery.at_schema)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} AT schema is not supported", context_name);
+    if (!subquery.next_statements.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} NEXT statements are not supported", context_name);
+
+    const auto * single_query = subquery.query ? subquery.query->as<GAST::GQLSingleQuery>() : nullptr;
+    if (!single_query)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a single query", context_name);
+    if (single_query->clauses.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain at least one clause", context_name);
+
+    if (subquery.bindings)
+    {
+        const auto * binding_block = subquery.bindings->as<GAST::GQLBindingVariableDefinitionBlock>();
+        if (!binding_block)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} bindings must be GQLBindingVariableDefinitionBlock", context_name);
+
+        lowerSubqueryBindings(*binding_block, scope, context_name);
+    }
+
+    for (const auto & clause : single_query->clauses)
+    {
+        if (const auto * use = clause->as<GAST::GQLUseClause>())
+        {
+            lowerUseClause(*use, scope);
+            continue;
+        }
+
+        if (clause->as<GAST::GQLMatchClause>())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
+
+        if (const auto * select = clause->as<GAST::GQLSelectClause>(); select && select->source)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
+
+        if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
+        {
+            lowerInlineCallPipelineClauseImpl(plan, *inline_call, context, environment, scope);
+            continue;
+        }
+
+        lowerPipelineClause(plan, clause, context, scope);
+    }
+}
+
 }
 
 void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope)
@@ -406,6 +504,16 @@ bool tryLowerStandaloneSourceClause(
     }
 
     return false;
+}
+
+void lowerInlineCallPipelineClause(
+    QueryPlan & plan,
+    const OPENGQL::AST::GQLCallInlineClause & call,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    lowerInlineCallPipelineClauseImpl(plan, call, context, environment, scope);
 }
 
 }
