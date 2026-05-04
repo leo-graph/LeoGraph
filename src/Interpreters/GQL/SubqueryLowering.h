@@ -34,4 +34,12 @@ void lowerSubquerySource(
     PlanScope child_scope,
     std::string_view context_name);
 
+void lowerPipelineOnlySubquery(
+    QueryPlan & plan,
+    const OPENGQL::AST::GQLSubquery & subquery,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope,
+    std::string_view context_name);
+
 }

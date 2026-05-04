@@ -1,8 +1,11 @@
 #include <Interpreters/GQL/SubqueryLowering.h>
 
+#include <Interpreters/GQL/CallLowering.h>
+#include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/PlanBuilder.h>
 #include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
+#include <Interpreters/GQL/SourceLowering.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Common/Exception.h>
@@ -109,6 +112,48 @@ void lowerSubquerySource(
     PlanBuilder nested_builder(context, std::move(child_scope), environment);
     nested_builder.buildSingleQuery(plan, single_query);
     scope = nested_builder.getScope();
+}
+
+void lowerPipelineOnlySubquery(
+    QueryPlan & plan,
+    const OPENGQL::AST::GQLSubquery & subquery,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope,
+    std::string_view context_name)
+{
+    const auto & single_query = getSingleQuerySubquery(subquery, context_name);
+    if (single_query.clauses.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain at least one clause", context_name);
+
+    if (subquery.bindings)
+    {
+        const auto * binding_block = subquery.bindings->as<GAST::GQLBindingVariableDefinitionBlock>();
+        if (!binding_block)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} bindings must be GQLBindingVariableDefinitionBlock", context_name);
+
+        lowerSubqueryBindings(*binding_block, scope, context_name);
+    }
+
+    for (const auto & clause : single_query.clauses)
+    {
+        if (const auto * use = clause->as<GAST::GQLUseClause>())
+        {
+            lowerUseClause(*use, scope);
+            continue;
+        }
+
+        if (isSourceIntroducingClause(clause))
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
+
+        if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
+        {
+            lowerInlineCallPipelineClause(plan, *inline_call, context, environment, scope);
+            continue;
+        }
+
+        lowerPipelineClause(plan, clause, context, scope);
+    }
 }
 
 }

@@ -64,8 +64,9 @@ The current executable lowering path is intentionally small but no longer
 - `SourceCompositionLowering` owns `SELECT FROM` source-list composition. It
   currently preserves the same-graph graph-match list path and keeps different
   graph references / mixed source kinds behind explicit composition errors.
-- `CallLowering` owns inline `CALL` source and pipeline forms, while
-  `SubqueryLowering` owns shared subquery validation and binding definitions.
+- `CallLowering` owns inline `CALL` variable-scope handling and source /
+  pipeline entry points, while `SubqueryLowering` owns shared subquery
+  validation, binding definitions, and pipeline-only subquery lowering.
 - `ClauseLowering`, `AggregationLowering`, and `ExpressionLowering` provide the
   reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
