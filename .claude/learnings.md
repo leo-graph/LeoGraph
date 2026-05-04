@@ -71,4 +71,5 @@
 - Keep reusable `GQL` clause lowering outside `InterpreterGQLQuery`; `MATCH` should provide a source boundary, while `WHERE`, `RETURN`, `LIMIT`, and later transform clauses should share pipeline-lowering helpers.
 - Same-graph `GQL` `SELECT FROM g MATCH ..., g MATCH ...` source lists can lower into one `GraphMatch` source with multiple `MatchClauseSpec` entries; different graph references still need a real source-composition/apply model.
 - Pipeline-only inline `GQL` `CALL (x) { RETURN ... }` can lower directly on the current `QueryPlan` by building a child `PlanScope` from imported row bindings; inline `CALL` bodies that introduce a new source still need a real apply operator.
+- Keep `GQL` procedure lowering separate from source lowering: `CallLowering` should own inline / named procedure behavior, while `SubqueryLowering` owns shared subquery validation and binding definitions.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

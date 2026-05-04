@@ -78,7 +78,7 @@ The currently supported minimal path is:
 - Production interpreter dispatch currently maps `GQLSingleQuery` and `GQLCombinedQuery` to `InterpreterGQLQuery`.
 - `InterpreterGQLQuery` and `GQL::PlanBuilder` both accept `GQL::PlanEnvironment`, giving catalog / storage resolution a single planner-wide dependency hook for graph scans and future non-scope services.
 - `InterpreterGQLQuery` delegates single-query lowering to `GQL::PlanBuilder`; clause-specific work should stay in reusable helpers under `src/Interpreters/GQL/`, not in one monolithic interpreter method.
-- `PlanBuilder` separates source clauses from pipeline clauses. `MATCH` is a source boundary lowered through `SourceLowering` / `MatchLowering`; `WHERE`, `RETURN`, `SELECT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, `FINISH`, `DISTINCT`, and aggregation are reusable pipeline/source helpers in `ClauseLowering` and `AggregationLowering`.
+- `PlanBuilder` separates source clauses from pipeline clauses. `MATCH` is a source boundary lowered through `SourceLowering` / `MatchLowering`; inline `CALL` source and pipeline forms are isolated in `CallLowering`; shared subquery validation and binding definitions live in `SubqueryLowering`; `WHERE`, `RETURN`, `SELECT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, `FINISH`, `DISTINCT`, and aggregation are reusable pipeline/source helpers in `ClauseLowering` and `AggregationLowering`.
 - `PlanScope` tracks only lexical state: current bindings and active graph scope. It also supports expression-backed bindings for nested procedure `VALUE` definitions, so a binding can be visible before it is physically present in the current plan header.
 - `PlanEnvironment` carries planner-wide services such as `Graph::MatchSourceFactory`; nested `PlanBuilder` instances inherit the same environment without mixing storage dependencies into lexical scope.
 - `ExpressionLowering` supports both current `GQLExpr` nodes and semantically identical ClickHouse-native `ASTIdentifier`, `ASTLiteral`, `ASTFunction`, and `ASTExpressionList` nodes through the same `ActionsDAG` path. `WHERE` / `FILTER`, `ORDER BY`, `OFFSET`, `LIMIT`, aggregate detection, and `GROUP BY` key extraction consume expressions as `IAST`, so filter, paging, and aggregation paths inherit the same expression contract.
@@ -139,7 +139,7 @@ The next implementation slice should start from a concrete parser input that cur
 
 ## Recommended Next Steps
 
-Current priority is `GQL AST -> reusable interpreter lowering -> QueryPlan` for a framework that later clauses can share. Parser-only changes should continue only when they unblock interpreter lowering or preserve the parser contract. Do not build new `MATCH`-only shortcuts; prefer small reusable slices in `PlanScope`, `SourceLowering`, `ClauseLowering`, `ExpressionLowering`, and `MatchLowering`.
+Current priority is `GQL AST -> reusable interpreter lowering -> QueryPlan` for a framework that later clauses can share. Parser-only changes should continue only when they unblock interpreter lowering or preserve the parser contract. Do not build new `MATCH`-only shortcuts; prefer small reusable slices in `PlanScope`, `SourceLowering`, `CallLowering`, `SubqueryLowering`, `ClauseLowering`, `ExpressionLowering`, and `MatchLowering`.
 
 Interpreter framework gaps to keep visible:
 

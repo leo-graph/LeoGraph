@@ -60,9 +60,10 @@ The current executable lowering path is intentionally small but no longer
   `Graph::MatchSourceFactory`; `GQL::PlanScope` only tracks lexical bindings
   and active graph scope.
 - `SourceLowering` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
-  `FOR` / `FINISH`, `SELECT FROM` single sources, same-graph graph-match source
-  lists, nested subqueries, standalone inline `CALL` subqueries, and pipeline-only
-  inline `CALL` subqueries after an existing source.
+  `FOR` / `FINISH`, `SELECT FROM` single sources, and same-graph graph-match
+  source lists.
+- `CallLowering` owns inline `CALL` source and pipeline forms, while
+  `SubqueryLowering` owns shared subquery validation and binding definitions.
 - `ClauseLowering`, `AggregationLowering`, and `ExpressionLowering` provide the
   reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and

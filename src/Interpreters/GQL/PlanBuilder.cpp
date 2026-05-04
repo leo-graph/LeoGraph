@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include <Interpreters/GQL/CallLowering.h>
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/SourceLowering.h>
 #include <Parsers/graph/GraphAST.h>
