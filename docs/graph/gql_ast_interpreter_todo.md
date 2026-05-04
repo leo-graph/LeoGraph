@@ -26,7 +26,7 @@ The stable query root contract is:
 - `GQLSingleQuery` for linear query / DML clause sequences.
 - `GQLCombinedQuery` for set queries such as `UNION`, `UNION ALL`, and `EXCEPT`.
 - `GQLSubquery` for nested procedure bodies.
-- `GQLCatalogStatement` for catalog DDL.
+- `GQLCatalogStatement` as the catalog DDL clause carried by `GQLSingleQuery`.
 
 The parser no longer uses `ParserGraphQuery` prefix sniffing. Production GQL parsing must be selected explicitly through `Dialect::gql`.
 

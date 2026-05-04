@@ -121,7 +121,7 @@ The next implementation slice should start from a concrete parser input that cur
 - insert patterns reuse existing `GQLNodePattern` / `GQLEdgePattern` nodes, with `labelSetSpecification` built as `GQLLabelExpression::Conjunction`
 - `callDataModifyingProcedureStatement` shares the same `makeCallClause` helper with `visitCallQueryStatement`, ensuring consistent AST output for both query-CALL and DML-CALL paths
 - `buildSubquery` now handles `linearDataModifyingStatement` in nested procedure bodies (resolves the L1365 `nested non-query statement` gap for DML)
-- catalog DDL is now represented by `GQLCatalogStatement`; nested procedure bodies can carry catalog statements where the query-root contract permits it.
+- catalog DDL is now represented by `GQLCatalogStatement` as a `GQLSingleQuery` clause; nested procedure bodies can carry catalog statements where the `GQLSingleQuery` contract permits it.
 
 - `GQLParserUtils::parseStatement` is the main ANTLR entry for `ParserGQLQuery`, used for query, DML, and catalog DDL in explicit `Dialect::gql` mode; do not reattach heuristic GQL routing to ordinary `ParserQuery`.
 
