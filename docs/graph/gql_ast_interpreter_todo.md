@@ -77,6 +77,10 @@ The current executable lowering path is intentionally small but no longer
 - `ApplyLowering` is the dedicated boundary for row-correlated source clauses.
   It receives an explicit outer / subquery scope context and currently fails
   closed for nested source clauses that would require apply semantics.
+- `MutationLowering` and `CatalogLowering` are dedicated fail-closed boundaries
+  for data-modifying and catalog clauses. They avoid routing `INSERT` / `SET` /
+  `REMOVE` / `DELETE` / `CREATE` / `DROP` through generic source or pipeline
+  errors before real mutation/catalog execution exists.
 - `ClauseLowering`, `AggregationLowering`, and `ExpressionLowering` provide the
   reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
@@ -98,7 +102,7 @@ complete:
 | correlated subqueries | Pipeline-only inline `CALL (x) { RETURN ... }` can reuse current row bindings when the nested body contains only pipeline clauses. Inline `CALL` bodies that introduce a new source now fail through `ApplyLowering`, with separate outer and subquery scopes passed through the apply context, because row-correlated apply semantics are not implemented. | Projection-like subqueries can compose with row data, and nested source failures have a single future implementation point with the required scope contract. Procedure bodies that need nested scans still require a real apply operator. |
 | optional match execution | `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution. | Null-extension semantics require a real outer-match operator or source behavior. |
 | real graph source | `Graph::MatchSourceFactory` exists, but the default factory emits no rows and no graph catalog / table mapping is connected. | The plan shape is testable, but `MATCH` is not yet backed by storage. |
-| DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` have parser AST coverage but no runtime interpreter. | Mutating and catalog statements currently stop at parser/AST. |
+| DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` route to dedicated fail-closed lowering boundaries, but still have no runtime execution. | Future mutating and catalog statements now have explicit modules to implement instead of leaking through source / pipeline dispatch. |
 | expression breadth | Common scalar expressions lower through shared helpers, but temporal, duration, value-query, path-constructor, graph-expression, dynamic-parameter, and broader function semantics remain deferred. | Later clauses can reuse the helper layer, but only for the currently supported scalar subset. |
 | named procedures | Inline `CALL` has a first source path; named `CALL` and procedure-reference binding are still not implemented. | Procedure calls need catalog/name resolution and output-schema handling. |
 

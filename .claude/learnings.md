@@ -80,4 +80,5 @@
 - Keep graph-qualified source scope switching in `PlanScope` helpers; source-local `USE` / graph references should update output bindings without leaking active graph to the outer query scope.
 - Put `GQLSingleQuery` / `GQLCombinedQuery` plan construction in shared `RootLowering`; source subqueries should not be limited to a separate single-query-only path when the top-level root lowering already supports combined queries.
 - In `GQL` clause lowering, build pipeline `ActionsDAG` with `duplicate_const_columns=false` and materialize projection-like outputs; otherwise `SELECT ... FROM { RETURN 1 UNION ALL RETURN 2 }` can reuse the first const header value downstream.
+- Route `GQL` DML and catalog clauses through dedicated fail-closed lowering modules instead of letting them fall into generic source / pipeline dispatch errors.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

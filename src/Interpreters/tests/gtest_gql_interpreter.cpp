@@ -1139,7 +1139,21 @@ TEST(GQLInterpreter, UnsupportedClauseThrowsNotImplemented)
     catch (const Exception & e)
     {
         EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
-        EXPECT_NE(String(e.message()).find("GQLSetClause"), String::npos);
+        EXPECT_NE(String(e.message()).find("GQL SET execution is not supported"), String::npos);
+    }
+}
+
+TEST(GQLInterpreter, UnsupportedCatalogClauseUsesCatalogBoundary)
+{
+    try
+    {
+        (void)buildPlan("CREATE GRAPH g ANY");
+        FAIL() << "Expected GQL catalog clause to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("GQL catalog execution is not supported"), String::npos);
     }
 }
 

@@ -3,7 +3,9 @@
 #include <utility>
 
 #include <Interpreters/GQL/CallLowering.h>
+#include <Interpreters/GQL/CatalogLowering.h>
 #include <Interpreters/GQL/ClauseLowering.h>
+#include <Interpreters/GQL/MutationLowering.h>
 #include <Interpreters/GQL/SourceLowering.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/QueryPlan.h>
@@ -68,6 +70,20 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
 
         if (!source_ready)
         {
+            if (isCatalogClause(clause))
+            {
+                lowerCatalogClause(plan, clause, context, scope);
+                source_ready = true;
+                continue;
+            }
+
+            if (isDataModifyingClause(clause))
+            {
+                lowerDataModifyingClause(plan, clause, context, scope);
+                source_ready = true;
+                continue;
+            }
+
             if (tryLowerStandaloneSourceClause(plan, clause, context, environment, scope))
             {
                 source_ready = true;
