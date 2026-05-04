@@ -53,7 +53,9 @@ Interpreter code should still dispatch by concrete AST node type and fail closed
 The current executable lowering path is intentionally small but no longer
 `MATCH`-only:
 
-- `InterpreterGQLQuery` dispatches `GQLSingleQuery` and `GQLCombinedQuery`.
+- `InterpreterGQLQuery` delegates `GQLSingleQuery` and `GQLCombinedQuery` root
+  dispatch to `RootLowering`, so top-level queries and source subqueries can
+  share the same root-plan builder.
 - `GQL::PlanBuilder` owns linear single-query lowering and separates source
   clauses from pipeline clauses.
 - `GQL::PlanEnvironment` carries planner-wide services such as
@@ -62,7 +64,9 @@ The current executable lowering path is intentionally small but no longer
   graph-override helpers so source-local graph references do not leak into the
   outer query scope.
 - `SourceLowering` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
-  `FOR` / `FINISH`, and `SELECT FROM` single sources.
+  `FOR` / `FINISH`, and `SELECT FROM` single sources. Source subqueries can use
+  the same root lowering as top-level queries, including supported combined
+  query roots.
 - `SourceCompositionLowering` owns `SELECT FROM` source-list composition. It
   exposes reusable source-list entry classification, preserves the same-graph
   graph-match list path, and keeps different graph references / mixed source
@@ -77,6 +81,9 @@ The current executable lowering path is intentionally small but no longer
   reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
   `FINISH`.
+- `ClauseLowering` treats upstream pipeline columns as row values even when the
+  header carries const metadata from source-free subqueries; projection-like
+  steps materialize outputs before handing them to downstream clauses.
 - `Graph::MatchStep` and `Graph::MatchSource` define the current graph-source
   boundary; the default source still emits no rows until graph storage is wired.
 

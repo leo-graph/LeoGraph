@@ -49,10 +49,18 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
+ActionsDAG makePipelineDAG(const Block & header)
+{
+    /// GQL pipeline headers can come from source subqueries whose columns were
+    /// originally constants. Downstream clauses must read the row value, not
+    /// duplicate the first const value from the header.
+    return ActionsDAG(header.getColumnsWithTypeAndName(), false);
+}
+
 void lowerWherePredicate(QueryPlan & plan, const IAST & predicate, ContextPtr context, const PlanScope & scope)
 {
     auto current_header = plan.getCurrentHeader();
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
 
     const auto & filter_node = lowerExpression(predicate, dag, context, scope);
     dag.getOutputs().push_back(&filter_node);
@@ -205,7 +213,7 @@ void materializeOrderByExpressions(
     auto current_header = plan.getCurrentHeader();
     original_columns = getHeaderColumnNames(*current_header);
 
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
     auto outputs = dag.getOutputs();
     std::unordered_set<String> hidden_sort_names;
 
@@ -243,7 +251,7 @@ void materializeOrderByExpressions(
 void pruneHiddenSortColumns(QueryPlan & plan, const Names & original_columns, PlanScope & scope)
 {
     auto current_header = plan.getCurrentHeader();
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
 
     ActionsDAG::NodeRawConstPtrs outputs;
     outputs.reserve(original_columns.size());
@@ -413,7 +421,7 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must project at least one item", context_name);
 
     auto current_header = plan.getCurrentHeader();
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
 
     ActionsDAG::NodeRawConstPtrs new_outputs;
     new_outputs.reserve(items.size());
@@ -435,6 +443,7 @@ void lowerProjectionItems(QueryPlan & plan, const ASTs & items, ContextPtr conte
     }
 
     dag.getOutputs() = std::move(new_outputs);
+    dag.addMaterializingOutputActions(false);
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
@@ -445,7 +454,7 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "LET must contain at least one assignment");
 
     auto current_header = plan.getCurrentHeader();
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
     auto & outputs = dag.getOutputs();
     PlanScope local_scope = scope;
     std::unordered_set<String> assigned_names;
@@ -483,6 +492,7 @@ void lowerLetClause(QueryPlan & plan, const GAST::GQLLetClause & let, ContextPtr
         local_scope.addOrReplaceBinding(item->name, alias.result_type, BindingKind::Projection);
     }
 
+    dag.addMaterializingOutputActions(false);
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
@@ -511,7 +521,7 @@ void lowerForClause(QueryPlan & plan, const GAST::GQLForClause & for_clause, Con
     }
 
     auto current_header = plan.getCurrentHeader();
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
     auto & outputs = dag.getOutputs();
 
     const auto & source = lowerExpression(*for_clause.source, dag, context, scope);
@@ -544,6 +554,7 @@ void lowerForClause(QueryPlan & plan, const GAST::GQLForClause & for_clause, Con
         outputs.push_back(&alias);
     }
 
+    dag.addMaterializingOutputActions(false);
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
 }
@@ -579,8 +590,9 @@ void lowerPageClause(QueryPlan & plan, const GAST::GQLPageClause & page, Context
 void lowerFinishClause(QueryPlan & plan, const GAST::GQLFinishClause &, PlanScope & scope)
 {
     auto current_header = plan.getCurrentHeader();
-    ActionsDAG dag(current_header->getColumnsWithTypeAndName());
+    ActionsDAG dag = makePipelineDAG(*current_header);
     dag.getOutputs().clear();
+    dag.addMaterializingOutputActions(false);
 
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);

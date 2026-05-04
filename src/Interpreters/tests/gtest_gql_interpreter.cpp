@@ -516,6 +516,19 @@ TEST(GQLInterpreter, SelectFromSubqueryUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
+TEST(GQLInterpreter, SelectFromCombinedSubqueryUsesRootLowering)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT v FROM { RETURN 1 AS v UNION ALL RETURN 2 AS v }");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Union"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "v");
+}
+
 TEST(GQLInterpreter, InlineCallUsesReusableSourceLowering)
 {
     const auto plan = buildPlanWithPlanBuilder("CALL { RETURN 1 AS a } RETURN a");

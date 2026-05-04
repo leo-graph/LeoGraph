@@ -3,9 +3,9 @@
 #include <Interpreters/GQL/ApplyLowering.h>
 #include <Interpreters/GQL/CallLowering.h>
 #include <Interpreters/GQL/ClauseLowering.h>
-#include <Interpreters/GQL/PlanBuilder.h>
 #include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
+#include <Interpreters/GQL/RootLowering.h>
 #include <Interpreters/GQL/SourceLowering.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/QueryPlan.h>
@@ -43,20 +43,25 @@ ASTPtr makeValueBindingExpression(const GAST::GQLBindingVariableDefinition & def
     return expression;
 }
 
+void validateSubqueryMetadata(const GAST::GQLSubquery & subquery, std::string_view context_name)
+{
+    if (subquery.at_schema)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} AT schema is not supported", context_name);
+    if (!subquery.next_statements.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} NEXT statements are not supported", context_name);
+}
+
 }
 
 const OPENGQL::AST::GQLSingleQuery & getSingleQuerySubquery(
     const OPENGQL::AST::GQLSubquery & subquery,
     std::string_view context_name)
 {
-    if (subquery.at_schema)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} AT schema is not supported", context_name);
-    if (!subquery.next_statements.empty())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} NEXT statements are not supported", context_name);
+    validateSubqueryMetadata(subquery, context_name);
 
     const auto * single_query = subquery.query ? subquery.query->as<GAST::GQLSingleQuery>() : nullptr;
     if (!single_query)
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a single query", context_name);
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a single query for pipeline-only lowering", context_name);
 
     return *single_query;
 }
@@ -99,7 +104,9 @@ void lowerSubquerySource(
     PlanScope child_scope,
     std::string_view context_name)
 {
-    const auto & single_query = getSingleQuerySubquery(subquery, context_name);
+    validateSubqueryMetadata(subquery, context_name);
+    if (!subquery.query)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} must contain a query", context_name);
 
     if (subquery.bindings)
     {
@@ -110,9 +117,8 @@ void lowerSubquerySource(
         lowerSubqueryBindings(*binding_block, child_scope, context_name);
     }
 
-    PlanBuilder nested_builder(context, std::move(child_scope), environment);
-    nested_builder.buildSingleQuery(plan, single_query);
-    scope = nested_builder.getScope();
+    buildRootQueryPlan(plan, *subquery.query, context, environment, child_scope);
+    scope = std::move(child_scope);
 }
 
 void lowerPipelineOnlySubquery(
