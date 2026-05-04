@@ -162,6 +162,67 @@ void lowerSubquerySource(
     scope = nested_builder.getScope();
 }
 
+bool sameGraphReference(const IAST & lhs_ast, const IAST & rhs_ast)
+{
+    const auto * lhs = lhs_ast.as<GAST::GQLGraphExpression>();
+    const auto * rhs = rhs_ast.as<GAST::GQLGraphExpression>();
+    if (!lhs || !rhs)
+        return false;
+
+    if (lhs->kind != rhs->kind || lhs->text != rhs->text)
+        return false;
+
+    return !lhs->value && !rhs->value;
+}
+
+void lowerGraphMatchSourceList(
+    QueryPlan & plan,
+    const GAST::GQLSelectSourceList & source_list,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    if (source_list.items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source list must contain at least one source");
+
+    std::vector<const GAST::GQLMatchClause *> matches;
+    matches.reserve(source_list.items.size());
+
+    const ASTPtr * graph_reference = nullptr;
+    for (const auto & item_ast : source_list.items)
+    {
+        const auto * item = item_ast ? item_ast->as<GAST::GQLSelectSourceItem>() : nullptr;
+        if (!item)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source list item must be GQLSelectSourceItem");
+        if (!item->graph_reference)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM graph match source must have a graph reference");
+
+        if (!graph_reference)
+        {
+            graph_reference = &item->graph_reference;
+        }
+        else if (!sameGraphReference(**graph_reference, *item->graph_reference))
+        {
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists with different graph references require source composition");
+        }
+
+        const auto * match = item->source ? item->source->as<GAST::GQLMatchClause>() : nullptr;
+        if (!match)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists only support graph MATCH sources");
+
+        matches.push_back(match);
+    }
+
+    auto previous_graph = cloneOrNull(scope.getActiveGraph());
+    PlanScope source_scope = scope;
+    source_scope.setActiveGraph((*graph_reference)->clone());
+
+    lowerMatchClauseSequence(plan, matches, context, environment, source_scope);
+
+    scope = std::move(source_scope);
+    scope.setActiveGraph(std::move(previous_graph));
+}
+
 void lowerSubquerySource(
     QueryPlan & plan,
     const GAST::GQLSubquery & subquery,
@@ -212,8 +273,14 @@ void lowerSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr conte
 
     if (const auto * source_list = source->as<GAST::GQLSelectSourceList>())
     {
-        if (source_list->items.size() != 1)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source lists are not supported");
+        if (source_list->items.empty())
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source list must contain at least one source");
+
+        if (source_list->items.size() > 1)
+        {
+            lowerGraphMatchSourceList(plan, *source_list, context, environment, scope);
+            return;
+        }
 
         lowerSelectSource(plan, source_list->items.front(), context, environment, scope);
         return;

@@ -146,7 +146,7 @@ Interpreter framework gaps to keep visible:
 1. `Graph::MatchSource` has a factory / reader contract but no real graph storage implementation yet.
 2. `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution.
 3. Inline `CALL` variable scope imports are supported only for expression-backed outer bindings; row-correlated imports, subquery `AT schema`, binding-table / graph binding definitions, and `NEXT` statements are still explicit `NOT_IMPLEMENTED` paths. Empty inline `CALL () { ... }` scopes are accepted as no-import calls.
-4. `SELECT FROM` source lists with more than one source are still unsupported; implement a real source-composition model before enabling them.
+4. `SELECT FROM` can lower same-graph graph-match source lists into one `GraphMatch` source. Different graph references, mixed source kinds, and true multi-source composition still need a real source-composition model.
 5. Expression lowering still covers only the common scalar subset; temporal / duration / value-query / path-constructor / graph-expression execution lowering remains deferred.
 6. `GQLCatalogStatement` has parser AST coverage but no interpreter / catalog execution.
 7. Full `ninja` verification is currently blocked by local build-directory regenerate issues under `build/contrib`; use direct TU compilation from `build/compile_commands.json` only as source-level isolation until the build directory is repaired.

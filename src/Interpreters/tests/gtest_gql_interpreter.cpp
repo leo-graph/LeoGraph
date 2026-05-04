@@ -385,6 +385,40 @@ TEST(GQLInterpreter, SelectGraphMatchSourceFlowsIntoGraphMatchSpec)
     EXPECT_EQ(graph->text, "g");
 }
 
+TEST(GQLInterpreter, SelectGraphMatchSourceListWithSameGraphLowersToSingleSource)
+{
+    const auto plan = buildPlanWithPlanBuilder("SELECT a, b FROM g MATCH (a), g MATCH (b) WHERE a = b");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & match_spec = match_step->getMatchSpec();
+    ASSERT_EQ(match_spec.clauses.size(), 2u);
+
+    const auto & graph_reference = match_spec.graph_reference;
+    ASSERT_TRUE(graph_reference);
+
+    const auto * graph = graph_reference->as<GAST::GQLGraphExpression>();
+    ASSERT_NE(graph, nullptr);
+    EXPECT_EQ(graph->text, "g");
+}
+
+TEST(GQLInterpreter, SelectGraphMatchSourceListWithDifferentGraphsRequiresCompositionModel)
+{
+    try
+    {
+        (void)buildPlanWithPlanBuilder("SELECT a, b FROM foo MATCH (a), bar MATCH (b)");
+        FAIL() << "Expected multi-graph SELECT FROM source list to require source composition";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("different graph references"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, SelectGraphMatchSourceDoesNotLeakUseScopeGraph)
 {
     const auto scope = buildScopeWithPlanBuilder("USE outer_graph SELECT n FROM inner_graph MATCH (n)");
