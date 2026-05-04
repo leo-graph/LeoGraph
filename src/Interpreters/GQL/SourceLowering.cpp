@@ -121,6 +121,18 @@ void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope)
     scope.setActiveGraph(use.graph_reference->clone());
 }
 
+bool isSourceIntroducingClause(const ASTPtr & clause)
+{
+    if (!clause)
+        return false;
+
+    if (clause->as<GAST::GQLMatchClause>())
+        return true;
+
+    const auto * select = clause->as<GAST::GQLSelectClause>();
+    return select && select->source;
+}
+
 bool SourceClauseBuffer::tryAppend(const ASTPtr & clause)
 {
     if (const auto * match = clause->as<OPENGQL::AST::GQLMatchClause>())

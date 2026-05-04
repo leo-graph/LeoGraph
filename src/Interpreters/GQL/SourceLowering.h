@@ -19,6 +19,8 @@ struct PlanEnvironment;
 
 void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope);
 
+bool isSourceIntroducingClause(const ASTPtr & clause);
+
 class SourceClauseBuffer final
 {
 public:

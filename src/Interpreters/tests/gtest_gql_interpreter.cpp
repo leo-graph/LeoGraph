@@ -601,6 +601,20 @@ TEST(GQLInterpreter, InlineCallPipelineRejectsNestedSource)
     }
 }
 
+TEST(GQLInterpreter, InlineCallPipelineRejectsSelectSource)
+{
+    try
+    {
+        (void)buildPlanWithPlanBuilder("MATCH (n) CALL (n) { SELECT m FROM g MATCH (m) } RETURN n");
+        FAIL() << "Expected pipeline inline CALL with SELECT FROM source to be rejected";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+        EXPECT_NE(String(e.message()).find("source clause"), String::npos);
+    }
+}
+
 TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)
 {
     const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x = 1 RETURN x } RETURN x");

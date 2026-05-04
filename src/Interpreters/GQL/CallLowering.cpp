@@ -134,10 +134,7 @@ void lowerPipelineOnlySubquery(
             continue;
         }
 
-        if (clause->as<GAST::GQLMatchClause>())
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
-
-        if (const auto * select = clause->as<GAST::GQLSelectClause>(); select && select->source)
+        if (isSourceIntroducingClause(clause))
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
 
         if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())

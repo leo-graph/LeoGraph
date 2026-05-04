@@ -77,6 +77,9 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL clause before a source clause is not supported: {}", clause->getID(' '));
         }
 
+        if (isSourceIntroducingClause(clause))
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL source clauses after pipeline clauses are not supported");
+
         if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
         {
             lowerInlineCallPipelineClause(plan, *inline_call, context, environment, scope);
