@@ -1,5 +1,6 @@
 #include <Interpreters/GQL/ApplyLowering.h>
 
+#include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/SourceLowering.h>
 #include <Common/Exception.h>
 
@@ -17,13 +18,20 @@ void lowerCorrelatedSourceClause(
     const ASTPtr & clause,
     ContextPtr,
     const PlanEnvironment &,
-    PlanScope &,
-    std::string_view context_name)
+    const CorrelatedSourceContext & apply_context)
 {
-    if (!isSourceIntroducingClause(clause))
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "{} expected a source-introducing clause", context_name);
+    const auto source_kind = classifySourceIntroducingClause(clause);
+    if (source_kind == SourceClauseKind::None)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "{} expected a source-introducing clause", apply_context.context_name);
 
-    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} source clause is not supported", context_name);
+    if (&apply_context.outer_scope == &apply_context.subquery_scope)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "{} apply context must separate outer and subquery scopes", apply_context.context_name);
+
+    throw Exception(
+        ErrorCodes::NOT_IMPLEMENTED,
+        "{} {} source clause requires correlated apply semantics",
+        apply_context.context_name,
+        sourceClauseKindName(source_kind));
 }
 
 }

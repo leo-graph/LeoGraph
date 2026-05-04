@@ -121,16 +121,39 @@ void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope)
     scope.setActiveGraph(use.graph_reference->clone());
 }
 
-bool isSourceIntroducingClause(const ASTPtr & clause)
+SourceClauseKind classifySourceIntroducingClause(const ASTPtr & clause)
 {
     if (!clause)
-        return false;
+        return SourceClauseKind::None;
 
     if (clause->as<GAST::GQLMatchClause>())
-        return true;
+        return SourceClauseKind::Match;
 
     const auto * select = clause->as<GAST::GQLSelectClause>();
-    return select && select->source;
+    if (select && select->source)
+        return SourceClauseKind::SelectWithSource;
+
+    return SourceClauseKind::None;
+}
+
+const char * sourceClauseKindName(SourceClauseKind kind)
+{
+    switch (kind)
+    {
+        case SourceClauseKind::None:
+            return "none";
+        case SourceClauseKind::Match:
+            return "MATCH";
+        case SourceClauseKind::SelectWithSource:
+            return "SELECT FROM";
+    }
+
+    return "unknown";
+}
+
+bool isSourceIntroducingClause(const ASTPtr & clause)
+{
+    return classifySourceIntroducingClause(clause) != SourceClauseKind::None;
 }
 
 bool SourceClauseBuffer::tryAppend(const ASTPtr & clause)

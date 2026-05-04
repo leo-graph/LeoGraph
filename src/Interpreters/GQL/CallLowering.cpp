@@ -125,7 +125,7 @@ void lowerInlineCallPipelineClause(
 {
     const auto & subquery = getInlineCallSubquery(call);
     auto child_scope = makeInlineCallPipelineScope(scope, extractInlineCallVariableScope(call));
-    lowerPipelineOnlySubquery(plan, subquery, context, environment, child_scope, "pipeline inline CALL subquery");
+    lowerPipelineOnlySubquery(plan, subquery, context, environment, scope, child_scope, "pipeline inline CALL subquery");
     scope = std::move(child_scope);
 }
 

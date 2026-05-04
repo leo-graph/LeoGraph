@@ -120,7 +120,8 @@ void lowerPipelineOnlySubquery(
     const OPENGQL::AST::GQLSubquery & subquery,
     ContextPtr context,
     const PlanEnvironment & environment,
-    PlanScope & scope,
+    const PlanScope & outer_scope,
+    PlanScope & subquery_scope,
     std::string_view context_name)
 {
     const auto & single_query = getSingleQuerySubquery(subquery, context_name);
@@ -133,30 +134,39 @@ void lowerPipelineOnlySubquery(
         if (!binding_block)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "{} bindings must be GQLBindingVariableDefinitionBlock", context_name);
 
-        lowerSubqueryBindings(*binding_block, scope, context_name);
+        lowerSubqueryBindings(*binding_block, subquery_scope, context_name);
     }
 
     for (const auto & clause : single_query.clauses)
     {
         if (const auto * use = clause->as<GAST::GQLUseClause>())
         {
-            lowerUseClause(*use, scope);
+            lowerUseClause(*use, subquery_scope);
             continue;
         }
 
         if (isSourceIntroducingClause(clause))
         {
-            lowerCorrelatedSourceClause(plan, clause, context, environment, scope, context_name);
+            lowerCorrelatedSourceClause(
+                plan,
+                clause,
+                context,
+                environment,
+                CorrelatedSourceContext{
+                    .outer_scope = outer_scope,
+                    .subquery_scope = subquery_scope,
+                    .context_name = context_name,
+                });
             continue;
         }
 
         if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
         {
-            lowerInlineCallPipelineClause(plan, *inline_call, context, environment, scope);
+            lowerInlineCallPipelineClause(plan, *inline_call, context, environment, subquery_scope);
             continue;
         }
 
-        lowerPipelineClause(plan, clause, context, scope);
+        lowerPipelineClause(plan, clause, context, subquery_scope);
     }
 }
 

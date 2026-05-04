@@ -74,4 +74,5 @@
 - Pipeline-only inline `GQL` `CALL (x) { RETURN ... }` can lower directly on the current `QueryPlan` by building a child `PlanScope` from imported row bindings; inline `CALL` bodies that introduce a new source still need a real apply operator.
 - Keep `GQL` procedure lowering separate from source lowering: `CallLowering` should own inline / named procedure entry behavior, while `SubqueryLowering` owns shared subquery validation, binding definitions, and pipeline-only subquery lowering.
 - Route row-correlated `GQL` source clauses through `ApplyLowering` even while it only throws `NOT_IMPLEMENTED`; this keeps future apply semantics out of `CallLowering` and `SubqueryLowering`.
+- Pass both outer and subquery `PlanScope` into `ApplyLowering`; row-correlated source lowering needs an explicit scope contract and should not infer correlation state from inline `CALL` internals.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

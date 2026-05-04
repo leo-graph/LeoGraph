@@ -68,8 +68,8 @@ The current executable lowering path is intentionally small but no longer
   pipeline entry points, while `SubqueryLowering` owns shared subquery
   validation, binding definitions, and pipeline-only subquery lowering.
 - `ApplyLowering` is the dedicated boundary for row-correlated source clauses.
-  It currently fails closed for nested source clauses that would require apply
-  semantics.
+  It receives an explicit outer / subquery scope context and currently fails
+  closed for nested source clauses that would require apply semantics.
 - `ClauseLowering`, `AggregationLowering`, and `ExpressionLowering` provide the
   reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
@@ -85,7 +85,7 @@ complete:
 | Area | Current gap | Why it matters |
 |------|-------------|----------------|
 | source composition | `SourceCompositionLowering` can combine same-graph graph-match source lists into one `GraphMatch` source. Different graph references, mixed source kinds, and true multi-source composition still need explicit operator semantics, including cross/apply behavior, header conflict rules, and graph-scope restoration. | The composition boundary now has a dedicated module, but it is not yet a complete source framework. |
-| correlated subqueries | Pipeline-only inline `CALL (x) { RETURN ... }` can reuse current row bindings when the nested body contains only pipeline clauses. Inline `CALL` bodies that introduce a new source now fail through `ApplyLowering` because row-correlated apply semantics are not implemented. | Projection-like subqueries can compose with row data, and nested source failures have a single future implementation point. Procedure bodies that need nested scans still require a real apply operator. |
+| correlated subqueries | Pipeline-only inline `CALL (x) { RETURN ... }` can reuse current row bindings when the nested body contains only pipeline clauses. Inline `CALL` bodies that introduce a new source now fail through `ApplyLowering`, with separate outer and subquery scopes passed through the apply context, because row-correlated apply semantics are not implemented. | Projection-like subqueries can compose with row data, and nested source failures have a single future implementation point with the required scope contract. Procedure bodies that need nested scans still require a real apply operator. |
 | optional match execution | `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution. | Null-extension semantics require a real outer-match operator or source behavior. |
 | real graph source | `Graph::MatchSourceFactory` exists, but the default factory emits no rows and no graph catalog / table mapping is connected. | The plan shape is testable, but `MATCH` is not yet backed by storage. |
 | DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` have parser AST coverage but no runtime interpreter. | Mutating and catalog statements currently stop at parser/AST. |

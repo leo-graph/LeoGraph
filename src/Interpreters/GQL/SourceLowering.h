@@ -17,8 +17,17 @@ namespace DB::GQL
 class PlanScope;
 struct PlanEnvironment;
 
+enum class SourceClauseKind
+{
+    None,
+    Match,
+    SelectWithSource,
+};
+
 void lowerUseClause(const OPENGQL::AST::GQLUseClause & use, PlanScope & scope);
 
+SourceClauseKind classifySourceIntroducingClause(const ASTPtr & clause);
+const char * sourceClauseKindName(SourceClauseKind kind);
 bool isSourceIntroducingClause(const ASTPtr & clause);
 
 class SourceClauseBuffer final

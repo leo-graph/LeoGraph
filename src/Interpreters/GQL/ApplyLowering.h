@@ -16,12 +16,18 @@ namespace DB::GQL
 class PlanScope;
 struct PlanEnvironment;
 
+struct CorrelatedSourceContext
+{
+    const PlanScope & outer_scope;
+    PlanScope & subquery_scope;
+    std::string_view context_name;
+};
+
 void lowerCorrelatedSourceClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
     const PlanEnvironment & environment,
-    PlanScope & scope,
-    std::string_view context_name);
+    const CorrelatedSourceContext & apply_context);
 
 }
