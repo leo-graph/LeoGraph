@@ -1,7 +1,6 @@
 #include <Interpreters/GQL/SourceLowering.h>
 
 #include <Core/Block.h>
-#include <Interpreters/GQL/CallLowering.h>
 #include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/MatchLowering.h>
 #include <Interpreters/GQL/PlanEnvironment.h>
@@ -221,12 +220,6 @@ bool tryLowerStandaloneSourceClause(
     {
         addEmptySingleRowSource(plan, scope);
         lowerPipelineClause(plan, clause, context, scope);
-        return true;
-    }
-
-    if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
-    {
-        lowerInlineCallSource(plan, *inline_call, context, environment, scope);
         return true;
     }
 

@@ -166,17 +166,8 @@ void lowerPipelineOnlySubquery(
             continue;
         }
 
-        if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
-        {
-            lowerInlineCallPipelineClause(plan, *inline_call, context, environment, subquery_scope);
+        if (tryLowerPipelineCallClause(plan, clause, context, environment, subquery_scope))
             continue;
-        }
-
-        if (isNamedCallClause(clause))
-        {
-            lowerNamedCallClause(plan, clause, context, environment, subquery_scope);
-            continue;
-        }
 
         lowerPipelineClause(plan, clause, context, subquery_scope);
     }

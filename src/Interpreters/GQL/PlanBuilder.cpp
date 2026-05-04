@@ -84,9 +84,8 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
                 continue;
             }
 
-            if (isNamedCallClause(clause))
+            if (tryLowerStandaloneCallClause(plan, clause, context, environment, scope))
             {
-                lowerNamedCallClause(plan, clause, context, environment, scope);
                 source_ready = true;
                 continue;
             }
@@ -103,17 +102,8 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
         if (isSourceIntroducingClause(clause))
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL source clauses after pipeline clauses are not supported");
 
-        if (const auto * inline_call = clause->as<GAST::GQLCallInlineClause>())
-        {
-            lowerInlineCallPipelineClause(plan, *inline_call, context, environment, scope);
+        if (tryLowerPipelineCallClause(plan, clause, context, environment, scope))
             continue;
-        }
-
-        if (isNamedCallClause(clause))
-        {
-            lowerNamedCallClause(plan, clause, context, environment, scope);
-            continue;
-        }
 
         lowerPipelineClause(plan, clause, context, scope);
     }

@@ -71,10 +71,10 @@ The current executable lowering path is intentionally small but no longer
   exposes reusable source-list entry classification, preserves the same-graph
   graph-match list path, and keeps different graph references / mixed source
   kinds behind explicit composition errors.
-- `CallLowering` owns inline `CALL` variable-scope handling, inline source /
-  pipeline entry points, and the named `CALL` fail-closed boundary, while
-  `SubqueryLowering` owns shared subquery validation, binding definitions, and
-  pipeline-only subquery lowering.
+- `CallLowering` owns position-aware `CALL` dispatch, inline `CALL`
+  variable-scope handling, inline source / pipeline entry points, and the
+  named `CALL` fail-closed boundary. `SubqueryLowering` owns shared subquery
+  validation, binding definitions, and pipeline-only subquery lowering.
 - `ApplyLowering` is the dedicated boundary for row-correlated source clauses.
   It receives an explicit outer / subquery scope context and currently fails
   closed for nested source clauses that would require apply semantics.

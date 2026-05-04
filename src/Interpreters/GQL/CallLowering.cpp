@@ -96,8 +96,6 @@ const GAST::GQLSubquery & getInlineCallSubquery(const GAST::GQLCallInlineClause 
     return *subquery;
 }
 
-}
-
 bool isNamedCallClause(const ASTPtr & clause)
 {
     return clause && clause->as<GAST::GQLCallNamedClause>();
@@ -140,6 +138,52 @@ void lowerInlineCallPipelineClause(
     auto child_scope = makeInlineCallPipelineScope(scope, extractInlineCallVariableScope(call));
     lowerPipelineOnlySubquery(plan, subquery, context, environment, scope, child_scope, "pipeline inline CALL subquery");
     scope = std::move(child_scope);
+}
+
+}
+
+bool tryLowerStandaloneCallClause(
+    QueryPlan & plan,
+    const ASTPtr & clause,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    if (const auto * inline_call = clause ? clause->as<GAST::GQLCallInlineClause>() : nullptr)
+    {
+        lowerInlineCallSource(plan, *inline_call, context, environment, scope);
+        return true;
+    }
+
+    if (isNamedCallClause(clause))
+    {
+        lowerNamedCallClause(plan, clause, context, environment, scope);
+        return true;
+    }
+
+    return false;
+}
+
+bool tryLowerPipelineCallClause(
+    QueryPlan & plan,
+    const ASTPtr & clause,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    if (const auto * inline_call = clause ? clause->as<GAST::GQLCallInlineClause>() : nullptr)
+    {
+        lowerInlineCallPipelineClause(plan, *inline_call, context, environment, scope);
+        return true;
+    }
+
+    if (isNamedCallClause(clause))
+    {
+        lowerNamedCallClause(plan, clause, context, environment, scope);
+        return true;
+    }
+
+    return false;
 }
 
 }
