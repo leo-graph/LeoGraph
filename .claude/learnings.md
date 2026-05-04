@@ -83,4 +83,5 @@
 - Route `GQL` DML and catalog clauses through dedicated fail-closed lowering modules instead of letting them fall into generic source / pipeline dispatch errors.
 - Route named `GQL` `CALL` through `CallLowering` even while it only throws `NOT_IMPLEMENTED`; do not let it fall into generic source or pipeline dispatch errors.
 - Keep `GQL` DML and catalog boundary dispatch outside generic `ClauseLowering`; future mutation/catalog execution needs `PlanEnvironment`, so route it from `PlanBuilder` and pipeline-only `SubqueryLowering`.
+- Use a shared post-source pipeline dispatch layer for `GQL` clauses; `PlanBuilder` and pipeline-only subqueries should not duplicate catalog / DML / pipeline `CALL` / pure clause ordering.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.

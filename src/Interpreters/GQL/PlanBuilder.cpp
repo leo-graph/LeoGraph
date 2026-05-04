@@ -4,8 +4,8 @@
 
 #include <Interpreters/GQL/CallLowering.h>
 #include <Interpreters/GQL/CatalogLowering.h>
-#include <Interpreters/GQL/ClauseLowering.h>
 #include <Interpreters/GQL/MutationLowering.h>
+#include <Interpreters/GQL/PipelineLowering.h>
 #include <Interpreters/GQL/SourceLowering.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/QueryPlan.h>
@@ -100,16 +100,7 @@ void PlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery 
         if (isSourceIntroducingClause(clause))
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL source clauses after pipeline clauses are not supported");
 
-        if (tryLowerCatalogClause(plan, clause, context, environment, scope))
-            continue;
-
-        if (tryLowerDataModifyingClause(plan, clause, context, environment, scope))
-            continue;
-
-        if (tryLowerPipelineCallClause(plan, clause, context, environment, scope))
-            continue;
-
-        lowerPipelineClause(plan, clause, context, scope);
+        lowerPipelinePositionClause(plan, clause, context, environment, scope);
     }
 
     if (source_buffer.hasPending())

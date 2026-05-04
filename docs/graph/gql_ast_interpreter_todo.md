@@ -89,6 +89,9 @@ The current executable lowering path is intentionally small but no longer
   reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
   `FINISH`.
+- `PipelineLowering` is the shared dispatch point for clauses that appear after
+  a source pipeline exists. It routes service-aware boundaries such as catalog,
+  DML, and pipeline `CALL` before falling back to pure `ClauseLowering`.
 - `ClauseLowering` treats upstream pipeline columns as row values even when the
   header carries const metadata from source-free subqueries; projection-like
   steps materialize outputs before handing them to downstream clauses.

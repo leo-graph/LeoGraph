@@ -150,7 +150,8 @@ Interpreter framework gaps to keep visible:
 4. `SELECT FROM` source-list handling now has a dedicated `SourceCompositionLowering` module with a reusable entry-classification API. It can lower same-graph graph-match source lists into one `GraphMatch` source, while different graph references, mixed source kinds, and true multi-source composition still need real operator semantics.
 5. Expression lowering still covers only the common scalar subset; temporal / duration / value-query / path-constructor / graph-expression execution lowering remains deferred.
 6. `GQLCatalogStatement` and DML clauses have parser AST coverage and dedicated lowering boundaries. They are dispatched from `PlanBuilder` / pipeline-only `SubqueryLowering`, where `PlanEnvironment` is available for future catalog / storage services, but there is still no catalog / mutation execution.
-7. Full `ninja` verification is currently blocked by local build-directory regenerate issues under `build/contrib`; use direct TU compilation from `build/compile_commands.json` only as source-level isolation until the build directory is repaired.
+7. `PipelineLowering` centralizes post-source clause dispatch so `PlanBuilder` and pipeline-only `SubqueryLowering` share the same catalog / DML / pipeline `CALL` / pure pipeline-clause ordering.
+8. Full `ninja` verification is currently blocked by local build-directory regenerate issues under `build/contrib`; use direct TU compilation from `build/compile_commands.json` only as source-level isolation until the build directory is repaired.
 
 ## Open TODO Backlog
 
