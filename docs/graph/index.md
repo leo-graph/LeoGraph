@@ -14,9 +14,11 @@ ClickHouse. It aims to support standard `GQL` over data stored in ordinary
 ClickHouse tables, while reusing ClickHouse's `MergeTree` storage, vectorized
 execution, distributed query infrastructure, settings, and resource tracking.
 
-The project is currently in a parser-first phase. The main working surface is
-`GQL text -> normalized GQL IAST`. Runtime interpretation, graph catalog
-execution, and graph-specific query-plan operators are still future work.
+The project is currently transitioning from parser-first work into the first
+interpreter / lowering path. The main stable contract is still `GQL text ->
+normalized GQL IAST`, and supported query roots now enter an initial
+`InterpreterGQLQuery` / `GQL::PlanBuilder` lowering pipeline. Graph catalog
+execution and real graph storage integration are still future work.
 
 ## Goals
 
@@ -46,9 +48,9 @@ execution, and graph-specific query-plan operators are still future work.
 | AST layer | Active | Graph nodes live under `src/Parsers/graph/AST` and inherit from `IAST` or `ASTWithAlias`. |
 | Visitor | Active | `GQLParseTreeVisitor` is split by query, projection, pattern, expression, DML, DDL, and type handling. |
 | Parser tests | Active | Contract tests live in `src/Parsers/graph/tests/gtest_gql_parser.cpp`. |
-| Interpreter / lowering | Not implemented | First boundary is tracked in `gql_ast_interpreter_todo.md`. |
+| Interpreter / lowering | Active MVP | `GQLSingleQuery` and `GQLCombinedQuery` enter `InterpreterGQLQuery`; reusable helpers under `src/Interpreters/GQL` lower supported source and pipeline clauses while unsupported shapes fail closed. |
 | Graph catalog execution | Design only | `catalog.md` describes the target table-mapping model. |
-| Graph operators | Design only | `operators.md` describes the target expand-based execution model. |
+| Graph operators | Initial boundary | `Graph::MatchStep` and `Graph::MatchSource` define the current source contract; real expand / traversal operators remain design work. |
 
 ## Parser-Only Contract
 

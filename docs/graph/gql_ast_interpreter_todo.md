@@ -1,8 +1,13 @@
 # `GQL` AST / Interpreter Readiness TODO
 
-This document is the handoff checklist between the parser/AST work and the first interpreter / lowering work.
+This document is the handoff checklist between the parser/AST work and
+interpreter / lowering work.
 
-The current goal is still limited to `GQL text -> normalized GQL IAST`. Interpreter work should consume only the stable AST subset listed here and should explicitly reject unsupported parser or AST shapes instead of guessing semantics from source text.
+The parser contract is still `GQL text -> normalized GQL IAST`, but the current
+development focus is now the first reusable `GQL AST -> QueryPlan` framework.
+Interpreter work should consume only the stable AST subset listed here and
+should explicitly reject unsupported parser or AST shapes instead of guessing
+semantics from source text.
 
 ## Stable Parser / AST Contract
 
@@ -42,6 +47,42 @@ Interpreter MVP can reasonably start from this subset:
 - Thin reference wrappers: `GQLSchemaReference`, `GQLCatalogObjectName`, `GQLGraphExpression`, `GQLBindingTableExpression`.
 
 Interpreter code should still dispatch by concrete AST node type and fail closed for unknown node classes.
+
+## Current Interpreter / Lowering Status
+
+The current executable lowering path is intentionally small but no longer
+`MATCH`-only:
+
+- `InterpreterGQLQuery` dispatches `GQLSingleQuery` and `GQLCombinedQuery`.
+- `GQL::PlanBuilder` owns linear single-query lowering and separates source
+  clauses from pipeline clauses.
+- `GQL::PlanEnvironment` carries planner-wide services such as
+  `Graph::MatchSourceFactory`; `GQL::PlanScope` only tracks lexical bindings
+  and active graph scope.
+- `SourceLowering` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
+  `FOR` / `FINISH`, `SELECT FROM` single sources, nested subqueries, and
+  inline `CALL` subqueries.
+- `ClauseLowering`, `AggregationLowering`, and `ExpressionLowering` provide the
+  reusable pipeline path for `WHERE`, `FILTER`, `HAVING`, projection,
+  aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
+  `FINISH`.
+- `Graph::MatchStep` and `Graph::MatchSource` define the current graph-source
+  boundary; the default source still emits no rows until graph storage is wired.
+
+## Remaining Framework Gaps Toward Reusable Clause Lowering
+
+These are the main gaps before the current goal can be considered structurally
+complete:
+
+| Area | Current gap | Why it matters |
+|------|-------------|----------------|
+| source composition | `SELECT FROM` supports only a single source item. Multiple source lists still need an explicit composition model, including cross/apply semantics, header conflict rules, and graph-scope restoration. | Without this, source lowering is usable for simple subqueries but not a general source framework. |
+| correlated subqueries | Inline `CALL (x) { ... }` can import expression-backed bindings, but imports from current pipeline columns still fail because row-correlated apply semantics are not implemented. | Procedure and subquery clauses cannot yet compose with row data from previous clauses. |
+| optional match execution | `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution. | Null-extension semantics require a real outer-match operator or source behavior. |
+| real graph source | `Graph::MatchSourceFactory` exists, but the default factory emits no rows and no graph catalog / table mapping is connected. | The plan shape is testable, but `MATCH` is not yet backed by storage. |
+| DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` have parser AST coverage but no runtime interpreter. | Mutating and catalog statements currently stop at parser/AST. |
+| expression breadth | Common scalar expressions lower through shared helpers, but temporal, duration, value-query, path-constructor, graph-expression, dynamic-parameter, and broader function semantics remain deferred. | Later clauses can reuse the helper layer, but only for the currently supported scalar subset. |
+| named procedures | Inline `CALL` has a first source path; named `CALL` and procedure-reference binding are still not implemented. | Procedure calls need catalog/name resolution and output-schema handling. |
 
 ## Parser AST Gaps To Check During Interpreter Work
 

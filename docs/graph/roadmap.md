@@ -9,8 +9,9 @@ doc_type: 'reference'
 
 # LeoGraph Roadmap
 
-This roadmap tracks the current parser-first development plan. It replaces the
-older milestone list that described the initial `ASTGraphQuery` prototype.
+This roadmap tracks the current `GQL` parser and interpreter-lowering plan. It
+replaces the older milestone list that described the initial `ASTGraphQuery`
+prototype.
 
 ## Current Phase Summary
 
@@ -19,7 +20,7 @@ P0: GQL parser / AST contract
     status: active and partially implemented
 
 P1: Interpreter / lowering MVP
-    status: next major phase
+    status: active and partially implemented
 
 P2: Graph catalog execution
     status: target design
@@ -31,9 +32,10 @@ P4: Multi-hop traversal and optimization
     status: future
 ```
 
-The current priority is still `GQL text -> normalized GQL IAST`. Runtime
-execution should consume typed AST nodes and fail closed for unsupported shapes;
-it should not parse `formatAST` output or infer semantics from raw source text.
+The current priority is the handoff from `GQL text -> normalized GQL IAST` into
+a reusable `GQL AST -> QueryPlan` framework. Runtime execution should consume
+typed AST nodes and fail closed for unsupported shapes; it should not parse
+`formatAST` output or infer semantics from raw source text.
 
 ## P0: GQL Parser and AST Contract
 
