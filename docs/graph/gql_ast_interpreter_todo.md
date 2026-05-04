@@ -62,9 +62,9 @@ The current executable lowering path is intentionally small but no longer
 - `SourceLowering` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
   `FOR` / `FINISH`, and `SELECT FROM` single sources.
 - `SourceCompositionLowering` owns `SELECT FROM` source-list composition. It
-  first classifies source-list entries, preserves the same-graph graph-match
-  list path, and keeps different graph references / mixed source kinds behind
-  explicit composition errors.
+  exposes reusable source-list entry classification, preserves the same-graph
+  graph-match list path, and keeps different graph references / mixed source
+  kinds behind explicit composition errors.
 - `CallLowering` owns inline `CALL` variable-scope handling and source /
   pipeline entry points, while `SubqueryLowering` owns shared subquery
   validation, binding definitions, and pipeline-only subquery lowering.
@@ -85,7 +85,7 @@ complete:
 
 | Area | Current gap | Why it matters |
 |------|-------------|----------------|
-| source composition | `SourceCompositionLowering` can classify source-list entries and combine same-graph graph-match source lists into one `GraphMatch` source. Different graph references, mixed source kinds, and true multi-source composition still need explicit operator semantics, including cross/apply behavior, header conflict rules, and graph-scope restoration. | The composition boundary now has a dedicated module and entry classifier, but it is not yet a complete source framework. |
+| source composition | `SourceCompositionLowering` exposes source-list entry classification and can combine same-graph graph-match source lists into one `GraphMatch` source. Different graph references, mixed source kinds, and true multi-source composition still need explicit operator semantics, including cross/apply behavior, header conflict rules, and graph-scope restoration. | The composition boundary now has a dedicated module and reusable entry classifier, but it is not yet a complete source framework. |
 | correlated subqueries | Pipeline-only inline `CALL (x) { RETURN ... }` can reuse current row bindings when the nested body contains only pipeline clauses. Inline `CALL` bodies that introduce a new source now fail through `ApplyLowering`, with separate outer and subquery scopes passed through the apply context, because row-correlated apply semantics are not implemented. | Projection-like subqueries can compose with row data, and nested source failures have a single future implementation point with the required scope contract. Procedure bodies that need nested scans still require a real apply operator. |
 | optional match execution | `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution. | Null-extension semantics require a real outer-match operator or source behavior. |
 | real graph source | `Graph::MatchSourceFactory` exists, but the default factory emits no rows and no graph catalog / table mapping is connected. | The plan shape is testable, but `MATCH` is not yet backed by storage. |

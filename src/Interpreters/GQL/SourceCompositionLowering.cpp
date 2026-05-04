@@ -23,13 +23,6 @@ namespace
 
 namespace GAST = DB::OPENGQL::AST;
 
-struct SelectSourceListEntry
-{
-    ASTPtr graph_reference;
-    SourceClauseKind source_kind = SourceClauseKind::None;
-    const GAST::GQLMatchClause * match = nullptr;
-};
-
 ASTPtr cloneOrNull(const ASTPtr & ast)
 {
     return ast ? ast->clone() : nullptr;
@@ -63,9 +56,11 @@ SelectSourceListEntry classifySourceListEntry(const ASTPtr & item_ast)
     return result;
 }
 
-std::vector<SelectSourceListEntry> classifySourceListEntries(const GAST::GQLSelectSourceList & source_list)
+}
+
+SelectSourceListEntries classifySelectSourceList(const OPENGQL::AST::GQLSelectSourceList & source_list)
 {
-    std::vector<SelectSourceListEntry> entries;
+    SelectSourceListEntries entries;
     entries.reserve(source_list.items.size());
     for (const auto & item_ast : source_list.items)
         entries.push_back(classifySourceListEntry(item_ast));
@@ -73,7 +68,7 @@ std::vector<SelectSourceListEntry> classifySourceListEntries(const GAST::GQLSele
     return entries;
 }
 
-bool isSameGraphMatchSourceList(const std::vector<SelectSourceListEntry> & entries)
+bool isSameGraphMatchSourceList(const SelectSourceListEntries & entries)
 {
     if (entries.empty())
         return false;
@@ -90,7 +85,7 @@ bool isSameGraphMatchSourceList(const std::vector<SelectSourceListEntry> & entri
     return true;
 }
 
-bool hasDifferentGraphReferences(const std::vector<SelectSourceListEntry> & entries)
+bool hasDifferentGraphReferences(const SelectSourceListEntries & entries)
 {
     if (entries.empty())
         return false;
@@ -105,9 +100,12 @@ bool hasDifferentGraphReferences(const std::vector<SelectSourceListEntry> & entr
     return false;
 }
 
+namespace
+{
+
 void lowerSameGraphMatchSourceList(
     QueryPlan & plan,
-    const std::vector<SelectSourceListEntry> & entries,
+    const SelectSourceListEntries & entries,
     ContextPtr context,
     const PlanEnvironment & environment,
     PlanScope & scope)
@@ -139,7 +137,7 @@ void lowerSelectSourceList(
     if (source_list.items.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "SELECT FROM source list must contain at least one source");
 
-    const auto entries = classifySourceListEntries(source_list);
+    const auto entries = classifySelectSourceList(source_list);
     if (isSameGraphMatchSourceList(entries))
     {
         lowerSameGraphMatchSourceList(plan, entries, context, environment, scope);
