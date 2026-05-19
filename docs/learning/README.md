@@ -64,6 +64,16 @@
 
 ---
 
+### 7. [06-interpreter-select-query-analyzer.md](06-interpreter-select-query-analyzer.md) - InterpreterSelectQueryAnalyzer 设计详解
+
+**内容**: 新分析器路径下 `SELECT` 解释器的作用与四个阶段（normalize → analyze → plan → execute），与旧 `InterpreterSelectQuery` 的差异。
+
+**适用阶段**: 理解新 analyzer 体系如何把语义分析和执行计划下沉给 `Analyzer` 与 `Planner`。
+
+**关键词**: InterpreterSelectQueryAnalyzer、QueryTree、QueryTreePassManager、Planner、并行副本
+
+---
+
 ## 学习路径建议
 
 ### 路径一：快速入门（1-2 天）
