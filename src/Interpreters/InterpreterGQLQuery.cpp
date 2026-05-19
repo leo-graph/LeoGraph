@@ -1,7 +1,7 @@
 #include <Interpreters/InterpreterGQLQuery.h>
 
 #include <Interpreters/Context.h>
-#include <Interpreters/GQL/RootLowering.h>
+#include <Interpreters/GQL/GQLPlanner.h>
 #include <Interpreters/InterpreterFactory.h>
 #include <Processors/QueryPlan/BuildQueryPipelineSettings.h>
 #include <Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.h>
@@ -45,7 +45,7 @@ void InterpreterGQLQuery::buildQueryPlan(QueryPlan & query_plan)
     if (!query_ptr)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "InterpreterGQLQuery query is null");
 
-    GQL::buildRootQueryPlan(query_plan, *query_ptr, getContext(), environment);
+    GQL::buildGQLQueryPlan(query_plan, *query_ptr, getContext(), environment);
     query_plan.addInterpreterContext(getContext());
 }
 

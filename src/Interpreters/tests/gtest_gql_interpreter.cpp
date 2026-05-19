@@ -8,10 +8,10 @@
 #  include <Common/tests/gtest_global_context.h>
 #  include <Common/tests/gtest_global_register.h>
 #  include <DataTypes/DataTypesNumber.h>
-#  include <Interpreters/GQL/AggregationLowering.h>
-#  include <Interpreters/GQL/ClauseLowering.h>
-#  include <Interpreters/GQL/ExpressionLowering.h>
-#  include <Interpreters/GQL/PlanBuilder.h>
+#  include <Interpreters/GQL/AggregationPlanner.h>
+#  include <Interpreters/GQL/ClausePlanner.h>
+#  include <Interpreters/GQL/ExpressionPlanner.h>
+#  include <Interpreters/GQL/GQLPlanBuilder.h>
 #  include <Interpreters/InterpreterGQLQuery.h>
 #  include <Parsers/ASTFunction.h>
 #  include <Parsers/ASTIdentifier.h>
@@ -84,7 +84,7 @@ QueryPlan buildPlan(const std::string & query)
     return plan;
 }
 
-QueryPlan buildPlanWithPlanBuilder(const std::string & query)
+QueryPlan buildPlanWithGQLPlanBuilder(const std::string & query)
 {
     const auto ast = parseGQL(query);
     const auto * single_query = ast->as<GAST::GQLSingleQuery>();
@@ -92,11 +92,11 @@ QueryPlan buildPlanWithPlanBuilder(const std::string & query)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "test query must parse to GQLSingleQuery");
 
     QueryPlan plan;
-    GQL::PlanBuilder(getInterpreterContext()).buildSingleQuery(plan, *single_query);
+    GQL::GQLPlanBuilder(getInterpreterContext()).buildSingleQuery(plan, *single_query);
     return plan;
 }
 
-GQL::PlanScope buildScopeWithPlanBuilder(const std::string & query)
+GQL::PlanScope buildScopeWithGQLPlanBuilder(const std::string & query)
 {
     const auto ast = parseGQL(query);
     const auto * single_query = ast->as<GAST::GQLSingleQuery>();
@@ -104,14 +104,14 @@ GQL::PlanScope buildScopeWithPlanBuilder(const std::string & query)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "test query must parse to GQLSingleQuery");
 
     QueryPlan plan;
-    GQL::PlanBuilder builder(getInterpreterContext());
+    GQL::GQLPlanBuilder builder(getInterpreterContext());
     builder.buildSingleQuery(plan, *single_query);
     return builder.getScope();
 }
 
-std::vector<GQL::PlanBinding> buildScopeBindingsWithPlanBuilder(const std::string & query)
+std::vector<GQL::PlanBinding> buildScopeBindingsWithGQLPlanBuilder(const std::string & query)
 {
-    return buildScopeWithPlanBuilder(query).getBindings();
+    return buildScopeWithGQLPlanBuilder(query).getBindings();
 }
 
 std::vector<String> linearStepNames(const QueryPlan & plan)
@@ -161,7 +161,7 @@ std::vector<const Graph::MatchStep *> collectMatchSteps(const QueryPlan & plan)
 
 }
 
-TEST(GQLInterpreter, BareMatchReturnLowersToScanThenProjection)
+TEST(GQLInterpreter, BareMatchReturnBuildsToScanThenProjection)
 {
     const auto plan = buildPlan("MATCH (n) RETURN n");
 
@@ -196,7 +196,7 @@ TEST(GQLInterpreter, MatchSourceAcceptsNullReaderAsEmptySource)
     EXPECT_EQ(source->getName(), "GraphMatchSource");
 }
 
-TEST(GQLInterpreter, PlanBuilderConstructorSeedsMatchSourceFactory)
+TEST(GQLInterpreter, GQLPlanBuilderConstructorSeedsMatchSourceFactory)
 {
     auto factory = std::make_shared<TestMatchSourceFactory>();
     const auto ast = parseGQL("MATCH (n) RETURN n");
@@ -204,7 +204,7 @@ TEST(GQLInterpreter, PlanBuilderConstructorSeedsMatchSourceFactory)
     ASSERT_NE(single_query, nullptr);
 
     QueryPlan plan;
-    GQL::PlanBuilder(getInterpreterContext(), makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
+    GQL::GQLPlanBuilder(getInterpreterContext(), makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
 
     const auto * match_step = leafMatchStep(plan);
     ASSERT_NE(match_step, nullptr);
@@ -250,7 +250,7 @@ TEST(GQLInterpreter, PlanEnvironmentMatchSourceFactoryFlowsIntoMatchStep)
     ASSERT_NE(single_query, nullptr);
 
     QueryPlan plan;
-    GQL::PlanBuilder(getInterpreterContext(), GQL::PlanScope{}, makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
+    GQL::GQLPlanBuilder(getInterpreterContext(), GQL::PlanScope{}, makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
 
     const auto * match_step = leafMatchStep(plan);
     ASSERT_NE(match_step, nullptr);
@@ -266,7 +266,7 @@ TEST(GQLInterpreter, SubqueryInheritsPlanEnvironmentMatchSourceFactory)
     ASSERT_NE(single_query, nullptr);
 
     QueryPlan plan;
-    GQL::PlanBuilder(getInterpreterContext(), GQL::PlanScope{}, makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
+    GQL::GQLPlanBuilder(getInterpreterContext(), GQL::PlanScope{}, makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
 
     const auto * match_step = leafMatchStep(plan);
     ASSERT_NE(match_step, nullptr);
@@ -301,18 +301,18 @@ TEST(GQLInterpreter, IntersectDistinctBuildsIntersectOrExceptPlan)
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "IntersectOrExcept"}));
 }
 
-TEST(GQLInterpreter, PlanBuilderLowersSingleQueryWithoutInterpreter)
+TEST(GQLInterpreter, GQLPlanBuilderPlansSingleQueryWithoutInterpreter)
 {
-    const auto plan = buildPlanWithPlanBuilder("MATCH (n) WHERE TRUE RETURN n LIMIT 1");
+    const auto plan = buildPlanWithGQLPlanBuilder("MATCH (n) WHERE TRUE RETURN n LIMIT 1");
 
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Limit", "Expression", "Filter", "GraphMatch"}));
 }
 
-TEST(GQLInterpreter, PlanBuilderScopeTracksMatchSourceBindings)
+TEST(GQLInterpreter, GQLPlanBuilderScopeTracksMatchSourceBindings)
 {
-    const auto bindings = buildScopeBindingsWithPlanBuilder("MATCH (a)-[r]->(b) RETURN *");
+    const auto bindings = buildScopeBindingsWithGQLPlanBuilder("MATCH (a)-[r]->(b) RETURN *");
 
     ASSERT_EQ(bindings.size(), 3u);
     EXPECT_EQ(bindings[0].name, "a");
@@ -323,9 +323,9 @@ TEST(GQLInterpreter, PlanBuilderScopeTracksMatchSourceBindings)
     EXPECT_EQ(bindings[2].kind, GQL::BindingKind::Source);
 }
 
-TEST(GQLInterpreter, PlanBuilderScopeTracksProjectionBindings)
+TEST(GQLInterpreter, GQLPlanBuilderScopeTracksProjectionBindings)
 {
-    const auto bindings = buildScopeBindingsWithPlanBuilder("MATCH (n) RETURN n AS node_id");
+    const auto bindings = buildScopeBindingsWithGQLPlanBuilder("MATCH (n) RETURN n AS node_id");
 
     ASSERT_EQ(bindings.size(), 1u);
     EXPECT_EQ(bindings[0].name, "node_id");
@@ -335,7 +335,7 @@ TEST(GQLInterpreter, PlanBuilderScopeTracksProjectionBindings)
 
 TEST(GQLInterpreter, UseClauseSetsReusablePlanScopeGraph)
 {
-    const auto scope = buildScopeWithPlanBuilder("USE g RETURN 1 AS x");
+    const auto scope = buildScopeWithGQLPlanBuilder("USE g RETURN 1 AS x");
 
     const auto & active_graph = scope.getActiveGraph();
     ASSERT_TRUE(active_graph);
@@ -350,7 +350,7 @@ TEST(GQLInterpreter, UseClauseSetsReusablePlanScopeGraph)
 
 TEST(GQLInterpreter, UseClauseFlowsIntoGraphMatchSpec)
 {
-    const auto plan = buildPlanWithPlanBuilder("USE g MATCH (n) RETURN n");
+    const auto plan = buildPlanWithGQLPlanBuilder("USE g MATCH (n) RETURN n");
 
     const auto * match_step = leafMatchStep(plan);
     ASSERT_NE(match_step, nullptr);
@@ -370,7 +370,7 @@ TEST(GQLInterpreter, UseClauseFlowsIntoGraphMatchSpec)
 
 TEST(GQLInterpreter, SelectGraphMatchSourceFlowsIntoGraphMatchSpec)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT n FROM g MATCH (n)");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT n FROM g MATCH (n)");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
 
@@ -385,9 +385,9 @@ TEST(GQLInterpreter, SelectGraphMatchSourceFlowsIntoGraphMatchSpec)
     EXPECT_EQ(graph->text, "g");
 }
 
-TEST(GQLInterpreter, SelectGraphMatchSourceListWithSameGraphLowersToSingleSource)
+TEST(GQLInterpreter, SelectGraphMatchSourceListWithSameGraphBuildsToSingleSource)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT a, b FROM g MATCH (a), g MATCH (b) WHERE a = b");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT a, b FROM g MATCH (a), g MATCH (b) WHERE a = b");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
 
@@ -409,7 +409,7 @@ TEST(GQLInterpreter, SelectGraphMatchSourceListWithDifferentGraphsRequiresCompos
 {
     try
     {
-        (void)buildPlanWithPlanBuilder("SELECT a, b FROM foo MATCH (a), bar MATCH (b)");
+        (void)buildPlanWithGQLPlanBuilder("SELECT a, b FROM foo MATCH (a), bar MATCH (b)");
         FAIL() << "Expected multi-graph SELECT FROM source list to require source composition";
     }
     catch (const Exception & e)
@@ -421,7 +421,7 @@ TEST(GQLInterpreter, SelectGraphMatchSourceListWithDifferentGraphsRequiresCompos
 
 TEST(GQLInterpreter, SelectGraphMatchSourceDoesNotLeakUseScopeGraph)
 {
-    const auto scope = buildScopeWithPlanBuilder("USE outer_graph SELECT n FROM inner_graph MATCH (n)");
+    const auto scope = buildScopeWithGQLPlanBuilder("USE outer_graph SELECT n FROM inner_graph MATCH (n)");
 
     const auto & active_graph = scope.getActiveGraph();
     ASSERT_TRUE(active_graph);
@@ -436,7 +436,7 @@ TEST(GQLInterpreter, SelectGraphMatchSourceDoesNotLeakUseScopeGraph)
 
 TEST(GQLInterpreter, SelectGraphSubquerySourceFlowsIntoNestedMatchSpec)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT n FROM g { MATCH (n) RETURN n }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT n FROM g { MATCH (n) RETURN n }");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
 
@@ -453,7 +453,7 @@ TEST(GQLInterpreter, SelectGraphSubquerySourceFlowsIntoNestedMatchSpec)
 
 TEST(GQLInterpreter, UseClauseFlowsIntoInlineCallSubqueryMatchSpec)
 {
-    const auto plan = buildPlanWithPlanBuilder("USE g CALL { MATCH (n) RETURN n } RETURN n");
+    const auto plan = buildPlanWithGQLPlanBuilder("USE g CALL { MATCH (n) RETURN n } RETURN n");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
 
@@ -468,9 +468,9 @@ TEST(GQLInterpreter, UseClauseFlowsIntoInlineCallSubqueryMatchSpec)
     EXPECT_EQ(graph->text, "g");
 }
 
-TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionLowering)
+TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionPlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN 1 AS one");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -484,9 +484,9 @@ TEST(GQLInterpreter, ReturnWithoutMatchUsesReusableProjectionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "one");
 }
 
-TEST(GQLInterpreter, SelectWithoutMatchUsesReusableProjectionLowering)
+TEST(GQLInterpreter, SelectWithoutMatchUsesReusableProjectionPlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT 1 AS one");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT 1 AS one");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -500,9 +500,9 @@ TEST(GQLInterpreter, SelectWithoutMatchUsesReusableProjectionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "one");
 }
 
-TEST(GQLInterpreter, SelectFromSubqueryUsesReusableSourceLowering)
+TEST(GQLInterpreter, SelectFromSubqueryUsesReusableSourcePlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT a FROM { RETURN 1 AS a }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT a FROM { RETURN 1 AS a }");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -516,9 +516,9 @@ TEST(GQLInterpreter, SelectFromSubqueryUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
-TEST(GQLInterpreter, SelectFromCombinedSubqueryUsesRootLowering)
+TEST(GQLInterpreter, SelectFromCombinedSubqueryUsesGQLPlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT v FROM { RETURN 1 AS v UNION ALL RETURN 2 AS v }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT v FROM { RETURN 1 AS v UNION ALL RETURN 2 AS v }");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Union"}));
 
@@ -529,9 +529,9 @@ TEST(GQLInterpreter, SelectFromCombinedSubqueryUsesRootLowering)
     EXPECT_EQ(header.getByPosition(0).name, "v");
 }
 
-TEST(GQLInterpreter, InlineCallUsesReusableSourceLowering)
+TEST(GQLInterpreter, InlineCallUsesReusableSourcePlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("CALL { RETURN 1 AS a } RETURN a");
+    const auto plan = buildPlanWithGQLPlanBuilder("CALL { RETURN 1 AS a } RETURN a");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -545,9 +545,9 @@ TEST(GQLInterpreter, InlineCallUsesReusableSourceLowering)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
-TEST(GQLInterpreter, InlineCallEmptyVariableScopeUsesReusableSourceLowering)
+TEST(GQLInterpreter, InlineCallEmptyVariableScopeUsesReusableSourcePlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("CALL () { RETURN 1 AS a } RETURN a");
+    const auto plan = buildPlanWithGQLPlanBuilder("CALL () { RETURN 1 AS a } RETURN a");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -562,7 +562,7 @@ TEST(GQLInterpreter, InlineCallUnavailableVariableScopeThrows)
 {
     try
     {
-        (void)buildPlanWithPlanBuilder("CALL (a) { RETURN a } RETURN a");
+        (void)buildPlanWithGQLPlanBuilder("CALL (a) { RETURN a } RETURN a");
         FAIL() << "Expected missing inline CALL variable import to be rejected";
     }
     catch (const Exception & e)
@@ -574,7 +574,7 @@ TEST(GQLInterpreter, InlineCallUnavailableVariableScopeThrows)
 
 TEST(GQLInterpreter, InlineCallImportsExpressionBindingFromOuterScope)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT x FROM { VALUE x = 1 CALL (x) { RETURN x } RETURN x }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT x FROM { VALUE x = 1 CALL (x) { RETURN x } RETURN x }");
 
     EXPECT_EQ(
         linearStepNames(plan),
@@ -587,9 +587,9 @@ TEST(GQLInterpreter, InlineCallImportsExpressionBindingFromOuterScope)
     EXPECT_EQ(header.getByPosition(0).name, "x");
 }
 
-TEST(GQLInterpreter, InlineCallAfterMatchUsesReusablePipelineLowering)
+TEST(GQLInterpreter, InlineCallAfterMatchUsesReusablePostSourceClausePlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("MATCH (n) CALL (n) { RETURN n AS m } RETURN m");
+    const auto plan = buildPlanWithGQLPlanBuilder("MATCH (n) CALL (n) { RETURN n AS m } RETURN m");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
 
@@ -600,12 +600,12 @@ TEST(GQLInterpreter, InlineCallAfterMatchUsesReusablePipelineLowering)
     EXPECT_EQ(header.getByPosition(0).name, "m");
 }
 
-TEST(GQLInterpreter, InlineCallPipelineRejectsNestedSource)
+TEST(GQLInterpreter, InlineCallPostSourceRejectsNestedSource)
 {
     try
     {
-        (void)buildPlanWithPlanBuilder("MATCH (n) CALL (n) { MATCH (m) RETURN m } RETURN m");
-        FAIL() << "Expected pipeline inline CALL with nested source to be rejected";
+        (void)buildPlanWithGQLPlanBuilder("MATCH (n) CALL (n) { MATCH (m) RETURN m } RETURN m");
+        FAIL() << "Expected post-source inline CALL with nested source to be rejected";
     }
     catch (const Exception & e)
     {
@@ -614,12 +614,12 @@ TEST(GQLInterpreter, InlineCallPipelineRejectsNestedSource)
     }
 }
 
-TEST(GQLInterpreter, InlineCallPipelineRejectsSelectSource)
+TEST(GQLInterpreter, InlineCallPostSourceRejectsSelectSource)
 {
     try
     {
-        (void)buildPlanWithPlanBuilder("MATCH (n) CALL (n) { SELECT m FROM g MATCH (m) } RETURN n");
-        FAIL() << "Expected pipeline inline CALL with SELECT FROM source to be rejected";
+        (void)buildPlanWithGQLPlanBuilder("MATCH (n) CALL (n) { SELECT m FROM g MATCH (m) } RETURN n");
+        FAIL() << "Expected post-source inline CALL with SELECT FROM source to be rejected";
     }
     catch (const Exception & e)
     {
@@ -630,7 +630,7 @@ TEST(GQLInterpreter, InlineCallPipelineRejectsSelectSource)
 
 TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)
 {
-    const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x = 1 RETURN x } RETURN x");
+    const auto plan = buildPlanWithGQLPlanBuilder("CALL { VALUE x = 1 RETURN x } RETURN x");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -643,7 +643,7 @@ TEST(GQLInterpreter, InlineCallValueBindingSeedsNestedReturn)
 
 TEST(GQLInterpreter, SubqueryValueBindingSurvivesNestedMatchSourceUntilProjection)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT n, x FROM { VALUE x = 1 MATCH (n) RETURN n, x }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT n, x FROM { VALUE x = 1 MATCH (n) RETURN n, x }");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
 
@@ -657,15 +657,15 @@ TEST(GQLInterpreter, SubqueryValueBindingSurvivesNestedMatchSourceUntilProjectio
 
 TEST(GQLInterpreter, SubqueryValueBindingDoesNotLeakWhenNotReturned)
 {
-    const auto bindings = buildScopeBindingsWithPlanBuilder("CALL { VALUE x = 1 RETURN 1 AS y } RETURN y");
+    const auto bindings = buildScopeBindingsWithGQLPlanBuilder("CALL { VALUE x = 1 RETURN 1 AS y } RETURN y");
 
     ASSERT_EQ(bindings.size(), 1u);
     EXPECT_EQ(bindings.front().name, "y");
 }
 
-TEST(GQLInterpreter, TypedSubqueryValueBindingUsesReusableTypeCastLowering)
+TEST(GQLInterpreter, TypedSubqueryValueBindingUsesReusableTypeCastPlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("CALL { VALUE x INT32 = 1 RETURN x } RETURN x");
+    const auto plan = buildPlanWithGQLPlanBuilder("CALL { VALUE x INT32 = 1 RETURN x } RETURN x");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -679,7 +679,7 @@ TEST(GQLInterpreter, TypedSubqueryValueBindingUsesReusableTypeCastLowering)
 
 TEST(GQLInterpreter, SelectAllFromSubqueryKeepsSourceHeader)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT * FROM { RETURN 1 AS a }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT * FROM { RETURN 1 AS a }");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -690,18 +690,18 @@ TEST(GQLInterpreter, SelectAllFromSubqueryKeepsSourceHeader)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
-TEST(GQLInterpreter, SelectFromSubqueryReusesWhereProjectionAndPageLowering)
+TEST(GQLInterpreter, SelectFromSubqueryReusesWhereProjectionAndPagePlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT a FROM { RETURN 1 AS a } WHERE a = 1 ORDER BY a LIMIT 1");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT a FROM { RETURN 1 AS a } WHERE a = 1 ORDER BY a LIMIT 1");
 
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Limit", "Sorting", "Expression", "Filter", "Expression", "ReadFromPreparedSource"}));
 }
 
-TEST(GQLInterpreter, ReturnDistinctUsesReusableDistinctLowering)
+TEST(GQLInterpreter, ReturnDistinctUsesReusableDistinctPlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN DISTINCT 1 AS one");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN DISTINCT 1 AS one");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Expression", "ReadFromPreparedSource"}));
 
@@ -712,9 +712,9 @@ TEST(GQLInterpreter, ReturnDistinctUsesReusableDistinctLowering)
     EXPECT_EQ(distinct->getColumnNames(), (Names{"one"}));
 }
 
-TEST(GQLInterpreter, SelectDistinctAllFromSubqueryUsesReusableDistinctLowering)
+TEST(GQLInterpreter, SelectDistinctAllFromSubqueryUsesReusableDistinctPlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT DISTINCT * FROM { RETURN 1 AS a }");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT DISTINCT * FROM { RETURN 1 AS a }");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Expression", "ReadFromPreparedSource"}));
 
@@ -725,9 +725,9 @@ TEST(GQLInterpreter, SelectDistinctAllFromSubqueryUsesReusableDistinctLowering)
     EXPECT_EQ(distinct->getColumnNames(), (Names{"a"}));
 }
 
-TEST(GQLInterpreter, LetWithoutMatchStartsReusableScalarPipeline)
+TEST(GQLInterpreter, LetWithoutMatchStartsReusableScalarSource)
 {
-    const auto plan = buildPlanWithPlanBuilder("LET x = 1 RETURN x");
+    const auto plan = buildPlanWithGQLPlanBuilder("LET x = 1 RETURN x");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -743,7 +743,7 @@ TEST(GQLInterpreter, LetWithoutMatchStartsReusableScalarPipeline)
 
 TEST(GQLInterpreter, LetAssignmentsCanReferenceEarlierBindings)
 {
-    const auto plan = buildPlanWithPlanBuilder("LET x = 1, y = x + 1 RETURN y");
+    const auto plan = buildPlanWithGQLPlanBuilder("LET x = 1, y = x + 1 RETURN y");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -757,9 +757,9 @@ TEST(GQLInterpreter, LetAssignmentsCanReferenceEarlierBindings)
     EXPECT_EQ(header.getByPosition(0).name, "y");
 }
 
-TEST(GQLInterpreter, TypedLetValueUsesReusableTypeCastLowering)
+TEST(GQLInterpreter, TypedLetValueUsesReusableTypeCastPlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("LET VALUE y INT = 1 RETURN y");
+    const auto plan = buildPlanWithGQLPlanBuilder("LET VALUE y INT = 1 RETURN y");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -776,7 +776,7 @@ TEST(GQLInterpreter, TypedLetValueUsesReusableTypeCastLowering)
 
 TEST(GQLInterpreter, ForWithoutMatchUsesReusableArrayJoinTransform)
 {
-    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 2] RETURN x");
+    const auto plan = buildPlanWithGQLPlanBuilder("FOR x IN [1, 2] RETURN x");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -792,7 +792,7 @@ TEST(GQLInterpreter, ForWithoutMatchUsesReusableArrayJoinTransform)
 
 TEST(GQLInterpreter, ForOffsetUsesAlignedArrayJoinTransform)
 {
-    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 2] WITH OFFSET i RETURN x, i");
+    const auto plan = buildPlanWithGQLPlanBuilder("FOR x IN [1, 2] WITH OFFSET i RETURN x, i");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -809,7 +809,7 @@ TEST(GQLInterpreter, ForOffsetUsesAlignedArrayJoinTransform)
 
 TEST(GQLInterpreter, ForOrdinalityUsesAlignedArrayJoinTransform)
 {
-    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 2] WITH ORDINALITY ord RETURN x, ord");
+    const auto plan = buildPlanWithGQLPlanBuilder("FOR x IN [1, 2] WITH ORDINALITY ord RETURN x, ord");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "ReadFromPreparedSource"}));
 
@@ -826,7 +826,7 @@ TEST(GQLInterpreter, ForOrdinalityUsesAlignedArrayJoinTransform)
 
 TEST(GQLInterpreter, MatchFinishUsesReusableTerminalProjection)
 {
-    const auto plan = buildPlanWithPlanBuilder("MATCH (n) FINISH");
+    const auto plan = buildPlanWithGQLPlanBuilder("MATCH (n) FINISH");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
 
@@ -836,9 +836,9 @@ TEST(GQLInterpreter, MatchFinishUsesReusableTerminalProjection)
     EXPECT_EQ(header.columns(), 0u);
 }
 
-TEST(GQLInterpreter, UseFinishStartsReusableScalarPipeline)
+TEST(GQLInterpreter, UseFinishStartsReusableScalarSource)
 {
-    const auto plan = buildPlanWithPlanBuilder("USE g FINISH");
+    const auto plan = buildPlanWithGQLPlanBuilder("USE g FINISH");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -848,18 +848,18 @@ TEST(GQLInterpreter, UseFinishStartsReusableScalarPipeline)
     EXPECT_EQ(header.columns(), 0u);
 }
 
-TEST(GQLInterpreter, ReturnGroupByUsesReusableAggregationLowering)
+TEST(GQLInterpreter, ReturnGroupByUsesReusableAggregationPlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("FOR x IN [1, 1, 2] RETURN x, COUNT(*) AS c GROUP BY x");
+    const auto plan = buildPlanWithGQLPlanBuilder("FOR x IN [1, 1, 2] RETURN x, COUNT(*) AS c GROUP BY x");
 
     EXPECT_EQ(
         linearStepNames(plan),
         (std::vector<String>{"Expression", "Aggregating", "Expression", "Expression", "ReadFromPreparedSource"}));
 }
 
-TEST(GQLInterpreter, SelectHavingUsesReusablePredicateLowering)
+TEST(GQLInterpreter, SelectHavingUsesReusablePredicatePlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("SELECT SUM(x) AS s FROM { FOR x IN [1, 2] RETURN x } HAVING s > 1");
+    const auto plan = buildPlanWithGQLPlanBuilder("SELECT SUM(x) AS s FROM { FOR x IN [1, 2] RETURN x } HAVING s > 1");
 
     const auto * root = plan.getRootNode();
     ASSERT_NE(root, nullptr);
@@ -888,7 +888,7 @@ TEST(GQLInterpreter, NativeClickHouseGroupByIdentifierUsesReusableAggregationDet
     group_by->items.push_back(make_intrusive<ASTIdentifier>("x"));
     group_by->children.push_back(group_by->items.back());
 
-    const auto keys = GQL::AggregationLoweringDetail::extractGroupByKeys(group_by.get());
+    const auto keys = GQL::AggregationPlannerDetail::extractGroupByKeys(group_by.get());
 
     EXPECT_EQ(keys, Names{"x"});
 }
@@ -898,20 +898,20 @@ TEST(GQLInterpreter, NativeClickHouseNonCountAggregateRequiresArguments)
     auto aggregate = makeASTFunction("sum");
 
     EXPECT_THROW(
-        GQL::AggregationLoweringDetail::getAggregateFunctionInfo(*aggregate),
+        GQL::AggregationPlannerDetail::getAggregateFunctionInfo(*aggregate),
         DB::Exception);
 }
 
-TEST(GQLInterpreter, LetAfterMatchReusesPipelineTransform)
+TEST(GQLInterpreter, LetAfterMatchReusesPostSourceTransform)
 {
-    const auto plan = buildPlanWithPlanBuilder("MATCH (n) LET x = n RETURN x");
+    const auto plan = buildPlanWithGQLPlanBuilder("MATCH (n) LET x = n RETURN x");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Expression", "GraphMatch"}));
 }
 
-TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
+TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePagePlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS one OFFSET 1 LIMIT 5");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN 1 AS one OFFSET 1 LIMIT 5");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Limit", "Expression", "ReadFromPreparedSource"}));
 
@@ -922,9 +922,9 @@ TEST(GQLInterpreter, ReturnOffsetLimitUsesReusablePageLowering)
     EXPECT_EQ(limit->getLimit(), 5u);
 }
 
-TEST(GQLInterpreter, ReturnOrderByUsesReusablePageLowering)
+TEST(GQLInterpreter, ReturnOrderByUsesReusablePagePlanning)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS a ORDER BY a DESC NULLS LAST LIMIT 5");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN 1 AS a ORDER BY a DESC NULLS LAST LIMIT 5");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Limit", "Sorting", "Expression", "ReadFromPreparedSource"}));
 
@@ -943,7 +943,7 @@ TEST(GQLInterpreter, ReturnOrderByUsesReusablePageLowering)
 
 TEST(GQLInterpreter, ReturnOrderByExpressionUsesHiddenSortColumn)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN 1 AS a ORDER BY a + 1 LIMIT 5");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN 1 AS a ORDER BY a + 1 LIMIT 5");
 
     EXPECT_EQ(
         linearStepNames(plan),
@@ -956,9 +956,9 @@ TEST(GQLInterpreter, ReturnOrderByExpressionUsesHiddenSortColumn)
     EXPECT_EQ(header.getByPosition(0).name, "a");
 }
 
-TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionLowering)
+TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionPlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN ABS(-1) AS v");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN ABS(-1) AS v");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -972,9 +972,9 @@ TEST(GQLInterpreter, ScalarFunctionUsesReusableExpressionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "v");
 }
 
-TEST(GQLInterpreter, CastUsesReusableExpressionLowering)
+TEST(GQLInterpreter, CastUsesReusableExpressionPlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN CAST(1 AS INT32) AS v");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN CAST(1 AS INT32) AS v");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -989,9 +989,9 @@ TEST(GQLInterpreter, CastUsesReusableExpressionLowering)
     EXPECT_EQ(header.getByPosition(0).type->getName(), "Int32");
 }
 
-TEST(GQLInterpreter, CaseUsesGenericExpressionLowering)
+TEST(GQLInterpreter, CaseUsesGenericExpressionPlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN CASE WHEN TRUE THEN 1 ELSE 0 END AS v");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN CASE WHEN TRUE THEN 1 ELSE 0 END AS v");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -1005,9 +1005,9 @@ TEST(GQLInterpreter, CaseUsesGenericExpressionLowering)
     EXPECT_EQ(header.getByPosition(0).name, "v");
 }
 
-TEST(GQLInterpreter, ListConstructorUsesGenericExpressionLowering)
+TEST(GQLInterpreter, ListConstructorUsesGenericExpressionPlanner)
 {
-    const auto plan = buildPlanWithPlanBuilder("RETURN [1, 2] AS xs");
+    const auto plan = buildPlanWithGQLPlanBuilder("RETURN [1, 2] AS xs");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
 
@@ -1022,14 +1022,14 @@ TEST(GQLInterpreter, ListConstructorUsesGenericExpressionLowering)
     EXPECT_EQ(header.getByPosition(0).type->getName(), "Array(UInt64)");
 }
 
-TEST(GQLInterpreter, NativeClickHousePagingExpressionsUseReusableLowering)
+TEST(GQLInterpreter, NativeClickHousePagingExpressionsUseReusablePlanning)
 {
     const auto ast = parseGQL("RETURN 1 AS a");
     const auto * single_query = ast->as<GAST::GQLSingleQuery>();
     ASSERT_NE(single_query, nullptr);
 
     QueryPlan plan;
-    GQL::PlanBuilder builder(getInterpreterContext());
+    GQL::GQLPlanBuilder builder(getInterpreterContext());
     builder.buildSingleQuery(plan, *single_query);
     auto scope = builder.getScope();
 
@@ -1041,36 +1041,36 @@ TEST(GQLInterpreter, NativeClickHousePagingExpressionsUseReusableLowering)
     page->children.push_back(page->order_by);
     page->children.push_back(page->limit);
 
-    GQL::lowerPageClause(plan, *page, getInterpreterContext(), scope);
+    GQL::planPageClause(plan, *page, getInterpreterContext(), scope);
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Limit", "Sorting", "Expression", "ReadFromPreparedSource"}));
 }
 
-TEST(GQLInterpreter, NativeClickHouseLiteralUsesReusableExpressionLowering)
+TEST(GQLInterpreter, NativeClickHouseLiteralUsesReusableExpressionPlanner)
 {
     ActionsDAG dag;
     const auto literal = make_intrusive<ASTLiteral>(Field(UInt64(7)));
 
-    const auto & node = GQL::lowerExpression(*literal, dag, getInterpreterContext());
+    const auto & node = GQL::buildExpressionNode(*literal, dag, getInterpreterContext());
 
     EXPECT_EQ(node.result_type->getName(), "UInt64");
     ASSERT_TRUE(node.column);
 }
 
-TEST(GQLInterpreter, NativeClickHouseIdentifierUsesReusableExpressionLowering)
+TEST(GQLInterpreter, NativeClickHouseIdentifierUsesReusableExpressionPlanner)
 {
     NamesAndTypesList inputs;
     inputs.emplace_back("x", std::make_shared<DataTypeUInt64>());
     ActionsDAG dag(inputs);
     const auto identifier = make_intrusive<ASTIdentifier>("x");
 
-    const auto & node = GQL::lowerExpression(*identifier, dag, getInterpreterContext());
+    const auto & node = GQL::buildExpressionNode(*identifier, dag, getInterpreterContext());
 
     EXPECT_EQ(node.result_name, "x");
     EXPECT_EQ(node.result_type->getName(), "UInt64");
 }
 
-TEST(GQLInterpreter, NativeClickHouseFunctionUsesReusableExpressionLowering)
+TEST(GQLInterpreter, NativeClickHouseFunctionUsesReusableExpressionPlanner)
 {
     NamesAndTypesList inputs;
     inputs.emplace_back("x", std::make_shared<DataTypeUInt64>());
@@ -1080,7 +1080,7 @@ TEST(GQLInterpreter, NativeClickHouseFunctionUsesReusableExpressionLowering)
         make_intrusive<ASTIdentifier>("x"),
         make_intrusive<ASTLiteral>(Field(UInt64(1))));
 
-    const auto & node = GQL::lowerExpression(*function, dag, getInterpreterContext());
+    const auto & node = GQL::buildExpressionNode(*function, dag, getInterpreterContext());
 
     EXPECT_EQ(node.result_type->getName(), "UInt64");
 }
@@ -1094,21 +1094,21 @@ TEST(GQLInterpreter, MatchWhereReturnLimitChainsAllSteps)
         (std::vector<String>{"Limit", "Expression", "Filter", "GraphMatch"}));
 }
 
-TEST(GQLInterpreter, MatchFilterClauseLowersToStandaloneFilter)
+TEST(GQLInterpreter, MatchFilterClauseBuildsToStandaloneFilter)
 {
     const auto plan = buildPlan("MATCH (n) FILTER n = 1 RETURN n");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
 }
 
-TEST(GQLInterpreter, ParsedSpecialValuePredicateLowersToFilter)
+TEST(GQLInterpreter, ParsedSpecialValuePredicateBuildsToFilter)
 {
     const auto plan = buildPlan("MATCH (n) WHERE TRUE RETURN n");
 
     EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
 }
 
-TEST(GQLInterpreter, IsNullPredicateLowersToFilter)
+TEST(GQLInterpreter, IsNullPredicateBuildsToFilter)
 {
     const auto plan = buildPlan("MATCH (n) WHERE n IS NULL RETURN n");
 
@@ -1171,12 +1171,12 @@ TEST(GQLInterpreter, UnsupportedNamedCallUsesCallBoundary)
     }
 }
 
-TEST(GQLInterpreter, UnsupportedPipelineNamedCallUsesCallBoundary)
+TEST(GQLInterpreter, UnsupportedPostSourceNamedCallUsesCallBoundary)
 {
     try
     {
         (void)buildPlan("MATCH (n) CALL foo() YIELD x RETURN x");
-        FAIL() << "Expected pipeline GQL named CALL clause to be rejected";
+        FAIL() << "Expected post-source GQL named CALL clause to be rejected";
     }
     catch (const Exception & e)
     {
@@ -1199,7 +1199,7 @@ TEST(GQLInterpreter, UnknownProjectionIdentifierUsesPlanScope)
     }
 }
 
-TEST(GQLInterpreter, PipelineClauseBeforeSourceThrowsNotImplemented)
+TEST(GQLInterpreter, PostSourceClauseBeforeSourceThrowsNotImplemented)
 {
     try
     {
@@ -1227,7 +1227,7 @@ TEST(GQLInterpreter, OptionalMatchOperandBlockStillRequiresExecutionSemantics)
     }
 }
 
-TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
+TEST(GQLInterpreter, EdgePatternBuildsToGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (a)-[r]->(b) RETURN a, r, b");
 
@@ -1247,7 +1247,7 @@ TEST(GQLInterpreter, EdgePatternLowersToGraphMatchSpec)
     EXPECT_EQ(path.nodes[1].variable, "b");
 }
 
-TEST(GQLInterpreter, PathAlternationLowersToGraphMatchSpec)
+TEST(GQLInterpreter, PathAlternationBuildsToGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (a)-[r]->(b) | (c)-[s]->(d) RETURN a, r, b, c, s, d");
 
@@ -1446,7 +1446,7 @@ TEST(GQLInterpreter, PathVariableStaysInGraphMatchSpec)
     EXPECT_EQ(match.paths.front().variable, "p");
 }
 
-TEST(GQLInterpreter, CompoundEdgeDirectionLowersToGraphMatchSpec)
+TEST(GQLInterpreter, CompoundEdgeDirectionBuildsToGraphMatchSpec)
 {
     const auto plan = buildPlan("MATCH (a)<-[r]->(b) RETURN a, r, b");
 

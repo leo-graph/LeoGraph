@@ -1,0 +1,29 @@
+#pragma once
+
+#include <Interpreters/Context_fwd.h>
+#include <Parsers/IAST_fwd.h>
+
+namespace DB
+{
+class QueryPlan;
+}
+
+namespace DB::GQL
+{
+
+struct PlanEnvironment;
+class PlanScope;
+
+/// Builds a clause that appears after a source step already exists.
+///
+/// This dispatch layer keeps service-aware boundaries such as catalog, DML, and
+/// inline `CALL` close to `PlanEnvironment`, while `ClausePlanner` remains a
+/// pure `QueryPlan` transform helper.
+void planPostSourceClause(
+    QueryPlan & plan,
+    const ASTPtr & clause,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope);
+
+}

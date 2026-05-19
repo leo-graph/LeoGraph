@@ -10,7 +10,7 @@ doc_type: 'reference'
 # LeoGraph Architecture
 
 LeoGraph is being developed in layers. The current implemented layers are the
-`GQL` parser / AST contract and an initial interpreter-lowering path for
+`GQL` parser / AST contract and an initial interpreter planner path for
 supported query roots. Catalog execution, storage-backed graph scans, and full
 graph-specific query-plan operators are still target architecture.
 
@@ -133,7 +133,7 @@ The future runtime layers are:
 
 | Layer | Target Responsibility | Current State |
 |-------|-----------------------|---------------|
-| Interpreter / analyzer | Resolve graph names, validate AST, bind graph variables, and choose lowering strategy. | Not implemented. |
+| Interpreter / analyzer | Resolve graph names, validate AST, bind graph variables, and choose planning strategy. | Not implemented. |
 | Graph catalog | Store property graph definitions and map labels / properties to ClickHouse tables and columns. | Design only. |
 | Query-plan operators | Represent scans, expand steps, multi-hop traversal, and vertex lookup. | Design only. |
 | Pipeline processors | Execute expand and lookup operations while reusing ClickHouse processors where possible. | Design only. |

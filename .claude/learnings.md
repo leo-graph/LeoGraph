@@ -68,22 +68,23 @@
 - Model consecutive `GQL` `MATCH` clauses as one `GraphMatch` source with a `MatchClauseSpec` sequence, not as multiple source steps; this keeps per-clause constraints while preserving a single pipeline source boundary.
 - Preserve `GQL` optional match operand blocks in `MatchSpec`, but keep execution rejected until outer-match/null-extension semantics are implemented.
 - Preserve `GQL` path alternation recursively in `MatchPathSpec`; `MatchStep` header collection must walk alternatives so projection can see variables from every branch.
-- Keep reusable `GQL` clause lowering outside `InterpreterGQLQuery`; `MATCH` should provide a source boundary, while `WHERE`, `RETURN`, `LIMIT`, and later transform clauses should share pipeline-lowering helpers.
+- Keep reusable `GQL` clause planning outside `InterpreterGQLQuery`; `MATCH` should provide a source boundary, while `WHERE`, `RETURN`, `LIMIT`, and later transform clauses should share post-source planner helpers.
 - Same-graph `GQL` `SELECT FROM g MATCH ..., g MATCH ...` source lists can lower into one `GraphMatch` source with multiple `MatchClauseSpec` entries; different graph references still need a real source-composition/apply model.
-- Keep `SELECT FROM` source-list decisions in `SourceCompositionLowering`; `SourceLowering` should choose source boundaries, not own multi-source composition policy.
-- Pipeline-only inline `GQL` `CALL (x) { RETURN ... }` can lower directly on the current `QueryPlan` by building a child `PlanScope` from imported row bindings; inline `CALL` bodies that introduce a new source still need a real apply operator.
-- Keep `GQL` procedure lowering separate from source lowering: `CallLowering` should own inline / named procedure entry behavior, while `SubqueryLowering` owns shared subquery validation, binding definitions, and pipeline-only subquery lowering.
-- Route row-correlated `GQL` source clauses through `ApplyLowering` even while it only throws `NOT_IMPLEMENTED`; this keeps future apply semantics out of `CallLowering` and `SubqueryLowering`.
-- Pass both outer and subquery `PlanScope` into `ApplyLowering`; row-correlated source lowering needs an explicit scope contract and should not infer correlation state from inline `CALL` internals.
-- Keep `SELECT FROM` source-list classification separate from the same-graph match lowering path; source composition needs source kind and graph reference metadata before choosing cross/apply behavior.
-- Expose reusable source-list classification from `SourceCompositionLowering.h`; otherwise future composition/apply code will duplicate `GQLSelectSourceItem` parsing.
+- Keep `SELECT FROM` source-list decisions in `SourceCompositionPlanner`; `SourcePlanner` should choose source boundaries, not own multi-source composition policy.
+- Post-source inline `GQL` `CALL (x) { RETURN ... }` can lower directly on the current `QueryPlan` by building a child `PlanScope` from imported row bindings; inline `CALL` bodies that introduce a new source still need a real apply operator.
+- Keep `GQL` procedure lowering separate from source planning: `CallPlanner` should own inline / named procedure entry behavior, while `SubqueryPlanner` owns shared subquery validation, binding definitions, and post-source subquery planning.
+- Route row-correlated `GQL` source clauses through `ApplyPlanner` even while it only throws `NOT_IMPLEMENTED`; this keeps future apply semantics out of `CallPlanner` and `SubqueryPlanner`.
+- Pass both outer and subquery `PlanScope` into `ApplyPlanner`; row-correlated source planning needs an explicit scope contract and should not infer correlation state from inline `CALL` internals.
+- Keep `SELECT FROM` source-list classification separate from the same-graph match planner path; source composition needs source kind and graph reference metadata before choosing cross/apply behavior.
+- Expose reusable source-list classification from `SourceCompositionPlanner.h`; otherwise future composition/apply code will duplicate `GQLSelectSourceItem` parsing.
 - Keep graph-qualified source scope switching in `PlanScope` helpers; source-local `USE` / graph references should update output bindings without leaking active graph to the outer query scope.
-- Put `GQLSingleQuery` / `GQLCombinedQuery` plan construction in shared `RootLowering`; source subqueries should not be limited to a separate single-query-only path when the top-level root lowering already supports combined queries.
-- In `GQL` clause lowering, build pipeline `ActionsDAG` with `duplicate_const_columns=false` and materialize projection-like outputs; otherwise `SELECT ... FROM { RETURN 1 UNION ALL RETURN 2 }` can reuse the first const header value downstream.
-- Route `GQL` DML and catalog clauses through dedicated fail-closed lowering modules instead of letting them fall into generic source / pipeline dispatch errors.
-- Route named `GQL` `CALL` through `CallLowering` even while it only throws `NOT_IMPLEMENTED`; do not let it fall into generic source or pipeline dispatch errors.
-- Keep `GQL` DML and catalog boundary dispatch outside generic `ClauseLowering`; future mutation/catalog execution needs `PlanEnvironment`, so route it from `PlanBuilder` and pipeline-only `SubqueryLowering`.
-- Use a shared post-source pipeline dispatch layer for `GQL` clauses; `PlanBuilder` and pipeline-only subqueries should not duplicate catalog / DML / pipeline `CALL` / pure clause ordering.
-- Source-free `GQL` queries should create an empty single-row source and then reuse post-source pipeline dispatch, not call individual pipeline helpers directly.
-- Keep linear `GQLSingleQuery` clause-order dispatch in a dedicated layer like `ClauseSequenceLowering`; `PlanBuilder` should own mutable query state, not grow into a clause interpreter.
+- Put `GQLSingleQuery` / `GQLCombinedQuery` plan construction in shared `GQLPlanner`; source subqueries should not be limited to a separate single-query-only path when the top-level root planning already supports combined queries.
+- In `GQL` clause planning, build pipeline `ActionsDAG` with `duplicate_const_columns=false` and materialize projection-like outputs; otherwise `SELECT ... FROM { RETURN 1 UNION ALL RETURN 2 }` can reuse the first const header value downstream.
+- Route `GQL` DML and catalog clauses through dedicated fail-closed planner modules instead of letting them fall into generic source / post-source dispatch errors.
+- Route named `GQL` `CALL` through `CallPlanner` even while it only throws `NOT_IMPLEMENTED`; do not let it fall into generic source or post-source dispatch errors.
+- Keep `GQL` DML and catalog boundary dispatch outside generic `ClausePlanner`; future mutation/catalog execution needs `PlanEnvironment`, so route it from `GQLPlanBuilder` and post-source `SubqueryPlanner`.
+- Use a shared post-source dispatch layer for `GQL` clauses; `GQLPlanBuilder` and post-source subqueries should not duplicate catalog / DML / post-source `CALL` / pure clause ordering.
+- Source-free `GQL` queries should create an empty single-row source and then reuse post-source dispatch, not call individual post-source helpers directly.
+- Keep linear `GQLSingleQuery` clause-order dispatch in a dedicated layer like `ClauseSequencePlanner`; `GQLPlanBuilder` should own mutable query state, not grow into a clause interpreter.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.
+- Name current `GQL` direct `QueryPlan` helpers as planner/binder/spec-builder pieces (`GQLPlanner`, `GQLPlanBuilder`, `PostSourceClausePlanner`, `PatternBinder`, `MatchSpecBuilder`) and reserve `QueryPipeline` wording for `QueryPlan::buildQueryPipeline` and processor execution.
