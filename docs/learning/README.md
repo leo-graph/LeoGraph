@@ -74,6 +74,16 @@
 
 ---
 
+### 8. [07-query-tree-builder.md](07-query-tree-builder.md) - QueryTree 与 QueryTreeBuilder 设计详解
+
+**内容**: `QueryTree` 的设计理念、16 种节点类型体系、以及 `QueryTreeBuilder` 如何将 AST 转换为 QueryTree。
+
+**适用阶段**: 理解新 analyzer 体系的语义表示层。
+
+**关键词**: QueryTree、QueryTreeBuilder、16 种节点类型、AST 转换、语义表示
+
+---
+
 ## 学习路径建议
 
 ### 路径一：快速入门（1-2 天）
