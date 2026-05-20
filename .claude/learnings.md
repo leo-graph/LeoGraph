@@ -88,3 +88,4 @@
 - Keep linear `GQLSingleQuery` clause-order dispatch in a dedicated layer like `ClauseSequencePlanner`; `GQLPlanBuilder` should own mutable query state, not grow into a clause interpreter.
 - If `ninja` starts regenerating CMake and fails in partially extracted `contrib` build directories, isolate source correctness with `build/compile_commands.json` direct TU compiles before blaming the current `GQL` change.
 - Name current `GQL` direct `QueryPlan` helpers as planner/binder/spec-builder pieces (`GQLPlanner`, `GQLPlanBuilder`, `PostSourceClausePlanner`, `PatternBinder`, `MatchSpecBuilder`) and reserve `QueryPipeline` wording for `QueryPlan::buildQueryPipeline` and processor execution.
+- For future `GQL` analyzer work, treat SQL `QueryNode` as a `SELECT`-shaped sibling under `IQueryTreeNode`, not a reusable generic root; add `GQL*` QueryTree nodes instead of removing `final` or storing `MATCH` in `QueryNode::getJoinTree`.
