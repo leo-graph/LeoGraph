@@ -2513,63 +2513,16 @@ ProjectionNames QueryAnalyzer::resolveExpressionNode(QueryTreeNodePtr &node, Ide
       [[fallthrough]];
     case QueryTreeNodeType::CROSS_JOIN:
       [[fallthrough]];
-    case QueryTreeNodeType::JOIN:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_LINEAR_QUERY:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_COMBINED_QUERY:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_SUBQUERY:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_USE:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_MATCH:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_OPTIONAL_BLOCK:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_PATH_PATTERN:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_PATH_TERM:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_PATH_ALTERNATION:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_SIMPLIFIED_PATH_PATTERN:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_SIMPLIFIED_PATH_EXPR:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_NODE_PATTERN:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_EDGE_PATTERN:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_QUANTIFIER:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_LABEL_EXPRESSION:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_PROPERTY_MAP:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_PROPERTY_ITEM:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_KEEP:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_YIELD:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_FILTER:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_RETURN:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_ORDER_BY:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_PAGE:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_LET:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_FOR:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_CALL:
-      [[fallthrough]];
-    case QueryTreeNodeType::GQL_FINISH: {
+    case QueryTreeNodeType::JOIN: {
       throw Exception(ErrorCodes::LOGICAL_ERROR, "{} {} is not allowed in expression context. In scope {}", node->getNodeType(),
                       node->formatASTForErrorMessage(), scope.scope_node->formatASTForErrorMessage());
+    }
+    default: {
+      throw Exception(
+          ErrorCodes::LOGICAL_ERROR,
+          "Node with type {} is not allowed in expression context. In scope {}",
+          node->getNodeTypeName(),
+          scope.scope_node->getNodeTypeName());
     }
   }
 

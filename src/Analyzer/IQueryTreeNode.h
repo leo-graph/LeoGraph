@@ -44,7 +44,8 @@ enum class QueryTreeNodeType : uint8_t {
   JOIN,
   UNION,
 
-  // GQL query tree nodes
+  // GQL query tree nodes. Entries follow the planned QueryTree shape and
+  // concrete node classes can be introduced incrementally.
   GQL_LINEAR_QUERY,
   GQL_COMBINED_QUERY,
   GQL_SUBQUERY,

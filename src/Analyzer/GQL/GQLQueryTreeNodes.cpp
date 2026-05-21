@@ -36,7 +36,7 @@ void GQLLinearQueryNode::dumpTreeImpl(WriteBuffer & buffer, FormatState & format
     getStepsNode()->dumpTreeImpl(buffer, format_state, indent + 4);
 }
 
-bool GQLLinearQueryNode::isEqualImpl(const IQueryTreeNode & rhs, CompareOptions) const
+bool GQLLinearQueryNode::isEqualImpl([[maybe_unused]] const IQueryTreeNode & rhs, CompareOptions) const
 {
     return true;
 }

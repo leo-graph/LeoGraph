@@ -90,3 +90,4 @@
 - Name current `GQL` direct `QueryPlan` helpers as planner/binder/spec-builder pieces (`GQLPlanner`, `GQLPlanBuilder`, `PostSourceClausePlanner`, `PatternBinder`, `MatchSpecBuilder`) and reserve `QueryPipeline` wording for `QueryPlan::buildQueryPipeline` and processor execution.
 - For future `GQL` analyzer work, treat SQL `QueryNode` as a `SELECT`-shaped sibling under `IQueryTreeNode`, not a reusable generic root; add `GQL*` QueryTree nodes instead of removing `final` or storing `MATCH` in `QueryNode::getJoinTree`.
 - In `GQL` QueryTree design, do not preserve parser-only convenience shapes blindly: model optional operand blocks as block-level nodes and split parser `GQLPageClause` into `GQLOrderByNode` plus `GQLPageNode`.
+- Keep `GQL` QueryTree analysis out of generic SQL `QueryAnalyzer`; use a dedicated `GQLQueryTreePassManager`, and let SQL analyzer fail closed on unknown node types without enumerating `GQL*` nodes.
