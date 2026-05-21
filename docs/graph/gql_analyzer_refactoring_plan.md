@@ -124,7 +124,7 @@ GQLLinearQueryNode
 - path alternation
 - `KEEP`
 - `YIELD`
-- optional match / optional operand block
+- optional match / optional block
 
 尽量复用 ClickHouse 现有 QueryTree 节点的部分：
 
@@ -217,12 +217,13 @@ GQLCombinedQueryNode : IQueryTreeNode
 
 ```text
 GQLSubqueryNode : IQueryTreeNode
+  kind: nested_procedure | source_subquery
   body: GQLLinearQueryNode | GQLCombinedQueryNode
   binding definitions
   AT schema / NEXT YIELD metadata
 ```
 
-用于结构化保存 nested procedure body 和 source subquery。
+用于结构化保存 nested procedure body 和 source subquery。二者可以先共享一个节点实现，但必须显式带 `kind`：nested procedure 来自 `CALL { ... }` / nested procedure specification，会携带 `AT schema`、binding definitions 和 `NEXT YIELD` 规则；source subquery 更接近 source expression。不要让 analysis pass 只能靠调用上下文猜测它是哪一种。
 
 ### 5.2 Source 和 graph scope 节点
 
@@ -241,12 +242,20 @@ GQLMatchNode : IQueryTreeNode
   where
   keep
   yield
-  optional_operand_block
 ```
+
+`optional` 只表示 `OPTIONAL MATCH ...` 这种修饰单个 match clause 的简单形态。
 
 这里的 `match_mode` 指 parser `GraphMatchMode`：repeatable elements、repeatable element bindings、different edges 或 different edge bindings。不要把它和 walk / trail / simple / acyclic 这类 path mode 混在一起。
 
 `MATCH ... WHERE ...` 必须保留在 `GQLMatchNode` 上，后续复制到 `Graph::MatchSpec::where_clause`。在 graph storage 真正消费 predicate 前，也可以同时 plan 成 post-source `FilterStep`。
+
+```text
+GQLOptionalBlockNode : IQueryTreeNode
+  body: GQLLinearQueryNode
+```
+
+`OPTIONAL { ... }` / `OPTIONAL ( ... )` 是 block-level 构造，不应该塞进 `GQLMatchNode`。当前 parser AST 临时把 optional operand block 放在 `GQLMatchClause::optional_operand_block`，但 QueryTree 层应拆成独立 step。当前 grammar 的 `matchStatementBlock` 只包含 one or more match statements；如果后续 grammar 扩展成更完整的 sub-pipeline，这个节点仍然可以保持 `body: GQLLinearQueryNode` 的形状。
 
 ### 5.3 Path pattern 节点
 
@@ -254,14 +263,14 @@ GQLMatchNode : IQueryTreeNode
 GQLPathPatternNode : IQueryTreeNode
   path_variable
   prefix
-  expression
+  expression: GQLPathTermNode | GQLPathAlternationNode | GQLSimplifiedPathPatternNode
 ```
 
 `path_variable` 对应 `p = (a)-[r]->(b)` 这样的语法。
 
 `prefix` 不是 path variable。它表示 path mode / path search prefix，例如 `ANY SHORTEST`，或未来 walk / trail / simple / acyclic 这类约束。
 
-`expression` 可以是 path term、alternation，或后续简化后的 path expression。
+`expression` 的 QueryTree child 类型必须收敛在这个集合内。`GQLPatternAnalysisPass` 可以在语义允许时把 simplified path pattern 规范化成 `GQLPathTermNode` / `GQLPathAlternationNode`，但在 graph expansion semantics 明确前，也可以保留 dedicated `GQLSimplifiedPathPatternNode` 并让 planner fail closed。
 
 ```text
 GQLPathTermNode : IQueryTreeNode
@@ -384,12 +393,11 @@ GQLOrderByNode : IQueryTreeNode
 
 ```text
 GQLPageNode : IQueryTreeNode
-  order_by
   offset
   limit
 ```
 
-`GQL` 当前有专门的 page clause AST；保留这个语义分组，不要把所有东西都折进 `GQLReturnNode`。
+QueryTree 层选择把排序和分页拆开：所有 `ORDER BY` 都进入 `GQLOrderByNode`，`GQLPageNode` 只保存 `OFFSET` / `LIMIT`。虽然当前 parser AST 的 `GQLPageClause` 把 `ORDER BY`、`OFFSET`、`LIMIT` 打包在一起，builder 应该把它拆成可选 `GQLOrderByNode` 加可选 `GQLPageNode`，这样 planner lowering 更直接对齐 `SortingStep` + `LimitStep` 两步。
 
 ```text
 GQLLetNode
@@ -433,8 +441,8 @@ GQLFinishNode
 |------|----------------|
 | `GQLNameResolutionPass` | 解析 graph variables、projection aliases、`LET` bindings、imported `CALL` variables 和 active graph scope。 |
 | `GQLTypeAnalysisPass` | 为 scalar expressions 和 exposed bindings 分配 result types；真实 graph values 定义前使用 placeholder graph element types。 |
-| `GQLPatternAnalysisPass` | 校验 path / node / edge pattern 形状，保留 labels / properties / predicates，并推导 available variables。 |
-| `GQLPredicateClassificationPass` | 在不改变语义的前提下，把 predicates 分类为 graph-source pushdown candidates 或 post-source filters。 |
+| `GQLPatternAnalysisPass` | 校验 path / node / edge pattern 形状，保留 labels / properties / predicates，并推导 available variables。当前 `PatternBinder` 的结构化 binding 职责应迁移到这里。 |
+| `GQLPredicateClassificationPass` | 在不改变语义的前提下，把 predicates 分类为 graph-source pushdown candidates 或 post-source filters。第一版只标记 trivially safe / unsafe；涉及 graph element property access 的 predicate 在语义模型落地前一律保持 post-source filter。 |
 | `GQLProjectionAnalysisPass` | 为 `RETURN`、`SELECT`、`YIELD`、`FINISH` 和 combined query children 推导 output columns。 |
 
 重点：`MATCH ... WHERE ...` 不能简单“抽到 top-level WHERE”。它必须保留在 match clause 上，为未来 graph storage pushdown 留通道；planner 同时可以加 `FilterStep` 来保持当前行为。
@@ -453,11 +461,11 @@ GQLFinishNode
 | `GQLReturnNode` | 添加 `ExpressionStep`，以及可选 aggregation / `DistinctStep`。 |
 | `GQLOrderByNode` | 添加 `SortingStep`。 |
 | `GQLPageNode` | 添加 `LimitStep` / offset handling。 |
+| `GQLOptionalBlockNode` | 保留 block-level optional semantics；执行仍可 fail closed，直到 outer-match / null-extension semantics 实现。 |
 | `GQLCombinedQueryNode` | 构造 child plans，再使用 `UnionStep` 或 `IntersectOrExceptStep`。 |
 
 迁移期间应尽量复用或改造当前 direct planner modules：
 
-- `PatternBinder`
 - `MatchSpecBuilder`
 - `ExpressionPlanner`
 - `ClausePlanner`
@@ -466,6 +474,8 @@ GQLFinishNode
 - `CallPlanner`
 - `SubqueryPlanner`
 - `ApplyPlanner`
+
+`PatternBinder` 不应该继续作为 planner 阶段的长期依赖。它现在承担的 path / pattern binding 职责应迁移进 `GQLPatternAnalysisPass`；迁移期间可以临时复用内部逻辑，但最终 planner 应消费 analyzed QueryTree，再由 `MatchSpecBuilder` 从已绑定 tree 构造 `Graph::MatchSpec`。
 
 第一批 QueryTree 阶段不要删除 `GQLPlanBuilder`、`ClauseSequencePlanner`、`SourcePlanner` 或 `PostSourceClausePlanner`。先构建能产出等价 plan 的 QueryTree-backed path，覆盖充分后再移除 direct planner helpers。
 
@@ -488,6 +498,8 @@ GQLFinishNode
 - Planner 仍然会添加 `FilterStep` 来保持语义。
 
 QueryTree 重构应该先分类 pushdown opportunities，不要承诺立即带来性能提升。
+
+下表描述的是 **graph element property access 语义模型落地之后** 才能启用的分类。Phase 3 的 `GQLPredicateClassificationPass` 第一版只应区分 trivially safe / unsafe；只要 predicate 依赖尚未定义清楚的 graph element property access，就保持为 post-source filter，不做 pushdown。
 
 候选分类：
 
@@ -524,8 +536,8 @@ src/Analyzer/GQL/GQLQueryTreeNodes.cpp
 工作：
 
 - 在 `src/Analyzer/IQueryTreeNode.h` 中添加 `QueryTreeNodeType` entries。
-- 实现 `cloneImpl`、`dumpTreeImpl`、`isEqualImpl`、`updateTreeHashImpl` 和 `toASTImpl`。
-- 对 `toASTImpl`，要么重建等价的 `GQL` AST，要么在 round-trip 未准备好时用 `NOT_IMPLEMENTED` fail closed。
+- 实现 `cloneImpl`、`dumpTreeImpl`、`isEqualImpl` 和 `updateTreeHashImpl`。
+- 第一阶段只强制 `dumpTreeImpl` 能服务 `EXPLAIN QUERY TREE` / debug；`toASTImpl` 可以默认 throw `NOT_IMPLEMENTED`，等需要 `EXPLAIN AST` 或 QueryTree-to-AST round-trip 时再补。
 - 为 node clone / dump / equality 添加聚焦单元测试。
 
 ### Phase 2：实现 AST 到 `GQL` QueryTree builder
@@ -542,7 +554,8 @@ src/Analyzer/GQL/GQLQueryTreeBuilder.cpp
 - 把 `GQLSingleQuery` 转成 `GQLLinearQueryNode`。
 - 把 `GQLCombinedQuery` 转成 `GQLCombinedQueryNode`。
 - 把已支持的 source 和 post-source clauses 转成 semantic steps。
-- 保留当前 `MATCH` semantics：match mode、keep、yield、optional、optional operand block、path prefix、path alternation、compound edge directions、labels、properties、predicates 和 quantifiers。
+- 保留当前 `MATCH` semantics：match mode、keep、yield、optional match、optional block、path prefix、path alternation、compound edge directions、labels、properties、predicates 和 quantifiers。
+- 把 parser `GQLPageClause` 拆成可选 `GQLOrderByNode` 和可选 `GQLPageNode`；QueryTree 层不要继续让 `GQLPageNode` 拥有 `order_by`。
 - builder 内不要 lower 到 `QueryPlan`。
 
 ### Phase 3：实现 analysis passes
@@ -648,8 +661,10 @@ src/Parsers/graph/tests/gtest_gql_pattern_binder.cpp
 - `MATCH ... YIELD ...`
 - `KEEP`
 - `OPTIONAL MATCH` fail-closed execution，但 tree / spec 要保留
+- `OPTIONAL { MATCH ... }` / `OPTIONAL ( MATCH ... )` 作为 `GQLOptionalBlockNode` 保留，执行可 fail closed
 - `USE g MATCH ...`
 - source-free `RETURN`
+- `ORDER BY ... OFFSET ... LIMIT ...` 拆成 `GQLOrderByNode` + `GQLPageNode`
 - 当前已支持形状下的 `LET`、`FOR`、`CALL`、`FINISH`
 - `UNION ALL`, `UNION DISTINCT`, `EXCEPT`, `INTERSECT`
 
@@ -692,8 +707,11 @@ SET dialect = 'gql';
 6. 当前所有 `MatchSpec` fields 是否都能表达？
 7. `MATCH ... WHERE ...` 是否仍附着在 match node 上，并且仍能作为 post-source filter 执行？
 8. ClickHouse expression nodes 是否只在语义匹配时复用？
-9. SQL `QueryNode` 是否保持不动？
-10. QueryTree-backed planner 是否能在删除旧 helpers 前，生成与当前 direct planner 相同形状的 `QueryPlan`？
+9. `OPTIONAL { ... }` / `OPTIONAL ( ... )` 是否建成 block-level node，而不是塞进 `GQLMatchNode`？
+10. `GQLPageNode` 是否只保存 `OFFSET` / `LIMIT`，所有排序是否都走 `GQLOrderByNode`？
+11. `PatternBinder` 的职责是否已迁移到 `GQLPatternAnalysisPass`，planner 是否只消费 analyzed tree？
+12. SQL `QueryNode` 是否保持不动？
+13. QueryTree-backed planner 是否能在删除旧 helpers 前，生成与当前 direct planner 相同形状的 `QueryPlan`？
 
 ## 13. 当前建议
 
