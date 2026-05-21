@@ -217,13 +217,15 @@ GQLCombinedQueryNode : IQueryTreeNode
 
 ```text
 GQLSubqueryNode : IQueryTreeNode
-  kind: nested_procedure | source_subquery
+  kind: inline_call_body | source_subquery
   body: GQLLinearQueryNode | GQLCombinedQueryNode
   binding definitions
   AT schema / NEXT YIELD metadata
 ```
 
-用于结构化保存 nested procedure body 和 source subquery。二者可以先共享一个节点实现，但必须显式带 `kind`：nested procedure 来自 `CALL { ... }` / nested procedure specification，会携带 `AT schema`、binding definitions 和 `NEXT YIELD` 规则；source subquery 更接近 source expression。不要让 analysis pass 只能靠调用上下文猜测它是哪一种。
+用于结构化保存 inline `CALL` body 和 source subquery。二者可以先共享一个节点实现，但必须显式带 `kind`：`inline_call_body` 来自 `CALL { ... }` 里的 nested procedure specification，会携带 `AT schema`、binding definitions 和 `NEXT YIELD` 规则；`source_subquery` 来自 source expression position，例如 `SELECT ... FROM { ... }`。不要让 analysis pass 只能靠调用上下文猜测它是哪一种。
+
+注意：named `CALL proc(...) YIELD ...` 在 query execution path 里没有 inline body，不应该被误建成 `inline_call_body`。如果后续 DDL procedure definition 也复用这套 QueryTree，需要再单独扩展 kind，而不是把它混进 source subquery。
 
 ### 5.2 Source 和 graph scope 节点
 
@@ -270,7 +272,7 @@ GQLPathPatternNode : IQueryTreeNode
 
 `prefix` 不是 path variable。它表示 path mode / path search prefix，例如 `ANY SHORTEST`，或未来 walk / trail / simple / acyclic 这类约束。
 
-`expression` 的 QueryTree child 类型必须收敛在这个集合内。`GQLPatternAnalysisPass` 可以在语义允许时把 simplified path pattern 规范化成 `GQLPathTermNode` / `GQLPathAlternationNode`，但在 graph expansion semantics 明确前，也可以保留 dedicated `GQLSimplifiedPathPatternNode` 并让 planner fail closed。
+`expression` 的 QueryTree child 类型必须收敛在这个集合内。Builder 遇到 parser 的 simplified path pattern 时，应建成 `GQLSimplifiedPathPatternNode`，不要强行展开成 `GQLPathTermNode`。simplified path pattern 包含 union、multiset alternation、conjunction、direction override、repetition 等表达式语义，直接塞进 classic node / edge chain 容易丢信息。第一阶段 planner 可以对 `GQLSimplifiedPathPatternNode` fail closed；等 graph expansion semantics 明确后，再由 analysis 或专门 lowering pass 选择性规范化成 `GQLPathTermNode` / `GQLPathAlternationNode`。
 
 ```text
 GQLPathTermNode : IQueryTreeNode
@@ -286,6 +288,25 @@ GQLPathAlternationNode : IQueryTreeNode
 ```
 
 这是 path alternation，不是 label alternation。label boolean logic 应该放在 `GQLLabelExpressionNode`。
+
+```text
+GQLSimplifiedPathPatternNode : IQueryTreeNode
+  default_direction
+  expression: GQLSimplifiedPathExprNode
+  quantifier
+```
+
+```text
+GQLSimplifiedPathExprNode : IQueryTreeNode
+  kind: label | group | concatenation | conjunction | union | multiset_alternation | negation | direction_override | repetition
+  text
+  direction
+  operand
+  operands
+  quantifier
+```
+
+这里的字段对应当前 parser AST 的 `GQLSimplifiedPathPattern` / `GQLSimplifiedPathExpr` 结构。QueryTree 第一阶段只要求完整保留结构；不要在 builder 中提前解释 label matching、方向覆盖、重复和 path expression boolean logic。
 
 ### 5.4 Node 和 edge pattern 节点
 
@@ -421,7 +442,7 @@ GQLFinishNode
 
 当语义不完全一致时，保留 `GQL` 专有 expression nodes 或 metadata：
 
-- graph value type semantics 明确前的 graph element property access。
+- graph value type semantics 明确前的 graph element property access，例如 `GQLPropertyAccessNode`。
 - label expressions。
 - graph expressions。
 - binding table expressions。
@@ -440,7 +461,7 @@ GQLFinishNode
 | Pass | 责任 |
 |------|----------------|
 | `GQLNameResolutionPass` | 解析 graph variables、projection aliases、`LET` bindings、imported `CALL` variables 和 active graph scope。 |
-| `GQLTypeAnalysisPass` | 为 scalar expressions 和 exposed bindings 分配 result types；真实 graph values 定义前使用 placeholder graph element types。 |
+| `GQLTypeAnalysisPass` | 为 scalar expressions 和 exposed bindings 分配 result types；真实 graph values 定义前使用 placeholder graph element types。Graph element property access 在此阶段仍保持为 `GQL` 专有 expression node，例如 `GQLPropertyAccessNode`，不要 lower 到 `FunctionNode`；只有在 graph storage 明确 property access 的 runtime semantics 后，才能在后续 pass 中选择性 lower。 |
 | `GQLPatternAnalysisPass` | 校验 path / node / edge pattern 形状，保留 labels / properties / predicates，并推导 available variables。当前 `PatternBinder` 的结构化 binding 职责应迁移到这里。 |
 | `GQLPredicateClassificationPass` | 在不改变语义的前提下，把 predicates 分类为 graph-source pushdown candidates 或 post-source filters。第一版只标记 trivially safe / unsafe；涉及 graph element property access 的 predicate 在语义模型落地前一律保持 post-source filter。 |
 | `GQLProjectionAnalysisPass` | 为 `RETURN`、`SELECT`、`YIELD`、`FINISH` 和 combined query children 推导 output columns。 |
@@ -499,14 +520,14 @@ GQLFinishNode
 
 QueryTree 重构应该先分类 pushdown opportunities，不要承诺立即带来性能提升。
 
-下表描述的是 **graph element property access 语义模型落地之后** 才能启用的分类。Phase 3 的 `GQLPredicateClassificationPass` 第一版只应区分 trivially safe / unsafe；只要 predicate 依赖尚未定义清楚的 graph element property access，就保持为 post-source filter，不做 pushdown。
+下表是 **Phase 6 之后** 的 pushdown classification 示例，只有在 graph element property access 语义模型和 graph storage runtime semantics 都落地后才能启用。Phase 3 的 `GQLPredicateClassificationPass` 第一版只应区分 trivially safe / unsafe；只要 predicate 依赖尚未定义清楚的 graph element property access，就保持为 post-source filter，不做 pushdown。
 
 候选分类：
 
 | Predicate | 分类 |
 |-----------|----------------|
-| `n.id = 1` | 如果 `n` 是单个 graph element binding，且 property access semantics 已定义，则是 pushdown candidate。 |
-| `e.weight > 10` | 如果 `e` 是单个 edge binding，则是 pushdown candidate。 |
+| `n.id = 1` | 单个 graph element binding 的 property equality；在 property access 语义落地后是 pushdown candidate。 |
+| `e.weight > 10` | 单个 edge binding 的 property range；在 property access 语义落地后是 pushdown candidate。 |
 | `n.id = m.id` | 通常是 post-source filter，除非 graph storage 支持 join-like predicate evaluation。 |
 | aggregate predicates | post-aggregation filter。 |
 | subquery predicates | post-source 或未来 apply-aware planning。 |
@@ -551,10 +572,11 @@ src/Analyzer/GQL/GQLQueryTreeBuilder.cpp
 
 工作：
 
+- Builder 只负责结构转换，不做 name resolution、type analysis 或 semantic validation。Parser AST 的字段应尽量原样映射到 QueryTree nodes；trivial enum / literal 转换可以做，但不要在 builder 里偷偷调用 `PatternBinder` 或做 scope 推导。
 - 把 `GQLSingleQuery` 转成 `GQLLinearQueryNode`。
 - 把 `GQLCombinedQuery` 转成 `GQLCombinedQueryNode`。
 - 把已支持的 source 和 post-source clauses 转成 semantic steps。
-- 保留当前 `MATCH` semantics：match mode、keep、yield、optional match、optional block、path prefix、path alternation、compound edge directions、labels、properties、predicates 和 quantifiers。
+- 保留当前 `MATCH` semantics：match mode、keep、yield、optional match、optional block、path prefix、path alternation、simplified path pattern、compound edge directions、labels、properties、predicates 和 quantifiers。
 - 把 parser `GQLPageClause` 拆成可选 `GQLOrderByNode` 和可选 `GQLPageNode`；QueryTree 层不要继续让 `GQLPageNode` 拥有 `order_by`。
 - builder 内不要 lower 到 `QueryPlan`。
 
@@ -709,7 +731,7 @@ SET dialect = 'gql';
 8. ClickHouse expression nodes 是否只在语义匹配时复用？
 9. `OPTIONAL { ... }` / `OPTIONAL ( ... )` 是否建成 block-level node，而不是塞进 `GQLMatchNode`？
 10. `GQLPageNode` 是否只保存 `OFFSET` / `LIMIT`，所有排序是否都走 `GQLOrderByNode`？
-11. `PatternBinder` 的职责是否已迁移到 `GQLPatternAnalysisPass`，planner 是否只消费 analyzed tree？
+11. 设计是否明确 `PatternBinder` 的职责最终迁移到 `GQLPatternAnalysisPass`，并且 planner 只消费 analyzed tree？
 12. SQL `QueryNode` 是否保持不动？
 13. QueryTree-backed planner 是否能在删除旧 helpers 前，生成与当前 direct planner 相同形状的 `QueryPlan`？
 
