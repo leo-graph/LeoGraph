@@ -152,3 +152,226 @@ TEST(GQLQueryTreeNodes, GQLLinearQueryWithSteps)
     EXPECT_TRUE(dump_result.find("GQL_LINEAR_QUERY") != String::npos);
     EXPECT_TRUE(dump_result.find("STEPS") != String::npos);
 }
+
+TEST(GQLQueryTreeNodes, GQLPathTermNodeBasic)
+{
+    auto node = std::make_shared<GQLPathTermNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_PATH_TERM);
+    EXPECT_EQ(node->getElements().getNodes().size(), 0);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_PATH_TERM);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_PATH_TERM") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLPathAlternationNodeBasic)
+{
+    auto node = std::make_shared<GQLPathAlternationNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_PATH_ALTERNATION);
+    EXPECT_EQ(node->getAlternatives().getNodes().size(), 0);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_PATH_ALTERNATION);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_PATH_ALTERNATION") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLSimplifiedPathPatternNodeBasic)
+{
+    auto node = std::make_shared<GQLSimplifiedPathPatternNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_SIMPLIFIED_PATH_PATTERN);
+    EXPECT_EQ(node->getExpression(), nullptr);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_SIMPLIFIED_PATH_PATTERN);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_SIMPLIFIED_PATH_PATTERN") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLSimplifiedPathExprNodeBasic)
+{
+    auto node = std::make_shared<GQLSimplifiedPathExprNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_SIMPLIFIED_PATH_EXPR);
+    EXPECT_EQ(node->getEdgePattern(), nullptr);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_SIMPLIFIED_PATH_EXPR);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_SIMPLIFIED_PATH_EXPR") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLOptionalBlockNodeBasic)
+{
+    auto node = std::make_shared<GQLOptionalBlockNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_OPTIONAL_BLOCK);
+    EXPECT_EQ(node->getInnerQuery(), nullptr);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_OPTIONAL_BLOCK);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_OPTIONAL_BLOCK") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLOrderByNodeBasic)
+{
+    auto node = std::make_shared<GQLOrderByNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_ORDER_BY);
+    EXPECT_EQ(node->getSortItems().getNodes().size(), 0);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_ORDER_BY);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_ORDER_BY") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLPageNodeBasic)
+{
+    auto node = std::make_shared<GQLPageNode>();
+
+    EXPECT_EQ(node->getNodeType(), QueryTreeNodeType::GQL_PAGE);
+    EXPECT_EQ(node->getOffset(), nullptr);
+    EXPECT_EQ(node->getLimit(), nullptr);
+
+    // Test clone
+    auto cloned = node->clone();
+    EXPECT_NE(cloned, nullptr);
+    EXPECT_EQ(cloned->getNodeType(), QueryTreeNodeType::GQL_PAGE);
+
+    // Test equality
+    EXPECT_TRUE(node->isEqual(*cloned));
+
+    // Test dump
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    node->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_PAGE") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLLinearQueryWithNewSteps)
+{
+    auto linear_query = std::make_shared<GQLLinearQueryNode>();
+
+    // Add MATCH step
+    auto match_node = std::make_shared<GQLMatchNode>();
+    linear_query->getSteps().getNodes().push_back(match_node);
+
+    // Add ORDER BY step
+    auto order_by_node = std::make_shared<GQLOrderByNode>();
+    linear_query->getSteps().getNodes().push_back(order_by_node);
+
+    // Add PAGE step
+    auto page_node = std::make_shared<GQLPageNode>();
+    linear_query->getSteps().getNodes().push_back(page_node);
+
+    EXPECT_EQ(linear_query->getSteps().getNodes().size(), 3);
+    EXPECT_EQ(linear_query->getSteps().getNodes()[0]->getNodeType(), QueryTreeNodeType::GQL_MATCH);
+    EXPECT_EQ(linear_query->getSteps().getNodes()[1]->getNodeType(), QueryTreeNodeType::GQL_ORDER_BY);
+    EXPECT_EQ(linear_query->getSteps().getNodes()[2]->getNodeType(), QueryTreeNodeType::GQL_PAGE);
+}
+
+TEST(GQLQueryTreeNodes, GQLOptionalBlockWithLinearQuery)
+{
+    auto optional_block = std::make_shared<GQLOptionalBlockNode>();
+    auto linear_query = std::make_shared<GQLLinearQueryNode>();
+
+    optional_block->getInnerQuery() = linear_query;
+
+    EXPECT_EQ(optional_block->getInnerQuery()->getNodeType(), QueryTreeNodeType::GQL_LINEAR_QUERY);
+
+    // Test dump with children
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    optional_block->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_OPTIONAL_BLOCK") != String::npos);
+    EXPECT_TRUE(dump_result.find("INNER_QUERY") != String::npos);
+}
+
+TEST(GQLQueryTreeNodes, GQLPathPatternWithPathTerm)
+{
+    auto path_pattern = std::make_shared<GQLPathPatternNode>();
+    path_pattern->setPathVariable("p");
+
+    auto path_term = std::make_shared<GQLPathTermNode>();
+    path_pattern->getExpression() = path_term;
+
+    EXPECT_EQ(path_pattern->getPathVariable(), "p");
+    EXPECT_EQ(path_pattern->getExpression()->getNodeType(), QueryTreeNodeType::GQL_PATH_TERM);
+
+    // Test dump with children
+    WriteBufferFromOwnString buffer;
+    IQueryTreeNode::FormatState format_state;
+    path_pattern->dumpTreeImpl(buffer, format_state, 0);
+    String dump_result = buffer.str();
+    EXPECT_TRUE(dump_result.find("GQL_PATH_PATTERN") != String::npos);
+    EXPECT_TRUE(dump_result.find("path_variable: p") != String::npos);
+    EXPECT_TRUE(dump_result.find("EXPRESSION") != String::npos);
+}
