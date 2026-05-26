@@ -1,6 +1,16 @@
 #include <gtest/gtest.h>
 
-#include <Analyzer/GQL/GQLQueryTreeNodes.h>
+#include <Analyzer/GQL/GQLLinearQueryNode.h>
+#include <Analyzer/GQL/GQLCombinedQueryNode.h>
+#include <Analyzer/GQL/GQLMatchNode.h>
+#include <Analyzer/GQL/GQLPathPatternNode.h>
+#include <Analyzer/GQL/GQLPathTermNode.h>
+#include <Analyzer/GQL/GQLPathAlternationNode.h>
+#include <Analyzer/GQL/GQLSimplifiedPathPatternNode.h>
+#include <Analyzer/GQL/GQLSimplifiedPathExprNode.h>
+#include <Analyzer/GQL/GQLOptionalBlockNode.h>
+#include <Analyzer/GQL/GQLOrderByNode.h>
+#include <Analyzer/GQL/GQLPageNode.h>
 #include <IO/WriteBufferFromString.h>
 
 using namespace DB;
