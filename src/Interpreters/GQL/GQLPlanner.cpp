@@ -1,5 +1,6 @@
 #include <Interpreters/GQL/GQLPlanner.h>
 
+#include <Analyzer/IQueryTreeNode.h>
 #include <Core/Block.h>
 #include <Core/Settings.h>
 #include <Interpreters/ActionsDAG.h>
@@ -287,6 +288,41 @@ void buildGQLQueryPlan(
 {
     const auto initial_scope = scope;
     buildGQLQueryPlanImpl(query_plan, query, std::move(context), environment, &initial_scope, &scope);
+}
+
+// New QueryTree-based interface
+void buildGQLQueryPlan(
+    QueryPlan & query_plan,
+    const QueryTreeNodePtr & query_tree,
+    ContextPtr context,
+    const PlanEnvironment & environment)
+{
+    if (!query_tree)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
+
+    // TODO: Implement direct QueryTree -> QueryPlan conversion
+    // For now, convert back to AST and use the existing path
+    // This is a temporary bridge until we implement the full QueryTree planner
+
+    auto ast = query_tree->toAST();
+    buildGQLQueryPlan(query_plan, *ast, std::move(context), environment);
+}
+
+void buildGQLQueryPlan(
+    QueryPlan & query_plan,
+    const QueryTreeNodePtr & query_tree,
+    ContextPtr context,
+    const PlanEnvironment & environment,
+    PlanScope & scope)
+{
+    if (!query_tree)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
+
+    // TODO: Implement direct QueryTree -> QueryPlan conversion with scope
+    // For now, convert back to AST and use the existing path
+
+    auto ast = query_tree->toAST();
+    buildGQLQueryPlan(query_plan, *ast, std::move(context), environment, scope);
 }
 
 }

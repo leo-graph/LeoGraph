@@ -1,9 +1,11 @@
 #include <Analyzer/GQL/GQLCombinedQueryNode.h>
 
+#include <Analyzer/ListNode.h>
 #include <Common/assert_cast.h>
 #include <Common/SipHash.h>
 #include <IO/WriteBuffer.h>
 #include <IO/Operators.h>
+#include <Parsers/graph/GraphAST.h>
 
 namespace DB
 {
@@ -11,6 +13,7 @@ namespace DB
 namespace ErrorCodes
 {
 extern const int UNSUPPORTED_METHOD;
+extern const int LOGICAL_ERROR;
 }
 
 GQLCombinedQueryNode::GQLCombinedQueryNode()
@@ -79,9 +82,54 @@ QueryTreeNodePtr GQLCombinedQueryNode::cloneImpl() const
     return result;
 }
 
-ASTPtr GQLCombinedQueryNode::toASTImpl(const ConvertToASTOptions &) const
+ASTPtr GQLCombinedQueryNode::toASTImpl(const ConvertToASTOptions & options) const
 {
-    throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "GQLCombinedQueryNode::toASTImpl is not implemented yet");
+    namespace GAST = DB::OPENGQL::AST;
+
+    auto combined_query = make_intrusive<GAST::GQLCombinedQuery>();
+
+    // Convert subqueries
+    const auto & queries = getQueries().getNodes();
+    combined_query->queries.reserve(queries.size());
+
+    for (const auto & query : queries)
+    {
+        if (!query)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined query has null subquery in QueryTree");
+
+        auto query_ast = query->toAST(options);
+        combined_query->queries.push_back(query_ast);
+        combined_query->children.push_back(query_ast);
+    }
+
+    // Convert operators
+    combined_query->operators.reserve(operators.size());
+    for (auto op : operators)
+    {
+        switch (op)
+        {
+            case CombinedOperator::UNION_ALL:
+                combined_query->operators.push_back(GAST::CombinedQueryOperator::UnionAll);
+                break;
+            case CombinedOperator::UNION_DISTINCT:
+                combined_query->operators.push_back(GAST::CombinedQueryOperator::UnionDistinct);
+                break;
+            case CombinedOperator::EXCEPT_ALL:
+                combined_query->operators.push_back(GAST::CombinedQueryOperator::ExceptAll);
+                break;
+            case CombinedOperator::EXCEPT_DISTINCT:
+                combined_query->operators.push_back(GAST::CombinedQueryOperator::ExceptDistinct);
+                break;
+            case CombinedOperator::INTERSECT_ALL:
+                combined_query->operators.push_back(GAST::CombinedQueryOperator::IntersectAll);
+                break;
+            case CombinedOperator::INTERSECT_DISTINCT:
+                combined_query->operators.push_back(GAST::CombinedQueryOperator::IntersectDistinct);
+                break;
+        }
+    }
+
+    return combined_query;
 }
 
 }

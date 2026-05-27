@@ -4,6 +4,7 @@
 #include <Common/SipHash.h>
 #include <IO/WriteBuffer.h>
 #include <IO/Operators.h>
+#include <Parsers/graph/GraphAST.h>
 
 namespace DB
 {
@@ -11,6 +12,7 @@ namespace DB
 namespace ErrorCodes
 {
 extern const int UNSUPPORTED_METHOD;
+extern const int LOGICAL_ERROR;
 }
 
 GQLFilterNode::GQLFilterNode() : IQueryTreeNode(children_size) {}
@@ -32,8 +34,20 @@ void GQLFilterNode::updateTreeHashImpl(HashState &, CompareOptions) const {}
 
 QueryTreeNodePtr GQLFilterNode::cloneImpl() const { return std::make_shared<GQLFilterNode>(); }
 
-ASTPtr GQLFilterNode::toASTImpl(const ConvertToASTOptions &) const {
-  throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "GQLFilterNode::toASTImpl is not implemented yet");
+ASTPtr GQLFilterNode::toASTImpl(const ConvertToASTOptions & options) const {
+  namespace GAST = DB::OPENGQL::AST;
+
+  auto where_clause = make_intrusive<GAST::GQLWhereClause>();
+
+  // Convert predicate expression
+  if (children[predicate_child_index]) {
+    where_clause->predicate = children[predicate_child_index]->toAST(options);
+    where_clause->children.push_back(where_clause->predicate);
+  } else {
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL WHERE clause has no predicate");
+  }
+
+  return where_clause;
 }
 
 }
