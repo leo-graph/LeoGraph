@@ -132,21 +132,19 @@ void buildGQLQueryPlanImpl(
     QueryPlan & query_plan,
     const IAST & query,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope * initial_scope,
     PlanScope * output_scope);
 
 QueryPlanPtr buildChildPlan(
     const ASTPtr & query,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope * initial_scope)
 {
     if (!query)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined child query is null");
 
     auto plan = std::make_unique<QueryPlan>();
-    buildGQLQueryPlanImpl(*plan, *query, context, environment, initial_scope, nullptr);
+    buildGQLQueryPlanImpl(*plan, *query, context, initial_scope, nullptr);
     return plan;
 }
 
@@ -180,20 +178,19 @@ void buildSingleQueryPlan(
     QueryPlan & query_plan,
     const GAST::GQLSingleQuery & query,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope * initial_scope,
     PlanScope * output_scope)
 {
     if (initial_scope)
     {
-        GQLPlanBuilder builder(context, *initial_scope, environment);
+        GQLPlanBuilder builder(context, *initial_scope);
         builder.buildSingleQuery(query_plan, query);
         if (output_scope)
             *output_scope = builder.getScope();
         return;
     }
 
-    GQLPlanBuilder builder(context, environment);
+    GQLPlanBuilder builder(context);
     builder.buildSingleQuery(query_plan, query);
     if (output_scope)
         *output_scope = builder.getScope();
@@ -203,7 +200,6 @@ void buildCombinedQueryPlan(
     QueryPlan & query_plan,
     const GAST::GQLCombinedQuery & query,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope * initial_scope,
     PlanScope * output_scope)
 {
@@ -213,7 +209,7 @@ void buildCombinedQueryPlan(
     plans.reserve(num_plans);
 
     for (const auto & child : query.queries)
-        plans.push_back(buildChildPlan(child, context, environment, initial_scope));
+        plans.push_back(buildChildPlan(child, context, initial_scope));
 
     const auto result_header = plans.front()->getCurrentHeader();
     const Names result_columns = getHeaderColumnNames(*result_header);
@@ -249,19 +245,18 @@ void buildGQLQueryPlanImpl(
     QueryPlan & query_plan,
     const IAST & query,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope * initial_scope,
     PlanScope * output_scope)
 {
     if (const auto * single_query = query.as<GAST::GQLSingleQuery>())
     {
-        buildSingleQueryPlan(query_plan, *single_query, context, environment, initial_scope, output_scope);
+        buildSingleQueryPlan(query_plan, *single_query, context, initial_scope, output_scope);
         return;
     }
 
     if (const auto * combined_query = query.as<GAST::GQLCombinedQuery>())
     {
-        buildCombinedQueryPlan(query_plan, *combined_query, context, environment, initial_scope, output_scope);
+        buildCombinedQueryPlan(query_plan, *combined_query, context, initial_scope, output_scope);
         return;
     }
 
@@ -273,29 +268,26 @@ void buildGQLQueryPlanImpl(
 void buildGQLQueryPlan(
     QueryPlan & query_plan,
     const IAST & query,
-    ContextPtr context,
-    const PlanEnvironment & environment)
+    ContextPtr context)
 {
-    buildGQLQueryPlanImpl(query_plan, query, std::move(context), environment, nullptr, nullptr);
+    buildGQLQueryPlanImpl(query_plan, query, std::move(context), nullptr, nullptr);
 }
 
 void buildGQLQueryPlan(
     QueryPlan & query_plan,
     const IAST & query,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     const auto initial_scope = scope;
-    buildGQLQueryPlanImpl(query_plan, query, std::move(context), environment, &initial_scope, &scope);
+    buildGQLQueryPlanImpl(query_plan, query, std::move(context), &initial_scope, &scope);
 }
 
 // New QueryTree-based interface
 void buildGQLQueryPlan(
     QueryPlan & query_plan,
     const QueryTreeNodePtr & query_tree,
-    ContextPtr context,
-    const PlanEnvironment & environment)
+    ContextPtr context)
 {
     if (!query_tree)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
@@ -305,14 +297,13 @@ void buildGQLQueryPlan(
     // This is a temporary bridge until we implement the full QueryTree planner
 
     auto ast = query_tree->toAST();
-    buildGQLQueryPlan(query_plan, *ast, std::move(context), environment);
+    buildGQLQueryPlan(query_plan, *ast, std::move(context));
 }
 
 void buildGQLQueryPlan(
     QueryPlan & query_plan,
     const QueryTreeNodePtr & query_tree,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     if (!query_tree)
@@ -322,7 +313,7 @@ void buildGQLQueryPlan(
     // For now, convert back to AST and use the existing path
 
     auto ast = query_tree->toAST();
-    buildGQLQueryPlan(query_plan, *ast, std::move(context), environment, scope);
+    buildGQLQueryPlan(query_plan, *ast, std::move(context), scope);
 }
 
 }

@@ -3,7 +3,6 @@
 #include <Interpreters/Context_fwd.h>
 #include <Parsers/IAST_fwd.h>
 #include <Analyzer/IQueryTreeNode.h>
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <QueryPipeline/BlockIO.h>
 
 namespace DB
@@ -39,8 +38,7 @@ public:
      */
     InterpreterGQLQueryAnalyzer(
         const ASTPtr & query_,
-        const ContextPtr & context_,
-        const GQL::PlanEnvironment & environment_ = {});
+        const ContextPtr & context_);
 
     /** Construct from QueryTree.
      *
@@ -49,8 +47,7 @@ public:
      */
     InterpreterGQLQueryAnalyzer(
         const QueryTreeNodePtr & query_tree_,
-        const ContextPtr & context_,
-        const GQL::PlanEnvironment & environment_ = {});
+        const ContextPtr & context_);
 
     /** Execute the query and return the result pipeline. */
     BlockIO execute();
@@ -67,7 +64,6 @@ public:
 private:
     ASTPtr query;
     ContextPtr context;
-    GQL::PlanEnvironment environment;
     QueryTreeNodePtr query_tree;  // GQLLinearQueryNode or GQLCombinedQueryNode
 };
 

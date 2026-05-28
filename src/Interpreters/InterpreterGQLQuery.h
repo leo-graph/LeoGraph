@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Interpreters/IInterpreter.h>
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Parsers/IAST_fwd.h>
 
 namespace DB
@@ -12,7 +11,7 @@ class QueryPlan;
 class InterpreterGQLQuery final : public IInterpreter, WithContext
 {
 public:
-    InterpreterGQLQuery(ASTPtr query_ptr_, ContextPtr context_, GQL::PlanEnvironment environment_ = {});
+    InterpreterGQLQuery(ASTPtr query_ptr_, ContextPtr context_);
 
     BlockIO execute() override;
 
@@ -20,7 +19,6 @@ public:
 
 private:
     ASTPtr query_ptr;
-    GQL::PlanEnvironment environment;
 };
 
 }

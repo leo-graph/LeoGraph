@@ -13,22 +13,20 @@ namespace GQL
 {
 namespace GAST = DB::OPENGQL::AST;
 
-GQLPlanBuilder::GQLPlanBuilder(ContextPtr context_, PlanEnvironment environment_)
+GQLPlanBuilder::GQLPlanBuilder(ContextPtr context_)
     : context(std::move(context_))
-    , environment(std::move(environment_))
 {
 }
 
-GQLPlanBuilder::GQLPlanBuilder(ContextPtr context_, PlanScope scope_, PlanEnvironment environment_)
+GQLPlanBuilder::GQLPlanBuilder(ContextPtr context_, PlanScope scope_)
     : context(std::move(context_))
-    , environment(std::move(environment_))
     , scope(std::move(scope_))
 {
 }
 
 void GQLPlanBuilder::buildSingleQuery(QueryPlan & plan, const GAST::GQLSingleQuery & query)
 {
-    planClauseSequence(plan, query.clauses, context, environment, scope);
+    planClauseSequence(plan, query.clauses, context, scope);
 }
 
 }

@@ -14,7 +14,6 @@ namespace DB::GQL
 {
 
 class PlanScope;
-struct PlanEnvironment;
 
 struct CorrelatedSourceContext
 {

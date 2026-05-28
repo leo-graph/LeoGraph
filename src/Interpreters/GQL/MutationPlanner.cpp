@@ -1,6 +1,5 @@
 #include <Interpreters/GQL/MutationPlanner.h>
 
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Parsers/graph/GraphAST.h>
 #include <Common/Exception.h>

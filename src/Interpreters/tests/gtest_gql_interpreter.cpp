@@ -42,28 +42,6 @@ extern const int NOT_IMPLEMENTED;
 namespace
 {
 
-class TestMatchSourceReader final : public Graph::IMatchSourceReader
-{
-public:
-    Chunk generate() override { return {}; }
-};
-
-class TestMatchSourceFactory final : public Graph::IMatchSourceFactory
-{
-public:
-    std::unique_ptr<Graph::IMatchSourceReader> createReader(SharedHeader, const Graph::MatchSpec &) const override
-    {
-        return std::make_unique<TestMatchSourceReader>();
-    }
-};
-
-GQL::PlanEnvironment makePlanEnvironment(Graph::MatchSourceFactoryPtr factory)
-{
-    GQL::PlanEnvironment environment;
-    environment.match_source_factory = std::move(factory);
-    return environment;
-}
-
 ContextPtr getInterpreterContext()
 {
     tryRegisterFunctions();
@@ -176,101 +154,11 @@ TEST(GQLInterpreter, BareMatchReturnBuildsToScanThenProjection)
     EXPECT_TRUE(match.paths.front().edges.empty());
 }
 
-TEST(GQLInterpreter, MatchStepCarriesReusableSourceFactory)
+TEST(GQLInterpreter, MatchSourceAcceptsEmptySpec)
 {
-    auto factory = std::make_shared<TestMatchSourceFactory>();
-    Graph::MatchStep step(Graph::MatchSpec{}, factory);
-
-    EXPECT_EQ(step.getSourceFactory(), factory);
-
-    const auto cloned_step = step.clone();
-    const auto * cloned_match_step = dynamic_cast<const Graph::MatchStep *>(cloned_step.get());
-    ASSERT_NE(cloned_match_step, nullptr);
-    EXPECT_EQ(cloned_match_step->getSourceFactory(), factory);
-}
-
-TEST(GQLInterpreter, MatchSourceAcceptsNullReaderAsEmptySource)
-{
-    auto source = std::make_shared<Graph::MatchSource>(std::make_shared<const Block>(), Graph::MatchSpec{}, nullptr);
+    auto source = std::make_shared<Graph::MatchSource>(std::make_shared<const Block>(), Graph::MatchSpec{});
 
     EXPECT_EQ(source->getName(), "GraphMatchSource");
-}
-
-TEST(GQLInterpreter, GQLPlanBuilderConstructorSeedsMatchSourceFactory)
-{
-    auto factory = std::make_shared<TestMatchSourceFactory>();
-    const auto ast = parseGQL("MATCH (n) RETURN n");
-    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
-    ASSERT_NE(single_query, nullptr);
-
-    QueryPlan plan;
-    GQL::GQLPlanBuilder(getInterpreterContext(), makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
-
-    const auto * match_step = leafMatchStep(plan);
-    ASSERT_NE(match_step, nullptr);
-    EXPECT_EQ(match_step->getSourceFactory(), factory);
-}
-
-TEST(GQLInterpreter, InterpreterConstructorSeedsMatchSourceFactory)
-{
-    auto factory = std::make_shared<TestMatchSourceFactory>();
-    InterpreterGQLQuery interpreter(parseGQL("MATCH (n) RETURN n"), getInterpreterContext(), makePlanEnvironment(factory));
-
-    QueryPlan plan;
-    interpreter.buildQueryPlan(plan);
-
-    const auto * match_step = leafMatchStep(plan);
-    ASSERT_NE(match_step, nullptr);
-    EXPECT_EQ(match_step->getSourceFactory(), factory);
-}
-
-TEST(GQLInterpreter, InterpreterMatchSourceFactoryFlowsIntoCombinedChildren)
-{
-    auto factory = std::make_shared<TestMatchSourceFactory>();
-    InterpreterGQLQuery interpreter(
-        parseGQL("MATCH (n) RETURN n UNION ALL MATCH (n) RETURN n"),
-        getInterpreterContext(),
-        makePlanEnvironment(factory));
-
-    QueryPlan plan;
-    interpreter.buildQueryPlan(plan);
-
-    const auto match_steps = collectMatchSteps(plan);
-    ASSERT_EQ(match_steps.size(), 2u);
-    EXPECT_EQ(match_steps[0]->getSourceFactory(), factory);
-    EXPECT_EQ(match_steps[1]->getSourceFactory(), factory);
-}
-
-TEST(GQLInterpreter, PlanEnvironmentMatchSourceFactoryFlowsIntoMatchStep)
-{
-    auto factory = std::make_shared<TestMatchSourceFactory>();
-
-    const auto ast = parseGQL("MATCH (n) RETURN n");
-    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
-    ASSERT_NE(single_query, nullptr);
-
-    QueryPlan plan;
-    GQL::GQLPlanBuilder(getInterpreterContext(), GQL::PlanScope{}, makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
-
-    const auto * match_step = leafMatchStep(plan);
-    ASSERT_NE(match_step, nullptr);
-    EXPECT_EQ(match_step->getSourceFactory(), factory);
-}
-
-TEST(GQLInterpreter, SubqueryInheritsPlanEnvironmentMatchSourceFactory)
-{
-    auto factory = std::make_shared<TestMatchSourceFactory>();
-
-    const auto ast = parseGQL("SELECT n FROM { MATCH (n) RETURN n }");
-    const auto * single_query = ast->as<GAST::GQLSingleQuery>();
-    ASSERT_NE(single_query, nullptr);
-
-    QueryPlan plan;
-    GQL::GQLPlanBuilder(getInterpreterContext(), GQL::PlanScope{}, makePlanEnvironment(factory)).buildSingleQuery(plan, *single_query);
-
-    const auto * match_step = leafMatchStep(plan);
-    ASSERT_NE(match_step, nullptr);
-    EXPECT_EQ(match_step->getSourceFactory(), factory);
 }
 
 TEST(GQLInterpreter, UnionAllBuildsRootUnionPlan)

@@ -20,10 +20,9 @@ namespace ErrorCodes
 extern const int LOGICAL_ERROR;
 }
 
-InterpreterGQLQuery::InterpreterGQLQuery(ASTPtr query_ptr_, ContextPtr context_, GQL::PlanEnvironment environment_)
+InterpreterGQLQuery::InterpreterGQLQuery(ASTPtr query_ptr_, ContextPtr context_)
     : WithContext(context_)
     , query_ptr(std::move(query_ptr_))
-    , environment(std::move(environment_))
 {
 }
 
@@ -45,7 +44,7 @@ void InterpreterGQLQuery::buildQueryPlan(QueryPlan & query_plan)
     if (!query_ptr)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "InterpreterGQLQuery query is null");
 
-    GQL::buildGQLQueryPlan(query_plan, *query_ptr, getContext(), environment);
+    GQL::buildGQLQueryPlan(query_plan, *query_ptr, getContext());
     query_plan.addInterpreterContext(getContext());
 }
 

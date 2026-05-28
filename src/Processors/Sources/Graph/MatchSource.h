@@ -3,33 +3,18 @@
 #include <Processors/ISource.h>
 #include <Processors/QueryPlan/Graph/MatchSpec.h>
 
-#include <memory>
-
 namespace DB::Graph
 {
 
-class IMatchSourceReader
-{
-public:
-    virtual ~IMatchSourceReader() = default;
-    virtual Chunk generate() = 0;
-};
-
-class IMatchSourceFactory
-{
-public:
-    virtual ~IMatchSourceFactory() = default;
-    virtual std::unique_ptr<IMatchSourceReader> createReader(SharedHeader header, const MatchSpec & match_spec) const = 0;
-};
-
-using MatchSourceFactoryPtr = std::shared_ptr<const IMatchSourceFactory>;
-
-MatchSourceFactoryPtr getEmptyMatchSourceFactory();
-
+/// A placeholder source for GQL `MATCH` until graph data is exposed through `IStorage`.
+///
+/// Produces zero rows. The eventual replacement will not be a bespoke source at all:
+/// `MatchStep::initializePipeline` will build a `ReadFromMergeTree`-style pipe over
+/// the underlying tables resolved through `DatabaseCatalog`.
 class MatchSource final : public ISource
 {
 public:
-    MatchSource(SharedHeader header_, MatchSpec match_spec_, std::unique_ptr<IMatchSourceReader> reader_);
+    MatchSource(SharedHeader header_, MatchSpec match_spec_);
 
     String getName() const override { return "GraphMatchSource"; }
 
@@ -38,7 +23,6 @@ protected:
 
 private:
     MatchSpec match_spec;
-    std::unique_ptr<IMatchSourceReader> reader;
 };
 
 }

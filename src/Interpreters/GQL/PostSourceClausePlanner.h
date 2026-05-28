@@ -11,7 +11,6 @@ class QueryPlan;
 namespace DB::GQL
 {
 
-struct PlanEnvironment;
 class PlanScope;
 
 /// Builds a clause that appears after a source step already exists.

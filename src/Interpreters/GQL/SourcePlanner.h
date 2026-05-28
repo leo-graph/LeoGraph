@@ -15,7 +15,6 @@ namespace DB::GQL
 {
 
 class PlanScope;
-struct PlanEnvironment;
 
 enum class SourceClauseKind
 {
@@ -35,7 +34,7 @@ class SourceClauseBuffer final
 public:
     bool tryAppend(const ASTPtr & clause);
     bool hasPending() const;
-    void flush(QueryPlan & plan, ContextPtr context, const PlanEnvironment & environment, PlanScope & scope);
+    void flush(QueryPlan & plan, ContextPtr context,  PlanScope & scope);
 
 private:
     std::vector<const OPENGQL::AST::GQLMatchClause *> match_clauses;

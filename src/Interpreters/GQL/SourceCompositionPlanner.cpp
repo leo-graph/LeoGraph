@@ -1,7 +1,6 @@
 #include <Interpreters/GQL/SourceCompositionPlanner.h>
 
 #include <Interpreters/GQL/MatchPlanner.h>
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/SourcePlanner.h>
 #include <Parsers/graph/GraphAST.h>

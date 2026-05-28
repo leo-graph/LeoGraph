@@ -14,7 +14,6 @@ namespace DB::GQL
 {
 
 class PlanScope;
-struct PlanEnvironment;
 
 const OPENGQL::AST::GQLSingleQuery & getSingleQuerySubquery(
     const OPENGQL::AST::GQLSubquery & subquery,

@@ -12,7 +12,6 @@ namespace DB::GQL
 {
 
 class PlanScope;
-struct PlanEnvironment;
 
 /// Builds a linear `GQLSingleQuery` clause sequence.
 ///
@@ -23,7 +22,6 @@ void planClauseSequence(
     QueryPlan & plan,
     const ASTs & clauses,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

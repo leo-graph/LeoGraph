@@ -12,7 +12,6 @@ namespace DB::GQL
 {
 
 class PlanScope;
-struct PlanEnvironment;
 
 bool tryPlanDataModifyingClause(
     QueryPlan & plan,

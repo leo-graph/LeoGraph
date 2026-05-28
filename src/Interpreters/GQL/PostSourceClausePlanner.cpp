@@ -4,7 +4,6 @@
 #include <Interpreters/GQL/CatalogPlanner.h>
 #include <Interpreters/GQL/ClausePlanner.h>
 #include <Interpreters/GQL/MutationPlanner.h>
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 

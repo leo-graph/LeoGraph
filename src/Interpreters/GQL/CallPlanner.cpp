@@ -1,6 +1,5 @@
 #include <Interpreters/GQL/CallPlanner.h>
 
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/SubqueryPlanner.h>
 #include <Parsers/graph/GraphAST.h>

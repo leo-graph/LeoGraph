@@ -4,7 +4,6 @@
 #include <Interpreters/GQL/ClausePlanner.h>
 #include <Interpreters/GQL/MatchPlanner.h>
 #include <Interpreters/GQL/PostSourceClausePlanner.h>
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/SourceCompositionPlanner.h>
 #include <Interpreters/GQL/SubqueryPlanner.h>
@@ -62,7 +61,7 @@ void planSubquerySourceWithChildGraphScope(
     planSubquerySource(plan, subquery, context, environment, scope, scope.makeChildGraphScope(), context_name);
 }
 
-void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context, const PlanEnvironment & environment, PlanScope & scope)
+void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context,  PlanScope & scope)
 {
     if (!source)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "SELECT source is null");
@@ -175,7 +174,7 @@ bool SourceClauseBuffer::hasPending() const
     return !match_clauses.empty();
 }
 
-void SourceClauseBuffer::flush(QueryPlan & plan, ContextPtr context, const PlanEnvironment & environment, PlanScope & scope)
+void SourceClauseBuffer::flush(QueryPlan & plan, ContextPtr context,  PlanScope & scope)
 {
     if (match_clauses.empty())
         return;

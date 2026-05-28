@@ -14,13 +14,11 @@ namespace DB::GQL
 {
 
 class PlanScope;
-struct PlanEnvironment;
 
 void planMatchClauseSequence(
     QueryPlan & plan,
     const std::vector<const OPENGQL::AST::GQLMatchClause *> & matches,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

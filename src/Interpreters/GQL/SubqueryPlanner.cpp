@@ -2,7 +2,6 @@
 
 #include <Interpreters/GQL/ApplyPlanner.h>
 #include <Interpreters/GQL/PostSourceClausePlanner.h>
-#include <Interpreters/GQL/PlanEnvironment.h>
 #include <Interpreters/GQL/PlanScope.h>
 #include <Interpreters/GQL/GQLPlanner.h>
 #include <Interpreters/GQL/SourcePlanner.h>

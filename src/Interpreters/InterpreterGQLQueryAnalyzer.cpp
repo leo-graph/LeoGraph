@@ -28,8 +28,7 @@ namespace
  * Currently, it only builds the QueryTree; analysis passes will be
  * added in a future step.
  */
-QueryTreeNodePtr buildGQLQueryTreeAndRunPasses(
-    const ASTPtr & query, const ContextPtr & context, const GQL::PlanEnvironment & environment)
+QueryTreeNodePtr buildGQLQueryTreeAndRunPasses(const ASTPtr & query, const ContextPtr & context)
 {
     if (!query)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL query AST is null");
@@ -48,19 +47,17 @@ QueryTreeNodePtr buildGQLQueryTreeAndRunPasses(
 } // anonymous namespace
 
 InterpreterGQLQueryAnalyzer::InterpreterGQLQueryAnalyzer(
-    const ASTPtr & query_, const ContextPtr & context_, const GQL::PlanEnvironment & environment_)
+    const ASTPtr & query_, const ContextPtr & context_)
     : query(query_)
     , context(context_)
-    , environment(environment_)
-    , query_tree(buildGQLQueryTreeAndRunPasses(query, context, environment))
+    , query_tree(buildGQLQueryTreeAndRunPasses(query, context))
 {
 }
 
 InterpreterGQLQueryAnalyzer::InterpreterGQLQueryAnalyzer(
-    const QueryTreeNodePtr & query_tree_, const ContextPtr & context_, const GQL::PlanEnvironment & environment_)
+    const QueryTreeNodePtr & query_tree_, const ContextPtr & context_)
     : query(nullptr) // Will be set when toASTImpl is implemented
     , context(context_)
-    , environment(environment_)
     , query_tree(query_tree_)
 {
     if (!query_tree)
@@ -104,7 +101,7 @@ void InterpreterGQLQueryAnalyzer::buildQueryPlan(QueryPlan & query_plan)
     }
 
     // Temporary: use the old path through AST
-    GQL::buildGQLQueryPlan(query_plan, *query, context, environment);
+    GQL::buildGQLQueryPlan(query_plan, *query, context);
     query_plan.addInterpreterContext(context);
 }
 
