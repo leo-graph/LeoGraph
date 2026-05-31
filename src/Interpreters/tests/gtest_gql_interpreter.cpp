@@ -139,7 +139,7 @@ void collectMatchSteps(const QueryPlan::Node * node, std::vector<const Graph::Ma
         collectMatchSteps(child, steps);
 }
 
-[[maybe_unused]] std::vector<const Graph::MatchStep *> collectMatchSteps(const QueryPlan & plan)
+std::vector<const Graph::MatchStep *> collectMatchSteps(const QueryPlan & plan)
 {
     std::vector<const Graph::MatchStep *> steps;
     collectMatchSteps(plan.getRootNode(), steps);
@@ -1431,6 +1431,29 @@ TEST(GQLQueryTreeAnalyzer, UnsupportedClauseFailsClosed)
     {
         EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
     }
+}
+
+TEST(GQLQueryTreeAnalyzer, UnionAllOfMatchReturnBuildsUnionPlan)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (n) RETURN n UNION ALL MATCH (m) RETURN m");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Union"}));
+
+    const auto steps = collectMatchSteps(plan);
+    EXPECT_EQ(steps.size(), 2u);
+}
+
+TEST(GQLQueryTreeAnalyzer, ReturnDistinctAppendsDistinctStep)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (n) RETURN DISTINCT n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Distinct", "Expression", "GraphMatch"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * distinct = dynamic_cast<const DistinctStep *>(root->step.get());
+    ASSERT_NE(distinct, nullptr);
+    EXPECT_EQ(distinct->getColumnNames(), (Names{"n"}));
 }
 
 #endif

@@ -1,5 +1,6 @@
 #include <Interpreters/GQL/GQLPlanner.h>
 
+#include <Analyzer/GQL/GQLCombinedQueryNode.h>
 #include <Analyzer/GQL/GQLEdgePatternNode.h>
 #include <Analyzer/GQL/GQLLinearQueryNode.h>
 #include <Analyzer/GQL/GQLMatchNode.h>
@@ -273,6 +274,8 @@ void buildGQLQueryPlanImpl(
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL query root: {}", query.getID(' '));
 }
 
+void buildGQLQueryPlanFromTree(QueryPlan & plan, const QueryTreeNodePtr & query_tree, ContextPtr context, PlanScope & scope);
+
 Graph::MatchEdgeDirection convertTreeEdgeDirection(GQLEdgePatternNode::Direction direction)
 {
     switch (direction)
@@ -373,11 +376,8 @@ void planMatchFromTree(QueryPlan & plan, const GQLMatchNode & match_node, Contex
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 }
 
-void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, PlanScope & scope)
+void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, ContextPtr context, PlanScope & scope)
 {
-    if (ret.isDistinct())
-        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN DISTINCT is not yet supported in analyzer planner");
-
     const auto & items = ret.getItems().getNodes();
     if (items.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN must project at least one item");
@@ -412,6 +412,12 @@ void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, PlanScope &
     dag.addMaterializingOutputActions(false);
     plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
+
+    if (ret.isDistinct())
+    {
+        const auto columns = getHeaderColumnNames(*plan.getCurrentHeader());
+        addDistinctStep(plan, columns, context);
+    }
 }
 
 void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear, ContextPtr context, PlanScope & scope)
@@ -438,7 +444,7 @@ void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear
             if (!source_planned)
                 throw Exception(
                     ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet support source-free RETURN");
-            planReturnFromTree(plan, *ret, scope);
+            planReturnFromTree(plan, *ret, context, scope);
             continue;
         }
 
@@ -449,6 +455,98 @@ void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner requires a source clause");
 }
 
+CombinedPlanMode getCombinedPlanModeFromTree(const GQLCombinedQueryNode & combined)
+{
+    const auto & queries = combined.getQueries().getNodes();
+    const auto & operators = combined.getOperators();
+    if (queries.size() < 2)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL combined query must contain at least two subqueries");
+    if (operators.size() + 1 != queries.size())
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined query has inconsistent operator count");
+
+    std::optional<CombinedPlanMode> mode;
+    for (const auto op : operators)
+    {
+        CombinedPlanMode current_mode = CombinedPlanMode::UnionAll;
+        switch (op)
+        {
+            case GQLCombinedQueryNode::CombinedOperator::UNION_ALL:
+                current_mode = CombinedPlanMode::UnionAll;
+                break;
+            case GQLCombinedQueryNode::CombinedOperator::UNION_DISTINCT:
+                current_mode = CombinedPlanMode::UnionDistinct;
+                break;
+            case GQLCombinedQueryNode::CombinedOperator::EXCEPT_ALL:
+                current_mode = CombinedPlanMode::ExceptAll;
+                break;
+            case GQLCombinedQueryNode::CombinedOperator::EXCEPT_DISTINCT:
+                current_mode = CombinedPlanMode::ExceptDistinct;
+                break;
+            case GQLCombinedQueryNode::CombinedOperator::INTERSECT_ALL:
+                current_mode = CombinedPlanMode::IntersectAll;
+                break;
+            case GQLCombinedQueryNode::CombinedOperator::INTERSECT_DISTINCT:
+                current_mode = CombinedPlanMode::IntersectDistinct;
+                break;
+        }
+
+        if (mode && *mode != current_mode)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Mixing GQL combined query operators is not supported");
+        mode = current_mode;
+    }
+
+    if (!mode)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined query has no operator");
+
+    return *mode;
+}
+
+void planCombinedQueryFromTree(QueryPlan & plan, const GQLCombinedQueryNode & combined, ContextPtr context)
+{
+    const auto mode = getCombinedPlanModeFromTree(combined);
+    const auto & queries = combined.getQueries().getNodes();
+
+    std::vector<QueryPlanPtr> plans;
+    plans.reserve(queries.size());
+    for (const auto & child : queries)
+    {
+        if (!child)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL combined query child is null");
+
+        auto child_plan = std::make_unique<QueryPlan>();
+        PlanScope child_scope;
+        buildGQLQueryPlanFromTree(*child_plan, child, context, child_scope);
+        plans.push_back(std::move(child_plan));
+    }
+
+    const auto result_header = plans.front()->getCurrentHeader();
+    const Names result_columns = getHeaderColumnNames(*result_header);
+
+    SharedHeaders headers;
+    headers.reserve(plans.size());
+    for (auto & child_plan : plans)
+    {
+        addConversionIfNeeded(*child_plan, result_header, context);
+        headers.push_back(child_plan->getCurrentHeader());
+    }
+
+    const auto & settings = context->getSettingsRef();
+    if (mode == CombinedPlanMode::UnionAll || mode == CombinedPlanMode::UnionDistinct)
+    {
+        plan.unitePlans(std::make_unique<UnionStep>(std::move(headers), settings[Setting::max_threads]), std::move(plans));
+    }
+    else
+    {
+        plan.unitePlans(
+            std::make_unique<IntersectOrExceptStep>(
+                std::move(headers), getIntersectOrExceptOperator(mode), settings[Setting::max_threads]),
+            std::move(plans));
+    }
+
+    if (needsDistinctStep(mode))
+        addDistinctStep(plan, result_columns, context);
+}
+
 void buildGQLQueryPlanFromTree(QueryPlan & plan, const QueryTreeNodePtr & query_tree, ContextPtr context, PlanScope & scope)
 {
     if (!query_tree)
@@ -457,6 +555,12 @@ void buildGQLQueryPlanFromTree(QueryPlan & plan, const QueryTreeNodePtr & query_
     if (const auto * linear = query_tree->as<GQLLinearQueryNode>())
     {
         planLinearQueryFromTree(plan, *linear, context, scope);
+        return;
+    }
+
+    if (const auto * combined = query_tree->as<GQLCombinedQueryNode>())
+    {
+        planCombinedQueryFromTree(plan, *combined, context);
         return;
     }
 
