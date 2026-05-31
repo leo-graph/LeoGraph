@@ -86,22 +86,8 @@ void InterpreterGQLQueryAnalyzer::buildQueryPlan(QueryPlan & query_plan)
     if (!query_tree)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
 
-    // Convert QueryTree to QueryPlan
-    // TODO: Modify GQLPlanner to accept QueryTreeNodePtr instead of IAST
-    // For now, we need to convert back to AST (temporary solution)
-
-    if (!query)
-    {
-        // If we don't have the original AST, we need to reconstruct it
-        // This is a temporary workaround until we modify GQLPlanner
-        throw Exception(
-            ErrorCodes::NOT_IMPLEMENTED,
-            "Converting GQL QueryTree back to AST is not yet implemented. "
-            "GQLPlanner needs to be modified to accept QueryTreeNodePtr directly.");
-    }
-
-    // Temporary: use the old path through AST
-    GQL::buildGQLQueryPlan(query_plan, *query, context);
+    /// Plan directly from the analyzed GQL QueryTree (no AST round-trip).
+    GQL::buildGQLQueryPlan(query_plan, query_tree, context);
     query_plan.addInterpreterContext(context);
 }
 

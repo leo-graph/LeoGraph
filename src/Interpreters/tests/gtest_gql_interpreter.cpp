@@ -13,6 +13,7 @@
 #  include <Interpreters/GQL/ExpressionPlanner.h>
 #  include <Interpreters/GQL/GQLPlanBuilder.h>
 #  include <Interpreters/InterpreterGQLQuery.h>
+#  include <Interpreters/InterpreterGQLQueryAnalyzer.h>
 #  include <Parsers/ASTFunction.h>
 #  include <Parsers/ASTIdentifier.h>
 #  include <Parsers/ASTLiteral.h>
@@ -57,6 +58,14 @@ ASTPtr parseGQL(const std::string & query)
 QueryPlan buildPlan(const std::string & query)
 {
     InterpreterGQLQuery interpreter(parseGQL(query), getInterpreterContext());
+    QueryPlan plan;
+    interpreter.buildQueryPlan(plan);
+    return plan;
+}
+
+QueryPlan buildPlanWithAnalyzer(const std::string & query)
+{
+    InterpreterGQLQueryAnalyzer interpreter(parseGQL(query), getInterpreterContext());
     QueryPlan plan;
     interpreter.buildQueryPlan(plan);
     return plan;
@@ -130,7 +139,7 @@ void collectMatchSteps(const QueryPlan::Node * node, std::vector<const Graph::Ma
         collectMatchSteps(child, steps);
 }
 
-std::vector<const Graph::MatchStep *> collectMatchSteps(const QueryPlan & plan)
+[[maybe_unused]] std::vector<const Graph::MatchStep *> collectMatchSteps(const QueryPlan & plan)
 {
     std::vector<const Graph::MatchStep *> steps;
     collectMatchSteps(plan.getRootNode(), steps);
@@ -1367,6 +1376,61 @@ TEST(GQLInterpreter, MatchPatternConstraintsStayInGraphMatchSpec)
     const auto & cloned_node = cloned_match_step->getMatchSpec().paths.front().nodes.front();
     EXPECT_NE(cloned_node.label_expression.get(), node.label_expression.get());
     EXPECT_NE(cloned_node.properties.get(), node.properties.get());
+}
+
+TEST(GQLQueryTreeAnalyzer, MatchReturnBuildsScanThenProjection)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (n) RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.clauses.size(), 1u);
+    ASSERT_EQ(match.clauses.front().paths.size(), 1u);
+    ASSERT_EQ(match.clauses.front().paths.front().nodes.size(), 1u);
+    EXPECT_EQ(match.clauses.front().paths.front().nodes.front().variable, "n");
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "n");
+}
+
+TEST(GQLQueryTreeAnalyzer, EdgeChainBuildsToGraphMatchSpec)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (a)-[r]->(b) RETURN a, r, b");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * match_step = leafMatchStep(plan);
+    ASSERT_NE(match_step, nullptr);
+
+    const auto & match = match_step->getMatchSpec();
+    ASSERT_EQ(match.clauses.size(), 1u);
+    const auto & path = match.clauses.front().paths.front();
+    ASSERT_EQ(path.nodes.size(), 2u);
+    ASSERT_EQ(path.edges.size(), 1u);
+    EXPECT_EQ(path.nodes[0].variable, "a");
+    EXPECT_EQ(path.edges[0].variable, "r");
+    EXPECT_EQ(path.edges[0].direction, Graph::MatchEdgeDirection::Outgoing);
+    EXPECT_EQ(path.nodes[1].variable, "b");
+}
+
+TEST(GQLQueryTreeAnalyzer, UnsupportedClauseFailsClosed)
+{
+    try
+    {
+        (void)buildPlanWithAnalyzer("MATCH (n) WHERE n = 1 RETURN n");
+        FAIL() << "Expected MATCH-level WHERE to be rejected by the analyzer builder";
+    }
+    catch (const Exception & e)
+    {
+        EXPECT_EQ(e.code(), ErrorCodes::NOT_IMPLEMENTED);
+    }
 }
 
 #endif

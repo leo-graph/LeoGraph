@@ -1,6 +1,15 @@
 #include <Interpreters/GQL/GQLPlanner.h>
 
+#include <Analyzer/GQL/GQLEdgePatternNode.h>
+#include <Analyzer/GQL/GQLLinearQueryNode.h>
+#include <Analyzer/GQL/GQLMatchNode.h>
+#include <Analyzer/GQL/GQLNodePatternNode.h>
+#include <Analyzer/GQL/GQLPathPatternNode.h>
+#include <Analyzer/GQL/GQLPathTermNode.h>
+#include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/IQueryTreeNode.h>
+#include <Analyzer/IdentifierNode.h>
+#include <Analyzer/ListNode.h>
 #include <Core/Block.h>
 #include <Core/Settings.h>
 #include <Interpreters/ActionsDAG.h>
@@ -11,6 +20,7 @@
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/DistinctStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
+#include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/IntersectOrExceptStep.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/UnionStep.h>
@@ -263,6 +273,196 @@ void buildGQLQueryPlanImpl(
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL query root: {}", query.getID(' '));
 }
 
+Graph::MatchEdgeDirection convertTreeEdgeDirection(GQLEdgePatternNode::Direction direction)
+{
+    switch (direction)
+    {
+        case GQLEdgePatternNode::Direction::Left:
+            return Graph::MatchEdgeDirection::Incoming;
+        case GQLEdgePatternNode::Direction::Right:
+            return Graph::MatchEdgeDirection::Outgoing;
+        case GQLEdgePatternNode::Direction::Undirected:
+            return Graph::MatchEdgeDirection::Undirected;
+        case GQLEdgePatternNode::Direction::LeftOrRight:
+            return Graph::MatchEdgeDirection::IncomingOrOutgoing;
+        case GQLEdgePatternNode::Direction::LeftOrUndirected:
+            return Graph::MatchEdgeDirection::IncomingOrUndirected;
+        case GQLEdgePatternNode::Direction::UndirectedOrRight:
+            return Graph::MatchEdgeDirection::UndirectedOrOutgoing;
+        case GQLEdgePatternNode::Direction::Any:
+            return Graph::MatchEdgeDirection::Any;
+    }
+
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown GQL edge direction in analyzer planner");
+}
+
+Graph::MatchPathSpec buildPathSpecFromTree(const GQLPathPatternNode & path)
+{
+    Graph::MatchPathSpec spec;
+    spec.variable = path.getPathVariable();
+
+    const auto & expression = path.getExpression();
+    const auto * term = expression ? expression->as<GQLPathTermNode>() : nullptr;
+    if (!term)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner only supports classic path terms");
+
+    const auto & elements = term->getElements().getNodes();
+    if (elements.empty() || elements.size() % 2 == 0)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL path term must alternate node and edge factors");
+
+    for (size_t i = 0; i < elements.size(); ++i)
+    {
+        if (i % 2 == 0)
+        {
+            const auto * node = elements[i]->as<GQLNodePatternNode>();
+            if (!node)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL path factor must be GQLNodePatternNode");
+            Graph::MatchNodeSpec node_spec;
+            node_spec.variable = node->getElementVariable();
+            spec.nodes.push_back(std::move(node_spec));
+        }
+        else
+        {
+            const auto * edge = elements[i]->as<GQLEdgePatternNode>();
+            if (!edge)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL path factor must be GQLEdgePatternNode");
+            Graph::MatchEdgeSpec edge_spec;
+            edge_spec.variable = edge->getElementVariable();
+            edge_spec.direction = convertTreeEdgeDirection(edge->getDirection());
+            spec.edges.push_back(std::move(edge_spec));
+        }
+    }
+
+    return spec;
+}
+
+Graph::MatchSpec buildMatchSpecFromTree(const GQLMatchNode & match_node)
+{
+    if (match_node.isOptional())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL MATCH is not supported in GQL analyzer planner");
+    if (match_node.getMatchMode() != OPENGQL::AST::GraphMatchMode::None)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH mode is not supported in analyzer planner");
+
+    const auto & patterns = match_node.getPathPatterns().getNodes();
+    if (patterns.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH must contain at least one path pattern");
+
+    Graph::MatchClauseSpec clause;
+    clause.paths.reserve(patterns.size());
+    for (const auto & pattern : patterns)
+    {
+        const auto * path = pattern->as<GQLPathPatternNode>();
+        if (!path)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern must be GQLPathPatternNode");
+        clause.paths.push_back(buildPathSpecFromTree(*path));
+    }
+
+    Graph::MatchSpec result;
+    result.clauses.push_back(std::move(clause));
+    return result;
+}
+
+void planMatchFromTree(QueryPlan & plan, const GQLMatchNode & match_node, ContextPtr context, PlanScope & scope)
+{
+    auto match_spec = buildMatchSpecFromTree(match_node);
+
+    /// A graph storage would be resolved here through DatabaseCatalog from the active graph
+    /// scope; until one is registered, the null storage falls back to an empty source inside
+    /// MatchStep.
+    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec), nullptr, context));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
+}
+
+void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, PlanScope & scope)
+{
+    if (ret.isDistinct())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN DISTINCT is not yet supported in analyzer planner");
+
+    const auto & items = ret.getItems().getNodes();
+    if (items.empty())
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN must project at least one item");
+
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName(), false);
+
+    ActionsDAG::NodeRawConstPtrs outputs;
+    outputs.reserve(items.size());
+    for (const auto & item : items)
+    {
+        const auto * identifier = item->as<IdentifierNode>();
+        if (!identifier)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner only supports identifier RETURN items");
+
+        const auto name = identifier->getIdentifier().getFullName();
+        const auto * node = dag.tryFindInOutputs(name);
+        if (!node)
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED,
+                "GQL RETURN references binding '{}' not present in the current plan scope",
+                name);
+
+        const auto alias = identifier->hasAlias() ? identifier->getAlias() : String{};
+        if (alias.empty() || alias == name)
+            outputs.push_back(node);
+        else
+            outputs.push_back(&dag.addAlias(*node, alias));
+    }
+
+    dag.getOutputs() = std::move(outputs);
+    dag.addMaterializingOutputActions(false);
+    plan.addStep(std::make_unique<ExpressionStep>(current_header, std::move(dag)));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Projection);
+}
+
+void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear, ContextPtr context, PlanScope & scope)
+{
+    const auto & steps = linear.getSteps().getNodes();
+    bool source_planned = false;
+    for (const auto & step : steps)
+    {
+        if (!step)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL linear query step is null");
+
+        if (const auto * match = step->as<GQLMatchNode>())
+        {
+            if (source_planned)
+                throw Exception(
+                    ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet support multiple source clauses");
+            planMatchFromTree(plan, *match, context, scope);
+            source_planned = true;
+            continue;
+        }
+
+        if (const auto * ret = step->as<GQLReturnNode>())
+        {
+            if (!source_planned)
+                throw Exception(
+                    ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet support source-free RETURN");
+            planReturnFromTree(plan, *ret, scope);
+            continue;
+        }
+
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet support this query step");
+    }
+
+    if (!source_planned)
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner requires a source clause");
+}
+
+void buildGQLQueryPlanFromTree(QueryPlan & plan, const QueryTreeNodePtr & query_tree, ContextPtr context, PlanScope & scope)
+{
+    if (!query_tree)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
+
+    if (const auto * linear = query_tree->as<GQLLinearQueryNode>())
+    {
+        planLinearQueryFromTree(plan, *linear, context, scope);
+        return;
+    }
+
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet support this query root");
+}
+
 }
 
 void buildGQLQueryPlan(
@@ -289,15 +489,8 @@ void buildGQLQueryPlan(
     const QueryTreeNodePtr & query_tree,
     ContextPtr context)
 {
-    if (!query_tree)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
-
-    // TODO: Implement direct QueryTree -> QueryPlan conversion
-    // For now, convert back to AST and use the existing path
-    // This is a temporary bridge until we implement the full QueryTree planner
-
-    auto ast = query_tree->toAST();
-    buildGQLQueryPlan(query_plan, *ast, std::move(context));
+    PlanScope scope;
+    buildGQLQueryPlanFromTree(query_plan, query_tree, std::move(context), scope);
 }
 
 void buildGQLQueryPlan(
@@ -306,14 +499,7 @@ void buildGQLQueryPlan(
     ContextPtr context,
     PlanScope & scope)
 {
-    if (!query_tree)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL QueryTree is null");
-
-    // TODO: Implement direct QueryTree -> QueryPlan conversion with scope
-    // For now, convert back to AST and use the existing path
-
-    auto ast = query_tree->toAST();
-    buildGQLQueryPlan(query_plan, *ast, std::move(context), scope);
+    buildGQLQueryPlanFromTree(query_plan, query_tree, std::move(context), scope);
 }
 
 }
