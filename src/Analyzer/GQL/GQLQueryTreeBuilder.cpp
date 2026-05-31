@@ -15,6 +15,7 @@
 #include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/GQL/GQLYieldNode.h>
 #include <Analyzer/ConstantNode.h>
+#include <Analyzer/FunctionNode.h>
 #include <Analyzer/Identifier.h>
 #include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
@@ -91,6 +92,50 @@ std::pair<Field, DataTypePtr> parseGQLLiteral(const String & raw)
     {
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL literal in QueryTree builder: {}", raw);
     }
+}
+
+String normalizedOperator(String op)
+{
+    trim(op);
+    return Poco::toUpper(op);
+}
+
+/// Map a GQL binary operator token to a ClickHouse scalar function name, matching the
+/// operator set understood by the existing GQL expression lowering.
+const char * binaryOperatorToFunctionName(const String & op)
+{
+    if (op == "=")
+        return "equals";
+    if (op == "<>" || op == "!=")
+        return "notEquals";
+    if (op == ">")
+        return "greater";
+    if (op == ">=")
+        return "greaterOrEquals";
+    if (op == "<")
+        return "less";
+    if (op == "<=")
+        return "lessOrEquals";
+    if (op == "+")
+        return "plus";
+    if (op == "-")
+        return "minus";
+    if (op == "*")
+        return "multiply";
+    if (op == "/")
+        return "divide";
+    if (op == "AND")
+        return "and";
+    if (op == "OR")
+        return "or";
+    return nullptr;
+}
+
+QueryTreeNodePtr makeFunctionNode(const String & function_name, QueryTreeNodes arguments)
+{
+    auto function = std::make_shared<FunctionNode>(function_name);
+    function->getArguments().getNodes() = std::move(arguments);
+    return function;
 }
 
 /** Internal implementation class for building GQL QueryTree.
@@ -372,10 +417,29 @@ private:
                 auto [value, type] = parseGQLLiteral(gql_expr->text);
                 return std::make_shared<ConstantNode>(std::move(value), std::move(type));
             }
+
+            if (gql_expr->kind == GAST::GQLExpr::Kind::BinaryOp)
+                return buildBinaryOp(*gql_expr);
         }
 
         throw Exception(
             ErrorCodes::NOT_IMPLEMENTED, "GQL expression {} is not yet supported in QueryTree builder", expr.getID(' '));
+    }
+
+    QueryTreeNodePtr buildBinaryOp(const GAST::GQLExpr & expr)
+    {
+        const auto * function_name = binaryOperatorToFunctionName(normalizedOperator(expr.text));
+        if (!function_name)
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED, "GQL binary operator '{}' is not yet supported in QueryTree builder", expr.text);
+
+        if (expr.children.size() != 2 || !expr.children[0] || !expr.children[1])
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL binary operator must have two operands");
+
+        QueryTreeNodes arguments;
+        arguments.push_back(buildExpression(*expr.children[0]));
+        arguments.push_back(buildExpression(*expr.children[1]));
+        return makeFunctionNode(function_name, std::move(arguments));
     }
 
     QueryTreeNodePtr buildFilterClause(const GAST::GQLWhereClause & where)

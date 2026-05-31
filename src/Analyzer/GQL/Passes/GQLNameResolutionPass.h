@@ -21,7 +21,7 @@ class GQLNameResolutionPass final : public IQueryTreePass
 public:
     String getName() override { return "GQLNameResolution"; }
 
-    String getDescription() override { return "Resolve GQL identifiers into columns referencing source bindings"; }
+    String getDescription() override { return "Resolve GQL identifiers into source-binding columns and resolve function nodes"; }
 
     void run(QueryTreeNodePtr & query_tree_node, ContextPtr context) override;
 };

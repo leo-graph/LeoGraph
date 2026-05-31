@@ -1472,4 +1472,30 @@ TEST(GQLQueryTreeAnalyzer, SourceFreeLiteralReturnBuildsScalarSource)
     EXPECT_EQ(header.getByPosition(0).name, "one");
 }
 
+TEST(GQLQueryTreeAnalyzer, SourceFreeComputedProjectionLowersFunction)
+{
+    const auto plan = buildPlanWithAnalyzer("RETURN 1 + 2 AS s");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "s");
+}
+
+TEST(GQLQueryTreeAnalyzer, ComputedProjectionOverMatchSourceLowersFunction)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (n) RETURN n + 1 AS m");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "GraphMatch"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto & header = *root->step->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "m");
+}
+
 #endif

@@ -9,10 +9,12 @@
 #include <Analyzer/GQL/GQLPathPatternNode.h>
 #include <Analyzer/GQL/GQLPathTermNode.h>
 #include <Analyzer/GQL/GQLReturnNode.h>
+#include <Analyzer/FunctionNode.h>
 #include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
 #include <Core/NamesAndTypes.h>
 #include <DataTypes/DataTypesNumber.h>
+#include <Functions/FunctionFactory.h>
 
 namespace DB::GQL
 {
@@ -65,30 +67,50 @@ const NameAndTypePair * findBinding(const NamesAndTypes & bindings, const String
     return nullptr;
 }
 
-void resolveReturnItems(GQLReturnNode & ret, const NamesAndTypes & bindings, const QueryTreeNodePtr & source)
+void resolveExpression(
+    QueryTreeNodePtr & node, const NamesAndTypes & bindings, const QueryTreeNodePtr & source, const ContextPtr & context)
 {
-    for (auto & item : ret.getItems().getNodes())
-    {
-        const auto * identifier = item->as<IdentifierNode>();
-        if (!identifier)
-            continue;
+    if (!node)
+        return;
 
+    if (const auto * identifier = node->as<IdentifierNode>())
+    {
         const auto name = identifier->getIdentifier().getFullName();
         const auto * binding = findBinding(bindings, name);
         if (!binding)
-            continue;
+            return;
 
         auto column = std::make_shared<ColumnNode>(*binding, source);
         if (identifier->hasAlias())
             column->setAlias(identifier->getAlias());
 
-        item = std::move(column);
+        node = std::move(column);
+        return;
+    }
+
+    if (auto * function = node->as<FunctionNode>())
+    {
+        /// Resolve arguments first (bottom-up) so their types are known, then resolve the
+        /// function itself via FunctionFactory. This mirrors how the SQL QueryAnalysisPass
+        /// resolves a function after its arguments.
+        for (auto & argument : function->getArguments().getNodes())
+            resolveExpression(argument, bindings, source, context);
+
+        if (!function->isResolved())
+            function->resolveAsFunction(FunctionFactory::instance().get(function->getFunctionName(), context));
     }
 }
 
-void resolveQuery(QueryTreeNodePtr & node);
+void resolveReturnItems(
+    GQLReturnNode & ret, const NamesAndTypes & bindings, const QueryTreeNodePtr & source, const ContextPtr & context)
+{
+    for (auto & item : ret.getItems().getNodes())
+        resolveExpression(item, bindings, source, context);
+}
 
-void resolveLinearQuery(GQLLinearQueryNode & linear)
+void resolveQuery(QueryTreeNodePtr & node, const ContextPtr & context);
+
+void resolveLinearQuery(GQLLinearQueryNode & linear, const ContextPtr & context)
 {
     NamesAndTypes bindings;
     QueryTreeNodePtr source;
@@ -102,33 +124,33 @@ void resolveLinearQuery(GQLLinearQueryNode & linear)
         }
         else if (auto * ret = step->as<GQLReturnNode>())
         {
-            resolveReturnItems(*ret, bindings, source);
+            resolveReturnItems(*ret, bindings, source, context);
         }
     }
 }
 
-void resolveCombinedQuery(GQLCombinedQueryNode & combined)
+void resolveCombinedQuery(GQLCombinedQueryNode & combined, const ContextPtr & context)
 {
     for (auto & query : combined.getQueries().getNodes())
-        resolveQuery(query);
+        resolveQuery(query, context);
 }
 
-void resolveQuery(QueryTreeNodePtr & node)
+void resolveQuery(QueryTreeNodePtr & node, const ContextPtr & context)
 {
     if (!node)
         return;
 
     if (auto * linear = node->as<GQLLinearQueryNode>())
-        resolveLinearQuery(*linear);
+        resolveLinearQuery(*linear, context);
     else if (auto * combined = node->as<GQLCombinedQueryNode>())
-        resolveCombinedQuery(*combined);
+        resolveCombinedQuery(*combined, context);
 }
 
 }
 
-void GQLNameResolutionPass::run(QueryTreeNodePtr & query_tree_node, ContextPtr)
+void GQLNameResolutionPass::run(QueryTreeNodePtr & query_tree_node, ContextPtr context)
 {
-    resolveQuery(query_tree_node);
+    resolveQuery(query_tree_node, context);
 }
 
 }

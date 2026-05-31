@@ -10,6 +10,7 @@
 #include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/ColumnNode.h>
 #include <Analyzer/ConstantNode.h>
+#include <Analyzer/FunctionNode.h>
 #include <Analyzer/IQueryTreeNode.h>
 #include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
@@ -415,6 +416,16 @@ const ActionsDAG::Node & buildActionsNode(const QueryTreeNodePtr & expression, A
         column.column = constant->getColumn();
         column.name = constant->getValueStringRepresentation();
         return dag.addColumn(std::move(column));
+    }
+
+    if (const auto * function = expression->as<FunctionNode>())
+    {
+        const auto & function_arguments = function->getArguments().getNodes();
+        ActionsDAG::NodeRawConstPtrs arguments;
+        arguments.reserve(function_arguments.size());
+        for (const auto & argument : function_arguments)
+            arguments.push_back(&buildActionsNode(argument, dag));
+        return dag.addFunction(*function, std::move(arguments), {});
     }
 
     if (expression->as<IdentifierNode>())
