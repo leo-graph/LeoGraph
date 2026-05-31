@@ -28,7 +28,6 @@ void planSubquerySource(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSubquery & subquery,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope,
     PlanScope child_scope,
     std::string_view context_name);
@@ -37,7 +36,6 @@ void planPostSourceSubquery(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSubquery & subquery,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope & outer_scope,
     PlanScope & subquery_scope,
     std::string_view context_name);

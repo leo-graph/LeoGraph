@@ -26,7 +26,6 @@ void planCorrelatedSourceClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const CorrelatedSourceContext & apply_context);
 
 }

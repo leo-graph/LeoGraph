@@ -34,7 +34,6 @@ void planSelectSourceList(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSelectSourceList & source_list,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

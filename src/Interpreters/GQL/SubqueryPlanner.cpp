@@ -97,7 +97,6 @@ void planSubquerySource(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSubquery & subquery,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope,
     PlanScope child_scope,
     std::string_view context_name)
@@ -115,7 +114,7 @@ void planSubquerySource(
         bindSubqueryDefinitions(*binding_block, child_scope, context_name);
     }
 
-    buildGQLQueryPlan(plan, *subquery.query, context, environment, child_scope);
+    buildGQLQueryPlan(plan, *subquery.query, context, child_scope);
     scope = std::move(child_scope);
 }
 
@@ -123,7 +122,6 @@ void planPostSourceSubquery(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSubquery & subquery,
     ContextPtr context,
-    const PlanEnvironment & environment,
     const PlanScope & outer_scope,
     PlanScope & subquery_scope,
     std::string_view context_name)
@@ -155,7 +153,6 @@ void planPostSourceSubquery(
                 plan,
                 clause,
                 context,
-                environment,
                 CorrelatedSourceContext{
                     .outer_scope = outer_scope,
                     .subquery_scope = subquery_scope,
@@ -164,7 +161,7 @@ void planPostSourceSubquery(
             continue;
         }
 
-        planPostSourceClause(plan, clause, context, environment, subquery_scope);
+        planPostSourceClause(plan, clause, context, subquery_scope);
     }
 }
 

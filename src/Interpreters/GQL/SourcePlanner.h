@@ -34,7 +34,7 @@ class SourceClauseBuffer final
 public:
     bool tryAppend(const ASTPtr & clause);
     bool hasPending() const;
-    void flush(QueryPlan & plan, ContextPtr context,  PlanScope & scope);
+    void flush(QueryPlan & plan, ContextPtr context, PlanScope & scope);
 
 private:
     std::vector<const OPENGQL::AST::GQLMatchClause *> match_clauses;
@@ -44,7 +44,6 @@ bool tryPlanStandaloneSourceClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

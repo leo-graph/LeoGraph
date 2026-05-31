@@ -70,7 +70,7 @@ executeQuery
 | Plan | `InterpreterGQLQuery` 调 current direct planner helpers，直接从 `GQL*` AST 生成 ClickHouse `QueryPlan`。 | `GQLPlanner` 消费 bound IR / logical graph plan，再生成 `QueryPlan`。 |
 | Physical graph spec | `MatchSpecBuilder` 把当前 `MatchPlan` 转成 `Graph::MatchSpec`。 | 从 logical match plan 生成明确的 physical `MatchSpec` / graph source contract。 |
 | QueryPipeline | `QueryPlan::buildQueryPipeline` 触发 `MatchStep::initializePipeline`。 | 保持 ClickHouse 原生模式：只有 `QueryPlan` build pipeline 时才进入真正 `QueryPipeline`。 |
-| Execution source | 默认 `Graph::MatchSourceFactory` 创建空 reader。 | 由真实 graph storage 提供 `IMatchSourceReader`。 |
+| Execution source | `Graph::MatchStep` 直接创建占位 `Graph::MatchSource`，当前 source 发出零行。 | 由明确的 graph storage / planner contract 接入真实 source pipe。 |
 
 ## 1. `executeQuery` 进入 parser 分支
 
@@ -178,7 +178,7 @@ IR 分层，review 时建议按下面的职责理解：
 | 当前文件 / helper | 当前职责 | 更清晰的长期边界 |
 |-------------------|----------|------------------|
 | `GQLPlanner` | root dispatch helper：识别 `GQLSingleQuery` / `GQLCombinedQuery`，组合 child plan。 | 收敛进 `GQLPlanner` / `GQLPlanBuilder` 的 root planning。 |
-| `GQLPlanBuilder` | 持有 `Context`、`PlanEnvironment`、`PlanScope`，把 single query 交给 clause sequence helper。 | 作为 `GQLPlanBuilder` 主体更自然。 |
+| `GQLPlanBuilder` | 持有 `Context` 和 `PlanScope`，把 single query 交给 clause sequence helper。 | 作为 `GQLPlanBuilder` 主体更自然。 |
 | `ClauseSequencePlanner` | 解释线性 clause 顺序，决定何时建立 source、何时处理 post-source clause。 | 更像 `ClausePlanner` / clause sequence planner。 |
 | `SourcePlanner` | 当前 source planning：`MATCH`、`SELECT FROM`、source-free single-row source。 | 更像 source planner，而不是独立 IR planning 层。 |
 | `PostSourceClausePlanner` | 当前 post-source clause dispatch：source 已经存在后，把 clause 继续加到 `QueryPlan`。 | 它不是 ClickHouse `QueryPipeline` 构建阶段，只负责 source 已存在后的 clause dispatch。 |
@@ -242,9 +242,10 @@ QueryPlan::buildQueryPipeline
 这也是为什么 `PostSourceClausePlanner` 这个名字容易误导：它在 `QueryPlan` planning helper 阶段
 做 post-source clause dispatch，并没有构建 ClickHouse `QueryPipeline`。
 
-`Graph::MatchSource` 在 `src/Processors/Sources/Graph/MatchSource.cpp`。现在默认 reader 是
-`EmptyMatchSourceReader`，`generate` 返回空 `Chunk`。后续接 storage 时，需要实现新的
-`IMatchSourceFactory` / `IMatchSourceReader`，并通过 `PlanEnvironment` 注入。
+`Graph::MatchSource` 在 `src/Processors/Sources/Graph/MatchSource.cpp`。现在它只是占位 source，
+`generate` 返回空 `Chunk`。后续接 storage 时，需要先设计明确的 graph storage / planner
+contract，再把真实 source pipe 接进 `MatchStep`；不要为了提前占位引入半成品 planner-wide
+service bag。
 
 ## 代码阅读路径
 

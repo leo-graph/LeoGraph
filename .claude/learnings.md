@@ -82,7 +82,7 @@
 - In `GQL` clause planning, build pipeline `ActionsDAG` with `duplicate_const_columns=false` and materialize projection-like outputs; otherwise `SELECT ... FROM { RETURN 1 UNION ALL RETURN 2 }` can reuse the first const header value downstream.
 - Route `GQL` DML and catalog clauses through dedicated fail-closed planner modules instead of letting them fall into generic source / post-source dispatch errors.
 - Route named `GQL` `CALL` through `CallPlanner` even while it only throws `NOT_IMPLEMENTED`; do not let it fall into generic source or post-source dispatch errors.
-- Keep `GQL` DML and catalog boundary dispatch outside generic `ClausePlanner`; future mutation/catalog execution needs `PlanEnvironment`, so route it from `GQLPlanBuilder` and post-source `SubqueryPlanner`.
+- Keep `GQL` DML and catalog boundary dispatch outside generic `ClausePlanner`; future mutation/catalog execution needs an explicit service contract, so route it from `GQLPlanBuilder` and post-source `SubqueryPlanner` without introducing a half-baked planner-wide service bag.
 - Use a shared post-source dispatch layer for `GQL` clauses; `GQLPlanBuilder` and post-source subqueries should not duplicate catalog / DML / post-source `CALL` / pure clause ordering.
 - Source-free `GQL` queries should create an empty single-row source and then reuse post-source dispatch, not call individual post-source helpers directly.
 - Keep linear `GQLSingleQuery` clause-order dispatch in a dedicated layer like `ClauseSequencePlanner`; `GQLPlanBuilder` should own mutable query state, not grow into a clause interpreter.
@@ -91,3 +91,5 @@
 - For future `GQL` analyzer work, treat SQL `QueryNode` as a `SELECT`-shaped sibling under `IQueryTreeNode`, not a reusable generic root; add `GQL*` QueryTree nodes instead of removing `final` or storing `MATCH` in `QueryNode::getJoinTree`.
 - In `GQL` QueryTree design, do not preserve parser-only convenience shapes blindly: model optional operand blocks as block-level nodes and split parser `GQLPageClause` into `GQLOrderByNode` plus `GQLPageNode`.
 - Keep `GQL` QueryTree analysis out of generic SQL `QueryAnalyzer`; use a dedicated `GQLQueryTreePassManager`, and let SQL analyzer fail closed on unknown node types without enumerating `GQL*` nodes.
+- For current `GQL` analyzer/planner refactor, do not keep a half-baked `PlanEnvironment` service bag; remove it until a concrete graph storage / planner service contract is designed.
+- For future `GQL` development, follow ClickHouse-native architecture and style first; do not introduce intermediate abstractions only to satisfy unit tests. Tests should cover real production boundaries, while unsupported semantics should fail closed.

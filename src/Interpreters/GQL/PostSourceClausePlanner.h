@@ -15,14 +15,12 @@ class PlanScope;
 
 /// Builds a clause that appears after a source step already exists.
 ///
-/// This dispatch layer keeps service-aware boundaries such as catalog, DML, and
-/// inline `CALL` close to `PlanEnvironment`, while `ClausePlanner` remains a
-/// pure `QueryPlan` transform helper.
+/// This dispatch layer keeps catalog, DML, and inline `CALL` out of the pure
+/// `ClausePlanner` transform helper.
 void planPostSourceClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

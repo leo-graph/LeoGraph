@@ -35,7 +35,7 @@ void planCatalogClause(QueryPlan &, const ASTPtr & clause, ContextPtr, PlanScope
 
 }
 
-bool tryPlanCatalogClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, const PlanEnvironment &, PlanScope & scope)
+bool tryPlanCatalogClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
 {
     if (!isCatalogClause(clause))
         return false;

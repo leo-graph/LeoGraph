@@ -53,7 +53,7 @@ void planDataModifyingClause(QueryPlan &, const ASTPtr & clause, ContextPtr, Pla
 
 }
 
-bool tryPlanDataModifyingClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, const PlanEnvironment &, PlanScope & scope)
+bool tryPlanDataModifyingClause(QueryPlan & plan, const ASTPtr & clause, ContextPtr context, PlanScope & scope)
 {
     if (!isDataModifyingClause(clause))
         return false;

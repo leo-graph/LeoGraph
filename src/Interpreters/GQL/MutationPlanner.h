@@ -17,7 +17,6 @@ bool tryPlanDataModifyingClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

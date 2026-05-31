@@ -1,11 +1,13 @@
 #include <Processors/QueryPlan/Graph/MatchStep.h>
 
 #include <Columns/ColumnsNumber.h>
+#include <Core/Defines.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Parsers/IAST.h>
 #include <Processors/Sources/Graph/MatchSource.h>
 #include <QueryPipeline/Pipe.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
+#include <Storages/Graph/IGraphStorage.h>
 
 #include <algorithm>
 #include <memory>
@@ -189,9 +191,11 @@ void addHeaderColumnsForClause(Block & header, std::vector<String> & names, cons
 
 }
 
-MatchStep::MatchStep(MatchSpec match_spec_)
+MatchStep::MatchStep(MatchSpec match_spec_, GraphStoragePtr graph_storage_, ContextPtr context_)
     : ISourceStep(makeHeader(match_spec_))
     , match_spec(std::move(match_spec_))
+    , graph_storage(std::move(graph_storage_))
+    , context(std::move(context_))
 {
     setStepDescription("GQL MATCH");
 }
@@ -229,11 +233,19 @@ SharedHeader MatchStep::makeHeader(const MatchSpec & match_spec)
 
 QueryPlanStepPtr MatchStep::clone() const
 {
-    return std::make_unique<MatchStep>(cloneMatchSpec(match_spec));
+    return std::make_unique<MatchStep>(cloneMatchSpec(match_spec), graph_storage, context);
 }
 
 void MatchStep::initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings &)
 {
+    if (graph_storage)
+    {
+        /// TODO: derive max_block_size / num_streams from context settings and query
+        /// info once a real graph reader consumes them.
+        pipeline.init(graph_storage->readGraphMatch(match_spec, getOutputHeader(), context, DEFAULT_BLOCK_SIZE, 1));
+        return;
+    }
+
     pipeline.init(Pipe(std::make_shared<MatchSource>(getOutputHeader(), match_spec)));
 }
 

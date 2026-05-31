@@ -101,7 +101,6 @@ void planSameGraphMatchSourceList(
     QueryPlan & plan,
     const SelectSourceListEntries & entries,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     std::vector<const GAST::GQLMatchClause *> matches;
@@ -111,7 +110,7 @@ void planSameGraphMatchSourceList(
 
     auto source_scope = scope.makeGraphOverrideScope(entries.front().graph_reference);
 
-    planMatchClauseSequence(plan, matches, context, environment, source_scope);
+    planMatchClauseSequence(plan, matches, context, source_scope);
 
     scope.adoptBindingsAndKeepGraph(std::move(source_scope));
 }
@@ -122,7 +121,6 @@ void planSelectSourceList(
     QueryPlan & plan,
     const OPENGQL::AST::GQLSelectSourceList & source_list,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     if (source_list.items.empty())
@@ -131,7 +129,7 @@ void planSelectSourceList(
     const auto entries = classifySelectSourceList(source_list);
     if (isSameGraphMatchSourceList(entries))
     {
-        planSameGraphMatchSourceList(plan, entries, context, environment, scope);
+        planSameGraphMatchSourceList(plan, entries, context, scope);
         return;
     }
 

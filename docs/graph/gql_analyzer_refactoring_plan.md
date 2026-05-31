@@ -514,8 +514,8 @@ GQLFinishNode
 
 - `PatternBinder` 已经捕获 `MATCH ... WHERE ...`。
 - `MatchSpecBuilder` 会把它复制到 `Graph::MatchSpec::where_clause`。
-- `MatchSourceFactory::createReader` 会收到 `MatchSpec`。
-- 默认 graph reader 不产出 rows，也不消费 predicates。
+- `Graph::MatchStep` 当前会收到 `MatchSpec`，并直接创建占位 `Graph::MatchSource`。
+- 默认 graph source 不产出 rows，也不消费 predicates。
 - Planner 仍然会添加 `FilterStep` 来保持语义。
 
 QueryTree 重构应该先分类 pushdown opportunities，不要承诺立即带来性能提升。

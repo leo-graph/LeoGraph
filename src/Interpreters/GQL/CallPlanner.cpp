@@ -100,7 +100,7 @@ bool isNamedCallClause(const ASTPtr & clause)
     return clause && clause->as<GAST::GQLCallNamedClause>();
 }
 
-void planNamedCallClause(QueryPlan &, const ASTPtr & clause, ContextPtr, const PlanEnvironment &, PlanScope &)
+void planNamedCallClause(QueryPlan &, const ASTPtr & clause, ContextPtr, PlanScope &)
 {
     if (!isNamedCallClause(clause))
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL procedure clause must be GQLCallNamedClause");
@@ -112,7 +112,6 @@ void planInlineCallSource(
     QueryPlan & plan,
     const OPENGQL::AST::GQLCallInlineClause & call,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     const auto & subquery = getInlineCallSubquery(call);
@@ -120,7 +119,6 @@ void planInlineCallSource(
         plan,
         subquery,
         context,
-        environment,
         scope,
         makeInlineCallSourceScope(scope, extractInlineCallVariableScope(call)),
         "inline CALL subquery");
@@ -130,12 +128,11 @@ void planInlineCallPostSourceClause(
     QueryPlan & plan,
     const OPENGQL::AST::GQLCallInlineClause & call,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     const auto & subquery = getInlineCallSubquery(call);
     auto child_scope = makeInlineCallPostSourceScope(scope, extractInlineCallVariableScope(call));
-    planPostSourceSubquery(plan, subquery, context, environment, scope, child_scope, "post-source inline CALL subquery");
+    planPostSourceSubquery(plan, subquery, context, scope, child_scope, "post-source inline CALL subquery");
     scope = std::move(child_scope);
 }
 
@@ -145,18 +142,17 @@ bool tryPlanStandaloneCallClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     if (const auto * inline_call = clause ? clause->as<GAST::GQLCallInlineClause>() : nullptr)
     {
-        planInlineCallSource(plan, *inline_call, context, environment, scope);
+        planInlineCallSource(plan, *inline_call, context, scope);
         return true;
     }
 
     if (isNamedCallClause(clause))
     {
-        planNamedCallClause(plan, clause, context, environment, scope);
+        planNamedCallClause(plan, clause, context, scope);
         return true;
     }
 
@@ -167,18 +163,17 @@ bool tryPlanPostSourceCallClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     if (const auto * inline_call = clause ? clause->as<GAST::GQLCallInlineClause>() : nullptr)
     {
-        planInlineCallPostSourceClause(plan, *inline_call, context, environment, scope);
+        planInlineCallPostSourceClause(plan, *inline_call, context, scope);
         return true;
     }
 
     if (isNamedCallClause(clause))
     {
-        planNamedCallClause(plan, clause, context, environment, scope);
+        planNamedCallClause(plan, clause, context, scope);
         return true;
     }
 

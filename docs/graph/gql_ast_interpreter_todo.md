@@ -60,11 +60,12 @@ The current executable planner path is intentionally small but no longer
   `ClauseSequencePlanner` owns linear clause-order dispatch. This mirrors the
   clause-query interpreter shape used by graph engines such as `kgraph` without
   registering every clause in ClickHouse's global `InterpreterFactory`.
-- `GQL::PlanEnvironment` carries planner-wide services such as
-  `Graph::MatchSourceFactory`; `GQL::PlanScope` only tracks lexical bindings
-  and active graph scope. Graph-qualified source planning uses `PlanScope`
-  graph-override helpers so source-local graph references do not leak into the
-  outer query scope.
+- There is no interim planner-wide service bag. `GQL::PlanScope` only tracks
+  lexical bindings and active graph scope. Graph-qualified source planning uses
+  `PlanScope` graph-override helpers so source-local graph references do not
+  leak into the outer query scope. Future graph source, catalog, or mutation
+  services should enter through explicit contracts once their semantics are
+  designed.
 - `SourcePlanner` handles `MATCH`, source-free `RETURN` / `SELECT` / `LET` /
   `FOR` / `FINISH`, and `SELECT FROM` single sources. Source subqueries can use
   the same root planning as top-level queries, including supported combined
@@ -83,11 +84,11 @@ The current executable planner path is intentionally small but no longer
   closed for nested source clauses that would require apply semantics.
 - `MutationPlanner` and `CatalogPlanner` own fail-closed dispatch for
   data-modifying and catalog clauses. `GQLPlanBuilder` and post-source
-  `SubqueryPlanner` route them while `PlanEnvironment` is available, instead
-  of letting generic `ClausePlanner` handle them without access to future
-  catalog / storage services. They avoid routing `INSERT` / `SET` / `REMOVE` /
-  `DELETE` / `CREATE` / `DROP` through generic source or post-source dispatch errors before
-  real mutation/catalog execution exists.
+  `SubqueryPlanner` route them to dedicated modules instead of letting generic
+  `ClausePlanner` handle future catalog / storage semantics implicitly. They
+  avoid routing `INSERT` / `SET` / `REMOVE` / `DELETE` / `CREATE` / `DROP`
+  through generic source or post-source dispatch errors before real
+  mutation/catalog execution exists.
 - `ClausePlanner`, `AggregationPlanner`, and `ExpressionPlanner` provide the
   reusable post-source plan path for `WHERE`, `FILTER`, `HAVING`, projection,
   aggregation, `DISTINCT`, `ORDER BY`, `OFFSET`, `LIMIT`, `LET`, `FOR`, and
@@ -111,8 +112,8 @@ complete:
 | source composition | `SourceCompositionPlanner` exposes source-list entry classification and can combine same-graph graph-match source lists into one `GraphMatch` source. Different graph references, mixed source kinds, and true multi-source composition still need explicit operator semantics, including cross/apply behavior, header conflict rules, and graph-scope restoration. | The composition boundary now has a dedicated module and reusable entry classifier, but it is not yet a complete source framework. |
 | correlated subqueries | Post-source inline `CALL (x) { RETURN ... }` can reuse current row bindings when the nested body contains only post-source clauses. Inline `CALL` bodies that introduce a new source now fail through `ApplyPlanner`, with separate outer and subquery scopes passed through the apply context, because row-correlated apply semantics are not implemented. | Projection-like subqueries can compose with row data, and nested source failures have a single future implementation point with the required scope contract. Procedure bodies that need nested scans still require a real apply operator. |
 | optional match execution | `OPTIONAL MATCH` and optional operand blocks are preserved in `MatchSpec` but rejected by execution. | Null-extension semantics require a real outer-match operator or source behavior. |
-| real graph source | `Graph::MatchSourceFactory` exists, but the default factory emits no rows and no graph catalog / table mapping is connected. | The plan shape is testable, but `MATCH` is not yet backed by storage. |
-| DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` route to dedicated fail-closed planner boundaries from `GQLPlanBuilder` / `SubqueryPlanner`, where `PlanEnvironment` is available, but still have no runtime execution. | Future mutating and catalog statements now have explicit modules with the right service boundary to implement instead of leaking through source / post-source dispatch. |
+| real graph source | `Graph::MatchSource` currently uses the default empty reader path, and no graph catalog / table mapping is connected. A real graph source must be introduced through a concrete graph storage / planner contract rather than an interim service bag. | The plan shape is testable, but `MATCH` is not yet backed by storage. |
+| DML and catalog execution | `GQLInsertClause`, `GQLSetClause`, `GQLRemoveClause`, `GQLDeleteClause`, and `GQLCatalogStatement` route to dedicated fail-closed planner boundaries from `GQLPlanBuilder` / `SubqueryPlanner`, but still have no runtime execution or service contract. | Future mutating and catalog statements now have explicit modules to implement instead of leaking through source / post-source dispatch. |
 | expression breadth | Common scalar expressions lower through shared helpers, but temporal, duration, value-query, path-constructor, graph-expression, dynamic-parameter, and broader function semantics remain deferred. | Later clauses can reuse the helper layer, but only for the currently supported scalar subset. |
 | named procedures | Inline `CALL` has source and post-source paths. Named `CALL` is routed through `CallPlanner` and fails closed with a dedicated exception, but procedure-reference binding and output-schema handling are not implemented. | Procedure calls need catalog/name resolution and output-schema handling. |
 
@@ -142,7 +143,7 @@ Before adding planner support for a new `GQL` feature, check:
 7. If the AST contains `GQLTypeExpression` or `GQLGraphTypeSpecification`, is the current layer only using syntactic type shape rather than assuming semantic validation?
 8. If the AST contains `GQLGraphExpression`, `GQLBindingTableExpression`, or `GQLCatalogObjectName`, is name binding/catalog lookup handled in a dedicated analyzer or planner step?
 9. If a node is unsupported, does the interpreter throw a clear `unsupported` exception instead of silently dropping it?
-10. If planning needs planner-wide services such as graph source factories, are they passed through `GQL::PlanEnvironment` rather than stored in `GQL::PlanScope`?
+10. If planning needs graph source, catalog, or mutation services, is there an explicit service contract for that feature, and are those services kept out of `GQL::PlanScope`?
 
 ## Recommended Interpreter MVP Boundary
 

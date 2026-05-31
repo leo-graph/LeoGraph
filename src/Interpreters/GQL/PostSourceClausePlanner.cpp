@@ -14,16 +14,15 @@ void planPostSourceClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
-    if (tryPlanCatalogClause(plan, clause, context, environment, scope))
+    if (tryPlanCatalogClause(plan, clause, context, scope))
         return;
 
-    if (tryPlanDataModifyingClause(plan, clause, context, environment, scope))
+    if (tryPlanDataModifyingClause(plan, clause, context, scope))
         return;
 
-    if (tryPlanPostSourceCallClause(plan, clause, context, environment, scope))
+    if (tryPlanPostSourceCallClause(plan, clause, context, scope))
         return;
 
     planClauseTransform(plan, clause, context, scope);

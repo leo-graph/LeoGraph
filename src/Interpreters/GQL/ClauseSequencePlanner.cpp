@@ -25,10 +25,9 @@ namespace
 class ClauseSequencePlannerState final
 {
 public:
-    ClauseSequencePlannerState(QueryPlan & plan_, ContextPtr context_, const PlanEnvironment & environment_, PlanScope & scope_)
+    ClauseSequencePlannerState(QueryPlan & plan_, ContextPtr context_, PlanScope & scope_)
         : plan(plan_)
         , context(std::move(context_))
-        , environment(environment_)
         , scope(scope_)
     {
     }
@@ -42,7 +41,7 @@ public:
             planClause(clause);
 
         if (source_buffer.hasPending())
-            source_buffer.flush(plan, context, environment, scope);
+            source_buffer.flush(plan, context, scope);
     }
 
 private:
@@ -88,31 +87,31 @@ private:
         if (!source_buffer.hasPending())
             return;
 
-        source_buffer.flush(plan, context, environment, scope);
+        source_buffer.flush(plan, context, scope);
         source_ready = true;
     }
 
     bool tryPlanClauseBeforeSource(const ASTPtr & clause)
     {
-        if (tryPlanCatalogClause(plan, clause, context, environment, scope))
+        if (tryPlanCatalogClause(plan, clause, context, scope))
         {
             source_ready = true;
             return true;
         }
 
-        if (tryPlanDataModifyingClause(plan, clause, context, environment, scope))
+        if (tryPlanDataModifyingClause(plan, clause, context, scope))
         {
             source_ready = true;
             return true;
         }
 
-        if (tryPlanStandaloneCallClause(plan, clause, context, environment, scope))
+        if (tryPlanStandaloneCallClause(plan, clause, context, scope))
         {
             source_ready = true;
             return true;
         }
 
-        if (tryPlanStandaloneSourceClause(plan, clause, context, environment, scope))
+        if (tryPlanStandaloneSourceClause(plan, clause, context, scope))
         {
             source_ready = true;
             return true;
@@ -126,12 +125,11 @@ private:
         if (isSourceIntroducingClause(clause))
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL source clauses after post-source clauses are not supported");
 
-        planPostSourceClause(plan, clause, context, environment, scope);
+        planPostSourceClause(plan, clause, context, scope);
     }
 
     QueryPlan & plan;
     ContextPtr context;
-    const PlanEnvironment & environment;
     PlanScope & scope;
     SourceClauseBuffer source_buffer;
     bool source_ready = false;
@@ -143,10 +141,9 @@ void planClauseSequence(
     QueryPlan & plan,
     const ASTs & clauses,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
-    ClauseSequencePlannerState(plan, std::move(context), environment, scope).planClauses(clauses);
+    ClauseSequencePlannerState(plan, std::move(context), scope).planClauses(clauses);
 }
 
 }

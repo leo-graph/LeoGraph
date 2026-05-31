@@ -10,6 +10,7 @@
 #include <Parsers/IAST.h>
 #include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/QueryPlan.h>
+#include <Storages/Graph/IGraphStorage_fwd.h>
 #include <Common/Exception.h>
 
 namespace DB
@@ -32,6 +33,19 @@ void validateExecutableMatch(const Graph::MatchSpec & match)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "OPTIONAL MATCH is not supported");
     if (match.paths.empty())
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH must contain at least one path pattern");
+}
+
+GraphStoragePtr resolveGraphStorage(const Graph::MatchSpec & match_spec, ContextPtr context)
+{
+    /// A bound graph reference would be resolved here, mirroring how SQL storages are
+    /// resolved: derive a StorageID from `match_spec.graph_reference`, look it up
+    /// through `DatabaseCatalog`, and downcast the resulting `StoragePtr` to
+    /// `IGraphStorage`. No real graph storage is registered yet, so resolution stays
+    /// fail-closed and returns null; `MatchStep` then falls back to an empty
+    /// placeholder source.
+    (void)match_spec;
+    (void)context;
+    return nullptr;
 }
 
 }
@@ -57,7 +71,9 @@ void planMatchClauseSequence(
         match_spec.graph_reference = scope.getActiveGraph()->clone();
 
     validateExecutableMatch(match_spec);
-    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec)));
+
+    auto graph_storage = resolveGraphStorage(match_spec, context);
+    plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec), std::move(graph_storage), context));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 
     for (const auto & match_plan : match_plans)

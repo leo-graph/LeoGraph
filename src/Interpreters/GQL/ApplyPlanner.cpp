@@ -17,7 +17,6 @@ void planCorrelatedSourceClause(
     QueryPlan &,
     const ASTPtr & clause,
     ContextPtr,
-    const PlanEnvironment &,
     const CorrelatedSourceContext & apply_context)
 {
     const auto source_kind = classifySourceIntroducingClause(clause);

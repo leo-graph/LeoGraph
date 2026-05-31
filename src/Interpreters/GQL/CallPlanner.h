@@ -17,14 +17,12 @@ bool tryPlanStandaloneCallClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 bool tryPlanPostSourceCallClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope);
 
 }

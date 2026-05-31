@@ -43,25 +43,23 @@ void planSourceFreeClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     addEmptySingleRowSource(plan, scope);
-    planPostSourceClause(plan, clause, context, environment, scope);
+    planPostSourceClause(plan, clause, context, scope);
 }
 
 void planSubquerySourceWithChildGraphScope(
     QueryPlan & plan,
     const GAST::GQLSubquery & subquery,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope,
     std::string_view context_name)
 {
-    planSubquerySource(plan, subquery, context, environment, scope, scope.makeChildGraphScope(), context_name);
+    planSubquerySource(plan, subquery, context, scope, scope.makeChildGraphScope(), context_name);
 }
 
-void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context,  PlanScope & scope)
+void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr context, PlanScope & scope)
 {
     if (!source)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "SELECT source is null");
@@ -69,13 +67,13 @@ void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr contex
     if (const auto * match = source->as<GAST::GQLMatchClause>())
     {
         std::vector<const GAST::GQLMatchClause *> matches{match};
-        planMatchClauseSequence(plan, matches, context, environment, scope);
+        planMatchClauseSequence(plan, matches, context, scope);
         return;
     }
 
     if (const auto * subquery = source->as<GAST::GQLSubquery>())
     {
-        planSubquerySourceWithChildGraphScope(plan, *subquery, context, environment, scope, "SELECT FROM subquery");
+        planSubquerySourceWithChildGraphScope(plan, *subquery, context, scope, "SELECT FROM subquery");
         return;
     }
 
@@ -85,13 +83,13 @@ void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr contex
         {
             auto source_scope = scope.makeGraphOverrideScope(source_item->graph_reference);
 
-            planSelectSource(plan, source_item->source, context, environment, source_scope);
+            planSelectSource(plan, source_item->source, context, source_scope);
 
             scope.adoptBindingsAndKeepGraph(std::move(source_scope));
             return;
         }
 
-        planSelectSource(plan, source_item->source, context, environment, scope);
+        planSelectSource(plan, source_item->source, context, scope);
         return;
     }
 
@@ -102,11 +100,11 @@ void planSelectSource(QueryPlan & plan, const ASTPtr & source, ContextPtr contex
 
         if (source_list->items.size() > 1)
         {
-            planSelectSourceList(plan, *source_list, context, environment, scope);
+            planSelectSourceList(plan, *source_list, context, scope);
             return;
         }
 
-        planSelectSource(plan, source_list->items.front(), context, environment, scope);
+        planSelectSource(plan, source_list->items.front(), context, scope);
         return;
     }
 
@@ -174,12 +172,12 @@ bool SourceClauseBuffer::hasPending() const
     return !match_clauses.empty();
 }
 
-void SourceClauseBuffer::flush(QueryPlan & plan, ContextPtr context,  PlanScope & scope)
+void SourceClauseBuffer::flush(QueryPlan & plan, ContextPtr context, PlanScope & scope)
 {
     if (match_clauses.empty())
         return;
 
-    planMatchClauseSequence(plan, match_clauses, context, environment, scope);
+    planMatchClauseSequence(plan, match_clauses, context, scope);
     match_clauses.clear();
 }
 
@@ -187,12 +185,11 @@ bool tryPlanStandaloneSourceClause(
     QueryPlan & plan,
     const ASTPtr & clause,
     ContextPtr context,
-    const PlanEnvironment & environment,
     PlanScope & scope)
 {
     if (clause->as<GAST::GQLReturnClause>())
     {
-        planSourceFreeClause(plan, clause, context, environment, scope);
+        planSourceFreeClause(plan, clause, context, scope);
         return true;
     }
 
@@ -200,12 +197,12 @@ bool tryPlanStandaloneSourceClause(
     {
         if (select->source)
         {
-            planSelectSource(plan, select->source, context, environment, scope);
+            planSelectSource(plan, select->source, context, scope);
             planSelectClause(plan, *select, context, scope, true);
         }
         else
         {
-            planSourceFreeClause(plan, clause, context, environment, scope);
+            planSourceFreeClause(plan, clause, context, scope);
         }
 
         return true;
@@ -213,19 +210,19 @@ bool tryPlanStandaloneSourceClause(
 
     if (clause->as<GAST::GQLLetClause>())
     {
-        planSourceFreeClause(plan, clause, context, environment, scope);
+        planSourceFreeClause(plan, clause, context, scope);
         return true;
     }
 
     if (clause->as<GAST::GQLForClause>())
     {
-        planSourceFreeClause(plan, clause, context, environment, scope);
+        planSourceFreeClause(plan, clause, context, scope);
         return true;
     }
 
     if (clause->as<GAST::GQLFinishClause>())
     {
-        planSourceFreeClause(plan, clause, context, environment, scope);
+        planSourceFreeClause(plan, clause, context, scope);
         return true;
     }
 
