@@ -1,6 +1,7 @@
 #include <Interpreters/InterpreterGQLQueryAnalyzer.h>
 
 #include <Analyzer/GQL/GQLQueryTreeBuilder.h>
+#include <Analyzer/GQL/Passes/GQLQueryTreePassManager.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/GQL/GQLPlanner.h>
 #include <Parsers/graph/GraphAST.h>
@@ -36,10 +37,10 @@ QueryTreeNodePtr buildGQLQueryTreeAndRunPasses(const ASTPtr & query, const Conte
     // Step 1: Build QueryTree from Parser AST
     auto query_tree = GQL::buildGQLQueryTree(*query, context);
 
-    // Step 2: Run analysis passes
-    // TODO: Implement GQLQueryTreePassManager
-    // GQL::GQLQueryTreePassManager pass_manager(context);
-    // pass_manager.run(query_tree);
+    // Step 2: Run GQL analysis passes (name resolution, ...)
+    GQL::GQLQueryTreePassManager pass_manager(context);
+    GQL::GQLQueryTreePassManager::addDefaultPasses(pass_manager);
+    pass_manager.run(query_tree);
 
     return query_tree;
 }

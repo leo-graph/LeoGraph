@@ -8,6 +8,7 @@
 #include <Analyzer/GQL/GQLPathPatternNode.h>
 #include <Analyzer/GQL/GQLPathTermNode.h>
 #include <Analyzer/GQL/GQLReturnNode.h>
+#include <Analyzer/ColumnNode.h>
 #include <Analyzer/IQueryTreeNode.h>
 #include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
@@ -376,6 +377,33 @@ void planMatchFromTree(QueryPlan & plan, const GQLMatchNode & match_node, Contex
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
 }
 
+/// Lower a name-resolved GQL expression node into an ActionsDAG node over the current
+/// plan header. Identifiers are expected to have been rewritten into ColumnNodes by
+/// GQLNameResolutionPass; richer expression kinds (constants, functions) will be added
+/// here as the builder starts producing them.
+const ActionsDAG::Node & buildActionsNode(const QueryTreeNodePtr & expression, ActionsDAG & dag)
+{
+    if (const auto * column = expression->as<ColumnNode>())
+    {
+        const auto & name = column->getColumnName();
+        const auto * node = dag.tryFindInOutputs(name);
+        if (!node)
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED,
+                "GQL expression references binding '{}' not present in the current plan scope",
+                name);
+        return *node;
+    }
+
+    if (expression->as<IdentifierNode>())
+        throw Exception(
+            ErrorCodes::LOGICAL_ERROR,
+            "GQL identifier was not resolved to a column before planning; GQLNameResolutionPass must run first");
+
+    throw Exception(
+        ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet lower this expression node into actions");
+}
+
 void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, ContextPtr context, PlanScope & scope)
 {
     const auto & items = ret.getItems().getNodes();
@@ -389,23 +417,12 @@ void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, ContextPtr 
     outputs.reserve(items.size());
     for (const auto & item : items)
     {
-        const auto * identifier = item->as<IdentifierNode>();
-        if (!identifier)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner only supports identifier RETURN items");
-
-        const auto name = identifier->getIdentifier().getFullName();
-        const auto * node = dag.tryFindInOutputs(name);
-        if (!node)
-            throw Exception(
-                ErrorCodes::NOT_IMPLEMENTED,
-                "GQL RETURN references binding '{}' not present in the current plan scope",
-                name);
-
-        const auto alias = identifier->hasAlias() ? identifier->getAlias() : String{};
-        if (alias.empty() || alias == name)
-            outputs.push_back(node);
+        const auto & node = buildActionsNode(item, dag);
+        const auto alias = item->hasAlias() ? item->getAlias() : String{};
+        if (alias.empty() || alias == node.result_name)
+            outputs.push_back(&node);
         else
-            outputs.push_back(&dag.addAlias(*node, alias));
+            outputs.push_back(&dag.addAlias(node, alias));
     }
 
     dag.getOutputs() = std::move(outputs);
