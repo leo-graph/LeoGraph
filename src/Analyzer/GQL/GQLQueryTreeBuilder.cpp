@@ -11,8 +11,11 @@
 #include <Analyzer/GQL/GQLOrderByNode.h>
 #include <Analyzer/GQL/GQLPageNode.h>
 #include <Analyzer/GQL/GQLPathPatternNode.h>
+#include <Analyzer/GQL/GQLPathTermNode.h>
 #include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/GQL/GQLYieldNode.h>
+#include <Analyzer/Identifier.h>
+#include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
 #include <Common/Exception.h>
 #include <Parsers/graph/GraphAST.h>
@@ -139,108 +142,230 @@ private:
         match_node->setOptional(match.optional);
         match_node->setMatchMode(match.match_mode);
 
-        // Convert path patterns
         auto patterns_list = std::make_shared<ListNode>();
         for (const auto & pattern : match.path_patterns)
         {
-            if (auto pattern_node = buildPathPattern(pattern))
-                patterns_list->getNodes().push_back(pattern_node);
+            if (!pattern)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern is null");
+
+            const auto * path = pattern->as<GAST::GQLPathPattern>();
+            if (!path)
+                throw Exception(
+                    ErrorCodes::LOGICAL_ERROR, "GQL MATCH path pattern must be GQLPathPattern, got {}", pattern->getID(' '));
+
+            patterns_list->getNodes().push_back(buildPathPattern(*path));
         }
         match_node->getPathPatternsNode() = std::move(patterns_list);
 
-        // Convert WHERE predicate
+        /// MATCH-level WHERE / KEEP / YIELD and OPTIONAL operand blocks are not represented in the
+        /// QueryTree builder yet; fail closed instead of silently dropping them.
         if (match.where)
-        {
-            // TODO: Implement expression conversion
-            // For now, we'll leave it null and implement expression building later
-            // match_node->getWhere() = buildExpression(match.where);
-        }
-
-        // Convert KEEP clause
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH ... WHERE is not yet supported in QueryTree builder");
         if (match.keep_clause)
-        {
-            // TODO: Implement KEEP clause conversion
-            // match_node->getKeep() = buildKeepClause(*match.keep_clause);
-        }
-
-        // Convert YIELD items
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH ... KEEP is not yet supported in QueryTree builder");
         if (!match.yield_items.empty())
-        {
-            // TODO: Implement YIELD conversion
-            // auto yield_node = buildYieldClause(match.yield_items);
-            // match_node->getYield() = yield_node;
-        }
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH ... YIELD is not yet supported in QueryTree builder");
+        if (match.optional_operand_block)
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED, "GQL OPTIONAL MATCH operand block is not yet supported in QueryTree builder");
 
         return match_node;
     }
 
-    QueryTreeNodePtr buildPathPattern(const ASTPtr & pattern)
+    static String identifierVariable(const GAST::Ptr & variable)
     {
-        if (!pattern)
-            return nullptr;
+        if (!variable)
+            return {};
 
-        // TODO: Implement full path pattern conversion
-        // For now, create a placeholder node
+        const auto * expr = variable->as<GAST::GQLExpr>();
+        if (!expr || expr->kind != GAST::GQLExpr::Kind::Identifier)
+            return {};
+
+        return expr->text;
+    }
+
+    static GQLEdgePatternNode::Direction convertEdgeDirection(GAST::EdgeDirection direction)
+    {
+        switch (direction)
+        {
+            case GAST::EdgeDirection::Left:
+                return GQLEdgePatternNode::Direction::Left;
+            case GAST::EdgeDirection::Right:
+                return GQLEdgePatternNode::Direction::Right;
+            case GAST::EdgeDirection::Undirected:
+                return GQLEdgePatternNode::Direction::Undirected;
+            case GAST::EdgeDirection::LeftOrRight:
+                return GQLEdgePatternNode::Direction::LeftOrRight;
+            case GAST::EdgeDirection::LeftOrUndirected:
+                return GQLEdgePatternNode::Direction::LeftOrUndirected;
+            case GAST::EdgeDirection::UndirectedOrRight:
+                return GQLEdgePatternNode::Direction::UndirectedOrRight;
+            case GAST::EdgeDirection::Any:
+                return GQLEdgePatternNode::Direction::Any;
+        }
+
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown GQL edge direction");
+    }
+
+    QueryTreeNodePtr buildNodePattern(const GAST::GQLNodePattern & node)
+    {
+        auto node_pattern = std::make_shared<GQLNodePatternNode>();
+        node_pattern->setElementVariable(identifierVariable(node.variable));
+
+        if (node.label_expression)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL node label expression is not yet supported in QueryTree builder");
+        if (node.properties)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL node property map is not yet supported in QueryTree builder");
+        if (node.where)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL node WHERE predicate is not yet supported in QueryTree builder");
+
+        return node_pattern;
+    }
+
+    QueryTreeNodePtr buildEdgePattern(const GAST::GQLEdgePattern & edge)
+    {
+        auto edge_pattern = std::make_shared<GQLEdgePatternNode>();
+        edge_pattern->setElementVariable(identifierVariable(edge.variable));
+        edge_pattern->setDirection(convertEdgeDirection(edge.direction));
+
+        if (edge.label_expression)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL edge label expression is not yet supported in QueryTree builder");
+        if (edge.properties)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL edge property map is not yet supported in QueryTree builder");
+        if (edge.where)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL edge WHERE predicate is not yet supported in QueryTree builder");
+        if (edge.quantifier)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL edge quantifier is not yet supported in QueryTree builder");
+
+        return edge_pattern;
+    }
+
+    QueryTreeNodePtr buildPathTerm(const GAST::GQLPathTerm & term)
+    {
+        if (term.factors.empty() || term.factors.size() % 2 == 0)
+            throw Exception(
+                ErrorCodes::NOT_IMPLEMENTED,
+                "GQL path term must contain an odd number of alternating node and edge factors");
+
+        auto term_node = std::make_shared<GQLPathTermNode>();
+        auto elements = std::make_shared<ListNode>();
+
+        for (size_t i = 0; i < term.factors.size(); ++i)
+        {
+            const auto & factor = term.factors[i];
+            if (!factor)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL path factor is null");
+
+            if (i % 2 == 0)
+            {
+                const auto * node = factor->as<GAST::GQLNodePattern>();
+                if (!node)
+                    throw Exception(
+                        ErrorCodes::LOGICAL_ERROR, "GQL path factor must be GQLNodePattern, got {}", factor->getID(' '));
+                elements->getNodes().push_back(buildNodePattern(*node));
+            }
+            else
+            {
+                const auto * edge = factor->as<GAST::GQLEdgePattern>();
+                if (!edge)
+                    throw Exception(
+                        ErrorCodes::LOGICAL_ERROR, "GQL path factor must be GQLEdgePattern, got {}", factor->getID(' '));
+                elements->getNodes().push_back(buildEdgePattern(*edge));
+            }
+        }
+
+        term_node->getElementsNode() = std::move(elements);
+        return term_node;
+    }
+
+    QueryTreeNodePtr buildPathExpression(const GAST::Ptr & expression)
+    {
+        if (!expression)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL path pattern has no expression");
+
+        if (const auto * term = expression->as<GAST::GQLPathTerm>())
+            return buildPathTerm(*term);
+
+        throw Exception(
+            ErrorCodes::NOT_IMPLEMENTED,
+            "GQL path expression {} is not yet supported in QueryTree builder",
+            expression->getID(' '));
+    }
+
+    QueryTreeNodePtr buildPathPattern(const GAST::GQLPathPattern & path)
+    {
         auto path_node = std::make_shared<GQLPathPatternNode>();
+        path_node->setPathVariable(identifierVariable(path.variable));
 
-        // The actual implementation should handle:
-        // - GQLPathPattern -> GQLPathPatternNode
-        // - GQLNodePattern -> GQLNodePatternNode
-        // - GQLEdgePattern -> GQLEdgePatternNode
-        // - GQLQuantifier -> GQLQuantifierNode
-        // - GQLLabelExpression -> GQLLabelExpressionNode
-        // - etc.
+        if (path.prefix)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL path prefix is not yet supported in QueryTree builder");
 
+        path_node->getExpression() = buildPathExpression(path.expression);
         return path_node;
+    }
+
+    QueryTreeNodePtr buildExpression(const IAST & expr)
+    {
+        if (const auto * gql_expr = expr.as<GAST::GQLExpr>())
+        {
+            if (gql_expr->kind == GAST::GQLExpr::Kind::Identifier)
+                return std::make_shared<IdentifierNode>(Identifier(gql_expr->text));
+        }
+
+        throw Exception(
+            ErrorCodes::NOT_IMPLEMENTED, "GQL expression {} is not yet supported in QueryTree builder", expr.getID(' '));
     }
 
     QueryTreeNodePtr buildFilterClause(const GAST::GQLWhereClause & where)
     {
-        auto filter_node = std::make_shared<GQLFilterNode>();
-
-        // TODO: Convert predicate expression
-        // filter_node->getPredicate() = buildExpression(where.predicate);
-
-        return filter_node;
+        throw Exception(
+            ErrorCodes::NOT_IMPLEMENTED, "GQL WHERE/FILTER is not yet supported in QueryTree builder: {}", where.getID(' '));
     }
 
     QueryTreeNodePtr buildReturnClause(const GAST::GQLReturnClause & ret)
     {
-        auto return_node = std::make_shared<GQLReturnNode>();
+        if (ret.return_all)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN * is not yet supported in QueryTree builder");
+        if (ret.group_by)
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL RETURN ... GROUP BY is not yet supported in QueryTree builder");
 
-        // TODO: Convert return items
-        // auto items_list = std::make_shared<ListNode>();
-        // for (const auto & item : ret.items)
-        //     items_list->getNodes().push_back(buildReturnItem(item));
-        // return_node->getItemsNode() = std::move(items_list);
+        auto return_node = std::make_shared<GQLReturnNode>();
+        return_node->setDistinct(ret.distinct);
+
+        auto items_list = std::make_shared<ListNode>();
+        for (const auto & item_ast : ret.items)
+        {
+            if (!item_ast)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL RETURN item is null");
+
+            const auto * item = item_ast->as<GAST::GQLAliasedItem>();
+            if (!item)
+                throw Exception(
+                    ErrorCodes::LOGICAL_ERROR, "GQL RETURN item must be GQLAliasedItem, got {}", item_ast->getID(' '));
+            if (!item->expression)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL RETURN item has no expression");
+
+            auto expr_node = buildExpression(*item->expression);
+            if (!item->alias.empty())
+                expr_node->setAlias(item->alias);
+
+            items_list->getNodes().push_back(std::move(expr_node));
+        }
+        return_node->getItemsNode() = std::move(items_list);
 
         return return_node;
     }
 
     QueryTreeNodePtr buildOrderByClause(const GAST::GQLOrderByClause & order_by)
     {
-        auto order_by_node = std::make_shared<GQLOrderByNode>();
-
-        // TODO: Convert order by items
-        // auto items_list = std::make_shared<ListNode>();
-        // for (const auto & item : order_by.items)
-        //     items_list->getNodes().push_back(buildOrderByItem(item));
-        // order_by_node->getItemsNode() = std::move(items_list);
-
-        return order_by_node;
+        throw Exception(
+            ErrorCodes::NOT_IMPLEMENTED, "GQL ORDER BY is not yet supported in QueryTree builder: {}", order_by.getID(' '));
     }
 
     QueryTreeNodePtr buildPageClause(const GAST::GQLPageClause & page)
     {
-        auto page_node = std::make_shared<GQLPageNode>();
-
-        // TODO: Convert LIMIT and OFFSET expressions
-        // if (page.limit)
-        //     page_node->getLimit() = buildExpression(page.limit);
-        // if (page.offset)
-        //     page_node->getOffset() = buildExpression(page.offset);
-
-        return page_node;
+        throw Exception(
+            ErrorCodes::NOT_IMPLEMENTED, "GQL OFFSET/LIMIT is not yet supported in QueryTree builder: {}", page.getID(' '));
     }
 
     GQLCombinedQueryNode::CombinedOperator convertOperator(GAST::CombinedQueryOperator op)
@@ -259,6 +384,8 @@ private:
                 return GQLCombinedQueryNode::CombinedOperator::INTERSECT_ALL;
             case GAST::CombinedQueryOperator::IntersectDistinct:
                 return GQLCombinedQueryNode::CombinedOperator::INTERSECT_DISTINCT;
+            case GAST::CombinedQueryOperator::Otherwise:
+                throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL OTHERWISE combined query operator is not supported");
         }
 
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown GQL combined query operator");
