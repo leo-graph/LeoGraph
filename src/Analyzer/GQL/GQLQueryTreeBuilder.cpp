@@ -14,11 +14,24 @@
 #include <Analyzer/GQL/GQLPathTermNode.h>
 #include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/GQL/GQLYieldNode.h>
+#include <Analyzer/ConstantNode.h>
 #include <Analyzer/Identifier.h>
 #include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
+#include <Core/Field.h>
+#include <DataTypes/DataTypeNothing.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <IO/ReadBufferFromString.h>
+#include <IO/ReadHelpers.h>
 #include <Common/Exception.h>
+#include <Common/StringUtils.h>
 #include <Parsers/graph/GraphAST.h>
+
+#include <Poco/String.h>
+
+#include <utility>
 
 namespace DB
 {
@@ -36,6 +49,49 @@ namespace
 {
 
 namespace GAST = DB::OPENGQL::AST;
+
+/// Parse a GQL literal token into a constant value, mirroring the literal semantics used by
+/// the existing GQL expression lowering: TRUE/FALSE/NULL, quoted strings, and numeric
+/// literals (float when it contains '.', 'e' or 'E'; signed when it starts with '-';
+/// unsigned otherwise).
+std::pair<Field, DataTypePtr> parseGQLLiteral(const String & raw)
+{
+    String text = raw;
+    trim(text);
+    const String upper = Poco::toUpper(text);
+
+    if (upper == "TRUE")
+        return {Field(UInt64(1)), std::make_shared<DataTypeUInt8>()};
+    if (upper == "FALSE")
+        return {Field(UInt64(0)), std::make_shared<DataTypeUInt8>()};
+    if (upper == "NULL")
+        return {Field(), std::make_shared<DataTypeNullable>(std::make_shared<DataTypeNothing>())};
+
+    if (text.size() >= 2 && ((text.front() == '\'' && text.back() == '\'') || (text.front() == '"' && text.back() == '"')))
+    {
+        ReadBufferFromString in(text);
+        String value;
+        if (text.starts_with('"'))
+            readDoubleQuotedStringWithSQLStyle(value, in);
+        else
+            readQuotedStringWithSQLStyle(value, in);
+        assertEOF(in);
+        return {Field(value), std::make_shared<DataTypeString>()};
+    }
+
+    try
+    {
+        if (text.find_first_of(".eE") != String::npos)
+            return {Field(parseFromString<Float64>(text)), std::make_shared<DataTypeFloat64>()};
+        if (text.starts_with('-'))
+            return {Field(parseFromString<Int64>(text)), std::make_shared<DataTypeInt64>()};
+        return {Field(parseFromString<UInt64>(text)), std::make_shared<DataTypeUInt64>()};
+    }
+    catch (...)
+    {
+        throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Unsupported GQL literal in QueryTree builder: {}", raw);
+    }
+}
 
 /** Internal implementation class for building GQL QueryTree.
  *
@@ -310,6 +366,12 @@ private:
         {
             if (gql_expr->kind == GAST::GQLExpr::Kind::Identifier)
                 return std::make_shared<IdentifierNode>(Identifier(gql_expr->text));
+
+            if (gql_expr->kind == GAST::GQLExpr::Kind::Literal)
+            {
+                auto [value, type] = parseGQLLiteral(gql_expr->text);
+                return std::make_shared<ConstantNode>(std::move(value), std::move(type));
+            }
         }
 
         throw Exception(

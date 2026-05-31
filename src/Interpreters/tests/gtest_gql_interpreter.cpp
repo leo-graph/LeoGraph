@@ -1456,4 +1456,20 @@ TEST(GQLQueryTreeAnalyzer, ReturnDistinctAppendsDistinctStep)
     EXPECT_EQ(distinct->getColumnNames(), (Names{"n"}));
 }
 
+TEST(GQLQueryTreeAnalyzer, SourceFreeLiteralReturnBuildsScalarSource)
+{
+    const auto plan = buildPlanWithAnalyzer("RETURN 1 AS one");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "ReadFromPreparedSource"}));
+
+    const auto * root = plan.getRootNode();
+    ASSERT_NE(root, nullptr);
+    const auto * expression = dynamic_cast<const ExpressionStep *>(root->step.get());
+    ASSERT_NE(expression, nullptr);
+
+    const auto & header = *expression->getOutputHeader();
+    ASSERT_EQ(header.columns(), 1u);
+    EXPECT_EQ(header.getByPosition(0).name, "one");
+}
+
 #endif

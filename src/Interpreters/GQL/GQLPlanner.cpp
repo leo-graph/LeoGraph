@@ -9,6 +9,7 @@
 #include <Analyzer/GQL/GQLPathTermNode.h>
 #include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/ColumnNode.h>
+#include <Analyzer/ConstantNode.h>
 #include <Analyzer/IQueryTreeNode.h>
 #include <Analyzer/IdentifierNode.h>
 #include <Analyzer/ListNode.h>
@@ -24,8 +25,11 @@
 #include <Processors/QueryPlan/ExpressionStep.h>
 #include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/IntersectOrExceptStep.h>
+#include <Processors/QueryPlan/ReadFromPreparedSource.h>
+#include <Processors/Sources/SourceFromSingleChunk.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/UnionStep.h>
+#include <QueryPipeline/Pipe.h>
 #include <QueryPipeline/SizeLimits.h>
 #include <Common/Exception.h>
 
@@ -366,6 +370,15 @@ Graph::MatchSpec buildMatchSpecFromTree(const GQLMatchNode & match_node)
     return result;
 }
 
+void addEmptySingleRowSource(QueryPlan & plan, PlanScope & scope)
+{
+    auto header = std::make_shared<const Block>();
+    Columns columns;
+    auto source = std::make_shared<SourceFromSingleChunk>(header, Chunk(std::move(columns), 1));
+    plan.addStep(std::make_unique<ReadFromPreparedSource>(Pipe(std::move(source))));
+    scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
+}
+
 void planMatchFromTree(QueryPlan & plan, const GQLMatchNode & match_node, ContextPtr context, PlanScope & scope)
 {
     auto match_spec = buildMatchSpecFromTree(match_node);
@@ -393,6 +406,15 @@ const ActionsDAG::Node & buildActionsNode(const QueryTreeNodePtr & expression, A
                 "GQL expression references binding '{}' not present in the current plan scope",
                 name);
         return *node;
+    }
+
+    if (const auto * constant = expression->as<ConstantNode>())
+    {
+        ColumnWithTypeAndName column;
+        column.type = constant->getResultType();
+        column.column = constant->getColumn();
+        column.name = constant->getValueStringRepresentation();
+        return dag.addColumn(std::move(column));
     }
 
     if (expression->as<IdentifierNode>())
@@ -459,8 +481,10 @@ void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear
         if (const auto * ret = step->as<GQLReturnNode>())
         {
             if (!source_planned)
-                throw Exception(
-                    ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not yet support source-free RETURN");
+            {
+                addEmptySingleRowSource(plan, scope);
+                source_planned = true;
+            }
             planReturnFromTree(plan, *ret, context, scope);
             continue;
         }
