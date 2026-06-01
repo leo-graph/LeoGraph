@@ -1498,4 +1498,18 @@ TEST(GQLQueryTreeAnalyzer, ComputedProjectionOverMatchSourceLowersFunction)
     EXPECT_EQ(header.getByPosition(0).name, "m");
 }
 
+TEST(GQLQueryTreeAnalyzer, MatchWhereBuildsFilterStep)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (n) WHERE n = 1 RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
+}
+
+TEST(GQLQueryTreeAnalyzer, MatchFilterClauseBuildsFilterStep)
+{
+    const auto plan = buildPlanWithAnalyzer("MATCH (n) FILTER n = 1 RETURN n");
+
+    EXPECT_EQ(linearStepNames(plan), (std::vector<String>{"Expression", "Filter", "GraphMatch"}));
+}
+
 #endif

@@ -8,6 +8,7 @@
 #include <Analyzer/GQL/GQLNodePatternNode.h>
 #include <Analyzer/GQL/GQLPathPatternNode.h>
 #include <Analyzer/GQL/GQLPathTermNode.h>
+#include <Analyzer/GQL/GQLFilterNode.h>
 #include <Analyzer/GQL/GQLReturnNode.h>
 #include <Analyzer/FunctionNode.h>
 #include <Analyzer/IdentifierNode.h>
@@ -117,14 +118,20 @@ void resolveLinearQuery(GQLLinearQueryNode & linear, const ContextPtr & context)
 
     for (auto & step : linear.getSteps().getNodes())
     {
-        if (const auto * match = step->as<GQLMatchNode>())
+        if (auto * match = step->as<GQLMatchNode>())
         {
             collectMatchBindings(*match, bindings);
             source = step;
+            if (match->getWhere())
+                resolveExpression(match->getWhere(), bindings, source, context);
         }
         else if (auto * ret = step->as<GQLReturnNode>())
         {
             resolveReturnItems(*ret, bindings, source, context);
+        }
+        else if (auto * filter = step->as<GQLFilterNode>())
+        {
+            resolveExpression(filter->getPredicate(), bindings, source, context);
         }
     }
 }

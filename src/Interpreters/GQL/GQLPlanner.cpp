@@ -2,6 +2,7 @@
 
 #include <Analyzer/GQL/GQLCombinedQueryNode.h>
 #include <Analyzer/GQL/GQLEdgePatternNode.h>
+#include <Analyzer/GQL/GQLFilterNode.h>
 #include <Analyzer/GQL/GQLLinearQueryNode.h>
 #include <Analyzer/GQL/GQLMatchNode.h>
 #include <Analyzer/GQL/GQLNodePatternNode.h>
@@ -24,6 +25,7 @@
 #include <Parsers/graph/GraphAST.h>
 #include <Processors/QueryPlan/DistinctStep.h>
 #include <Processors/QueryPlan/ExpressionStep.h>
+#include <Processors/QueryPlan/FilterStep.h>
 #include <Processors/QueryPlan/Graph/MatchStep.h>
 #include <Processors/QueryPlan/IntersectOrExceptStep.h>
 #include <Processors/QueryPlan/ReadFromPreparedSource.h>
@@ -281,6 +283,7 @@ void buildGQLQueryPlanImpl(
 }
 
 void buildGQLQueryPlanFromTree(QueryPlan & plan, const QueryTreeNodePtr & query_tree, ContextPtr context, PlanScope & scope);
+void planFilter(QueryPlan & plan, const QueryTreeNodePtr & predicate);
 
 Graph::MatchEdgeDirection convertTreeEdgeDirection(GQLEdgePatternNode::Direction direction)
 {
@@ -389,6 +392,12 @@ void planMatchFromTree(QueryPlan & plan, const GQLMatchNode & match_node, Contex
     /// MatchStep.
     plan.addStep(std::make_unique<Graph::MatchStep>(std::move(match_spec), nullptr, context));
     scope.replaceWithHeader(*plan.getCurrentHeader(), BindingKind::Source);
+
+    /// MATCH ... WHERE is planned as a post-source FilterStep. The predicate also stays a
+    /// candidate for graph-source pushdown later, but until storage consumes it the filter
+    /// keeps the semantics correct.
+    if (const auto & where = match_node.getWhere())
+        planFilter(plan, where);
 }
 
 /// Lower a name-resolved GQL expression node into an ActionsDAG node over the current
@@ -470,6 +479,17 @@ void planReturnFromTree(QueryPlan & plan, const GQLReturnNode & ret, ContextPtr 
     }
 }
 
+void planFilter(QueryPlan & plan, const QueryTreeNodePtr & predicate)
+{
+    auto current_header = plan.getCurrentHeader();
+    ActionsDAG dag(current_header->getColumnsWithTypeAndName(), false);
+
+    const auto & filter_node = buildActionsNode(predicate, dag);
+    dag.getOutputs().push_back(&filter_node);
+
+    plan.addStep(std::make_unique<FilterStep>(current_header, std::move(dag), filter_node.result_name, true));
+}
+
 void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear, ContextPtr context, PlanScope & scope)
 {
     const auto & steps = linear.getSteps().getNodes();
@@ -497,6 +517,15 @@ void planLinearQueryFromTree(QueryPlan & plan, const GQLLinearQueryNode & linear
                 source_planned = true;
             }
             planReturnFromTree(plan, *ret, context, scope);
+            continue;
+        }
+
+        if (const auto * filter = step->as<GQLFilterNode>())
+        {
+            if (!source_planned)
+                throw Exception(
+                    ErrorCodes::NOT_IMPLEMENTED, "GQL analyzer planner does not support FILTER before a source clause");
+            planFilter(plan, filter->getPredicate());
             continue;
         }
 

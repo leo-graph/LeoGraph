@@ -261,7 +261,12 @@ private:
         /// MATCH-level WHERE / KEEP / YIELD and OPTIONAL operand blocks are not represented in the
         /// QueryTree builder yet; fail closed instead of silently dropping them.
         if (match.where)
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH ... WHERE is not yet supported in QueryTree builder");
+        {
+            const auto * where = match.where->as<GAST::GQLWhereClause>();
+            if (!where || !where->expression)
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL MATCH WHERE must be a GQLWhereClause with a predicate");
+            match_node->getWhere() = buildExpression(*where->expression);
+        }
         if (match.keep_clause)
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "GQL MATCH ... KEEP is not yet supported in QueryTree builder");
         if (!match.yield_items.empty())
@@ -444,8 +449,12 @@ private:
 
     QueryTreeNodePtr buildFilterClause(const GAST::GQLWhereClause & where)
     {
-        throw Exception(
-            ErrorCodes::NOT_IMPLEMENTED, "GQL WHERE/FILTER is not yet supported in QueryTree builder: {}", where.getID(' '));
+        if (!where.expression)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "GQL FILTER/WHERE clause must have a predicate");
+
+        auto filter_node = std::make_shared<GQLFilterNode>();
+        filter_node->getPredicate() = buildExpression(*where.expression);
+        return filter_node;
     }
 
     QueryTreeNodePtr buildReturnClause(const GAST::GQLReturnClause & ret)
